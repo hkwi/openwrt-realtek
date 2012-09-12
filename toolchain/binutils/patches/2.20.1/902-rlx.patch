@@ -1,0 +1,1985 @@
+Index: binutils/opcodes/mips-opc.c
+===================================================================
+--- binutils.orig/opcodes/mips-opc.c
++++ binutils/opcodes/mips-opc.c
+@@ -163,6 +163,18 @@
+ #define D33	INSN_DSPR2
+ #define D64	INSN_DSP64
+ 
++#define RLX0 INSN_4180
++#define RLX1 INSN_5280
++#define RLX2 INSN_4181|INSN_5181
++#define RLX3 INSN_4281|INSN_5281
++
++#define RLXA (RLX0|RLX1|RLX2|RLX3)
++#define RLXB (RLX1|RLX2|RLX3)
++
++#define RAD1 INSN_5181|INSN_5280|INSN_5281
++#define RAD2 INSN_5281
++
++
+ /* MIPS MT ASE support.  */
+ #define MT32	INSN_MT
+ 
+@@ -188,7 +200,7 @@ const struct mips_opcode mips_builtin_op
+ {"pref",    "k,o(b)",   0xcc000000, 0xfc000000, RD_b,           	0,		I4_32|G3	},
+ {"prefx",   "h,t(b)",	0x4c00000f, 0xfc0007ff, RD_b|RD_t|FP_S,		0,		I4_33	},
+ {"nop",     "",         0x00000000, 0xffffffff, 0,              	INSN2_ALIAS,	I1      }, /* sll */
+-{"ssnop",   "",         0x00000040, 0xffffffff, 0,              	INSN2_ALIAS,	I32|N55	}, /* sll */
++{"ssnop",   "",         0x00000040, 0xffffffff, 0,              	INSN2_ALIAS,	I32|N55|RLX3	}, /* sll */
+ {"ehb",     "",         0x000000c0, 0xffffffff, 0,              	INSN2_ALIAS,	I33	}, /* sll */
+ {"li",      "t,j",      0x24000000, 0xffe00000, WR_t,			INSN2_ALIAS,	I1	}, /* addiu */
+ {"li",	    "t,i",	0x34000000, 0xffe00000, WR_t,			INSN2_ALIAS,	I1	}, /* ori */
+@@ -509,14 +521,16 @@ const struct mips_opcode mips_builtin_op
+ {"flushd",  "",		0xbc020000, 0xffffffff, 0, 			0,		L1	},
+ {"flushid", "",		0xbc030000, 0xffffffff, 0, 			0,		L1	},
+ {"wb", 	    "o(b)",	0xbc040000, 0xfc1f0000, SM|RD_b,		0,		L1	},
+-{"cache",   "k,o(b)",   0xbc000000, 0xfc000000, RD_b,           	0,		I3_32|T3},
++{"cache",   "k,o(b)",   0xbc000000, 0xfc000000, RD_b,           	0,		I3_32|T3|RLXB},
+ {"cache",   "k,A(b)",	0,    (int) M_CACHE_AB, INSN_MACRO,		0,		I3_32|T3},
+ {"ceil.l.d", "D,S",	0x4620000a, 0xffff003f, WR_D|RD_S|FP_D,		0,		I3_33	},
+ {"ceil.l.s", "D,S",	0x4600000a, 0xffff003f, WR_D|RD_S|FP_S|FP_D,	0,		I3_33	},
+ {"ceil.w.d", "D,S",	0x4620000e, 0xffff003f, WR_D|RD_S|FP_S|FP_D,	0,		I2	},
+ {"ceil.w.s", "D,S",	0x4600000e, 0xffff003f, WR_D|RD_S|FP_S,		0,		I2	},
+ {"cfc0",    "t,G",	0x40400000, 0xffe007ff,	LCD|WR_t|RD_C0,		0,		I1	},
++{"cfc0",    "t,G,#H", 	0x40400000, 0xffe007c0, LCD|WR_t|RD_C0, 	0, 		RLX3	},
+ {"cfc1",    "t,G",	0x44400000, 0xffe007ff,	LCD|WR_t|RD_C1|FP_S,	0,		I1	},
++{"cfc1",    "t,G,#H", 	0x44400000, 0xffe007c0, LCD|WR_t|RD_C1|FP_S, 	0,  		RLX3	},
+ {"cfc1",    "t,S",	0x44400000, 0xffe007ff,	LCD|WR_t|RD_C1|FP_S,	0,		I1	},
+ /* cfc2 is at the bottom of the table.  */
+ /* cfc3 is at the bottom of the table.  */
+@@ -529,7 +543,9 @@ const struct mips_opcode mips_builtin_op
+ {"clo",     "U,s",      0x70000021, 0xfc0007ff, WR_d|WR_t|RD_s, 	0,		I32|N55 },
+ {"clz",     "U,s",      0x70000020, 0xfc0007ff, WR_d|WR_t|RD_s, 	0,		I32|N55 },
+ {"ctc0",    "t,G",	0x40c00000, 0xffe007ff,	COD|RD_t|WR_CC,		0,		I1	},
++{"ctc0",    "t,G,#H", 	0x40c00000, 0xffe007c0, COD|RD_t|WR_CC, 	0, 		RLX3	},
+ {"ctc1",    "t,G",	0x44c00000, 0xffe007ff,	COD|RD_t|WR_CC|FP_S,	0,		I1	},
++{"ctc1",    "t,G,#H", 	0x44c00000, 0xffe007c0, COD|RD_t|WR_CC|FP_S, 	0,		RLX3	},
+ {"ctc1",    "t,S",	0x44c00000, 0xffe007ff,	COD|RD_t|WR_CC|FP_S,	0,		I1	},
+ /* ctc2 is at the bottom of the table.  */
+ /* ctc3 is at the bottom of the table.  */
+@@ -567,7 +583,7 @@ const struct mips_opcode mips_builtin_op
+ /* dctr and dctw are used on the r5000.  */
+ {"dctr",    "o(b)",	0xbc050000, 0xfc1f0000, RD_b,			0,		I3	},
+ {"dctw",    "o(b)",	0xbc090000, 0xfc1f0000, RD_b,			0,		I3	},
+-{"deret",   "",         0x4200001f, 0xffffffff, 0, 			0,		I32|G2	},
++{"deret",   "",         0x4200001f, 0xffffffff, 0, 			0,		I32|G2|RLXA	},
+ {"dext",    "t,r,I,+I",	0,    (int) M_DEXT,	INSN_MACRO,		0,		I65	},
+ {"dext",    "t,r,+A,+C", 0x7c000003, 0xfc00003f, WR_t|RD_s,    		0,		I65	},
+ {"dextm",   "t,r,+A,+G", 0x7c000001, 0xfc00003f, WR_t|RD_s,    		0,		I65	},
+@@ -777,8 +793,8 @@ const struct mips_opcode mips_builtin_op
+ {"li.d",    "T,L",	0,    (int) M_LI_DD,	INSN_MACRO,		INSN2_M_FP_D,	I1	},
+ {"li.s",    "t,f",	0,    (int) M_LI_S,	INSN_MACRO,		INSN2_M_FP_S,	I1	},
+ {"li.s",    "T,l",	0,    (int) M_LI_SS,	INSN_MACRO,		INSN2_M_FP_S,	I1	},
+-{"ll",	    "t,o(b)",	0xc0000000, 0xfc000000, LDD|RD_b|WR_t,		0,		I2	},
+-{"ll",	    "t,A(b)",	0,    (int) M_LL_AB,	INSN_MACRO,		0,		I2	},
++{"ll",	    "t,o(b)",	0xc0000000, 0xfc000000, LDD|RD_b|WR_t,		0,		I2|RLX2|RLX3	},
++{"ll",	    "t,A(b)",	0,    (int) M_LL_AB,	INSN_MACRO,		0,		I2|RLX2|RLX3	},
+ {"lld",	    "t,o(b)",	0xd0000000, 0xfc000000, LDD|RD_b|WR_t,		0,		I3	},
+ {"lld",     "t,A(b)",	0,    (int) M_LLD_AB,	INSN_MACRO,		0,		I3	},
+ {"lui",     "t,u",	0x3c000000, 0xffe00000,	WR_t,			0,		I1	},
+@@ -822,8 +838,8 @@ const struct mips_opcode mips_builtin_op
+ {"maccu",   "d,s,t",	0x00000068, 0xfc0007ff,	RD_s|RD_t|WR_HILO|WR_d, 0,		N412    },
+ {"maccu",   "d,s,t",	0x00000159, 0xfc0007ff, RD_s|RD_t|WR_HILO|WR_d,	0,		N5      },
+ {"maccus",  "d,s,t",	0x00000468, 0xfc0007ff,	RD_s|RD_t|WR_HILO|WR_d, 0,		N412    },
+-{"mad",     "s,t",      0x70000000, 0xfc00ffff, RD_s|RD_t|MOD_HILO,     0,		P3      },
+-{"madu",    "s,t",      0x70000001, 0xfc00ffff, RD_s|RD_t|MOD_HILO,     0,		P3      },
++{"mad",     "s,t",      0x70000000, 0xfc00ffff, RD_s|RD_t|MOD_HILO,     0,		P3|RLXA	},
++{"madu",    "s,t",      0x70000001, 0xfc00ffff, RD_s|RD_t|MOD_HILO,     0,		P3|RLXA	},
+ {"madd.d",  "D,R,S,T",	0x4c000021, 0xfc00003f, RD_R|RD_S|RD_T|WR_D|FP_D,    0,		I4_33	},
+ {"madd.d",	"D,S,T",	0x46200018,	0xffe0003f,	RD_S|RD_T|WR_D|FP_D,	0,	IL2E	},
+ {"madd.d",	"D,S,T",	0x72200018,	0xffe0003f,	RD_S|RD_T|WR_D|FP_D,	0,	IL2F	},
+@@ -871,10 +887,12 @@ const struct mips_opcode mips_builtin_op
+ {"mftlo",   "d,*",	0x41000021, 0xfff307ff, TRAP|WR_d|RD_a,		0,		MT32	},
+ {"mftr",    "d,t,!,H,$", 0x41000000, 0xffe007c8, TRAP|WR_d,		0,		MT32	},
+ {"mfc0",    "t,G",	0x40000000, 0xffe007ff,	LCD|WR_t|RD_C0,		0,		I1|IOCT	},
++{"mfc0",    "t,G,#H", 	0x40000000, 0xffe007c0, LCD|WR_t|RD_C0, 	0, 		RLX3	},
+ {"mfc0",    "t,+D",     0x40000000, 0xffe007f8, LCD|WR_t|RD_C0, 	0,		I32|IOCT},
+ {"mfc0",    "t,G,H",    0x40000000, 0xffe007f8, LCD|WR_t|RD_C0, 	0,		I32|IOCT},
+ {"mfc1",    "t,S",	0x44000000, 0xffe007ff,	LCD|WR_t|RD_S|FP_S,	0,		I1	},
+ {"mfc1",    "t,G",	0x44000000, 0xffe007ff,	LCD|WR_t|RD_S|FP_S,	0,		I1	},
++{"mfc1",    "t,G,#H",	0x44000000, 0xffe007c0, LCD|WR_t|RD_S|FP_S, 	0,		RLX3	},
+ {"mfhc1",   "t,S",	0x44600000, 0xffe007ff,	LCD|WR_t|RD_S|FP_D,	0,		I33	},
+ {"mfhc1",   "t,G",	0x44600000, 0xffe007ff,	LCD|WR_t|RD_S|FP_D,	0,		I33	},
+ /* mfc2 is at the bottom of the table.  */
+@@ -902,7 +920,7 @@ const struct mips_opcode mips_builtin_op
+ {"movf.l",  "X,Y,N",	0x46a00011, 0xffe3003f, WR_D|RD_S|RD_CC|FP_D,	0,		MX|SB1	},
+ {"movf.s",  "D,S,N",    0x46000011, 0xffe3003f, WR_D|RD_S|RD_CC|FP_S,   0,		I4_32	},
+ {"movf.ps", "D,S,N",	0x46c00011, 0xffe3003f, WR_D|RD_S|RD_CC|FP_D,	0,		I5_33	},
+-{"movn",    "d,v,t",    0x0000000b, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		I4_32|IL2E|IL2F	},
++{"movn",    "d,v,t",    0x0000000b, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		I4_32|IL2E|IL2F|RLXB	},
+ {"movnz",   "d,v,t",    0x0000000b, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		IL2E|IL2F	},
+ {"ffc",     "d,v",	0x0000000b, 0xfc1f07ff,	WR_d|RD_s,		0,		L1	},
+ {"movn.d",  "D,S,t",    0x46200013, 0xffe0003f, WR_D|RD_S|RD_t|FP_D,    0,		I4_32	},
+@@ -916,7 +934,7 @@ const struct mips_opcode mips_builtin_op
+ {"movt.l",  "X,Y,N",    0x46a10011, 0xffe3003f, WR_D|RD_S|RD_CC|FP_D,   0,		MX|SB1	},
+ {"movt.s",  "D,S,N",    0x46010011, 0xffe3003f, WR_D|RD_S|RD_CC|FP_S,   0,		I4_32	},
+ {"movt.ps", "D,S,N",	0x46c10011, 0xffe3003f, WR_D|RD_S|RD_CC|FP_D,	0,		I5_33	},
+-{"movz",    "d,v,t",    0x0000000a, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		I4_32|IL2E|IL2F	},
++{"movz",    "d,v,t",    0x0000000a, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		I4_32|IL2E|IL2F|RLXB	},
+ {"ffs",     "d,v",	0x0000000a, 0xfc1f07ff,	WR_d|RD_s,		0,		L1	},
+ {"movz.d",  "D,S,t",    0x46200012, 0xffe0003f, WR_D|RD_S|RD_t|FP_D,    0,		I4_32	},
+ {"movz.l",  "D,S,t",    0x46a00012, 0xffe0003f, WR_D|RD_S|RD_t|FP_D,    0,		MX|SB1	},
+@@ -944,17 +962,19 @@ const struct mips_opcode mips_builtin_op
+ {"msub.ps",	"D,S,T",	0x45600019,	0xffe0003f,	RD_S|RD_T|WR_D|FP_D,	0,	IL2E	},
+ {"msub.ps",	"D,S,T",	0x71600019,	0xffe0003f,	RD_S|RD_T|WR_D|FP_D,	0,	IL2F	},
+ {"msub",    "s,t",      0x0000001e, 0xfc00ffff, RD_s|RD_t|WR_HILO,	0,		L1    	},
+-{"msub",    "s,t",      0x70000004, 0xfc00ffff, RD_s|RD_t|MOD_HILO,     0,		I32|N55 },
++{"msub",    "s,t",      0x70000004, 0xfc00ffff, RD_s|RD_t|MOD_HILO,     0,		I32|N55|RLXA },
+ {"msub",    "7,s,t",	0x70000004, 0xfc00e7ff, MOD_a|RD_s|RD_t,        0,              D33	},
+ {"msubu",   "s,t",      0x0000001f, 0xfc00ffff, RD_s|RD_t|WR_HILO,	0,		L1	},
+-{"msubu",   "s,t",      0x70000005, 0xfc00ffff, RD_s|RD_t|MOD_HILO,     0,		I32|N55	},
++{"msubu",   "s,t",      0x70000005, 0xfc00ffff, RD_s|RD_t|MOD_HILO,     0,		I32|N55|RLXA },
+ {"msubu",   "7,s,t",	0x70000005, 0xfc00e7ff, MOD_a|RD_s|RD_t,        0,              D33	},
+ {"mtpc",    "t,P",	0x4080c801, 0xffe0ffc1,	COD|RD_t|WR_C0,		0,		M1|N5	},
+ {"mtps",    "t,P",	0x4080c800, 0xffe0ffc1,	COD|RD_t|WR_C0,		0,		M1|N5	},
+ {"mtc0",    "t,G",	0x40800000, 0xffe007ff,	COD|RD_t|WR_C0|WR_CC,	0,		I1|IOCT	},
++{"mtc0",    "t,G,#H",	0x40800000, 0xffe007c0, COD|RD_t|WR_C0|WR_CC, 	0,		RLX3	},
+ {"mtc0",    "t,+D",     0x40800000, 0xffe007f8, COD|RD_t|WR_C0|WR_CC,   0,		I32|IOCT},
+ {"mtc0",    "t,G,H",    0x40800000, 0xffe007f8, COD|RD_t|WR_C0|WR_CC,   0,		I32|IOCT},
+ {"mtc1",    "t,S",	0x44800000, 0xffe007ff,	COD|RD_t|WR_S|FP_S,	0,		I1	},
++{"mtc1",    "t,G,#H",   0x44800000, 0xffe007c0, COD|RD_t|WR_S|FP_S,	0,		RLX3	},
+ {"mtc1",    "t,G",	0x44800000, 0xffe007ff,	COD|RD_t|WR_S|FP_S,	0,		I1	},
+ {"mthc1",   "t,S",	0x44e00000, 0xffe007ff,	COD|RD_t|WR_S|FP_D,	0,		I33	},
+ {"mthc1",   "t,G",	0x44e00000, 0xffe007ff,	COD|RD_t|WR_S|FP_D,	0,		I33	},
+@@ -1172,8 +1192,8 @@ const struct mips_opcode mips_builtin_op
+ {"rzu.qh",  "X,Q",	0x78200020, 0xfc20f83f,	WR_D|RD_T|FP_D,		RD_MACC,	MX	},
+ {"sb",      "t,o(b)",	0xa0000000, 0xfc000000,	SM|RD_t|RD_b,		0,		I1	},
+ {"sb",      "t,A(b)",	0,    (int) M_SB_AB,	INSN_MACRO,		0,		I1	},
+-{"sc",	    "t,o(b)",	0xe0000000, 0xfc000000, SM|RD_t|WR_t|RD_b,	0,		I2	},
+-{"sc",	    "t,A(b)",	0,    (int) M_SC_AB,	INSN_MACRO,		0,		I2	},
++{"sc",	    "t,o(b)",	0xe0000000, 0xfc000000, SM|RD_t|WR_t|RD_b,	0,		I2|RLX2|RLX3	},
++{"sc",	    "t,A(b)",	0,    (int) M_SC_AB,	INSN_MACRO,		0,		I2|RLX2|RLX3	},
+ {"scd",	    "t,o(b)",	0xf0000000, 0xfc000000, SM|RD_t|WR_t|RD_b,	0,		I3	},
+ {"scd",	    "t,A(b)",	0,    (int) M_SCD_AB,	INSN_MACRO,		0,		I3	},
+ {"sd",	    "t,o(b)",	0xfc000000, 0xfc000000,	SM|RD_t|RD_b,		0,		I3	},
+@@ -1182,8 +1202,8 @@ const struct mips_opcode mips_builtin_op
+ {"sdbbp",   "",		0x0000000e, 0xffffffff,	TRAP,           	0,		G2	},
+ {"sdbbp",   "c",	0x0000000e, 0xfc00ffff,	TRAP,			0,		G2	},
+ {"sdbbp",   "c,q",	0x0000000e, 0xfc00003f,	TRAP,			0,		G2	},
+-{"sdbbp",   "",         0x7000003f, 0xffffffff, TRAP,           	0,		I32     },
+-{"sdbbp",   "B",        0x7000003f, 0xfc00003f, TRAP,           	0,		I32     },
++{"sdbbp",   "",         0x7000003f, 0xffffffff, TRAP,           	0,		I32|RLXA     },
++{"sdbbp",   "B",        0x7000003f, 0xfc00003f, TRAP,           	0,		I32|RLXA     },
+ {"sdc1",    "T,o(b)",	0xf4000000, 0xfc000000, SM|RD_T|RD_b|FP_D,	0,		I2	},
+ {"sdc1",    "E,o(b)",	0xf4000000, 0xfc000000, SM|RD_T|RD_b|FP_D,	0,		I2	},
+ {"sdc1",    "T,A(b)",	0,    (int) M_SDC1_AB,	INSN_MACRO,		INSN2_M_FP_D,	I2	},
+@@ -1338,7 +1358,8 @@ const struct mips_opcode mips_builtin_op
+ {"syncs",   "",		0x0000018f, 0xffffffff,	INSN_SYNC,		0,		IOCT	},
+ {"syncw",   "",		0x0000010f, 0xffffffff,	INSN_SYNC,		0,		IOCT	},
+ {"syncws",  "",		0x0000014f, 0xffffffff,	INSN_SYNC,		0,		IOCT	},
+-{"sync",    "",		0x0000000f, 0xffffffff,	INSN_SYNC,		0,		I2|G1	},
++{"sync",    "",		0x0000000f, 0xffffffff,	INSN_SYNC,		0,		I2|G1|RLX3	},
++{"sync",    "#I",	0x0000000f, 0xfffff83f, INSN_SYNC, 		0, 		RLX3	},
+ {"sync",    "1",	0x0000000f, 0xfffff83f,	INSN_SYNC,		0,		I32	},
+ {"sync.p",  "",		0x0000040f, 0xffffffff,	INSN_SYNC,		0,		I2	},
+ {"sync.l",  "",		0x0000000f, 0xffffffff,	INSN_SYNC,		0,		I2	},
+@@ -1433,26 +1454,32 @@ const struct mips_opcode mips_builtin_op
+ {"udi0",     "s,t,+2",	0x70000010, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi0",     "s,+3",	0x70000010, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi0",     "+4",	0x70000010, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
++{"udi0",     "d,v,t", 	0x00000038, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		RLXB	},
+ {"udi1",     "s,t,d,+1",0x70000011, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi1",     "s,t,+2",	0x70000011, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi1",     "s,+3",	0x70000011, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi1",     "+4",	0x70000011, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
++{"udi1",     "d,v,t", 	0x0000003a, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		RLXB	},
+ {"udi2",     "s,t,d,+1",0x70000012, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi2",     "s,t,+2",	0x70000012, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi2",     "s,+3",	0x70000012, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi2",     "+4",	0x70000012, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
++{"udi2",     "d,v,t", 	0x0000003b, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		RLXB	},
+ {"udi3",     "s,t,d,+1",0x70000013, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi3",     "s,t,+2",	0x70000013, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi3",     "s,+3",	0x70000013, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi3",     "+4",	0x70000013, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
++{"udi3",     "d,v,t", 	0x0000003c, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		RLXB	},
+ {"udi4",     "s,t,d,+1",0x70000014, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi4",     "s,t,+2",	0x70000014, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi4",     "s,+3",	0x70000014, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi4",     "+4",	0x70000014, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
++{"udi4",     "d,v,t", 	0x0000003e, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		RLXB	},
+ {"udi5",     "s,t,d,+1",0x70000015, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi5",     "s,t,+2",	0x70000015, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi5",     "s,+3",	0x70000015, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi5",     "+4",	0x70000015, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
++{"udi5",     "d,v,t", 	0x0000003f, 0xfc0007ff, WR_d|RD_s|RD_t, 	0,		RLXB	},
+ {"udi6",     "s,t,d,+1",0x70000016, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi6",     "s,t,+2",	0x70000016, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+ {"udi6",     "s,+3",	0x70000016, 0xfc00003f,	WR_d|RD_s|RD_t,		0,		I33	},
+@@ -1505,7 +1532,9 @@ const struct mips_opcode mips_builtin_op
+ {"bc2tl",   "p",	0x49030000, 0xffff0000,	CBL|RD_CC,		0,		I2|T3	},
+ {"bc2tl",   "N,p",	0x49030000, 0xffe30000,	CBL|RD_CC,		0,		I32	},
+ {"cfc2",    "t,G",	0x48400000, 0xffe007ff,	LCD|WR_t|RD_C2,		0,		I1	},
++{"cfc2",    "t,G,#H", 	0x48400000, 0xffe007c0, LCD|WR_t|RD_C2, 	0, 		RLX3	},
+ {"ctc2",    "t,G",	0x48c00000, 0xffe007ff,	COD|RD_t|WR_CC,		0,		I1	},
++{"ctc2",    "t,G,#H", 	0x48c00000, 0xffe007c0, COD|RD_t|WR_CC, 	0, 		RLX3	},
+ {"dmfc2",   "t,i",	0x48200000, 0xffe00000,	LCD|WR_t|RD_C2,		0,		IOCT	},
+ {"dmfc2",   "t,G",	0x48200000, 0xffe007ff,	LCD|WR_t|RD_C2,		0,		I3	},
+ {"dmfc2",   "t,G,H",	0x48200000, 0xffe007f8,	LCD|WR_t|RD_C2,		0,		I64	},
+@@ -1513,11 +1542,13 @@ const struct mips_opcode mips_builtin_op
+ {"dmtc2",   "t,G",	0x48a00000, 0xffe007ff,	COD|RD_t|WR_C2|WR_CC,	0,		I3	},
+ {"dmtc2",   "t,G,H",	0x48a00000, 0xffe007f8,	COD|RD_t|WR_C2|WR_CC,	0,		I64	},
+ {"mfc2",    "t,G",	0x48000000, 0xffe007ff,	LCD|WR_t|RD_C2,		0,		I1	},
++{"mfc2",    "t,G,#H",	0x48000000, 0xffe007c0, LCD|WR_t|RD_C2, 	0,		RLX3	},
+ {"mfc2",    "t,G,H",	0x48000000, 0xffe007f8,	LCD|WR_t|RD_C2,		0,		I32	},
+ {"mfhc2",   "t,G",	0x48600000, 0xffe007ff,	LCD|WR_t|RD_C2,		0,		I33	},
+ {"mfhc2",   "t,G,H",	0x48600000, 0xffe007f8,	LCD|WR_t|RD_C2,		0,		I33	},
+ {"mfhc2",   "t,i",	0x48600000, 0xffe00000,	LCD|WR_t|RD_C2,		0,		I33	},
+ {"mtc2",    "t,G",	0x48800000, 0xffe007ff,	COD|RD_t|WR_C2|WR_CC,	0,		I1	},
++{"mtc2",    "t,G,#H",	0x48800000, 0xffe007c0, COD|RD_t|WR_C2|WR_CC,   0,		RLX3	},
+ {"mtc2",    "t,G,H",	0x48800000, 0xffe007f8,	COD|RD_t|WR_C2|WR_CC,	0,		I32	},
+ {"mthc2",   "t,G",	0x48e00000, 0xffe007ff,	COD|RD_t|WR_C2|WR_CC,	0,		I33	},
+ {"mthc2",   "t,G,H",	0x48e00000, 0xffe007f8,	COD|RD_t|WR_C2|WR_CC,	0,		I33	},
+@@ -1530,12 +1561,16 @@ const struct mips_opcode mips_builtin_op
+ {"bc3t",    "p",	0x4d010000, 0xffff0000,	CBD|RD_CC,		0,		I1	},
+ {"bc3tl",   "p",	0x4d030000, 0xffff0000,	CBL|RD_CC,		0,		I2|T3	},
+ {"cfc3",    "t,G",	0x4c400000, 0xffe007ff,	LCD|WR_t|RD_C3,		0,		I1	},
++{"cfc3",    "t,G,#H",	0x4c400000, 0xffe007c0, LCD|WR_t|RD_C3, 	0, 		RLX3	},
+ {"ctc3",    "t,G",	0x4cc00000, 0xffe007ff,	COD|RD_t|WR_CC,		0,		I1	},
++{"ctc3",    "t,G,#H",   0x4cc00000, 0xffe007c0, COD|RD_t|WR_CC, 	0,		RLX3	},
+ {"dmfc3",   "t,G",	0x4c200000, 0xffe007ff, LCD|WR_t|RD_C3, 	0,		I3	},
+ {"dmtc3",   "t,G",	0x4ca00000, 0xffe007ff, COD|RD_t|WR_C3|WR_CC,	0,		I3	},
+ {"mfc3",    "t,G",	0x4c000000, 0xffe007ff,	LCD|WR_t|RD_C3,		0,		I1	},
++{"mfc3",    "t,G,#H",	0x4c000000, 0xffe007c0, LCD|WR_t|RD_C3, 	0,		RLX3	},
+ {"mfc3",    "t,G,H",    0x4c000000, 0xffe007f8, LCD|WR_t|RD_C3, 	0,		I32     },
+ {"mtc3",    "t,G",	0x4c800000, 0xffe007ff,	COD|RD_t|WR_C3|WR_CC,	0,		I1	},
++{"mtc3",    "t,G,#H",	0x4c800000, 0xffe007c0, COD|RD_t|WR_C3|WR_CC,   0,		RLX3	},
+ {"mtc3",    "t,G,H",    0x4c800000, 0xffe007f8, COD|RD_t|WR_C3|WR_CC,   0,		I32     },
+ 
+   /* Conflicts with the 4650's "mul" instruction.  Nobody's using the
+@@ -1561,6 +1596,7 @@ const struct mips_opcode mips_builtin_op
+ {"addu_s.qb", "d,s,t",	0x7c000110, 0xfc0007ff, WR_d|RD_s|RD_t,		0,		D32	},
+ {"addwc",   "d,s,t",	0x7c000450, 0xfc0007ff, WR_d|RD_s|RD_t,		0,		D32	},
+ {"bitrev",  "d,t",	0x7c0006d2, 0xffe007ff, WR_d|RD_t,		0,		D32	},
++{"bitrev", "d,t,s", 	0x7c00000c, 0xFC0007FF, RD_s|RD_t|WR_d, 	0, 		RAD1	},
+ {"bposge32", "p",	0x041c0000, 0xffff0000, CBD,			0,		D32	},
+ {"bposge64", "p",	0x041d0000, 0xffff0000, CBD,			0,		D64	},
+ {"cmp.eq.ph", "s,t",	0x7c000211, 0xfc00ffff, RD_s|RD_t,		0,		D32	},
+@@ -1984,7 +2020,176 @@ const struct mips_opcode mips_builtin_op
+ {"cop0",     "C",	0,    (int) M_COP0,	INSN_MACRO,		0,		I1	},
+ {"cop1",     "C",	0,    (int) M_COP1,	INSN_MACRO,		INSN2_M_FP_S,	I1	},
+ {"cop2",     "C",	0,    (int) M_COP2,	INSN_MACRO,		0,		I1	},
+-{"cop3",     "C",	0,    (int) M_COP3,	INSN_MACRO,		0,		I1	}
++{"cop3",     "C",	0,    (int) M_COP3,	INSN_MACRO,		0,		I1	},
++
++/* dbb: modified for supporting radiax instructions */
++/* 2006-01-19 tonywu: cleanup radiax instructions definition */
++/* 2008-07-12 tonywu: add taroko support */
++/* 2008-08-31 tonywu: add rad type */
++/*   d1: m0(3), m1(7), m2(11), m3(15) */
++/*   d2: m0l, m0h, m0 ~ m3l, m3h, m3 */
++/*   d3: m0l, m0h, ~ m3l, m3h */
++/*   d4: LXC0 */
++{"mta2", "s,#d2", 0x7C00005D, 0xFC1F07ff, RD_s, 0, RAD1},
++{"mta2.g", "s,#d2", 0x7C00015D, 0xFC1F07ff, RD_s, 0, RAD1},
++{"mfa", "d,#t3", 0x7C00001C, 0xFFE007FF, WR_d, 0, RAD1},
++{"mfa", "d,#t3,##", 0x7C00001C, 0xFFE0007F, WR_d, 0, RAD1},
++{"mfa2", "d,#t1", 0x7C00005C, 0xFFE007FF, WR_d, 0, RAD1},
++{"mfa2", "d,#t1,##", 0x7C00005C, 0xFFE0007F, WR_d, 0, RAD1},
++{"diva", "#d1,s,t", 0x7C00001A, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"divau", "#d1,s,t", 0x7C00021A, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"multa", "#d1,s,t", 0x7C000112, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"multau", "#d1,s,t", 0x7C000312, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"imulta", "#d1,s,t", 0x7C000102, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"imultau", "#d1,s,t", 0x7C000302, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmulta", "#d1,s,t", 0x7C000502, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"multa2", "#d2,s,t", 0x7C000152, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"imulta2", "#d2,s,t", 0x7C000142, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmulta2", "#d2,s,t", 0x7C000542, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"mulna2", "#d2,s,t", 0x7C000153, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"imulna2", "#d2,s,t", 0x7C000143, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmulna2", "#d2,s,t", 0x7C000543, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"cmulta", "#d1,s,t", 0x7C00001B, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"icmulta", "#d1,s,t", 0x7C00011B, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qcmulta", "#d1,s,t", 0x7C00051B, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"madda", "#d1,s,t", 0x7C000012, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"maddau", "#d1,s,t", 0x7C000212, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"imadda", "#d1,s,t", 0x7C000002, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"imaddau", "#d1,s,t", 0x7C000202, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmadda", "#d1,s,t", 0x7C000402, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"madda2", "#d2,s,t", 0x7C000052, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"imadda2", "#d2,s,t", 0x7C000042, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmadda2", "#d2,s,t", 0x7C000442, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"madda2.s", "#d2,s,t", 0x7C0000D2, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"imadda2.s32", "#d2,s,t", 0x7C0000C2, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmadda2.s32", "#d2,s,t", 0x7C0004C2, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"imadda2.s40", "#d2,s,t", 0x7C0001C2, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmadda2.s40", "#d2,s,t", 0x7C0005C2, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"msuba", "#d1,s,t", 0x7C000013, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"msubau", "#d1,s,t", 0x7C000213, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"imsuba", "#d1,s,t", 0x7C000003, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"imsubau", "#d1,s,t", 0x7C000203, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmsuba", "#d1,s,t", 0x7C000403, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"msuba2", "#d2,s,t", 0x7C000053, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"imsuba2", "#d2,s,t", 0x7C000043, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmsuba2", "#d2,s,t", 0x7C000443, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"msuba2.s", "#d2,s,t", 0x7C0000D3, 0xFC0007FF, RD_t | RD_s, 0, RAD1},
++{"imsuba2.s32", "#d2,s,t", 0x7C0000C3, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmsuba2.s32", "#d2,s,t", 0x7C0004C3, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"imsuba2.s40", "#d2,s,t", 0x7C0001C3, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"qmsuba2.s40", "#d2,s,t", 0x7C0005C3, 0xFC0007FF, RD_t | RD_s, 0, RAD2},
++{"addma", "#d3,#s3,#t3", 0x7C00001E, 0xFC0007FF, 0, 0, RAD1},
++{"addma.s", "#d3,#s3,#t3", 0x7C00009E, 0xFC0007FF, 0, 0, RAD1},
++{"addma.s32", "#d3,#s3,#t3", 0x7C00041E, 0xFC0007FF, 0, 0, RAD2},
++{"addma.s40", "#d3,#s3,#t3", 0x7C00049E, 0xFC0007FF, 0, 0, RAD2},
++{"subma", "#d3,#s3,#t3", 0x7C00001F, 0xFC0007FF, 0, 0, RAD1},
++{"subma.s", "#d3,#s3,#t3", 0x7C00009F, 0xFC0007FF, 0, 0, RAD1},
++{"subma.s32", "#d3,#s3,#t3", 0x7C00041F, 0xFC0007FF, 0, 0, RAD2},
++{"subma.s40", "#d3,#s3,#t3", 0x7C00049F, 0xFC0007FF, 0, 0, RAD2},
++{"rnda2", "#t2", 0x7C000056, 0xFFE0FFFF, 0, 0, RAD1},
++{"rnda2", "#t2,##", 0x7C000056, 0xFFE0F87F, 0, 0, RAD1},
++{"lt", "#`,#@(b)", 0x7C000036, 0xFC00003F, LDD | RD_b | WR_t, 0, RAD1},
++{"st", "#`,#@(b)", 0x7C00003E, 0xFC00003F, SM | RD_t | RD_b, 0, RAD1},
++{"ltp", "#`,(b)#~", 0x7C0000f2, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"ltp.c0", "#`,(b)#~", 0x7C000032, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"ltp.c1", "#`,(b)#~", 0x7C000072, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"ltp.c2", "#`,(b)#~", 0x7C0000b2, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lwp", "t,(b)#~", 0x7C0000f3, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lwp.c0", "t,(b)#~", 0x7C000033, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lwp.c1", "t,(b)#~", 0x7C000073, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lwp.c2", "t,(b)#~", 0x7C0000b3, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lhp", "t,(b)#~", 0x7C0000f1, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lhp.c0", "t,(b)#~", 0x7C000031, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lhp.c1", "t,(b)#~", 0x7C000071, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lhp.c2", "t,(b)#~", 0x7C0000b1, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lhpu", "t,(b)#~", 0x7C0000f5, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lhpu.c0", "t,(b)#~", 0x7C000035, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lhpu.c1", "t,(b)#~", 0x7C000075, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lhpu.c2", "t,(b)#~", 0x7C0000b5, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lbp", "t,(b)#~", 0x7C0000f0, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lbp.c0", "t,(b)#~", 0x7C000030, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lbp.c1", "t,(b)#~", 0x7C000070, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lbp.c2", "t,(b)#~", 0x7C0000b0, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lbpu", "t,(b)#~", 0x7C0000f4, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lbpu.c0", "t,(b)#~", 0x7C000034, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lbpu.c1", "t,(b)#~", 0x7C000074, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"lbpu.c2", "t,(b)#~", 0x7C0000b4, 0xFC0000FF, LDD | WR_t | RD_b, 0, RAD1},
++{"stp", "#`,(b)#~", 0x7C0000fa, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"stp.c0", "#`,(b)#~", 0x7C00003a, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"stp.c1", "#`,(b)#~", 0x7C00007a, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"stp.c2", "#`,(b)#~", 0x7C0000ba, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"swp", "t,(b)#~", 0x7C0000fb, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"swp.c0", "t,(b)#~", 0x7C00003b, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"swp.c1", "t,(b)#~", 0x7C00007b, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"swp.c2", "t,(b)#~", 0x7C0000bb, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"shp", "t,(b)#~", 0x7C0000f9, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"shp.c0", "t,(b)#~", 0x7C000039, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"shp.c1", "t,(b)#~", 0x7C000079, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"shp.c2", "t,(b)#~", 0x7C0000b9, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"sbp", "t,(b)#~", 0x7C0000f8, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"sbp.c0", "t,(b)#~", 0x7C000038, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"sbp.c1", "t,(b)#~", 0x7C000078, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"sbp.c2", "t,(b)#~", 0x7C0000b8, 0xFC0000FF, WR_t | RD_b, 0, RAD1},
++{"mtru", "t,#u", 0x7C000025, 0xFFE007FF, RD_t, 0, RAD1},
++{"mfru", "t,#u", 0x7C000024, 0xFFE007FF, RD_t, 0, RAD1},
++{"mtrk", "t,#k", 0x7C0000A5, 0xFFE007FF, RD_t, 0, RAD1},
++{"mfrk", "t,#k", 0x7C0000A4, 0xFFE007FF, RD_t, 0, RAD1},
++{"sllv2", "d,t,s", 0x7C000044, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"srlv2", "d,t,s", 0x7C000046, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"srav2", "d,t,s", 0x7C000047, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"addr", "d,s,t", 0x7C000021, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"addr.s", "d,s,t", 0x7C0000A1, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"addr2", "d,s,t", 0x7C000061, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"addr2.s", "d,s,t", 0x7C0000E1, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"subr", "d,s,t", 0x7C000023, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"subr.s", "d,s,t", 0x7C0000A3, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"subr2", "d,s,t", 0x7C000063, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"subr2.s", "d,s,t", 0x7C0000E3, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"sltr2", "d,s,t", 0x7C00006A, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"min", "d,s,t", 0x7C000028, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"min2", "d,s,t", 0x7C000068, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"max", "d,s,t", 0x7C000029, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"max2", "d,s,t", 0x7C000069, 0xFC0007FF, RD_t | RD_s | WR_d, 0, RAD1},
++{"absr", "d,t", 0x7C00000F, 0xFFE007FF, RD_t | WR_d, 0, RAD1},
++{"absr.s", "d,t", 0x7C00008F, 0xFFE007FF, RD_t | WR_d, 0, RAD1},
++{"absr2", "d,t", 0x7C00004F, 0xFFE007FF, RD_t | WR_d, 0, RAD1},
++{"absr2.s", "d,t", 0x7C0000CF, 0xFFE007FF, RD_t | WR_d, 0, RAD1},
++{"mux2.hh", "d,s,t", 0x7C00064D, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++{"mux2.hl", "d,s,t", 0x7C00044D, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++{"mux2.lh", "d,s,t", 0x7C00024D, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++{"mux2.ll", "d,s,t", 0x7C00004D, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++{"cls", "d,t", 0x7C00000E, 0xFFE007FF, RD_t | WR_d, 0, RAD1},
++{"cmveqz", "d,s,t", 0x7C000001, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++{"cmveqz.h", "d,s,t", 0x7C000081, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++{"cmveqz.l", "d,s,t", 0x7C000101, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++{"cmvnez", "d,s,t", 0x7C000041, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++{"cmvnez.h", "d,s,t", 0x7C0000c1, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++{"cmvnez.l", "d,s,t", 0x7C000141, 0xFC0007FF, RD_s | RD_t | WR_d, 0, RAD1},
++
++
++/* Coprocessor 0 operations */
++{"mflxc0", "t,#d4", 0x40600000, 0xFFE007FF, LCD | WR_t | RD_C0, 0, RLXB},
++{"mflxc0", "t,#d4,#H", 0x40600000, 0xFFE007C0, LCD | WR_t | RD_C0, 0, RLX3},
++{"mtlxc0", "t,#d4", 0x40E00000, 0xFFE007FF, COD | RD_t | WR_C0 | WR_CC, 0, RLXB},
++{"mtlxc0", "t,#d4,#H", 0x40E00000, 0xFFE007C0, COD | RD_t | WR_C0 | WR_CC, 0, RLX3},
++/*MAC-DIV*/
++{"sleep", "", 0x42000038, 0xffffffff, 0, 0, RLXA},
++{"sleep", "#I", 0x42000038, 0xfffff83f, 0, 0, RLX3},
++{"madh", "s,t", 0xF0000000, 0xFC00FFFF, RD_s | RD_t, 0, RLXA},
++{"madl", "s,t", 0xF0000002, 0xFC00FFFF, RD_s | RD_t, 0, RLXA},
++{"mazh", "s,t", 0xF0000004, 0xFC00FFFF, RD_s | RD_t, 0, RLXA},
++{"mazl", "s,t", 0xF0000006, 0xFC00FFFF, RD_s | RD_t, 0, RLXA},
++{"msbh", "s,t", 0xF0000010, 0xFC00FFFF, RD_s | RD_t, 0, RLXA},
++{"msbl", "s,t", 0xF0000012, 0xFC00FFFF, RD_s | RD_t, 0, RLXA},
++{"mszh", "s,t", 0xF0000014, 0xFC00FFFF, RD_s | RD_t, 0, RLXA},
++{"mszl", "s,t", 0xF0000016, 0xFC00FFFF, RD_s | RD_t, 0, RLXA},
++{"ltw", "#`,#-(b)", 0x7800003C, 0xFC00003F, LDD | RD_b | WR_t, 0, INSN_4181 | INSN_4281},
++/* Lexra opcode extensions. Register mode */
++/* Lexra opcode extensions. Immediate mode */
++{"udi0i", "t,r,j", 0x60000000, 0xfc000000, WR_t | RD_s, 0, RLXB},
++{"udi1i", "t,r,j", 0x64000000, 0xfc000000, WR_t | RD_s, 0, RLXB},
++{"udi2i", "t,r,j", 0x68000000, 0xfc000000, WR_t | RD_s, 0, RLXB},
++{"udi3i", "t,r,j", 0x6c000000, 0xfc000000, WR_t | RD_s, 0, RLXB},
+ };
+ 
+ #define MIPS_NUM_OPCODES \
+Index: binutils/bfd/bfd-in2.h
+===================================================================
+--- binutils.orig/bfd/bfd-in2.h
++++ binutils/bfd/bfd-in2.h
+@@ -1828,11 +1828,17 @@ enum bfd_architecture
+ #define bfd_mach_mips4100              4100
+ #define bfd_mach_mips4111              4111
+ #define bfd_mach_mips4120              4120
++#define bfd_mach_mips4180              4180
++#define bfd_mach_mips4181              4181
++#define bfd_mach_mips4281              4281
+ #define bfd_mach_mips4300              4300
+ #define bfd_mach_mips4400              4400
+ #define bfd_mach_mips4600              4600
+ #define bfd_mach_mips4650              4650
+ #define bfd_mach_mips5000              5000
++#define bfd_mach_mips5181              5181
++#define bfd_mach_mips5280              5280
++#define bfd_mach_mips5281              5281
+ #define bfd_mach_mips5400              5400
+ #define bfd_mach_mips5500              5500
+ #define bfd_mach_mips6000              6000
+@@ -2189,7 +2195,8 @@ typedef enum bfd_reloc_status
+      generated only when linking i960 coff files with i960 b.out
+      symbols.  If this type is returned, the error_message argument
+      to bfd_perform_relocation will be set.  */
+-  bfd_reloc_dangerous
++  bfd_reloc_dangerous,
++  bfd_reloc_notmultipleof8_ltw
+  }
+  bfd_reloc_status_type;
+ 
+@@ -4680,6 +4687,7 @@ value in a word.  The relocation is rela
+ /* This is used to tell the dynamic linker to copy the value out of
+ the dynamic object into the runtime process image.  */
+   BFD_RELOC_MICROBLAZE_COPY,
++  BFD_RELOC_OFF6A,
+   BFD_RELOC_UNUSED };
+ typedef enum bfd_reloc_code_real bfd_reloc_code_real_type;
+ reloc_howto_type *bfd_reloc_type_lookup
+Index: binutils/bfd/cpu-mips.c
+===================================================================
+--- binutils.orig/bfd/cpu-mips.c
++++ binutils/bfd/cpu-mips.c
+@@ -67,11 +67,17 @@ enum
+   I_mips4100,
+   I_mips4111,
+   I_mips4120,
++  I_mips4180,
++  I_mips4181,
++  I_mips4281,
+   I_mips4300,
+   I_mips4400,
+   I_mips4600,
+   I_mips4650,
+   I_mips5000,
++  I_mips5181,
++  I_mips5280,
++  I_mips5281,
+   I_mips5400,
+   I_mips5500,
+   I_mips6000,
+@@ -106,11 +112,17 @@ static const bfd_arch_info_type arch_inf
+   N (64, 64, bfd_mach_mips4100, "mips:4100",      FALSE, NN(I_mips4100)),
+   N (64, 64, bfd_mach_mips4111, "mips:4111",      FALSE, NN(I_mips4111)),
+   N (64, 64, bfd_mach_mips4120, "mips:4120",      FALSE, NN(I_mips4120)),
++  N (32, 32, bfd_mach_mips4180, "mips:4180",      FALSE, NN(I_mips4180)),
++  N (32, 32, bfd_mach_mips4181, "mips:4181",      FALSE, NN(I_mips4181)),
++  N (32, 32, bfd_mach_mips4281, "mips:4281",      FALSE, NN(I_mips4281)),
+   N (64, 64, bfd_mach_mips4300, "mips:4300",      FALSE, NN(I_mips4300)),
+   N (64, 64, bfd_mach_mips4400, "mips:4400",      FALSE, NN(I_mips4400)),
+   N (64, 64, bfd_mach_mips4600, "mips:4600",      FALSE, NN(I_mips4600)),
+   N (64, 64, bfd_mach_mips4650, "mips:4650",      FALSE, NN(I_mips4650)),
+   N (64, 64, bfd_mach_mips5000, "mips:5000",      FALSE, NN(I_mips5000)),
++  N (32, 32, bfd_mach_mips5181, "mips:5181",      FALSE, NN(I_mips5181)),
++  N (32, 32, bfd_mach_mips5280, "mips:5280",      FALSE, NN(I_mips5280)),
++  N (32, 32, bfd_mach_mips5281, "mips:5281",      FALSE, NN(I_mips5281)),
+   N (64, 64, bfd_mach_mips5400, "mips:5400",      FALSE, NN(I_mips5400)),
+   N (64, 64, bfd_mach_mips5500, "mips:5500",      FALSE, NN(I_mips5500)),
+   N (32, 32, bfd_mach_mips6000, "mips:6000",      FALSE, NN(I_mips6000)),
+Index: binutils/opcodes/mips-dis.c
+===================================================================
+--- binutils.orig/opcodes/mips-dis.c
++++ binutils/opcodes/mips-dis.c
+@@ -32,6 +32,28 @@
+    symbol table is available when this code runs out in an embedded
+    system as when it is used for disassembler support in a monitor.  */
+ 
++int is_rlx_insn = 0;
++int des_reg_type = 0;
++/* the des reg is:
++ * 0 gr,
++ * 1 accumulator,
++ * 2 Radiax User register,
++ * 3 Selects Lexra Coprocessor0 register
++ */
++int src_reg_type = 0;
++/* the src reg is:
++ * 0 gr,
++ * 1 accumulator,
++ * 2 Radiax User register
++ */
++int targ_reg_type = 0;
++/* the target reg is:
++ * 0 gr,
++ * 1 accumulator,
++ * 2 Radiax User register
++ */
++
++
+ #if !defined(EMBEDDED_ENV)
+ #define SYMTAB_AVAILABLE 1
+ #include "elf-bfd.h"
+@@ -84,6 +106,16 @@ static const char * const mips_gpr_names
+   "t8",   "t9",   "k0",   "k1",   "gp",   "sp",   "s8",   "ra"
+ };
+ 
++static const char *const mips_accumulator_names_alias[16] = {
++  "reserve", "m0l", "m0h", "m0", "reserve", "m1l", "m1h", "m1",
++  "reserve", "m2l", "m2h", "m2", "reserve", "m3l", "m3h", "m3"
++};
++
++static const char *const mips_radreg_names_alias[14] = {
++  "cbs0", "cbs1", "cbs2", "reserved", "cbe0", "cbe1", "cbe2", "reserved",
++  "lps0", "lpe0", "lpc0", "reserved", "mmd", "reserved"
++};
++
+ static const char * const mips_fpr_names_numeric[32] =
+ {
+   "$f0",  "$f1",  "$f2",  "$f3",  "$f4",  "$f5",  "$f6",  "$f7",
+@@ -433,6 +465,12 @@ const struct mips_arch_choice mips_arch_
+     mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric },
+   { "vr4120",	1, bfd_mach_mips4120, CPU_VR4120, ISA_MIPS3,
+     mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric },
++  { "4180",	1, bfd_mach_mips4180, CPU_LX4180, ISA_MIPS1,
++    mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric},
++  { "4181",	1, bfd_mach_mips4181, CPU_RLX4181, ISA_MIPS1,
++    mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric},
++  { "4281",	1, bfd_mach_mips4281, CPU_RLX4281, ISA_MIPS1,
++    mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric},
+   { "r4300",	1, bfd_mach_mips4300, CPU_R4300, ISA_MIPS3,
+     mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric },
+   { "r4400",	1, bfd_mach_mips4400, CPU_R4400, ISA_MIPS3,
+@@ -443,6 +481,12 @@ const struct mips_arch_choice mips_arch_
+     mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric },
+   { "r5000",	1, bfd_mach_mips5000, CPU_R5000, ISA_MIPS4,
+     mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric },
++  { "5181", 	1, bfd_mach_mips5181, CPU_RLX5181, ISA_MIPS1,
++    mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric},
++  { "5281", 	1, bfd_mach_mips5281, CPU_RLX5281, ISA_MIPS1,
++    mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric},
++  { "5280", 	1, bfd_mach_mips5280, CPU_LX5280, ISA_MIPS1,
++    mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric},
+   { "vr5400",	1, bfd_mach_mips5400, CPU_VR5400, ISA_MIPS4,
+     mips_cp0_names_numeric, NULL, 0, mips_hwr_names_numeric },
+   { "vr5500",	1, bfd_mach_mips5500, CPU_VR5500, ISA_MIPS4,
+@@ -815,6 +859,7 @@ print_insn_args (const char *d,
+ {
+   int op, delta;
+   unsigned int lsb, msb, msbd;
++  int tmp_regno;
+ 
+   lsb = 0;
+ 
+@@ -1074,13 +1119,22 @@ print_insn_args (const char *d,
+ 	case 'b':
+ 	case 'r':
+ 	case 'v':
+-	  (*info->fprintf_func) (info->stream, "%s",
++	  if (src_reg_type == 1)
++	    (*info->fprintf_func) (info->stream, "%s",
++				 mips_accumulator_names_alias[(l >> OP_SH_RS) & OP_MASK_RS]);
++	  else
++	    (*info->fprintf_func) (info->stream, "%s",
+ 				 mips_gpr_names[(l >> OP_SH_RS) & OP_MASK_RS]);
++
+ 	  break;
+ 
+ 	case 't':
+ 	case 'w':
+-	  (*info->fprintf_func) (info->stream, "%s",
++	  if (targ_reg_type == 1)
++	    (*info->fprintf_func) (info->stream, "%s",
++				 mips_accumulator_names_alias[(l >> OP_SH_RT) & OP_MASK_RT]);
++	  else
++	    (*info->fprintf_func) (info->stream, "%s",
+ 				 mips_gpr_names[(l >> OP_SH_RT) & OP_MASK_RT]);
+ 	  break;
+ 
+@@ -1131,8 +1185,50 @@ print_insn_args (const char *d,
+ 	  break;
+ 
+ 	case 'd':
+-	  (*info->fprintf_func) (info->stream, "%s",
++	  switch(des_reg_type) {
++            case 1:
++              tmp_regno = (l >> OP_SH_RD) & OP_MASK_RD;
++              if (tmp_regno >= 16 || tmp_regno < 0)
++                (*info->fprintf_func) (info->stream, "INVALID");
++              else
++                (*info->fprintf_func) (info->stream, "%s",
++                                       mips_accumulator_names_alias
++                                       [tmp_regno]);
++              break;
++            case 2:
++              tmp_regno = (l >> OP_SH_RD) & OP_MASK_RD;
++              if (tmp_regno <= 7)
++                (*info->fprintf_func) (info->stream, "%s",
++                                       mips_radreg_names_alias[tmp_regno]);
++              else if ((16 <= tmp_regno) && (tmp_regno <= 19))
++                {
++                  (*info->fprintf_func) (info->stream, "%s",
++                                         mips_radreg_names_alias[tmp_regno -
++                                                                 8]);
++                }
++              else if (tmp_regno == 24)
++                (*info->fprintf_func) (info->stream, "%s",
++                                       mips_radreg_names_alias[12]);
++              else
++                (*info->fprintf_func) (info->stream, "%s",
++                                       mips_radreg_names_alias[13]);
++              break;
++            case 3:
++              tmp_regno = (l >> OP_SH_RD) & OP_MASK_RD;
++              if (tmp_regno == 0)
++                (*info->fprintf_func) (info->stream, "estatus");
++              else if (tmp_regno == 1)
++                (*info->fprintf_func) (info->stream, "ecause");
++              else if (tmp_regno == 2)
++                (*info->fprintf_func) (info->stream, "intvec");
++              else
++                (*info->fprintf_func) (info->stream, "reserved");
++              break;
++	    default:
++	      (*info->fprintf_func) (info->stream, "%s",
+ 				 mips_gpr_names[(l >> OP_SH_RD) & OP_MASK_RD]);
++	      break;
++	  }
+ 	  break;
+ 
+ 	case 'U':
+@@ -1329,6 +1425,40 @@ print_insn_args (const char *d,
+ 				 (l >> OP_SH_FT) & OP_MASK_FT);
+ 	  break;
+ 
++        case '#':
++          (*info->fprintf_func) (info->stream, "%i",
++                                 (l >> OP_SH_IMMIDATE74) &
++                                 OP_MASK_IMMIDATE74);
++          break;
++
++          /* 8 bits immediate ,used in lbp,stp,etc(OP_*_IMMIDATE88) */
++        case '~':
++          delta = (l >> OP_SH_IMMIDATE88) & OP_MASK_IMMIDATE88;
++          if (delta & 0x80)
++            delta |= ~0xff;
++
++          (*info->fprintf_func) (info->stream, "%i", delta);
++          break;
++
++          /* even register,used in lt,st,ltp,stp (OP_*_EVENREG) */
++        case '`':
++          delta = (l >> OP_SH_EVENREG) & OP_MASK_EVENREG;
++          if ((delta % 2) != 0)
++            delta--;            /* for "lt" insn */
++          (*info->fprintf_func) (info->stream, "%s", mips_gpr_names[delta]);
++          break;
++
++          /* 10 bits offset,used in ltw(OP_*_OFFSET6A) */
++        case '-':
++          delta = (l >> OP_SH_OFFSET6A) & OP_MASK_OFFSET6A;
++          if (delta & 0x200)
++            delta |= ~0x3ff;
++          /* 2006-02-08 tonywu: fix ltw objdump displacement */
++          delta <<= 3;
++          (*info->fprintf_func) (info->stream, "%d", delta);
++
++          break;
++
+ 	default:
+ 	  /* xgettext:c-format */
+ 	  (*info->fprintf_func) (info->stream,
+@@ -1426,6 +1556,80 @@ print_insn_mips (bfd_vma memaddr,
+ 	      (*info->fprintf_func) (info->stream, "%s", op->name);
+ 
+ 	      d = op->args;
++
++              des_reg_type = 0;
++              src_reg_type = 0;
++              targ_reg_type = 0;
++
++              if ((op->membership & INSN_4181) ||
++                  (op->membership & INSN_4281) ||
++                  (op->membership & INSN_5181) ||
++                  (op->membership & INSN_5281) ||
++                  (op->membership & INSN_5280))
++                {
++                  is_rlx_insn = 1;
++                  if (strncmp (op->name, "mta2", 4) == 0)
++                    {
++                      des_reg_type = 1;
++                    }
++                  else if ((strncmp (op->name, "mflxc0", 6) == 0)
++                           || (strncmp (op->name, "mtlxc0", 6) == 0))
++                    {
++                      des_reg_type = 3;
++                    }
++                  else if (strncmp (op->name, "mfa", 3) == 0)
++                    {
++                      targ_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "diva", 4) == 0)
++                    {
++                      des_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "multa", 5) == 0)
++                    {
++                      des_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "mulna2", 6) == 0)
++                    {
++                      des_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "cmulta", 6) == 0)
++                    {
++                      des_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "madda", 5) == 0)
++                    {
++                      des_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "msuba", 5) == 0)
++                    {
++                      des_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "addma", 5) == 0)
++                    {
++                      des_reg_type = 1;
++                      src_reg_type = 1;
++                      targ_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "subma", 5) == 0)
++                    {
++                      des_reg_type = 1;
++                      src_reg_type = 1;
++                      targ_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "rnda2", 5) == 0)
++                    {
++                      targ_reg_type = 1;
++                    }
++                  else if (strncmp (op->name, "mtru", 4) == 0)
++                    {
++                      des_reg_type = 2;
++                    }
++                  else if (strncmp (op->name, "mfru", 4) == 0)
++                    {
++                      des_reg_type = 2;
++                    }
++                }
+ 	      if (d != NULL && *d != '\0')
+ 		{
+ 		  (*info->fprintf_func) (info->stream, "\t");
+Index: binutils/opcodes/mips16-opc.c
+===================================================================
+--- binutils.orig/opcodes/mips16-opc.c
++++ binutils/opcodes/mips16-opc.c
+@@ -65,6 +65,11 @@
+ #define I64	INSN_ISA64
+ #define T3	INSN_3900
+ 
++#define RLX1    INSN_4180 | INSN_4181 | INSN_4281 | INSN_5181 | INSN_5280 | INSN_5281
++#define RLX2    INSN_4181 | INSN_4281 | INSN_5181 | INSN_5280 | INSN_5281
++#define RLX3    INSN_4181 | INSN_4281 | INSN_5181 | INSN_5281
++#define RLX4    INSN_5181 | INSN_5280 | INSN_5281
++
+ const struct mips_opcode mips16_opcodes[] =
+ {
+ /* name,    args,	match,	mask,	pinfo,         	pinfo2, membership */
+@@ -109,6 +114,7 @@ const struct mips_opcode mips16_opcodes[
+ {"bne",     "x,U,p",	0, (int) M_BNE_I, INSN_MACRO,	0,	I1 },
+ {"bnez",    "x,p",	0x2800, 0xf800, BR|RD_x,	0,	I1 },
+ {"break",   "6",	0xe805, 0xf81f, TRAP,		0,	I1 },
++{"break",    "",	0xe805, 0xffff, TRAP, 		0, 	RLX1},
+ {"bteqz",   "p",	0x6000, 0xff00, BR|RD_T,	0,	I1 },
+ {"btnez",   "p",	0x6100, 0xff00, BR|RD_T,	0,	I1 },
+ {"cmpi",    "x,U",	0x7000, 0xf800, WR_T|RD_x,	0,	I1 },
+@@ -184,10 +190,18 @@ const struct mips_opcode mips16_opcodes[
+ {"lw",	    "x,V(P)",	0xb000, 0xf800, WR_x|RD_PC,	0,	I1 },
+ {"lw",	    "x,V(S)",	0x9000, 0xf800, WR_x|RD_SP,	0,	I1 },
+ {"lwu",     "y,W(x)",	0xb800, 0xf800, WR_y|RD_x, 	0,	I3 },
++{"madh",    "x,y", 	0xf800, 0xf81f, RD_x|RD_y|WR_HI|WR_LO, 0, RLX1},
++{"madl",    "x,y", 	0xf802, 0xf81f, RD_x|RD_y|WR_HI|WR_LO, 0, RLX1},
++{"mazh",    "x,y", 	0xf804, 0xf81f, RD_x|RD_y|WR_HI|WR_LO, 0, RLX1},
++{"mazl",    "x,y", 	0xf806, 0xf81f, RD_x|RD_y|WR_HI|WR_LO, 0, RLX1},
+ {"mfhi",    "x",	0xe810, 0xf8ff, WR_x|RD_HI,	0,	I1 },
+ {"mflo",    "x",	0xe812, 0xf8ff, WR_x|RD_LO,	0,	I1 },
+ {"move",    "y,X",	0x6700, 0xff00, WR_y|RD_X, 	0,	I1 },
+ {"move",    "Y,Z",	0x6500, 0xff00, WR_Y|RD_Z,	0,	I1 },
++{"msbh",    "x,y", 	0xf810, 0xf81f, RD_x|RD_y|WR_HI|WR_LO, 0, RLX1},
++{"msbl",    "x,y",	0xf812, 0xf81f, RD_x|RD_y|WR_HI|WR_LO, 0, RLX1},
++{"mszh",    "x,y",	0xf814, 0xf81f, RD_x|RD_y|WR_HI|WR_LO, 0, RLX1},
++{"mszl",    "x,y", 	0xf816, 0xf81f, RD_x|RD_y|WR_HI|WR_LO, 0, RLX1},
+ {"mul",     "z,v,y",	0, (int) M_MUL, INSN_MACRO,	0,	I1 },
+ {"mult",    "x,y",	0xe818, 0xf81f, RD_x|RD_y|WR_HI|WR_LO,	0,	I1 },
+ {"multu",   "x,y",	0xe819, 0xf81f, RD_x|RD_y|WR_HI|WR_LO,	0,	I1 },
+Index: binutils/include/opcode/mips.h
+===================================================================
+--- binutils.orig/include/opcode/mips.h
++++ binutils/include/opcode/mips.h
+@@ -58,6 +58,22 @@ Software Foundation, 51 Franklin Street 
+ 
+    The general coprocessor instructions use COPZ.  */
+ 
++#define OP_MASK_IMMIDATE74	0xf		/* used in MFA,MFA2,RNDA2 */
++#define OP_SH_IMMIDATE74	7		/* used in MFA,MFA2,RNDA2 */
++#define OP_MASK_IMMIDATE6b	0x7ff		/* used in lt,st */
++#define OP_SH_IMMIDATE6b	6		/* used in lt,st */
++#define OP_MASK_IMMIDATE88	0xff		/* used in lbp,stp,etc */
++#define OP_SH_IMMIDATE88	8		/* used in lbp,stp,etc */
++#define OP_MASK_EVENREG		0x1f		/* used in lt,st,ltp,stp */
++#define OP_SH_EVENREG		16		/* used in lt,st,ltp,stp */
++#define OP_MASK_OFFSET6A	0x3ff		/* used in ltw */
++#define OP_SH_OFFSET6A		6		/* used in ltw */
++
++#define OP_MASK_RLX_SEL		0x3f
++#define OP_SH_RLX_SEL		0
++#define OP_MASK_RLX_STYPE	0x3f
++#define OP_SH_RLX_STYPE		6
++
+ #define OP_MASK_OP		0x3f
+ #define OP_SH_OP		26
+ #define OP_MASK_RS		0x1f
+@@ -274,6 +290,13 @@ struct mips_opcode
+    "j" 16 bit signed immediate (OP_*_DELTA)
+    "k" 5 bit cache opcode in target register position (OP_*_CACHE)
+        Also used for immediate operands in vr5400 vector insns.
++*********************** dbb  modified for supporting radiax instructions **************************
++   "@" 11 bits immediate used in lt,st (OP_*_IMMIDATE6b),in fact it is 14 bits,mutiple of 8;
++   "#" 4 bits immediate from 0 to 8,used in MFA,MFA2,RNDA2 (OP_*_IMMIDATE74)
++   "~" 8 bits immediate ,used in lbp,stp,etc(OP_*_IMMIDATE88)
++   "`"  even register,used in lt,st,ltp,stp (OP_*_EVENREG)
++   "-"  10 bits offset,used in ltw(OP_*_OFFSET6A)
++*********************** dbb  modified for supporting radiax instructions **************************
+    "o" 16 bit signed offset (OP_*_DELTA)
+    "p" 16 bit PC relative branch target address (OP_*_DELTA)
+    "q" 10 bit extra breakpoint code (OP_*_CODE2)
+@@ -571,15 +594,18 @@ static const unsigned int mips_isa_table
+ #define INSN_10000                0x00100000
+ /* Broadcom SB-1 instruction.  */
+ #define INSN_SB1                  0x00200000
++
+ /* NEC VR4111/VR4181 instruction.  */
+ #define INSN_4111                 0x00400000
+ /* NEC VR4120 instruction.  */
+ #define INSN_4120                 0x00800000
++
++
++#if 0 //JMM - break all these badly sorry!
+ /* NEC VR5400 instruction.  */
+ #define INSN_5400		  0x01000000
+ /* NEC VR5500 instruction.  */
+ #define INSN_5500		  0x02000000
+-
+ /* MDMX ASE */ 
+ #define INSN_MDMX                 0x04000000
+ /* MT ASE */
+@@ -592,6 +618,35 @@ static const unsigned int mips_isa_table
+ #define INSN_LOONGSON_2E          0x40000000
+ /* ST Microelectronics Loongson 2F.  */
+ #define INSN_LOONGSON_2F          0x80000000
++#else
++
++#define INSN_4180                 0x01000000
++#define INSN_4181                 0x02000000
++#define INSN_4281                 0x04000000
++#define INSN_5181                 0x08000000
++#define INSN_5280                 0x10000000
++#define INSN_5281                 0x20000000
++
++#define INSN_DONT_CARE		  0x80000000
++/* NEC VR5400 instruction.  */
++#define INSN_5400		  INSN_DONT_CARE
++/* NEC VR5500 instruction.  */
++#define INSN_5500		  INSN_DONT_CARE
++/* MDMX ASE */
++#define INSN_MDMX                 INSN_DONT_CARE
++/* MT ASE */
++#define INSN_MT                   INSN_DONT_CARE
++/* SmartMIPS ASE  */
++#define INSN_SMARTMIPS            INSN_DONT_CARE
++/* DSP R2 ASE  */
++#define INSN_DSPR2                INSN_DONT_CARE
++/* ST Microelectronics Loongson 2E.  */
++#define INSN_LOONGSON_2E          INSN_DONT_CARE
++/* ST Microelectronics Loongson 2F.  */
++#define INSN_LOONGSON_2F          INSN_DONT_CARE
++#endif
++
++
+ /* RMI Xlr instruction */
+ #define INSN_XLR              	  0x00000020
+ 
+@@ -621,11 +676,17 @@ static const unsigned int mips_isa_table
+ #define CPU_VR4100	4100
+ #define CPU_R4111	4111
+ #define CPU_VR4120	4120
++#define CPU_LX4180      4180    /*  LX4180 */
++#define CPU_RLX4181     4181    /* RLX4181 */
++#define CPU_RLX4281     4281    /* RLX4281 */
+ #define CPU_R4300	4300
+ #define CPU_R4400	4400
+ #define CPU_R4600	4600
+ #define CPU_R4650	4650
+ #define CPU_R5000	5000
++#define CPU_RLX5181     5181    /* RLX5181 */
++#define CPU_RLX5281     5281    /* RLX5281 */
++#define CPU_LX5280      5280    /*  LX5280 */
+ #define CPU_VR5400	5400
+ #define CPU_VR5500	5500
+ #define CPU_R6000	6000
+@@ -681,6 +742,12 @@ static const unsigned int mips_isa_table
+      || (cpu == CPU_OCTEON						\
+ 	 && ((insn)->membership & INSN_OCTEON) != 0)			\
+      || (cpu == CPU_XLR && ((insn)->membership & INSN_XLR) != 0)        \
++     || (cpu == CPU_LX4180  && ((insn)->membership & INSN_4180) != 0)	\
++     || (cpu == CPU_RLX4181 && ((insn)->membership & INSN_4181) != 0)	\
++     || (cpu == CPU_RLX4281 && ((insn)->membership & INSN_4281) != 0)	\
++     || (cpu == CPU_RLX5181 && ((insn)->membership & INSN_5181) != 0)	\
++     || (cpu == CPU_LX5280  && ((insn)->membership & INSN_5280) != 0)	\
++     || (cpu == CPU_RLX5281 && ((insn)->membership & INSN_5281) != 0)	\
+      || 0)	/* Please keep this term for easier source merging.  */
+ 
+ /* This is a list of macro expanded instructions.
+Index: binutils/gas/config/tc-mips.c
+===================================================================
+--- binutils.orig/gas/config/tc-mips.c
++++ binutils/gas/config/tc-mips.c
+@@ -99,6 +99,32 @@ static char *mips_regmask_frag;
+ #define FP  30
+ #define RA  31
+ 
++#define M0L      1
++#define M0H      2
++#define M0       3
++#define M1L      5
++#define M1H      6
++#define M1       7
++#define M2L      9
++#define M2H     10
++#define M2      11
++#define M3L     13
++#define M3H     14
++#define M3      15
++#define ESTATUS  0
++#define ECAUSE   1
++#define INTVEC   2
++#define CBS0     0
++#define CBS1     1
++#define CBS2     2
++#define CBE0     4
++#define CBE1     5
++#define CBE2     6
++#define LPS0    16
++#define LPE0    17
++#define LPC0    18
++#define MMD     24
++
+ #define ILLEGAL_REG (32)
+ 
+ #define AT  mips_opts.at
+@@ -272,6 +298,8 @@ static struct mips_set_options mips_opts
+   /* sym32 */ FALSE, /* soft_float */ FALSE, /* single_float */ FALSE
+ };
+ 
++static const struct mips_opcode dummy_opcode = { NULL, NULL, 0, 0, 0, 0, 0 };
++
+ /* These variables are filled in with the masks of registers used.
+    The object format code reads them and puts them in the appropriate
+    place.  */
+@@ -497,7 +525,10 @@ static int mips_32bitmode = 0;
+    level I.  */
+ #define gpr_interlocks \
+   (mips_opts.isa != ISA_MIPS1  \
+-   || mips_opts.arch == CPU_R3900)
++   || mips_opts.arch == CPU_R3900 \
++   || mips_opts.arch == CPU_RLX4281 \
++   || mips_opts.arch == CPU_LX5280 \
++   || mips_opts.arch == CPU_RLX5281 )
+ 
+ /* Whether the processor uses hardware interlocks to avoid delays
+    required by coprocessor instructions, and thus does not require
+@@ -1102,6 +1133,11 @@ static void s_mips_loc (int);
+ static bfd_boolean pic_need_relax (symbolS *, asection *);
+ static int relaxed_branch_length (fragS *, asection *, int);
+ static int validate_mips_insn (const struct mips_opcode *);
++static inline int rlx_nops_for_new_insn (const struct mips_cl_insn *, const struct mips_cl_insn *);
++static inline int rlx_is_insn_lt (const struct mips_cl_insn *, const struct mips_cl_insn *);
++static inline int rlx_is_insn_st (const struct mips_cl_insn *, const struct mips_cl_insn *);
++static inline int rlx_is_insn_swappable (const struct mips_cl_insn *, const struct mips_cl_insn *);
++
+ 
+ /* Table and functions used to map between CPU/ISA names, and
+    ISA levels, and CPU numbers.  */
+@@ -1683,6 +1719,34 @@ struct regname {
+ #define MIPS16_SPECIAL_REGISTER_NAMES \
+     {"$pc",	RTYPE_PC | 0}
+ 
++#define RLX_REGISTER_ALIAS_NAMES \
++    {"$m0l",	RTYPE_GP | 1},  \
++    {"$m0h",	RTYPE_GP | 2},  \
++    {"$m0",	RTYPE_GP | 3},  \
++    {"$m1l",	RTYPE_GP | 5},  \
++    {"$m1h",	RTYPE_GP | 6},  \
++    {"$m1",	RTYPE_GP | 7},  \
++    {"$m2l",	RTYPE_GP | 9}, \
++    {"$m2h",	RTYPE_GP | 10}, \
++    {"$m2",	RTYPE_GP | 11}, \
++    {"$m3l",	RTYPE_GP | 13}, \
++    {"$m3l",	RTYPE_GP | 14}, \
++    {"$m3",	RTYPE_GP | 15}, \
++    {"$estatus",	RTYPE_GP | 0}, \
++    {"$ecause",	RTYPE_GP | 1}, \
++    {"$intvec",	RTYPE_GP | 2}, \
++    {"$mmd",	RTYPE_GP | 24}, \
++    {"$cbs0",	RTYPE_GP | 0}, \
++    {"$cbs1",	RTYPE_GP | 1}, \
++    {"$cbs2",	RTYPE_GP | 2}, \
++    {"$cbe0",	RTYPE_GP | 4}, \
++    {"$cbe1",	RTYPE_GP | 5}, \
++    {"$cbe2",	RTYPE_GP | 6}, \
++    {"$lps0",	RTYPE_GP | 16}, \
++    {"$lpe0",	RTYPE_GP | 17}, \
++    {"$lpc0",	RTYPE_GP | 18}
++
++
+ #define MDMX_VECTOR_REGISTER_NAMES \
+     /* {"$v0",	RTYPE_VEC | 0},  clash with REG 2 above */ \
+     /* {"$v1",	RTYPE_VEC | 1},  clash with REG 3 above */ \
+@@ -1736,6 +1800,7 @@ static const struct regname reg_names[] 
+   SYMBOLIC_REGISTER_NAMES,
+ 
+   MIPS16_SPECIAL_REGISTER_NAMES,
++  RLX_REGISTER_ALIAS_NAMES,
+   MDMX_VECTOR_REGISTER_NAMES,
+   MIPS_DSP_ACCUMULATOR_NAMES,
+   {0, 0}
+@@ -2556,6 +2621,13 @@ insns_between (const struct mips_cl_insn
+ 	  || (!cop_interlocks && (pinfo1 & INSN_LOAD_COPROC_DELAY)))
+ 	{
+ 	  know (pinfo1 & INSN_WRITE_GPR_T);
++
++	  /* 2006-01-06 tonywu: insn2 == NULL => mips_optimize = 0 */
++	  /* 2006-10-16 tonywu: fix lt nop bug */
++	  if (rlx_is_insn_lt (insn1, insn2) || rlx_is_insn_st (insn1, insn2))
++	    return 1;
++	  /* 2006-10-16 tonywu: fix lt nop bug */
++
+ 	  if (INSN2_USES_REG (EXTRACT_OPERAND (RT, *insn1), MIPS_GR_REG))
+ 	    return 1;
+ 	}
+@@ -2613,7 +2685,7 @@ insns_between (const struct mips_cl_insn
+ 
+ #undef INSN2_USES_REG
+ 
+-  return 0;
++  return rlx_nops_for_new_insn (insn1, insn2);
+ }
+ 
+ /* Return the number of nops that would be needed to work around the
+@@ -2687,6 +2759,36 @@ nops_for_insn (const struct mips_cl_insn
+   return nops;
+ }
+ 
++/* 2006-01-09 tonywu: fix branch delay slot filling bug */
++static inline int
++rlx_is_insn_swappable (const struct mips_cl_insn *history,
++                       const struct mips_cl_insn *insn)
++{
++
++  unsigned long pinfo1, pinfo2;
++
++  pinfo1 = history[0].insn_mo->pinfo;
++  pinfo2 = history[1].insn_mo->pinfo;
++
++  if (pinfo1 & INSN_LOAD_MEMORY_DELAY || pinfo1 & INSN_WRITE_GPR_T)
++    {
++      if (insn_uses_reg (insn, EXTRACT_OPERAND (RT, history[0]), MIPS_GR_REG))
++        {
++          return 1;
++        }
++    }
++
++  if (pinfo2 & INSN_LOAD_MEMORY_DELAY || pinfo1 & INSN_WRITE_GPR_T)
++    {
++      if (insn_uses_reg (insn, EXTRACT_OPERAND (RT, history[1]), MIPS_GR_REG))
++        {
++          return 1;
++        }
++    }
++  return 0;
++}
++
++
+ /* The variable arguments provide NUM_INSNS extra instructions that
+    might be added to HISTORY.  Return the largest number of nops that
+    would be needed after the extended sequence.  */
+@@ -3193,13 +3295,16 @@ append_insn (struct mips_cl_insn *ip, ex
+ 	      /* We do not swap with a trap instruction, since it
+ 		 complicates trap handlers to have the trap
+ 		 instruction be in a delay slot.  */
++	      || rlx_is_insn_swappable (history, ip) > 0
+ 	      || (prev_pinfo & INSN_TRAP)
+ 	      /* If the branch reads a register that the previous
+ 		 instruction sets, we can not swap.  */
+ 	      || (! mips_opts.mips16
+ 		  && (prev_pinfo & INSN_WRITE_GPR_T)
+ 		  && insn_uses_reg (ip, EXTRACT_OPERAND (RT, history[0]),
+-				    MIPS_GR_REG))
++				    MIPS_GR_REG)
++		  /* 2006-01-06 tonywu: add for lt/ltw */
++		  && (rlx_is_insn_lt (history, ip)))
+ 	      || (! mips_opts.mips16
+ 		  && (prev_pinfo & INSN_WRITE_GPR_D)
+ 		  && insn_uses_reg (ip, EXTRACT_OPERAND (RD, history[0]),
+@@ -8555,6 +8660,32 @@ validate_mips_insn (const struct mips_op
+       case '1':	USE_BITS (OP_MASK_SHAMT,	OP_SH_SHAMT);	break;
+       case '2': USE_BITS (OP_MASK_BP,		OP_SH_BP);	break;
+       case '3': USE_BITS (OP_MASK_SA3,  	OP_SH_SA3);	break;
++      /* 2006-01-04 tonywu: merged from 2.14 to 2.16 */
++      case '#':
++        switch (c = *p++)
++          {
++            /* dbb: new instructions support */
++          case '`': USE_BITS (OP_MASK_EVENREG,		 OP_SH_EVENREG); 		break;
++          case '~': USE_BITS (OP_MASK_IMMIDATE88,	 OP_SH_IMMIDATE88); 		break;
++          case '#': USE_BITS (OP_MASK_IMMIDATE74,	 OP_SH_IMMIDATE74); 		break;
++          case '@': USE_BITS (OP_MASK_IMMIDATE6b,	 OP_SH_IMMIDATE6b); 		break;
++          case '-': USE_BITS (OP_MASK_OFFSET6A,		 OP_SH_OFFSET6A); 		break;
++            /* dbb: new instructions support */
++            /* 2008-07-08 tonywu: add for taroko processor */
++          case 'H': USE_BITS (OP_MASK_RLX_SEL,		 OP_SH_RLX_SEL); 		break;
++          case 'I': USE_BITS (OP_MASK_RLX_STYPE,	 OP_SH_RLX_STYPE); 		break;
++          case 'd': USE_BITS (OP_MASK_RD,		 OP_SH_RD);		p++; 	break;
++          case 's': USE_BITS (OP_MASK_RS,		 OP_SH_RS);		p++; 	break;
++          case 't': USE_BITS (OP_MASK_RT,		 OP_SH_RT);		p++; 	break;
++          case 'u': USE_BITS (OP_MASK_RD,		 OP_SH_RD); 			break;
++          case 'k': USE_BITS (OP_MASK_RD,		 OP_SH_RD); 			break;
++            /* 2008-07-08 tonywu: add for taroko processor */
++          default:
++            as_bad (_("internal: bad rlx opcode (unknown extension operand type `#%c'): %s %s"),
++                    c, opc->name, opc->args);
++            return 0;
++          }
++        break;
+       case '4': USE_BITS (OP_MASK_SA4,  	OP_SH_SA4);	break;
+       case '5': USE_BITS (OP_MASK_IMM8, 	OP_SH_IMM8);	break;
+       case '6': USE_BITS (OP_MASK_RS,		OP_SH_RS);	break;
+@@ -8576,6 +8707,7 @@ validate_mips_insn (const struct mips_op
+ 	return 0;
+       }
+ #undef USE_BITS
++  if (strcmp (opc->name, "sleep") != 0)
+   if (used_bits != 0xffffffff)
+     {
+       as_bad (_("internal: bad mips opcode (bits 0x%lx undefined): %s %s"),
+@@ -8652,6 +8784,7 @@ mips_ip (char *str, struct mips_cl_insn 
+   char *s;
+   const char *args;
+   char c = 0;
++  char t = 0;
+   struct mips_opcode *insn;
+   char *argsStart;
+   unsigned int regno;
+@@ -8661,6 +8794,7 @@ mips_ip (char *str, struct mips_cl_insn 
+   char *s_reset;
+   char save_c = 0;
+   offsetT min_range, max_range;
++  int multipletype;
+   int argnum;
+   unsigned int rtype;
+ 
+@@ -9446,6 +9580,339 @@ do_msbd:
+ 	      else
+ 		break;
+ 
++            case '#':
++              switch (*++args)
++                {
++                case 'd':
++                case 's':
++                case 't':
++                  s_reset = s;
++                  regno = 32;
++                  if (s[0] == '$')
++                    {
++		      reg_lookup (&s, RTYPE_NUM | RTYPE_GP, &regno);
++                    }
++
++                  /* 2006-11-28 tonywu: add radiax alias name */
++                  c = *args;
++                  t = *++args;
++
++                  /* Now that we have assembled one operand, we use the args string
++                   * to figure out where it goes in the instruction.  */
++                  switch (t)
++                    {
++                    case '1':  /* m0(3), m1(7), m2(11), m3(15) */
++                      if (regno <= 0 || regno > 15 || (regno & 3) != 3)
++                        as_bad (_
++                                ("RADIAX: illegal register (%d) in %s type d%c"),
++                                regno, str, t);
++                      break;
++
++                    case '2':  /* m0l, m0h, m0 ~ m3l, m3h, m3 */
++                      if (regno <= 0 || regno > 15 || (regno & 3) == 0)
++                        as_bad (_
++                                ("RADIAX: illegal register (%d) in %s type d%c"),
++                                regno, str, t);
++                      break;
++
++                    case '3':  /* m0l, m0h, ~ m3l, m3h */
++                      if (regno <= 0 || regno > 15
++                          || (regno & 3) == 0 || (regno & 3) == 3)
++                        as_bad (_
++                                ("RADIAX: illegal register (%d) in %s type d%c"),
++                                regno, str, t);
++                      break;
++
++                    case '4':  /* LXC0 registers */
++                      if (regno > 31)
++                        as_bad (_
++                                ("RLX: illegal register (%d) in %s type d%c"),
++                                regno, str, t);
++                      break;
++
++                    default:
++                      as_bad (_("RLX: illegal register type d%c in %s"), t,
++                              str);
++                      break;
++                    }
++
++                  switch (c)
++                    {
++                    case 'd':
++                      INSERT_OPERAND (RD, *ip, regno);
++                      break;
++                    case 's':
++                      INSERT_OPERAND (RS, *ip, regno);
++                      break;
++                    case 't':
++                      INSERT_OPERAND (RT, *ip, regno);
++                      break;
++                    }
++
++                  lastregno = regno;
++                  continue;
++
++                case 'u':
++                case 'k':
++                  s_reset = s;
++                  regno = 32;
++                  if (s[0] == '$')
++                    {
++		      reg_lookup (&s, RTYPE_NUM | RTYPE_GP, &regno);
++                    }
++                  /* 2006-11-28 tonywu: add radiax alias name */
++                  c = *args;
++
++                  /* Now that we have assembled one operand, we use the args string
++                   * to figure out where it goes in the instruction.  */
++                  if (regno == 32)
++                    as_bad (_("RLX: illegal register (%d) in %s"), regno,
++                            str);
++
++                  switch (c)
++                    {
++                    case 'u':
++                      INSERT_OPERAND (RD, *ip, regno);
++                      break;
++                    case 'k':
++                      INSERT_OPERAND (RD, *ip, regno);
++                      break;
++                    }
++
++                  lastregno = regno;
++                  continue;
++
++                case '-':
++                  /* 10bits offset used in ltw (OP_*_OFFSET6A),
++                   * in fact it is 13 bits,multiple of 8; */
++                  if (*s == '(' && strchr (s + 1, '(') == 0)
++                    {
++                      imm_expr.X_op = O_constant;
++                      imm_expr.X_add_number = 0;
++                      continue;
++                    }
++
++                  my_getExpression (&imm_expr, s);
++                  check_absolute_expr (ip, &imm_expr);
++                  if (imm_expr.X_op == O_constant)
++                    {
++                      if ((imm_expr.X_add_number % 8) != 0)
++                        as_bad (_("(%d) is not multiple of 8"),
++                                (int) imm_expr.X_add_number);
++                      if (((imm_expr.X_add_number + 4096) & ~0x1FFF) != 0)
++                        as_bad (_("(%d) is too large to fit in 13 bits"),
++                                (int) imm_expr.X_add_number);
++                      ip->insn_opcode |=
++                        (((imm_expr.X_add_number >> 3) & OP_MASK_OFFSET6A) <<
++                         OP_SH_OFFSET6A);
++                      imm_expr.X_op = O_absent;
++                    }
++                  else
++                    {
++                      *imm_reloc = BFD_RELOC_OFF6A;
++                    }
++                  s = expr_end;
++                  continue;
++                  /* 11 bits immediate used in lt,st (OP_*_IMMIDATE6b),
++                   * in fact it is 14 bits, multiple of 8; */
++                case '@':
++                  if (*s == '(' && strchr (s + 1, '(') == 0)
++                    {
++                      imm_expr.X_op = O_constant;
++                      imm_expr.X_add_number = 0;
++                      continue;
++                    }
++                  my_getExpression (&imm_expr, s);
++                  check_absolute_expr (ip, &imm_expr);
++                  if (imm_expr.X_add_number % 8 != 0)
++                    as_bad (_("(%d) is not multiple of 8"),
++                            (int) imm_expr.X_add_number);
++                  if (((imm_expr.X_add_number + 8192) & ~0x3FFF) != 0)
++                    as_bad (_("(%d) is too large to fit in 14 bits"),
++                            (int) imm_expr.X_add_number);
++                  ip->insn_opcode |=
++                    (((imm_expr.X_add_number >> 3) & OP_MASK_IMMIDATE6b) <<
++                     OP_SH_IMMIDATE6b);
++                  imm_expr.X_op = O_absent;
++                  s = expr_end;
++                  continue;
++
++                  /* 4 bits immediate from 0 to 8,used in MFA,MFA2,RNDA2 (OP_*_IMMIDATE74) */
++                case '#':
++                  my_getExpression (&imm_expr, s);
++                  check_absolute_expr (ip, &imm_expr);
++                  if (imm_expr.X_add_number > 8 || imm_expr.X_add_number < 0)
++                    as_bad (_("(%d) is out of range 0-8"),
++                            (int) imm_expr.X_add_number);
++                  ip->insn_opcode |=
++                    ((imm_expr.X_add_number & OP_MASK_IMMIDATE74) <<
++                     OP_SH_IMMIDATE74);
++                  imm_expr.X_op = O_absent;
++                  s = expr_end;
++                  continue;
++                  /* 8 bits immediate ,used in lbp,stp,etc(OP_*_IMMIDATE88) */
++                case '~':
++                  my_getExpression (&imm_expr, s);
++                  check_absolute_expr (ip, &imm_expr);
++                  if ((strncmp (str, "lbp", 3) == 0)
++                      || (strncmp (str, "sbp", 3) == 0))
++                    multipletype = 0;
++                  else if ((strncmp (str, "lhp", 3) == 0)
++                           || (strncmp (str, "shp", 3) == 0))
++                    multipletype = 2;
++                  else if ((strncmp (str, "lwp", 3) == 0)
++                           || (strncmp (str, "swp", 3) == 0))
++                    multipletype = 4;
++                  else
++                    multipletype = 8;
++
++                  switch (multipletype)
++                    {
++                    case 0:
++                      if (((imm_expr.X_add_number + 128) & ~0xff) != 0)
++                        as_bad (_("(%d) is too large to fit in 8 bits"),
++                                (int) imm_expr.X_add_number);
++                      break;
++
++                    case 2:
++                      if ((imm_expr.X_add_number % 2) != 0)
++                        as_bad (_("(%d) is not multiple of 2"),
++                                (int) imm_expr.X_add_number);
++                      if (((imm_expr.X_add_number + 256) & ~0x1FF) != 0)
++                        as_bad (_("(%d) is too large to fit in 8 bits"),
++                                (int) imm_expr.X_add_number);
++                      imm_expr.X_add_number = imm_expr.X_add_number >> 1;
++                      break;
++
++                    case 4:
++                      if ((imm_expr.X_add_number % 4) != 0)
++                        as_bad (_("(%d) is not multiple of 4"),
++                                (int) imm_expr.X_add_number);
++
++                      if (((imm_expr.X_add_number + 512) & ~0x3FF) != 0)
++                        as_bad (_("(%d) is too large to fit in 8 bits"),
++                                (int) imm_expr.X_add_number);
++                      imm_expr.X_add_number = imm_expr.X_add_number >> 2;
++                      break;
++
++                    case 8:
++                      if ((imm_expr.X_add_number % 8) != 0)
++                        as_bad (_("(%d) is not multiple of 8"),
++                                (int) imm_expr.X_add_number);
++
++                      if (((imm_expr.X_add_number + 1024) & ~0x7FF) != 0)
++                        as_bad (_("(%d) is too large to fit in 8 bits"),
++                                (int) imm_expr.X_add_number);
++
++                      imm_expr.X_add_number = imm_expr.X_add_number >> 3;
++                      break;
++                    }
++                  ip->insn_opcode |=
++                    ((imm_expr.
++                      X_add_number & OP_MASK_IMMIDATE88) << OP_SH_IMMIDATE88);
++                  imm_expr.X_op = O_absent;
++                  s = expr_end;
++                  continue;
++
++                  /* even register,used in lt,st,ltp,stp (OP_*_EVENREG) */
++                case '`':
++                  if (s[0] == '$')
++                    {
++                      regno = 0;
++                      if (ISDIGIT (s[1]))
++                        {
++                          ++s;
++                          do
++                            {
++                              regno *= 10;
++                              regno += *s - '0';
++                              ++s;
++                            }
++                          while (ISDIGIT (*s));
++
++                        }
++                      else if ((s[1] == 'f') && (s[2] == 'p'))
++                        {
++                          regno = 30;
++                          s += 3;
++                        }
++                      else if ((s[1] == 'a') && (s[2] == 't'))
++                        {
++                          regno = 1;
++                          s += 3;
++                        }
++                      else
++                        {
++                          insn_error = "register needed!";
++                          return;
++                        }
++                    }
++                  else
++                    {
++                      insn_error = "register needed!";
++                      return;
++                    }
++
++                  if (regno > 31)
++                    as_bad (_("invalid register number (%d)"), regno);
++
++                  if (regno % 2 != 0)
++                    as_bad (_("not an even register number(%d) "), regno);
++
++                  ip->insn_opcode |=
++                    (regno & OP_MASK_EVENREG) << OP_SH_EVENREG;
++                  continue;
++
++                case 'H':
++                  if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
++                    s += 2;
++                  if (ISDIGIT (*s))
++                    {
++                      c = 0;
++                      do
++                 {
++                          c *= 10;
++                          c += *s - '0';
++                          ++s;
++                        }
++                      while (ISDIGIT (*s));
++                    }
++                  else
++                    c = 64;     /* Invalid sel or stype value. */
++
++                  if (c > 63)
++                    as_bad (_("invalid coprocessor sel value (0-63)"));
++
++                  ip->insn_opcode |= (c & OP_MASK_RLX_SEL) << OP_SH_RLX_SEL;
++                  continue;
++
++                case 'I':
++                  if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
++                    s += 2;
++
++                  if (ISDIGIT (*s))
++                    {
++                      c = 0;
++                      do
++                        {
++                          c *= 10;
++                          c += *s - '0';
++                          ++s;
++                        }
++                      while (ISDIGIT (*s));
++                    }
++                  else
++                    c = 64;     /* Invalid sel value.  */
++
++                  if (c > 63)
++                    as_bad (_("invalid coprocessor stype value (0-63)"));
++
++                  ip->insn_opcode |=
++                    (c & OP_MASK_RLX_STYPE) << OP_SH_RLX_STYPE;
++                  continue;
++                }
++              break;
++
+ 	    case 'b':		/* base register */
+ 	    case 'd':		/* destination register */
+ 	    case 's':		/* source register */
+@@ -9467,8 +9934,32 @@ do_msbd:
+ 		  ok = reg_lookup (&s, RTYPE_NUM | RTYPE_GP, &regno);
+ 		  if (regno == AT && mips_opts.at)
+ 		    {
+-		      if (mips_opts.at == ATREG)
+-			as_warn (_("used $at without \".set noat\""));
++		      if (mips_opts.at == ATREG) {
++                        if ((strncmp (ip->insn_mo->name, "mta2", 4) != 0
++                             || *args != 'd')
++                            && (strncmp (ip->insn_mo->name, "mfa", 3) != 0
++                                || *args != 't')
++                            && (strncmp (ip->insn_mo->name, "diva", 4) != 0
++                                || *args != 'd')
++                            && (strncmp (ip->insn_mo->name, "mtru", 4) != 0
++                                || *args != 'd')
++                            && (strncmp (ip->insn_mo->name, "mfru", 4) != 0
++                                || *args != 'd')
++                            && (strncmp (ip->insn_mo->name, "multa", 5) != 0
++                                || *args != 'd')
++                            && (strncmp (ip->insn_mo->name, "mulna2", 6) != 0
++                                || *args != 'd')
++                            && (strncmp (ip->insn_mo->name, "cmulta", 6) != 0
++                                || *args != 'd')
++                            && (strncmp (ip->insn_mo->name, "madda", 5) != 0
++                                || *args != 'd')
++                            && (strncmp (ip->insn_mo->name, "msuba", 5) != 0
++                                || *args != 'd')
++                            && strncmp (ip->insn_mo->name, "addma", 5) != 0
++                            && strncmp (ip->insn_mo->name, "subma", 5) != 0
++                            && strncmp (ip->insn_mo->name, "rnda2", 5) != 0)
++			      as_warn (_("used $at without \".set noat\""));
++		        }
+ 		      else
+ 			as_warn (_("used $%u with \".set at=$%u\""),
+ 				 regno, mips_opts.at);
+@@ -9511,11 +10002,53 @@ do_msbd:
+ 		    {
+ 		    case 'r':
+ 		    case 's':
++                      if (strncmp (ip->insn_mo->name, "addma", 5) == 0
++                          || strncmp (ip->insn_mo->name, "subma", 5) == 0)
++                        {
++                          if ((regno & 3) == 0 || (regno & 3) == 3)
++                            as_bad (_("Illegal reg number (%d) in %s"), regno,
++                                    str);
++                        }
+ 		    case 'v':
+ 		    case 'b':
+ 		      INSERT_OPERAND (RS, *ip, regno);
+ 		      break;
+ 		    case 'd':
++                      if (strncmp (ip->insn_mo->name, "addma", 5) == 0
++                          || strncmp (ip->insn_mo->name, "subma", 5) == 0)
++                        {
++                          if (((regno & 3) == 0) || ((regno & 3) == 3))
++                            as_bad (_("Illegal reg number (%d) in %s"), regno,
++                                    str);
++                        }
++
++                      if (strncmp (ip->insn_mo->name, "diva", 4) == 0
++                          || (strlen (ip->insn_mo->name) == 5
++                              && strncmp (ip->insn_mo->name, "multa", 5) == 0)
++                          || strncmp (ip->insn_mo->name, "multau", 6) == 0
++                          || strncmp (ip->insn_mo->name, "cmulta", 6) == 0
++                          || (strlen (ip->insn_mo->name) == 5
++                              && strncmp (ip->insn_mo->name, "madda", 5) == 0)
++                          || strncmp (ip->insn_mo->name, "maddau", 6) == 0
++                          || (strlen (ip->insn_mo->name) == 5
++                              && strncmp (ip->insn_mo->name, "msuba", 5) == 0)
++                          || strncmp (ip->insn_mo->name, "msubau", 6) == 0)
++                        {
++                          if ((regno & 3) != 3)
++                            as_bad (_("Illegal reg number (%d) in %s"), regno,
++                                    str);
++                        }
++
++                      if (strncmp (ip->insn_mo->name, "multa2", 6) == 0
++                          || strncmp (ip->insn_mo->name, "mulna2", 6) == 0
++                          || strncmp (ip->insn_mo->name, "rnadda2", 6) == 0
++                          || strncmp (ip->insn_mo->name, "msuba2", 6) == 0
++                          || strncmp (ip->insn_mo->name, "mta2", 4) == 0)
++                        {
++                          if ((regno & 3) == 0)
++                            as_bad (_("Illegal reg number (%d) in %s"), regno,
++                                    str);
++                        }
+ 		    case 'G':
+ 		    case 'K':
+ 		    case 'g':
+@@ -9527,6 +10060,25 @@ do_msbd:
+ 		      break;
+ 		    case 'w':
+ 		    case 't':
++                      if (strncmp (ip->insn_mo->name, "addma", 5) == 0 ||
++                          strncmp (ip->insn_mo->name, "subma", 5) == 0 ||
++                          strncmp (ip->insn_mo->name, "mfa",
++                                   strlen (ip->insn_mo->name)) == 0)
++                        {
++                          if (((regno & 3) == 0) || ((regno & 3) == 3))
++                            as_bad (_("Illegal reg number (%d) in %s"), regno,
++                                    str);
++                        }
++
++                      if (strncmp (ip->insn_mo->name, "mfa2", 4) == 0)
++                        if ((regno & 3) != 3)
++                          as_bad (_("Illegal reg number (%d) in %s"), regno,
++                                  str);
++
++                      if (strncmp (ip->insn_mo->name, "rnda2", 5) == 0)
++                        if ((regno & 3) == 0)
++                          as_bad (_("Illegal reg number (%d) in %s"), regno,
++                                  str);
+ 		    case 'E':
+ 		      INSERT_OPERAND (RT, *ip, regno);
+ 		      break;
+@@ -11855,6 +12407,9 @@ mips_after_parse_args (void)
+   if (mips_arch_string != 0)
+     arch_info = mips_parse_cpu ("-march", mips_arch_string);
+ 
++  if (mips_tune_string != 0)
++    mips_set_architecture (mips_parse_cpu ("-mtune", mips_tune_string));
++
+   if (file_mips_isa != ISA_UNKNOWN)
+     {
+       /* Handle -mipsN.  At this point, file_mips_isa contains the
+@@ -12422,6 +12977,40 @@ md_apply_fix (fixS *fixP, valueT *valP, 
+       fixP->fx_done = 0;
+       break;
+ 
++    case BFD_RELOC_OFF6A:
++      if (fixP->fx_done)
++        {
++          valueT tmp_value;
++          valueT org_value;
++
++          buf = (bfd_byte *) (fixP->fx_frag->fr_literal + fixP->fx_where);
++          tmp_value =
++            *(valueT *) (fixP->fx_frag->fr_literal + fixP->fx_where);
++          org_value = *valP;
++
++          if (target_big_endian)
++            {
++              tmp_value =
++                (((tmp_value & 0xff) << 24) |
++                 ((tmp_value & 0xff00) << 8) |
++                 (((tmp_value & 0xff0000) >> 8)) |
++                 (((tmp_value & 0xff000000) >> 24)));
++            }
++
++          if ((org_value % 8) != 0)
++            as_bad (_("(%d) is not multiple of 8"), (int) org_value);
++
++          if ((org_value & ~0x1FFF) != 0)
++            as_bad (_("(%d) is too large to stay in 13 bits"),
++                    (int) org_value);
++
++          tmp_value |=
++            (((org_value >> 3) & OP_MASK_OFFSET6A) << OP_SH_OFFSET6A);
++          md_number_to_chars ((char *) buf, tmp_value, 4);
++        }
++      break;
++
++
+     default:
+       internalError ();
+     }
+@@ -15190,6 +15779,12 @@ static const struct mips_cpu_info mips_c
+   { "r3000",          0,			ISA_MIPS1,      CPU_R3000 },
+   { "r2000",          0,			ISA_MIPS1,      CPU_R3000 },
+   { "r3900",          0,			ISA_MIPS1,      CPU_R3900 },
++  {"lx4180",	      0,			ISA_MIPS1,	CPU_LX4180},
++  {"rlx4181",	      0,			ISA_MIPS1,	CPU_RLX4181},
++  {"rlx4281",	      0,			ISA_MIPS1,	CPU_RLX4281},
++  {"rlx5181",	      0,			ISA_MIPS1,	CPU_RLX5181},
++  {"lx5280",	      0,			ISA_MIPS1,	CPU_LX5280},
++  {"rlx5281",	      0,			ISA_MIPS1,	CPU_RLX5281},
+ 
+   /* MIPS II */
+   { "r6000",          0,			ISA_MIPS2,      CPU_R6000 },
+@@ -15353,14 +15948,28 @@ mips_matching_cpu_name_p (const char *ca
+ 
+   /* If not, try comparing based on numerical designation alone.
+      See if GIVEN is an unadorned number, or 'r' followed by a number.  */
+-  if (TOLOWER (*given) == 'r')
++
++  /* 2006-01-19 tonywu: add to parse LX/RLX CPUs */
++  if (TOLOWER (given[0]) == 'l' && TOLOWER (given[1]) == 'x')
++    given += 2;
++  else if (TOLOWER (given[0]) == 'r' &&
++           TOLOWER (given[1]) == 'l' && TOLOWER (given[2]) == 'x')
++    given += 3;
++  else if (TOLOWER (*given) == 'r')
+     given++;
++
+   if (!ISDIGIT (*given))
+     return FALSE;
+ 
+   /* Skip over some well-known prefixes in the canonical name,
+      hoping to find a number there too.  */
+-  if (TOLOWER (canonical[0]) == 'v' && TOLOWER (canonical[1]) == 'r')
++  /* 2006-01-19 tonywu: add to parse LX/RLX CPUs */
++  if (TOLOWER (canonical[0]) == 'l' && TOLOWER (canonical[1]) == 'x')
++    canonical += 2;
++  else if (TOLOWER (canonical[0]) == 'r' &&
++           TOLOWER (canonical[1]) == 'l' && TOLOWER (canonical[2]) == 'x')
++    canonical += 3;
++  else if (TOLOWER (canonical[0]) == 'v' && TOLOWER (canonical[1]) == 'r')
+     canonical += 2;
+   else if (TOLOWER (canonical[0]) == 'r' && TOLOWER (canonical[1]) == 'm')
+     canonical += 2;
+@@ -15624,3 +16233,83 @@ tc_mips_regname_to_dw2regnum (char *regn
+ 
+   return regnum;
+ }
++
++static inline int
++rlx_is_insn_lt (const struct mips_cl_insn *insn1,
++                const struct mips_cl_insn *insn2)
++{
++  int is_lt = 0;
++
++  if (insn1 == NULL || insn2 == NULL)
++    return 0;
++
++  if (strncmp (insn1->insn_mo->name, "lt", 2) == 0)
++    is_lt = 1;
++  else if (strncmp (insn1->insn_mo->name, "ltw", 3) == 0)
++    is_lt = 1;
++
++  if (is_lt == 0)
++    return 0;
++
++  int regno1 = EXTRACT_OPERAND (RT, *insn1);
++  int regno2 = regno1 + 1;
++
++  if (insn_uses_reg (insn2, regno1, MIPS_GR_REG) ||
++      insn_uses_reg (insn2, regno2, MIPS_GR_REG))
++    return 1;
++
++  return 0;
++}
++
++static inline int
++rlx_is_insn_st (const struct mips_cl_insn *insn1,
++                const struct mips_cl_insn *insn2)
++{
++  int is_st = 0;
++
++  if (insn1 == NULL || insn2 == NULL)
++    return 0;
++
++  if (strncmp (insn2->insn_mo->name, "st", 2) == 0)
++    is_st = 1;
++
++  if (is_st == 0)
++    return 0;
++
++  int regno1 = EXTRACT_OPERAND (RT, *insn1);
++  int regno2 = 0;
++
++  if (regno1 % 2 == 0)
++    regno2 = regno1 + 1;
++  else
++    regno2 = regno1 - 1;
++
++  if (insn_uses_reg (insn2, regno1, MIPS_GR_REG) ||
++      insn_uses_reg (insn2, regno2, MIPS_GR_REG))
++    return 1;
++
++  return 0;
++}
++
++/* 2006-01-05 tonywu: merged from 2.14 */
++static inline int
++rlx_nops_for_new_insn (const struct mips_cl_insn *pre,
++                       const struct mips_cl_insn *now)
++{
++  if ((pre == NULL) || (now == NULL))
++    return 0;
++
++  if ((pre->insn_mo->match == 0 && pre->insn_mo->mask == 0xffffffff) ||
++      (now->insn_mo->match == 0 && now->insn_mo->mask == 0xffffffff))
++    return 0;
++
++  if (pre->insn_mo == &dummy_opcode || now->insn_mo == &dummy_opcode)
++    return 0;
++
++  if (strcmp (pre->insn_mo->name, "madda") == 0 &&
++      strcmp (now->insn_mo->name, "mfa") == 0 &&
++      EXTRACT_OPERAND (RD, *pre) == EXTRACT_OPERAND (RT, *now))
++    return 2;
++
++  return 0;
++}
+Index: binutils/bfd/elf32-mips.c
+===================================================================
+--- binutils.orig/bfd/elf32-mips.c
++++ binutils/bfd/elf32-mips.c
+@@ -717,6 +717,20 @@ static reloc_howto_type elf_mips_howto_t
+ 	 0x0,			/* src_mask */
+ 	 0xffffffff,		/* dst_mask */
+ 	 FALSE),		/* pcrel_offset */
++  /* relocation added by dbb */
++  HOWTO (R_RELOC_OFF6A,         /* type */
++	 3,                     /* rightshift */
++	 2,                     /* size (0 = byte, 1 = short, 2 = long) */
++	 10,                    /* bitsize */
++	 FALSE,                 /* pc_relative */
++	 6,                     /* bitpos */
++	 complain_overflow_dont, /* complain_on_overflow */
++	 NULL,                  /* special_function */
++	 "R_RELOC_OFF6A",       /* name */
++	 TRUE,                  /* partial_inplace */
++	 0x0000FFC0,            /* src_mask */
++	 0x0000FFC0,            /* dst_mask */
++	 FALSE),                /* pcrel_offset */
+ };
+ 
+ /* The reloc used for BFD_RELOC_CTOR when doing a 64 bit link.  This
+@@ -1274,7 +1288,8 @@ static const struct elf_reloc_map mips_r
+   { BFD_RELOC_MIPS_TLS_TPREL32, R_MIPS_TLS_TPREL32 },
+   { BFD_RELOC_MIPS_TLS_TPREL64, R_MIPS_TLS_TPREL64 },
+   { BFD_RELOC_MIPS_TLS_TPREL_HI16, R_MIPS_TLS_TPREL_HI16 },
+-  { BFD_RELOC_MIPS_TLS_TPREL_LO16, R_MIPS_TLS_TPREL_LO16 }
++  { BFD_RELOC_MIPS_TLS_TPREL_LO16, R_MIPS_TLS_TPREL_LO16 },
++  { BFD_RELOC_OFF6A, R_RELOC_OFF6A}
+ };
+ 
+ static const struct elf_reloc_map mips16_reloc_map[] =
+Index: binutils/bfd/elfxx-mips.c
+===================================================================
+--- binutils.orig/bfd/elfxx-mips.c
++++ binutils/bfd/elfxx-mips.c
+@@ -5361,6 +5361,12 @@ mips_elf_calculate_relocation (bfd *abfd
+ 	}
+       break;
+ 
++    case R_RELOC_OFF6A:
++      value = (symbol + ((addend >> 6) << 3));
++      if ((value % 8) != 0)
++	return bfd_reloc_notmultipleof8_ltw;
++      value = ((value >> 3) << 6) & howto->dst_mask;
++      break;
+     case R_MIPS_LITERAL:
+       /* Because we don't merge literal sections, we can handle this
+ 	 just like R_MIPS_GPREL16.  In the long run, we should merge
+@@ -9156,6 +9162,12 @@ _bfd_mips_elf_relocate_section (bfd *out
+ 	    }
+ 	  break;
+ 
++	case bfd_reloc_notmultipleof8_ltw:
++	  msg = _("offset in ltw instruction is not multiple of 8");
++	  info->callbacks->warning
++	    (info, msg, name, input_bfd, input_section, rel->r_offset);
++	  return FALSE;
++
+ 	case bfd_reloc_ok:
+ 	  break;
+ 
+Index: binutils/bfd/libbfd.h
+===================================================================
+--- binutils.orig/bfd/libbfd.h
++++ binutils/bfd/libbfd.h
+@@ -2126,6 +2126,7 @@ static const char *const bfd_reloc_code_
+   "BFD_RELOC_MICROBLAZE_64_GOTOFF",
+   "BFD_RELOC_MICROBLAZE_32_GOTOFF",
+   "BFD_RELOC_MICROBLAZE_COPY",
++  "BFD_RELOC_OFF6A",
+  "@@overflow: BFD_RELOC_UNUSED@@",
+ };
+ #endif
+Index: binutils/bfd/reloc.c
+===================================================================
+--- binutils.orig/bfd/reloc.c
++++ binutils/bfd/reloc.c
+@@ -52,6 +52,7 @@ SECTION
+ #include "bfd.h"
+ #include "bfdlink.h"
+ #include "libbfd.h"
++#include "elf/mips.h"
+ /*
+ DOCDD
+ INODE
+@@ -1215,6 +1216,15 @@ space consuming.  For each target:
+      }
+      */
+ 
++
++  switch (howto->type)
++    {
++    case R_RELOC_OFF6A:
++      if ((relocation % 8) != 0)
++        return bfd_reloc_notmultipleof8_ltw;
++      break;
++    }
++
+   relocation >>= (bfd_vma) howto->rightshift;
+ 
+   /* Shift everything up to where it's going to be used.  */
+Index: binutils/gas/write.c
+===================================================================
+--- binutils.orig/gas/write.c
++++ binutils/gas/write.c
+@@ -1133,6 +1133,9 @@ install_reloc (asection *sec, arelent *r
+     case bfd_reloc_outofrange:
+       as_bad_where (file, line, _("relocation out of range"));
+       break;
++    case bfd_reloc_notmultipleof8_ltw:
++      as_bad_where (file, line, _("offset in ltw instruction is not multiple of 8"));
++      break;
+     default:
+       as_fatal (_("%s:%u: bad return from bfd_install_relocation: %x"),
+ 		file, line, s);
+Index: binutils/include/elf/mips.h
+===================================================================
+--- binutils.orig/include/elf/mips.h
++++ binutils/include/elf/mips.h
+@@ -88,7 +88,8 @@ START_RELOC_NUMBERS (elf_mips_reloc_type
+   RELOC_NUMBER (R_MIPS_TLS_TPREL_HI16, 49)
+   RELOC_NUMBER (R_MIPS_TLS_TPREL_LO16, 50)
+   RELOC_NUMBER (R_MIPS_GLOB_DAT, 51)
+-  FAKE_RELOC (R_MIPS_max, 52)
++  RELOC_NUMBER (R_RELOC_OFF6A, 52)
++  FAKE_RELOC (R_MIPS_max, 53)
+   /* These relocs are used for the mips16.  */
+   FAKE_RELOC (R_MIPS16_min, 100)
+   RELOC_NUMBER (R_MIPS16_26, 100)
