@@ -1,0 +1,34 @@
+Index: linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
+===================================================================
+--- linux-2.6.30.9.orig/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
++++ linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
+@@ -360,7 +360,7 @@
+ // WPA Supplicant 
+ //-------------------------------------------------------------
+ 
+-//#define WIFI_WPAS
++#define WIFI_WPAS
+ 
+ #ifdef WIFI_WPAS
+ 
+@@ -515,9 +515,9 @@
+ //-------------------------------------------------------------
+ // Hostapd 
+ //-------------------------------------------------------------
+-//#ifdef CONFIG_RTL_HOSTAPD_SUPPORT 
+-//#define WIFI_HAPD
+-//#endif
++#ifdef CONFIG_RTL_HOSTAPD_SUPPORT 
++#define WIFI_HAPD
++#endif
+ 
+ #ifdef WIFI_HAPD
+ 
+@@ -1719,3 +1719,7 @@
+ 
+ #endif // _8192CD_CFG_H_
+ 
++#ifndef WIFI_HAPD
++#error hapd not-set
++#endif
++
