@@ -61,6 +61,7 @@ define Host/Compile
 	$(call cc,mkdapimg)
 	$(call cc, mkcameofw, -Wall)
 	$(call cc,bixutil)
+	$(call cc,cvimg)
 endef
 
 define Host/Install
