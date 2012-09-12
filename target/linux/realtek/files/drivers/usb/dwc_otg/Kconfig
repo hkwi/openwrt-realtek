@@ -1,0 +1,22 @@
+config DWC_OTG
+        tristate "Synopsys DWC_OTG support"
+        ---help---
+          This driver supports Synopsys DWC_OTG 
+
+config DWC_OTG_DEBUG
+        bool "enable debug mode"
+        depends on DWC_OTG
+
+
+config DWC_OTG_HOST_ONLY
+        bool "HOST ONLY MODE"
+        depends on DWC_OTG
+
+config DWC_OTG_DEVICE_ONLY
+        bool "DEVICE ONLY MODE"
+        depends on DWC_OTG
+
+config RTL_OTGCTRL
+        bool "Enable Realtek usb auto_det control circuit"
+        
+

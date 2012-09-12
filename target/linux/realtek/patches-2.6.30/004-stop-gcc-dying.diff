@@ -1,0 +1,18 @@
+Index: linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
+===================================================================
+--- linux-2.6.30.9.orig/drivers/net/wireless/rtl8192cd/8192cd_cfg.h	2011-12-04 15:04:13.000000000 +0000
++++ linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_cfg.h	2011-12-04 15:05:08.000000000 +0000
+@@ -1709,6 +1709,13 @@
+ #undef CONFIG_RTK_VLAN_SUPPORT
+ #endif
+ 
++#undef __DRAM_IN_865X
++#undef __IRAM_IN_865X
++#undef __MIPS16
++
++#define __DRAM_IN_865X  
++#define __IRAM_IN_865X  
++#define __MIPS16 
+ 
+ #endif // _8192CD_CFG_H_
+ 

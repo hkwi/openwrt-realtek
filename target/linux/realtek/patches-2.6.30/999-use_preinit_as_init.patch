@@ -1,0 +1,16 @@
+Index: linux-2.6.30.9/init/main.c
+===================================================================
+--- linux-2.6.30.9.orig/init/main.c
++++ linux-2.6.30.9/init/main.c
+@@ -840,10 +840,7 @@ static noinline int init_post(void)
+ 		printk(KERN_WARNING "Failed to execute %s.  Attempting "
+ 					"defaults...\n", execute_command);
+ 	}
+-	run_init_process("/sbin/init");
+-	run_init_process("/etc/init");
+-	run_init_process("/bin/init");
+-	run_init_process("/bin/sh");
++	run_init_process("/etc/preinit");
+ 
+ 	panic("No init found.  Try passing init= option to kernel.");
+ }
