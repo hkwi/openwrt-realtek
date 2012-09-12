@@ -110,6 +110,10 @@ config i686
 config m68k
 	bool
 
+config lexra
+	select BIG_ENDIAN
+	bool
+
 config mips
 	select BIG_ENDIAN
 	bool
@@ -177,4 +181,5 @@ config ARCH
 	default "sh4eb"     if sh4eb
 	default "sparc"     if sparc
 	default "x86_64"    if x86_64
+	default	"mips"	    if lexra
 
