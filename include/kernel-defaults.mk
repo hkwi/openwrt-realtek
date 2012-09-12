@@ -94,6 +94,12 @@ define Kernel/Configure/Default
 	$(LINUX_CONF_CMD) > $(LINUX_DIR)/.config.target
 # copy CONFIG_KERNEL_* settings over to .config.target
 	awk '/^(#[[:space:]]+)?CONFIG_KERNEL/{sub("CONFIG_KERNEL_","CONFIG_");print}' $(TOPDIR)/.config >> $(LINUX_DIR)/.config.target
+ifeq ($(CONFIG_TARGET_realtek),y)
+		echo "CONFIG_RTL_FLASH_SIZE=${CONFIG_REALTEK_FLASH_SIZE}" >> $(LINUX_DIR)/.config.target
+		echo "CONFIG_RTL_LINUX_IMAGE_OFFSET=0x${CONFIG_REALTEK_KERNEL_OFFSET}" >> $(LINUX_DIR)/.config.target
+		echo "CONFIG_RTL_ROOT_IMAGE_OFFSET=0x${CONFIG_REALTEK_ROOTFS_OFFSET}" >> $(LINUX_DIR)/.config.target
+		echo "CONFIG_RTL_KERNEL_LOAD_ADDRESS=${CONFIG_REALTEK_KERNEL_LOAD_ADDRESS}"  >> $(LINUX_DIR)/.config.target
+endif
 	echo "# CONFIG_KALLSYMS_EXTRA_PASS is not set" >> $(LINUX_DIR)/.config.target
 	echo "# CONFIG_KALLSYMS_ALL is not set" >> $(LINUX_DIR)/.config.target
 	echo "# CONFIG_KPROBES is not set" >> $(LINUX_DIR)/.config.target
