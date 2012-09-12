@@ -33,6 +33,7 @@ UCLIBC_TARGET_ARCH:=$(shell echo $(ARCH) | sed -e s'/-.*//' \
 		-e 's/sh64/sh/' \
 		-e 's/sh[234].*/sh/' \
 		-e 's/mips.*/mips/' \
+		-e 's/lexra/mips/' \
 		-e 's/mipsel.*/mips/' \
 		-e 's/cris.*/cris/' \
 )
