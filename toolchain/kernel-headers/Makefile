@@ -31,6 +31,10 @@ ifeq ($(strip $(BOARD)),uml)
   LINUX_KARCH:=$(subst x86_64,x86,$(subst i386,x86,$(ARCH)))
 endif
 
+ifeq ($(CONFIG_TARGET_realtek),y)
+LINUX_KARCH:=$(subst lexra,mips,$(ARCH))
+endif
+
 HOST_EXTRACFLAGS=
 
 LINUX_HAS_HEADERS_INSTALL:=y
