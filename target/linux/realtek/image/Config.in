@@ -1,0 +1,20 @@
+config REALTEK_KERNEL_LOAD_ADDRESS
+	string "Load address of kernel in ram"
+	depends TARGET_realtek
+	default "0x80500000"
+
+config REALTEK_KERNEL_OFFSET
+	string "Offset of kernel in flash rom (HEX)"
+	depends TARGET_realtek
+	default "30000"
+
+config REALTEK_ROOTFS_OFFSET
+	string "Offset of filesystem in flash rom (HEX)"
+	depends TARGET_realtek
+	default "140000"
+
+config REALTEK_FLASH_SIZE
+	string "size of the flash rom"
+	depends TARGET_realtek
+	default "0x800000"
+
