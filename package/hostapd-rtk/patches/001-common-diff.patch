@@ -1,0 +1,264 @@
+Index: hostapd-0.6.10-try/src/drivers/drivers.c
+===================================================================
+--- hostapd-0.6.10-try.orig/src/drivers/drivers.c
++++ hostapd-0.6.10-try/src/drivers/drivers.c
+@@ -33,6 +33,12 @@ extern struct wpa_driver_ops wpa_driver_
+ #ifdef CONFIG_DRIVER_MADWIFI
+ extern struct wpa_driver_ops wpa_driver_madwifi_ops; /* driver_madwifi.c */
+ #endif /* CONFIG_DRIVER_MADWIFI */
++#ifdef CONFIG_DRIVER_REALTEK
++extern struct wpa_driver_ops wpa_driver_realtek_ops; /* driver_madwifi.c */
++#endif /* CONFIG_DRIVER_REALTEK */
++#ifdef CONFIG_DRIVER_REALTEK
++extern struct wpa_driver_ops wpa_driver_realtek_ops; /* driver_realtek.c */
++#endif /* CONFIG_DRIVER_REALTEK */
+ #ifdef CONFIG_DRIVER_ATMEL
+ extern struct wpa_driver_ops wpa_driver_atmel_ops; /* driver_atmel.c */
+ #endif /* CONFIG_DRIVER_ATMEL */
+@@ -96,6 +102,12 @@ struct wpa_driver_ops *wpa_supplicant_dr
+ #ifdef CONFIG_DRIVER_MADWIFI
+ 	&wpa_driver_madwifi_ops,
+ #endif /* CONFIG_DRIVER_MADWIFI */
++#ifdef CONFIG_DRIVER_REALTEK
++    &wpa_driver_realtek_ops,
++#endif /* CONFIG_DRIVER_REALTEK */
++#ifdef CONFIG_DRIVER_REALTEK
++    &wpa_driver_realtek_ops,
++#endif /* CONFIG_DRIVER_REALTEK */
+ #ifdef CONFIG_DRIVER_ATMEL
+ 	&wpa_driver_atmel_ops,
+ #endif /* CONFIG_DRIVER_ATMEL */
+Index: hostapd-0.6.10-try/src/rsn_supp/wpa.c
+===================================================================
+--- hostapd-0.6.10-try.orig/src/rsn_supp/wpa.c
++++ hostapd-0.6.10-try/src/rsn_supp/wpa.c
+@@ -426,9 +426,14 @@ static void wpa_supplicant_process_1_of_
+ 	ptk = &sm->tptk;
+ 	wpa_derive_ptk(sm, src_addr, key, ptk);
+ 	/* Supplicant: swap tx/rx Mic keys */
++#ifdef RTK_WPAS
++	printf("NOT SWAP PTK\n");
++#else
++	printf("SWAP PTK\n");
+ 	os_memcpy(buf, ptk->u.auth.tx_mic_key, 8);
+ 	os_memcpy(ptk->u.auth.tx_mic_key, ptk->u.auth.rx_mic_key, 8);
+ 	os_memcpy(ptk->u.auth.rx_mic_key, buf, 8);
++#endif
+ 	sm->tptk_set = 1;
+ 
+ 	if (wpa_supplicant_send_2_of_4(sm, sm->bssid, key, ver, sm->snonce,
+@@ -633,10 +638,16 @@ static int wpa_supplicant_install_gtk(st
+ 		   gd->gtk_len);
+ 	wpa_hexdump(MSG_DEBUG, "WPA: RSC", key_rsc, gd->key_rsc_len);
+ 	if (sm->group_cipher == WPA_CIPHER_TKIP) {
++#ifdef RTK_WPAS
++		printf("NOT SWAP GTK\n");
++		os_memcpy(gtk_buf, gd->gtk, gd->gtk_len);
++#else
++		printf("SWAP GTK\n");
+ 		/* Swap Tx/Rx keys for Michael MIC */
+ 		os_memcpy(gtk_buf, gd->gtk, 16);
+ 		os_memcpy(gtk_buf + 16, gd->gtk + 24, 8);
+ 		os_memcpy(gtk_buf + 24, gd->gtk + 16, 8);
++#endif
+ 		_gtk = gtk_buf;
+ 	}
+ 	if (sm->pairwise_cipher == WPA_CIPHER_NONE) {
+@@ -1010,6 +1021,15 @@ static void wpa_supplicant_process_3_of_
+ 	if (key_info & WPA_KEY_INFO_INSTALL) {
+ 		if (wpa_supplicant_install_ptk(sm, key))
+ 			goto failed;
++#ifdef RTK_WPAS
++		else if(sm->key_mgmt == WPA_KEY_MGMT_PSK)
++			{
++				wpa_sm_mlme_setprotection(
++					sm, sm->bssid, MLME_SETPROTECTION_PROTECT_TYPE_RX,
++					MLME_SETPROTECTION_KEY_TYPE_PAIRWISE);
++				eapol_sm_notify_portValid(sm->eapol, TRUE);
++			}
++#endif
+ 	}
+ 
+ 	if (key_info & WPA_KEY_INFO_SECURE) {
+Index: hostapd-0.6.10-try/src/utils/common.h
+===================================================================
+--- hostapd-0.6.10-try.orig/src/utils/common.h
++++ hostapd-0.6.10-try/src/utils/common.h
+@@ -455,4 +455,11 @@ static inline int is_zero_ether_addr(con
+ void * __hide_aliasing_typecast(void *foo);
+ #define aliasing_hide_typecast(a,t) (t *) __hide_aliasing_typecast((a))
+ 
++#define RTK_WPAS
++
++#ifdef RTK_WPAS
++#define RTK_INBAND
++#define RTK_INBAND_LE
++#endif
++
+ #endif /* COMMON_H */
+Index: hostapd-0.6.10-try/src/utils/os_unix.c
+===================================================================
+--- hostapd-0.6.10-try.orig/src/utils/os_unix.c
++++ hostapd-0.6.10-try/src/utils/os_unix.c
+@@ -116,7 +116,7 @@ int os_daemonize(const char *pid_file)
+ #ifdef __uClinux__
+ 	return -1;
+ #else /* __uClinux__ */
+-	if (os_daemon(0, 0)) {
++	if (os_daemon(0, 1)) {
+ 		perror("daemon");
+ 		return -1;
+ 	}
+Index: hostapd-0.6.10-try/src/wps/wps.h
+===================================================================
+--- hostapd-0.6.10-try.orig/src/wps/wps.h
++++ hostapd-0.6.10-try/src/wps/wps.h
+@@ -507,6 +507,10 @@ struct wps_context {
+ 
+ 	/* Pending messages from UPnP PutWLANResponse */
+ 	struct upnp_pending_message *upnp_msgs;
++
++#if defined(RTK_HAPD) || (1)
++	volatile int set_selected_registrar; //add this item to help AP determine to use proxy mode or handle msg by itself.
++#endif
+ };
+ 
+ 
+Index: hostapd-0.6.10-try/src/wps/wps_registrar.c
+===================================================================
+--- hostapd-0.6.10-try.orig/src/wps/wps_registrar.c
++++ hostapd-0.6.10-try/src/wps/wps_registrar.c
+@@ -461,6 +461,10 @@ int wps_registrar_add_pin(struct wps_reg
+ 			       wps_registrar_set_selected_timeout,
+ 			       reg, NULL);
+ 
++#if defined(RTK_HAPD) || (1)
++	reg->wps->set_selected_registrar = 0;
++#endif
++
+ 	return 0;
+ }
+ 
+@@ -649,6 +653,11 @@ int wps_registrar_button_pushed(struct w
+ 	eloop_cancel_timeout(wps_registrar_pbc_timeout, reg, NULL);
+ 	eloop_register_timeout(WPS_PBC_WALK_TIME, 0, wps_registrar_pbc_timeout,
+ 			       reg, NULL);
++
++#if defined(RTK_HAPD) || (1)
++	reg->wps->set_selected_registrar = 0;
++#endif
++
+ 	return 0;
+ }
+ 
+@@ -1040,10 +1049,32 @@ static int wps_build_cred_encr_type(stru
+ static int wps_build_cred_network_key(struct wpabuf *msg,
+ 				      struct wps_credential *cred)
+ {
++
++#if defined(RTK_HAPD) || (1) //If authtication is WEP, always tell enrollee use wepkey1.
++	if(cred->encr_type == 0x2)
++	{
++		wpabuf_put_be16(msg, ATTR_NETWORK_KEY_INDEX);
++		wpabuf_put_be16(msg, 1);
++		wpabuf_put_u8(msg, 1);
++	}
++#endif
++
+ 	wpa_printf(MSG_DEBUG, "WPS:  * Network Key");
+ 	wpabuf_put_be16(msg, ATTR_NETWORK_KEY);
+ 	wpabuf_put_be16(msg, cred->key_len);
+ 	wpabuf_put_data(msg, cred->key, cred->key_len);
++
++#if defined(RTK_HAPD) || (1)
++	if(cred->encr_type == 0x2)
++	{
++		wpabuf_put_be16(msg, ATTR_WEPTRANSMITKEY);
++		wpabuf_put_be16(msg, 1);
++		wpabuf_put_u8(msg, 1);
++	}
++#endif
++
++
++
+ 	return 0;
+ }
+ 
+@@ -1446,6 +1477,10 @@ struct wpabuf * wps_registrar_get_msg(st
+ 	struct wpabuf *msg;
+ 
+ #ifdef CONFIG_WPS_UPNP
++
++#if defined(RTK_HAPD) || (1)
++	if(wps->wps->set_selected_registrar == 1)
++#endif
+ 	if (wps->wps->wps_upnp) {
+ 		struct upnp_pending_message *p, *prev = NULL;
+ 		if (wps->ext_reg > 1)
+@@ -2523,6 +2558,19 @@ enum wps_process_res wps_registrar_proce
+ 	}
+ 	if (wps->ext_reg > 1)
+ 		wps_registrar_free_pending_m2(wps->wps);
++
++#if defined (RTK_HAPD) || (1)
++	wpa_printf(MSG_DEBUG, "WPS: set_selected_registrar = %d", wps->wps->set_selected_registrar);
++	if(	wps->wps->wps_upnp && (wps->wps->set_selected_registrar == 1)
++		&& upnp_wps_subscribers(wps->wps->wps_upnp))
++	{
++		if(wps->ext_reg == 0)
++			wps->ext_reg = 1;
++	}
++	else
++		wps->ext_reg = 0;
++#endif
++
+ 	if (wps->wps->wps_upnp && wps->ext_reg &&
+ 	    wps->wps->upnp_msgs == NULL &&
+ 	    (op_code == WSC_MSG || op_code == WSC_Done || op_code == WSC_NACK))
+Index: hostapd-0.6.10-try/src/wps/wps_upnp_event.c
+===================================================================
+--- hostapd-0.6.10-try.orig/src/wps/wps_upnp_event.c
++++ hostapd-0.6.10-try/src/wps/wps_upnp_event.c
+@@ -485,8 +485,14 @@ void event_send_all_later(struct upnp_wp
+ 	if (sm->event_send_all_queued)
+ 		return;
+ 	sm->event_send_all_queued = 1;
++
++#if defined(RTK_HAPD) || (1)
++	event_send_all_later_handler(NULL, sm);
++#else
+ 	eloop_register_timeout(EVENT_DELAY_SECONDS, EVENT_DELAY_MSEC,
+ 			       event_send_all_later_handler, NULL, sm);
++#endif
++
+ }
+ 
+ 
+Index: hostapd-0.6.10-try/src/wps/wps_upnp_web.c
+===================================================================
+--- hostapd-0.6.10-try.orig/src/wps/wps_upnp_web.c
++++ hostapd-0.6.10-try/src/wps/wps_upnp_web.c
+@@ -1053,6 +1053,11 @@ web_process_set_selected_registrar(struc
+ 	enum http_reply_code ret;
+ 
+ 	wpa_printf(MSG_DEBUG, "WPS UPnP: SetSelectedRegistrar");
++
++#if defined(RTK_HAPD) || (1)
++	sm->wps->set_selected_registrar = 0;
++#endif
++
+ 	msg = web_get_item(data, "NewMessage", &ret);
+ 	if (msg == NULL)
+ 		return ret;
+@@ -1064,6 +1069,11 @@ web_process_set_selected_registrar(struc
+ 	wpabuf_free(msg);
+ 	*replyname = NULL;
+ 	*reply = NULL;
++
++#if defined(RTK_HAPD) || (1)
++	sm->wps->set_selected_registrar = 1;
++#endif
++
+ 	return HTTP_OK;
+ }
+ 

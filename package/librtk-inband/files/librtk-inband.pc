@@ -1,0 +1,10 @@
+prefix=/usr
+exec_prefix=/usr
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/librtk-inband
+
+Name: librtk-inband
+Description: library for inband configuration of realtek wireless devices
+Version: 1.0
+Libs: -L${libdir} -lrtk-inband
+Cflags:
