@@ -1,0 +1,26 @@
+Index: hostapd-rtk-0.6.10/hostapd/Makefile
+===================================================================
+--- hostapd-rtk-0.6.10.orig/hostapd/Makefile
++++ hostapd-rtk-0.6.10/hostapd/Makefile
+@@ -124,7 +124,7 @@ endif
+ 
+ ifdef CONFIG_DRIVER_REALTEK
+ CFLAGS += -DCONFIG_DRIVER_REALTEK
+-CFLAGS += -DINBAND_CTRL
++#CFLAGS += -DINBAND_CTRL
+ LIBS += -linband
+ OBJS += driver_realtek.o
+ CONFIG_L2_PACKET=y
+Index: hostapd-rtk-0.6.10/wpa_supplicant/Makefile
+===================================================================
+--- hostapd-rtk-0.6.10.orig/wpa_supplicant/Makefile
++++ hostapd-rtk-0.6.10/wpa_supplicant/Makefile
+@@ -159,7 +159,7 @@ endif
+ 
+ ifdef CONFIG_DRIVER_REALTEK
+ CFLAGS += -DCONFIG_DRIVER_REALTEK
+-CFLAGS += -DINBAND_CTRL
++#CFLAGS += -DINBAND_CTRL
+ LIBS += -linband
+ OBJS_d += ../src/drivers/driver_realtek.o
+ CONFIG_WIRELESS_EXTENSION=y

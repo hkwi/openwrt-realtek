@@ -1,0 +1,207 @@
+Index: hostapd-rtk-0.6.10/wpa_supplicant/config_file.c
+===================================================================
+--- hostapd-rtk-0.6.10.orig/wpa_supplicant/config_file.c
++++ hostapd-rtk-0.6.10/wpa_supplicant/config_file.c
+@@ -458,6 +458,10 @@ static const struct global_parse_data gl
+ 	{ FUNC(os_version) },
+ 	{ INT_RANGE(wps_cred_processing, 0, 2) },
+ #endif /* CONFIG_WPS */
++#ifdef RTK_WPAS
++	{ INT(macPhyMode) },
++	{ INT(phyBandSelect) },
++#endif
+ 	{ FUNC(country) }
+ };
+ 
+@@ -886,6 +890,10 @@ static void wpa_config_write_global(FILE
+ 		fprintf(f, "wps_cred_processing=%d\n",
+ 			config->wps_cred_processing);
+ #endif /* CONFIG_WPS */
++#ifdef RTK_WPAS
++		fprintf(f, "macPhyMode=%d\n", config->macPhyMode);
++		fprintf(f, "phyBandSelect=%d\n", config->phyBandSelect);
++#endif
+ 	if (config->country[0] && config->country[1]) {
+ 		fprintf(f, "country=%c%c\n",
+ 			config->country[0], config->country[1]);
+Index: hostapd-rtk-0.6.10/wpa_supplicant/config.h
+===================================================================
+--- hostapd-rtk-0.6.10.orig/wpa_supplicant/config.h
++++ hostapd-rtk-0.6.10/wpa_supplicant/config.h
+@@ -323,6 +323,11 @@ struct wpa_config {
+ 	 *	ctrl_iface to external program(s)
+ 	 */
+ 	int wps_cred_processing;
++
++#if (1)//RTK_HAPD
++	int macPhyMode;
++	int phyBandSelect;
++#endif
+ };
+ 
+ 
+Index: hostapd-rtk-0.6.10/wpa_supplicant/defconfig
+===================================================================
+--- hostapd-rtk-0.6.10.orig/wpa_supplicant/defconfig
++++ hostapd-rtk-0.6.10/wpa_supplicant/defconfig
+@@ -41,7 +41,7 @@
+ 
+ 
+ # Driver interface for Host AP driver
+-CONFIG_DRIVER_HOSTAP=y
++#CONFIG_DRIVER_HOSTAP=y
+ 
+ # Driver interface for Agere driver
+ #CONFIG_DRIVER_HERMES=y
+@@ -55,6 +55,9 @@ CONFIG_DRIVER_HOSTAP=y
+ # Set include directory to the madwifi source tree
+ #CFLAGS += -I../../madwifi
+ 
++# Driver interface for Realtek driver
++CONFIG_DRIVER_REALTEK=y
++
+ # Driver interface for Prism54 driver
+ # (Note: Prism54 is not yet supported, i.e., this will not work as-is and is
+ # for developers only)
+@@ -65,7 +68,7 @@ CONFIG_DRIVER_HOSTAP=y
+ #CONFIG_DRIVER_NDISWRAPPER=y
+ 
+ # Driver interface for Atmel driver
+-CONFIG_DRIVER_ATMEL=y
++#CONFIG_DRIVER_ATMEL=y
+ 
+ # Driver interface for old Broadcom driver
+ # Please note that the newer Broadcom driver ("hybrid Linux driver") supports
+@@ -83,7 +86,7 @@ CONFIG_DRIVER_ATMEL=y
+ #CONFIG_DRIVER_RALINK=y
+ 
+ # Driver interface for generic Linux wireless extensions
+-CONFIG_DRIVER_WEXT=y
++#CONFIG_DRIVER_WEXT=y
+ 
+ # Driver interface for Linux drivers using the nl80211 kernel interface
+ #CONFIG_DRIVER_NL80211=y
+@@ -113,7 +116,7 @@ CONFIG_DRIVER_WEXT=y
+ #CONFIG_DRIVER_TEST=y
+ 
+ # Driver interface for wired Ethernet drivers
+-CONFIG_DRIVER_WIRED=y
++#CONFIG_DRIVER_WIRED=y
+ 
+ # Driver interface for the Broadcom RoboSwitch family
+ #CONFIG_DRIVER_ROBOSWITCH=y
+Index: hostapd-rtk-0.6.10/wpa_supplicant/events.c
+===================================================================
+--- hostapd-rtk-0.6.10.orig/wpa_supplicant/events.c
++++ hostapd-rtk-0.6.10/wpa_supplicant/events.c
+@@ -259,6 +259,9 @@ static int wpa_supplicant_match_privacy(
+ 	for (i = 0; i < NUM_WEP_KEYS; i++) {
+ 		if (ssid->wep_key_len[i]) {
+ 			privacy = 1;
++#ifdef RTK_WPAS
++			bss->caps |= IEEE80211_CAP_PRIVACY;
++#endif
+ 			break;
+ 		}
+ 	}
+Index: hostapd-rtk-0.6.10/wpa_supplicant/wpa_supplicant.c
+===================================================================
+--- hostapd-rtk-0.6.10.orig/wpa_supplicant/wpa_supplicant.c
++++ hostapd-rtk-0.6.10/wpa_supplicant/wpa_supplicant.c
+@@ -40,6 +40,11 @@
+ #include "wpas_glue.h"
+ #include "wps_supplicant.h"
+ 
++#ifdef RTK_INBAND
++#include <net/if.h>
++#include <sys/ioctl.h>
++#endif
++
+ const char *wpa_supplicant_version =
+ "wpa_supplicant v" VERSION_STR "\n"
+ "Copyright (c) 2003-2009, Jouni Malinen <j@w1.fi> and contributors";
+@@ -1603,25 +1608,52 @@ void wpa_supplicant_sta_rx(void *ctx, co
+ int wpa_supplicant_driver_init(struct wpa_supplicant *wpa_s)
+ {
+ 	static int interface_count = 0;
++#ifdef RTK_INBAND
++	struct ifreq ifr;
++#endif
++
+ 
+ 	if (wpa_s->driver->send_eapol) {
+ 		const u8 *addr = wpa_drv_get_mac_addr(wpa_s);
+ 		if (addr)
+ 			os_memcpy(wpa_s->own_addr, addr, ETH_ALEN);
+ 	} else {
++
++#ifdef RTK_INBAND
++		wpa_s->l2 = l2_packet_init("eth0",
++			   wpa_drv_get_mac_addr(wpa_s),
++			   ETH_P_EAPOL,
++			   wpa_supplicant_rx_eapol, wpa_s, 0);
++#else
+ 		wpa_s->l2 = l2_packet_init(wpa_s->ifname,
+ 					   wpa_drv_get_mac_addr(wpa_s),
+ 					   ETH_P_EAPOL,
+ 					   wpa_supplicant_rx_eapol, wpa_s, 0);
++#endif
+ 		if (wpa_s->l2 == NULL)
+ 			return -1;
+ 	}
+ 
++#ifdef RTK_INBAND
++
++	os_memset(&ifr, 0, sizeof(ifr));
++
++	os_strlcpy(ifr.ifr_name, wpa_s->ifname, sizeof(ifr.ifr_name));
++
++	if (inband_ioctl(SIOCGIFHWADDR,&ifr) < 0)
++		printf("SIOCGIFHWADDR error !! Failed to get own address\n");
++	else
++		os_memcpy(wpa_s->own_addr, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
++
++#else
++
+ 	if (wpa_s->l2 && l2_packet_get_own_addr(wpa_s->l2, wpa_s->own_addr)) {
+ 		wpa_printf(MSG_ERROR, "Failed to get own L2 address");
+ 		return -1;
+ 	}
+ 
++#endif
++
+ 	wpa_printf(MSG_DEBUG, "Own MAC address: " MACSTR,
+ 		   MAC2STR(wpa_s->own_addr));
+ 
+Index: hostapd-rtk-0.6.10/wpa_supplicant/Makefile
+===================================================================
+--- hostapd-rtk-0.6.10.orig/wpa_supplicant/Makefile
++++ hostapd-rtk-0.6.10/wpa_supplicant/Makefile
+@@ -157,6 +157,14 @@ OBJS_d += ../src/drivers/driver_madwifi.
+ CONFIG_WIRELESS_EXTENSION=y
+ endif
+ 
++ifdef CONFIG_DRIVER_REALTEK
++CFLAGS += -DCONFIG_DRIVER_REALTEK
++CFLAGS += -DINBAND_CTRL
++LIBS += -linband
++OBJS_d += ../src/drivers/driver_realtek.o
++CONFIG_WIRELESS_EXTENSION=y
++endif
++
+ ifdef CONFIG_DRIVER_ATMEL
+ CFLAGS += -DCONFIG_DRIVER_ATMEL
+ OBJS_d += ../src/drivers/driver_atmel.o
+@@ -859,8 +867,12 @@ CFLAGS += -DNEED_SHA256
+ endif
+ 
+ ifdef CONFIG_WIRELESS_EXTENSION
++ifdef CONFIG_DRIVER_REALTEK
++OBJS_d += ../src/drivers/driver_realtek_wext.o
++else
+ OBJS_d += ../src/drivers/driver_wext.o
+ endif
++endif
+ 
+ ifdef CONFIG_CTRL_IFACE
+ ifeq ($(CONFIG_CTRL_IFACE), y)
