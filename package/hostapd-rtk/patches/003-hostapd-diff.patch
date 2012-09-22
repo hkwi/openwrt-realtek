@@ -1,0 +1,300 @@
+Index: hostapd-0.6.10-try/hostapd/accounting.c
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/accounting.c
++++ hostapd-0.6.10-try/hostapd/accounting.c
+@@ -28,10 +28,6 @@
+  * input/output octets and updates Acct-{Input,Output}-Gigawords. */
+ #define ACCT_DEFAULT_UPDATE_INTERVAL 300
+ 
+-static void accounting_sta_get_id(struct hostapd_data *hapd,
+-				  struct sta_info *sta);
+-
+-
+ static struct radius_msg * accounting_msg(struct hostapd_data *hapd,
+ 					  struct sta_info *sta,
+ 					  int status_type)
+@@ -400,7 +396,7 @@ void accounting_sta_stop(struct hostapd_
+ }
+ 
+ 
+-static void accounting_sta_get_id(struct hostapd_data *hapd,
++void accounting_sta_get_id(struct hostapd_data *hapd,
+ 				  struct sta_info *sta)
+ {
+ 	sta->acct_session_id_lo = hapd->acct_session_id_lo++;
+Index: hostapd-0.6.10-try/hostapd/accounting.h
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/accounting.h
++++ hostapd-0.6.10-try/hostapd/accounting.h
+@@ -22,5 +22,7 @@ int accounting_init(struct hostapd_data 
+ void accounting_deinit(struct hostapd_data *hapd);
+ int accounting_reconfig(struct hostapd_data *hapd,
+ 			struct hostapd_config *oldconf);
++void accounting_sta_get_id(struct hostapd_data *hapd,
++				  struct sta_info *sta);
+ 
+ #endif /* ACCOUNTING_H */
+Index: hostapd-0.6.10-try/hostapd/config.c
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/config.c
++++ hostapd-0.6.10-try/hostapd/config.c
+@@ -1461,6 +1461,7 @@ struct hostapd_config * hostapd_config_r
+ 					conf->driver = hostapd_drivers[j];
+ 					break;
+ 				}
++				wpa_printf(MSG_ERROR, "Index:%d driver name:%s, choice:%s",j,hostapd_drivers[j]->name,pos);
+ 			}
+ 			if (conf->driver == NULL) {
+ 				wpa_printf(MSG_ERROR, "Line %d: invalid/"
+@@ -2251,7 +2252,9 @@ struct hostapd_config * hostapd_config_r
+ 		} else {
+ 			wpa_printf(MSG_ERROR, "Line %d: unknown configuration "
+ 				   "item '%s'", line, buf);
++#ifndef RTK_HAPD //In order to support realtek private configurations
+ 			errors++;
++#endif
+ 		}
+ 	}
+ 
+Index: hostapd-0.6.10-try/hostapd/defconfig
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/defconfig
++++ hostapd-0.6.10-try/hostapd/defconfig
+@@ -10,7 +10,7 @@
+ # to override previous values of the variables.
+ 
+ # Driver interface for Host AP driver
+-CONFIG_DRIVER_HOSTAP=y
++#CONFIG_DRIVER_HOSTAP=y
+ 
+ # Driver interface for wired authenticator
+ #CONFIG_DRIVER_WIRED=y
+@@ -19,6 +19,9 @@ CONFIG_DRIVER_HOSTAP=y
+ #CONFIG_DRIVER_MADWIFI=y
+ #CFLAGS += -I../../madwifi # change to the madwifi source directory
+ 
++# Driver interface for realtek driver
++CONFIG_DRIVER_REALTEK=y
++
+ # Driver interface for Prism54 driver
+ #CONFIG_DRIVER_PRISM54=y
+ 
+@@ -107,9 +110,9 @@ CONFIG_EAP_TTLS=y
+ #CONFIG_EAP_FAST=y
+ 
+ # Wi-Fi Protected Setup (WPS)
+-#CONFIG_WPS=y
++CONFIG_WPS=y
+ # Enable UPnP support for external WPS Registrars
+-#CONFIG_WPS_UPNP=y
++CONFIG_WPS_UPNP=y
+ 
+ # EAP-IKEv2
+ #CONFIG_EAP_IKEV2=y
+Index: hostapd-0.6.10-try/hostapd/driver.h
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/driver.h
++++ hostapd-0.6.10-try/hostapd/driver.h
+@@ -195,6 +195,10 @@ struct wpa_driver_ops {
+ 				 const u8 *ie, size_t len);
+ 	int (*set_wps_probe_resp_ie)(const char *ifname, void *priv,
+ 				     const u8 *ie, size_t len);
++
++#ifdef RTK_HAPD
++	int (*driver_on)(void *priv, int on);
++#endif
+ };
+ 
+ static inline void *
+Index: hostapd-0.6.10-try/hostapd/drivers.c
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/drivers.c
++++ hostapd-0.6.10-try/hostapd/drivers.c
+@@ -27,6 +27,9 @@ extern struct wpa_driver_ops wpa_driver_
+ #ifdef CONFIG_DRIVER_MADWIFI
+ extern struct wpa_driver_ops wpa_driver_madwifi_ops; /* driver_madwifi.c */
+ #endif /* CONFIG_DRIVER_MADWIFI */
++#ifdef CONFIG_DRIVER_REALTEK
++extern struct wpa_driver_ops wpa_driver_realtek_ops; /* driver_realtek.c */
++#endif /* CONFIG_DRIVER_REALTEK */
+ #ifdef CONFIG_DRIVER_ATHEROS
+ extern struct wpa_driver_ops wpa_driver_atheros_ops; /* driver_atheros.c */
+ #endif /* CONFIG_DRIVER_ATHEROS */
+@@ -58,6 +61,9 @@ struct wpa_driver_ops *hostapd_drivers[]
+ #ifdef CONFIG_DRIVER_MADWIFI
+ 	&wpa_driver_madwifi_ops,
+ #endif /* CONFIG_DRIVER_MADWIFI */
++#ifdef CONFIG_DRIVER_REALTEK
++    &wpa_driver_realtek_ops,
++#endif /* CONFIG_DRIVER_REALTEK */
+ #ifdef CONFIG_DRIVER_ATHEROS
+ 	&wpa_driver_atheros_ops,
+ #endif /* CONFIG_DRIVER_ATHEROS */
+Index: hostapd-0.6.10-try/hostapd/hostapd.c
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/hostapd.c
++++ hostapd-0.6.10-try/hostapd/hostapd.c
+@@ -361,6 +361,10 @@ int hostapd_reload_config(struct hostapd
+ 	hapd->conf = &newconf->bss[0];
+ 	iface->conf = newconf;
+ 
++#ifdef RTK_HAPD //Configuration works only after driver OFF -> ON
++	hapd->driver->driver_on(hapd->drv_priv, 0);
++#endif
++
+ 	if (hostapd_setup_wpa_psk(hapd->conf)) {
+ 		wpa_printf(MSG_ERROR, "Failed to re-configure WPA PSK "
+ 			   "after reloading configuration");
+@@ -387,11 +391,22 @@ int hostapd_reload_config(struct hostapd
+ 		/* try to continue */
+ 	}
+ 
++#ifdef RTK_HAPD
++	hostapd_deinit_wps(hapd);
++
++	if(hostapd_init_wps(hapd, hapd->conf))
++		wpa_printf(MSG_ERROR, "Could not init wps when reloading");
++#endif
++
+ 	if (hapd->conf->ieee802_1x || hapd->conf->wpa)
+ 		hostapd_set_ieee8021x(hapd->conf->iface, hapd, 1);
+ 
+ 	hostapd_config_free(oldconf);
+ 
++#ifdef RTK_HAPD //Configuration works only after driver OFF -> ON
++	hapd->driver->driver_on(hapd->drv_priv, 1);
++#endif
++
+ 	wpa_printf(MSG_DEBUG, "Reconfigured interface %s", hapd->conf->iface);
+ 
+ 	return 0;
+@@ -1321,6 +1336,7 @@ static int hostapd_setup_bss(struct host
+ 	}
+ 
+ 	hostapd_flush_old_stations(hapd);
++
+ 	hostapd_set_privacy(hapd, 0);
+ 
+ 	hostapd_broadcast_wep_clear(hapd);
+Index: hostapd-0.6.10-try/hostapd/hostapd.h
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/hostapd.h
++++ hostapd-0.6.10-try/hostapd/hostapd.h
+@@ -17,6 +17,8 @@
+ #ifndef HOSTAPD_H
+ #define HOSTAPD_H
+ 
++#define RTK_HAPD //For realtek driver support
++
+ #include "common.h"
+ #include "ap.h"
+ 
+Index: hostapd-0.6.10-try/hostapd/iapp.c
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/iapp.c
++++ hostapd-0.6.10-try/hostapd/iapp.c
+@@ -461,6 +461,16 @@ struct iapp_data * iapp_init(struct host
+ 		return NULL;
+ 	}
+ 
++#ifdef RTK_HAPD //Add these cmd to make IAPP init successful
++	{
++		char cmd[128];
++		sprintf(cmd, "route delete -net 224.0.0.0 netmask 240.0.0.0 dev %s", iface);
++		system(cmd);
++		sprintf(cmd, "route add -net 224.0.0.0 netmask 240.0.0.0 dev %s", iface);
++		system(cmd);
++	}
++#endif
++
+ 	os_memset(&mreq, 0, sizeof(mreq));
+ 	mreq.imr_multiaddr = iapp->multicast;
+ 	mreq.imr_address.s_addr = INADDR_ANY;
+Index: hostapd-0.6.10-try/hostapd/wps_hostapd.c
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/wps_hostapd.c
++++ hostapd-0.6.10-try/hostapd/wps_hostapd.c
+@@ -364,6 +364,10 @@ static int hostapd_wps_cred_cb(void *ctx
+ 					fprintf(nconf, "%02x", cred->key[i]);
+ 			}
+ 			fprintf(nconf, "\n");
++
++#ifdef RTK_HAPD
++			fprintf(nconf, "wep_key_len_unicast=%d\n", (cred->key_len)/2);
++#endif
+ 		}
+ 	}
+ 
+@@ -382,6 +386,12 @@ static int hostapd_wps_cred_cb(void *ctx
+ 		     str_starts(buf, "wpa_pairwise=") ||
+ 		     str_starts(buf, "rsn_pairwise=") ||
+ 		     str_starts(buf, "wpa_key_mgmt=") ||
++#ifdef RTK_HAPD
++			 str_starts(buf, "wep_default_key=") ||
++			 str_starts(buf, "wep_key0=") ||
++			 str_starts(buf, "wep_key_len_unicast=") ||
++			 str_starts(buf, "ieee8021x=") ||
++#endif
+ 		     str_starts(buf, "wpa_passphrase="))) {
+ 			fprintf(nconf, "#WPS# %s", buf);
+ 		} else
+@@ -403,8 +413,11 @@ static int hostapd_wps_cred_cb(void *ctx
+ 	/* Schedule configuration reload after short period of time to allow
+ 	 * EAP-WSC to be finished.
+ 	 */
+-	eloop_register_timeout(0, 100000, wps_reload_config, hapd->iface,
+-			       NULL);
++#ifdef RTK_HAPD
++	eloop_register_timeout(5, 0, wps_reload_config, hapd->iface, NULL);
++#else
++	eloop_register_timeout(0, 100000, wps_reload_config, hapd->iface, NULL);
++#endif
+ 
+ 	/* TODO: dualband AP may need to update multiple configuration files */
+ 
+@@ -666,6 +679,10 @@ int hostapd_init_wps(struct hostapd_data
+ 	wps->model_url = hapd->conf->model_url;
+ 	wps->upc = hapd->conf->upc;
+ 
++#if defined(RTK_HAPD) || (1)
++	wps->set_selected_registrar = 0;
++#endif
++
+ 	if (hostapd_wps_upnp_init(hapd, wps) < 0) {
+ 		wpa_printf(MSG_ERROR, "Failed to initialize WPS UPnP");
+ 		wps_registrar_deinit(wps->registrar);
+Index: hostapd-0.6.10-try/hostapd/wpa.c
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/wpa.c
++++ hostapd-0.6.10-try/hostapd/wpa.c
+@@ -49,7 +49,11 @@ static int wpa_gtk_update(struct wpa_aut
+ 
+ static const u32 dot11RSNAConfigGroupUpdateCount = 4;
+ static const u32 dot11RSNAConfigPairwiseUpdateCount = 4;
++#ifdef INBAND_CTRL
++static const u32 eapol_key_timeout_first = 1000; /* ms */
++#else
+ static const u32 eapol_key_timeout_first = 100; /* ms */
++#endif
+ static const u32 eapol_key_timeout_subseq = 1000; /* ms */
+ 
+ /* TODO: make these configurable */
+Index: hostapd-0.6.10-try/hostapd/Makefile
+===================================================================
+--- hostapd-0.6.10-try.orig/hostapd/Makefile
++++ hostapd-0.6.10-try/hostapd/Makefile
+@@ -122,6 +122,14 @@ OBJS += driver_atheros.o
+ CONFIG_L2_PACKET=y
+ endif
+ 
++ifdef CONFIG_DRIVER_REALTEK
++CFLAGS += -DCONFIG_DRIVER_REALTEK
++CFLAGS += -DINBAND_CTRL
++LIBS += -linband
++OBJS += driver_realtek.o
++CONFIG_L2_PACKET=y
++endif
++
+ ifdef CONFIG_DRIVER_PRISM54
+ CFLAGS += -DCONFIG_DRIVER_PRISM54
+ OBJS += driver_prism54.o
