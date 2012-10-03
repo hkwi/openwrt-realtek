@@ -1364,11 +1364,21 @@ ifneq ($(CONFIG_PACKAGE_kmod-cfg80211)$(CONFIG_PACKAGE_kmod-lib80211),)
  endef
 endif
 
+ifneq ($(CONFIG_PACKAGE_kmod-ath5k),)
+define Build/Configure
+	cmp $(PKG_BUILD_DIR)/include/linux/ath5k_platform.h $(LINUX_DIR)/include/linux/ath5k_platform.h
+endef
+endif
+ifneq ($(CONFIG_PACKAGE_kmod-ath9k),)
 define Build/Configure
 	cmp $(PKG_BUILD_DIR)/include/linux/ath9k_platform.h $(LINUX_DIR)/include/linux/ath9k_platform.h
-	cmp $(PKG_BUILD_DIR)/include/linux/ath5k_platform.h $(LINUX_DIR)/include/linux/ath5k_platform.h
+endef
+endif
+ifneq ($(CONFIG_PACKAGE_kmod-rt2x00-lib),)
+define Build/Configure
 	cmp $(PKG_BUILD_DIR)/include/linux/rt2x00_platform.h $(LINUX_DIR)/include/linux/rt2x00_platform.h
 endef
+endif
 
 define Build/Compile
 	$(call Build/Compile/kmod)
