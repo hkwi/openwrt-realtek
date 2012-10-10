@@ -1,0 +1,17 @@
+--- linux-2.6.30.9/include/asm-generic/Kbuild	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9/include/asm-generic/Kbuild	2012-10-08 14:22:10.454906741 +0300
+@@ -1,3 +1,4 @@
++header-y += bitsperlong.h
+ header-y += errno-base.h
+ header-y += errno.h
+ header-y += fcntl.h
+--- linux-2.6.30.9/include/linux/netfilter/Kbuild	2012-10-08 14:20:50.699887312 +0300
++++ linux-2.6.30.9/include/linux/netfilter/Kbuild	2012-10-08 14:20:22.872880778 +0300
+@@ -28,6 +28,7 @@
+ header-y += xt_hashlimit.h
+ header-y += xt_iprange.h
+ header-y += xt_helper.h
++header-y += xt_layer7.h
+ header-y += xt_length.h
+ header-y += xt_limit.h
+ header-y += xt_mac.h
