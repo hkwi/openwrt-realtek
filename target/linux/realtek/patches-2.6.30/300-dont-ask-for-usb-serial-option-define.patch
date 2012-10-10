@@ -1,0 +1,12 @@
+--- a/drivers/usb/serial/usb-serial.c	2012-10-08 07:02:14.450118292 +0300
++++ a/drivers/usb/serial/usb-serial.c	2012-10-08 07:02:24.720154214 +0300
+@@ -35,9 +35,7 @@
+ #include <linux/usb/serial.h>
+ #include "pl2303.h"
+ 
+-#if CONFIG_USB_SERIAL_OPTION
+ #include <linux/smp_lock.h> /* brucehou, 2010/05/21, for lock_kernel & unlock_kernel */
+-#endif
+ 
+ /*
+  * Version Information
