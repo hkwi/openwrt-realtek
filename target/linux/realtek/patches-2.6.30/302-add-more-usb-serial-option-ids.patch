@@ -1,0 +1,22 @@
+--- linux-2.6.30.9/drivers/usb/serial/option.c	2012-10-08 13:23:55.000000000 +0300
++++ linux-2.6.30.9/drivers/usb/serial/option.c	2012-10-06 18:34:53.000000000 +0300
+@@ -316,6 +316,10 @@
+ #define SMPS_VENDOR_ID              0xfeed
+ #define SMPS_PRODUCT_TITAN20            0x1234
+ 
++/* ZD INCORPORATED PRODUCTS */
++#define ZDINCORP_VENDOR_ID			0x0685
++#define ZDINCORP_PRODUCT_HSDPA_MODEM		0x7000
++
+ 
+ static struct usb_device_id option_ids[] = {
+ 	{ USB_DEVICE(OPTION_VENDOR_ID, OPTION_PRODUCT_COLT) },
+@@ -535,6 +539,8 @@
+ 	{ USB_DEVICE(BENQ_VENDOR_ID, BENQ_PRODUCT_H10) },
+ 	{ USB_DEVICE(DLINK_VENDOR_ID, DLINK_PRODUCT_DWM_652) },
+ 
++	{ USB_DEVICE(ZDINCORP_VENDOR_ID, ZDINCORP_PRODUCT_HSDPA_MODEM) },
++
+     /* bruce: for qisda */
+     { USB_DEVICE(QISDA_VENDOR_ID, QISDA_PRODUCT_H21_4512) },
+     { USB_DEVICE(QISDA_VENDOR_ID, QISDA_PRODUCT_H21_4523) },
