@@ -7,15 +7,7 @@ opengt
  send "AT\^CURC=0^m"
  waitfor 5 "OK","ERROR"
 
- let $c="AT+CPIN?^m"
- let $r="+CPIN"
- gosub readatcmd
-
- let $c="AT+CSQ^m"
- let $r="+CSQ"
- gosub readatcmd
-
- let $c="ATE1; +CGMI^m"
+ let $c="AT+CGMI^m"
  gosub readatcmdnr
  let $v=$s
 
@@ -26,27 +18,74 @@ opengt
  if $toupper($mid($v,0,3)) = "HUA" goto huawei
  if $toupper($mid($v,0,3)) = "VOD" goto vodafone
  if $toupper($mid($v,0,3)) = "NOK" goto vodafone
+ if $toupper($mid($v,0,4)) = "HSPA" goto ccrap
  goto generic
 
+
+:signal-generic
+ let $c="AT+CSQ^m"
+ let $r="+CSQ"
+ gosub readatcmd
+ return
+
+
+:cpin-generic
+ let $c="AT+CPIN?^m"
+ let $r="+CPIN"
+ gosub readatcmd
+ return
+
+
+:cpin-qualcomm
+ let $c="AT$QCPINSTAT?^m"
+ let $r="$QCPINSTAT"
+ gosub readatcmd
+ return
+
+
+:ccrap
+ gosub cpin-qualcomm
+
+ goto generic
+
+
 :vodafone
+ gosub cpin-generic
+ gosub signal-generic
+
  let $c="AT%NWSTATE=1^m"
  let $r="%NWSTATE"
  gosub readatcmd
+
  goto next
 
+
 :novatel
+ gosub cpin-generic
+ gosub signal-generic
+
  let $c="AT$CNTI=0^m"
  let $r="$CNTI"
  gosub readatcmd
+
  goto next
 
+
 :sierra
+ gosub cpin-generic
+ gosub signal-generic
+
  let $c="AT*CNTI=0^m"
  let $r="*CNTI"
  gosub readatcmd
+
  goto next
 
+
 :option
+ gosub cpin-generic
+ gosub signal-generic
+
  let $c="AT_OCTI?^m"
  let $r="_OCTI"
  gosub readatcmd
@@ -54,9 +93,14 @@ opengt
  let $c="AT_OWCTI?^m"
  let $r="_OWCTI"
  gosub readatcmd
+
  goto next
 
+
 :zte
+ gosub cpin-generic
+ gosub signal-generic
+
  let $c="AT+COPS?^m"
  let $r="+COPS"
  gosub readatcmd
@@ -64,22 +108,35 @@ opengt
  let $c="AT+ZPAS?^m"
  let $r="+ZPAS"
  gosub readatcmd
+
  goto next1
 
+
 :huawei
+ gosub cpin-generic
+ gosub signal-generic
+
  let $c="AT\^SYSINFOEX^m"
  let $r="\^SYSINFOEX"
  gosub readatcmd
 
+ goto next
+
+
 :generic
+ gosub cpin-generic
+ gosub signal-generic
+
  let $c="AT\^SYSINFO^m"
  let $r="\^SYSINFO"
  gosub readatcmd
+
 
 :next
  let $c="AT+COPS=3,2; +COPS?^m"
  let $r="+COPS"
  gosub readatcmd
+
 
 :next1
  let $c="AT+CREG=2; +CREG?^m"
@@ -99,6 +156,7 @@ opengt
  print "\nDEVICE:",$v," ",$s,"\n"
 
  exit 0
+
 
 :readatcmd
  let i=5

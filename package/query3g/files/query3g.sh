@@ -22,9 +22,9 @@ for port in 0 1 2 3 4 5 6 7 8 9; do
 		local vid="$(cat "$tty/../../idVendor")"
 		local pid="$(cat "$tty/../../idProduct")"
 
-		if [ "$last_reset" != "$vid:$pid" ]; then
+		if [ "$last_reset" != "$vid:$pid" ] && [ "$vid:$pid" != "0685:7000" ]; then
 			last_reset="$vid:$pid"
-			$reset "$vid:$pid" >/dev/null
+#			$reset "$vid:$pid" >/dev/null
 
 			local try=0
 			while [ $((try++)) -lt 5 ] && [ ! -e "$dev" ]; do sleep 1; done 
