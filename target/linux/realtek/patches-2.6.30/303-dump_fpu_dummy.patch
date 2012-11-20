@@ -1,0 +1,15 @@
+--- 2.9.30.o/arch/rlx/kernel/process.c	2012-10-22 23:11:06.331695156 +0400
++++ 2.9.30.b/arch/rlx/kernel/process.c	2012-10-22 23:11:54.875038224 +0400
+@@ -160,6 +160,12 @@
+ 	do_exit(fn(arg));
+ }
+ 
++int dump_fpu(struct pt_regs *regs, elf_fpregset_t *r)
++{
++	/* Dummy stuff */ 
++	return 1;
++}
++
+ long kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
+ {
+ 	struct pt_regs regs;
