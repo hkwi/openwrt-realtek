@@ -1,0 +1,25 @@
+--- linux-2.6.30.9.a/arch/rlx/Kconfig	2012-11-05 14:18:41.701066133 +0400
++++ linux-2.6.30.9.b/arch/rlx/Kconfig	2012-11-05 14:16:50.864374834 +0400
+@@ -139,6 +139,22 @@
+ config RTL_FLASH_MAPPING_ENABLE
+ 	bool "Enable Flash Mapping"
+ 
++choice 
++prompt "GPIO Driver to use"
++
++config RTL_GPIO
++	bool "Use realtek's GPIO driver"
++	
++
++config RTL_NGPIO
++	bool "Use Necromant's gpiolib driver (recommended)"
++	select GENERIC_GPIO
++       select ARCH_REQUIRE_GPIOLIB
++	select GPIO_RTL
++	default y
++
++endchoice
++	
+ config POCKET_ROUTER_SUPPORT
+ 	bool "Pocket router support"
+ 
