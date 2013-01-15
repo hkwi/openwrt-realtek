@@ -15,7 +15,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/query3g
   SECTION:=utils
   CATEGORY:=Utilities
-  DEPENDS:=+usbreset +comgt
+  DEPENDS:=+usbreset +comgt +luci-lib-web
   TITLE:=Utility to find 3G dongle information
   MAINTAINER:=Jo-Philipp Wich <xm@subsignal.org>
 endef
@@ -30,8 +30,11 @@ endef
 define Package/query3g/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/query3g.sh $(1)/usr/bin/query3g
+	$(INSTALL_BIN) ./files/query3g_setup.sh $(1)/usr/bin/query3g_setup
+	$(INSTALL_DIR) $(1)/sbin
+	$(INSTALL_BIN) ./files/luci-3g-detect $(1)/sbin/
 	$(INSTALL_DIR) $(1)/usr/share
-	$(INSTALL_DATA) ./files/query3g.gcom $(1)/usr/share/query3g.gcom	
+	$(INSTALL_DATA) ./files/query3g.gcom $(1)/usr/share/query3g.gcom
 endef
 
 $(eval $(call BuildPackage,query3g))

@@ -24,10 +24,12 @@ find_3g_iface() {
 }
 
 case "$DEVICENAME" in
-	tty*)
+	ttyUSB0)
 		[ -e "/dev/$DEVICENAME" ] || [ "$ACTION" = remove ] || exit 0
+		luci-3g-detect detect
+		query3g_setup
 		config_load network
 		config_foreach find_3g_iface interface "/dev/$DEVICENAME"
+		ifdown wan && ifup wan
 	;;
 esac
-
