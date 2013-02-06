@@ -1,6 +1,5 @@
-diff -ur ./arch/rlx/include/asm/string.h ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/arch/rlx/include/asm/string.h
---- ./arch/rlx/include/asm/string.h	2013-02-04 03:15:32.687233694 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/arch/rlx/include/asm/string.h	2013-02-06 00:51:37.319166238 +0200
+--- a/arch/rlx/include/asm/string.h	2013-02-04 03:15:32.687233694 +0200
++++ b/arch/rlx/include/asm/string.h	2013-02-06 00:51:37.319166238 +0200
 @@ -90,7 +90,7 @@
  	"3:\t.set\tat\n\t"
  	".set\treorder"
@@ -19,9 +18,8 @@ diff -ur ./arch/rlx/include/asm/string.h ../openwrt-git/build_dir/target-mips_uC
  
  	return __res;
  }
-diff -ur ./arch/rlx/Kconfig ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/arch/rlx/Kconfig
---- ./arch/rlx/Kconfig	2013-02-05 02:30:36.746763155 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/arch/rlx/Kconfig	2013-02-05 02:53:17.981145897 +0200
+--- a/arch/rlx/Kconfig	2013-02-05 02:30:36.746763155 +0200
++++ b/arch/rlx/Kconfig	2013-02-05 02:53:17.981145897 +0200
 @@ -7,7 +7,7 @@
  # Dec. 07, 2008
  #
@@ -31,9 +29,8 @@ diff -ur ./arch/rlx/Kconfig ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2
  
  config MIPS
      bool
-diff -ur ./drivers/net/rtl819x/AsicDriver/96C/rtl865x_asicBasic.S ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/96C/rtl865x_asicBasic.S
---- ./drivers/net/rtl819x/AsicDriver/96C/rtl865x_asicBasic.S	2013-02-04 03:15:32.704233111 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/96C/rtl865x_asicBasic.S	2013-02-06 02:46:34.341549145 +0200
+--- a/drivers/net/rtl819x/AsicDriver/96C/rtl865x_asicBasic.S	2013-02-04 03:15:32.704233111 +0200
++++ b/drivers/net/rtl819x/AsicDriver/96C/rtl865x_asicBasic.S	2013-02-06 02:46:34.341549145 +0200
 @@ -646,7 +646,7 @@
  	addiu	$4,$4,%lo($LC1)
  	lui	$5,%hi($LC2)
@@ -61,9 +58,8 @@ diff -ur ./drivers/net/rtl819x/AsicDriver/96C/rtl865x_asicBasic.S ../openwrt-git
  	li	$6,550			# 0x226
  
  $L176:
-diff -ur ./drivers/net/rtl819x/common/rtl865x_netif.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/common/rtl865x_netif.c
---- ./drivers/net/rtl819x/common/rtl865x_netif.c	2013-02-04 03:15:32.715232735 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/common/rtl865x_netif.c	2013-02-06 01:24:44.420810894 +0200
+--- a/drivers/net/rtl819x/common/rtl865x_netif.c	2013-02-04 03:15:32.715232735 +0200
++++ b/drivers/net/rtl819x/common/rtl865x_netif.c	2013-02-06 01:24:44.420810894 +0200
 @@ -31,11 +31,11 @@
  #include "rtl865x_vlan.h" /*reference vlan*/
  #include "rtl865x_eventMgr.h" /*call back function....*/
@@ -80,9 +76,8 @@ diff -ur ./drivers/net/rtl819x/common/rtl865x_netif.c ../openwrt-git/build_dir/t
  #endif
  
  #if defined (CONFIG_RTL_LOCAL_PUBLIC)
-diff -ur ./drivers/net/rtl819x/common/rtl865x_vlan.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/common/rtl865x_vlan.c
---- ./drivers/net/rtl819x/common/rtl865x_vlan.c	2013-02-04 03:15:32.716232700 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/common/rtl865x_vlan.c	2013-02-06 01:21:59.881465851 +0200
+--- a/drivers/net/rtl819x/common/rtl865x_vlan.c	2013-02-04 03:15:32.716232700 +0200
++++ b/drivers/net/rtl819x/common/rtl865x_vlan.c	2013-02-06 01:21:59.881465851 +0200
 @@ -13,9 +13,9 @@
  //#include "rtl_glue.h"
  #include "rtl865x_vlan.h"
@@ -95,9 +90,8 @@ diff -ur ./drivers/net/rtl819x/common/rtl865x_vlan.c ../openwrt-git/build_dir/ta
  #endif
  #include "rtl865x_eventMgr.h"
  
-diff -ur ./drivers/net/rtl819x/common/rtl_utils.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/common/rtl_utils.c
---- ./drivers/net/rtl819x/common/rtl_utils.c	2013-02-04 03:15:32.717232666 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/common/rtl_utils.c	2013-02-06 01:36:11.409200045 +0200
+--- a/drivers/net/rtl819x/common/rtl_utils.c	2013-02-04 03:15:32.717232666 +0200
++++ b/drivers/net/rtl819x/common/rtl_utils.c	2013-02-06 01:36:11.409200045 +0200
 @@ -12,7 +12,7 @@
  #include <net/rtl/rtl_glue.h>
  #include "rtl_utils.h"
@@ -107,9 +101,8 @@ diff -ur ./drivers/net/rtl819x/common/rtl_utils.c ../openwrt-git/build_dir/targe
  #endif
  
  #ifdef __linux__
-diff -ur ./drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_glue.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_glue.c
---- ./drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_glue.c	2013-02-04 03:15:32.718232632 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_glue.c	2013-02-06 01:26:49.404515392 +0200
+--- a/drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_glue.c	2013-02-04 03:15:32.718232632 +0200
++++ b/drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_glue.c	2013-02-06 01:26:49.404515392 +0200
 @@ -13,7 +13,7 @@
  #include <net/rtl/rtl_types.h>
  #include <net/rtl/rtl_glue.h>
@@ -119,9 +112,8 @@ diff -ur ./drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_glue.c ../openw
  
  #ifdef __linux__
  #include <linux/mm.h>
-diff -ur ./drivers/net/rtl819x/l2Driver/rtl865x_fdb.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_fdb.c
---- ./drivers/net/rtl819x/l2Driver/rtl865x_fdb.c	2013-02-04 03:15:32.722232495 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_fdb.c	2013-02-06 01:45:58.499022411 +0200
+--- a/drivers/net/rtl819x/l2Driver/rtl865x_fdb.c	2013-02-04 03:15:32.722232495 +0200
++++ b/drivers/net/rtl819x/l2Driver/rtl865x_fdb.c	2013-02-06 01:45:58.499022411 +0200
 @@ -15,23 +15,23 @@
  #include <net/rtl/rtl_types.h>
  #include <net/rtl/rtl_glue.h>
@@ -154,9 +146,8 @@ diff -ur ./drivers/net/rtl819x/l2Driver/rtl865x_fdb.c ../openwrt-git/build_dir/t
  
  
  
-diff -ur ./drivers/net/rtl819x/l2Driver/rtl865x_hw_qos_config.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_hw_qos_config.c
---- ./drivers/net/rtl819x/l2Driver/rtl865x_hw_qos_config.c	2013-02-04 03:14:13.514945188 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_hw_qos_config.c	2013-02-06 01:43:12.613723721 +0200
+--- a/drivers/net/rtl819x/l2Driver/rtl865x_hw_qos_config.c	2013-02-04 03:14:13.514945188 +0200
++++ b/drivers/net/rtl819x/l2Driver/rtl865x_hw_qos_config.c	2013-02-06 01:43:12.613723721 +0200
 @@ -39,13 +39,13 @@
  #include <net/rtl/rtl_nic.h>
  
@@ -178,9 +169,8 @@ diff -ur ./drivers/net/rtl819x/l2Driver/rtl865x_hw_qos_config.c ../openwrt-git/b
  
  
  struct sock *hw_qos_sk = NULL;
-diff -ur ./drivers/net/rtl819x/l2Driver/rtl865x_outputQueue.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_outputQueue.c
---- ./drivers/net/rtl819x/l2Driver/rtl865x_outputQueue.c	2013-02-04 03:15:32.723232461 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_outputQueue.c	2013-02-06 01:44:50.236368531 +0200
+--- a/drivers/net/rtl819x/l2Driver/rtl865x_outputQueue.c	2013-02-04 03:15:32.723232461 +0200
++++ b/drivers/net/rtl819x/l2Driver/rtl865x_outputQueue.c	2013-02-06 01:44:50.236368531 +0200
 @@ -10,26 +10,26 @@
  #include <linux/config.h>
  #include <net/rtl/rtl_types.h>
@@ -219,9 +209,8 @@ diff -ur ./drivers/net/rtl819x/l2Driver/rtl865x_outputQueue.c ../openwrt-git/bui
  #endif
  
  #if	defined(CONFIG_RTL_HW_QOS_SUPPORT)
-diff -ur ./drivers/net/rtl819x/l2Driver/rtl865x_stp.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_stp.c
---- ./drivers/net/rtl819x/l2Driver/rtl865x_stp.c	2013-02-04 03:15:32.723232461 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_stp.c	2013-02-06 01:45:17.900417746 +0200
+--- a/drivers/net/rtl819x/l2Driver/rtl865x_stp.c	2013-02-04 03:15:32.723232461 +0200
++++ b/drivers/net/rtl819x/l2Driver/rtl865x_stp.c	2013-02-06 01:45:17.900417746 +0200
 @@ -11,13 +11,13 @@
  //#include "rtl_utils.h"
  #include <net/rtl/rtl_types.h>
@@ -241,9 +230,8 @@ diff -ur ./drivers/net/rtl819x/l2Driver/rtl865x_stp.c ../openwrt-git/build_dir/t
  #endif
  
  #include <net/rtl/rtk_stp.h>
-diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_arp.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_arp.c
---- ./drivers/net/rtl819x/l3Driver/rtl865x_arp.c	2012-12-03 00:13:21.000000000 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_arp.c	2013-02-06 01:31:39.042560939 +0200
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_arp.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_arp.c	2013-02-06 01:31:39.042560939 +0200
 @@ -15,30 +15,30 @@
  */
  
@@ -286,9 +274,8 @@ diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_arp.c ../openwrt-git/build_dir/t
  
  #include "rtl865x_ppp_local.h"
  #include "rtl865x_route.h"
-diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_ip.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_ip.c
---- ./drivers/net/rtl819x/l3Driver/rtl865x_ip.c	2012-12-03 00:13:21.000000000 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_ip.c	2013-02-06 01:31:05.277721391 +0200
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_ip.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_ip.c	2013-02-06 01:31:05.277721391 +0200
 @@ -23,20 +23,20 @@
  */
  #include <net/rtl/rtl_types.h>
@@ -315,9 +302,8 @@ diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_ip.c ../openwrt-git/build_dir/ta
  #endif
  
  static rtl865x_ip_entry_t *rtl865x_ipTable;
-diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_multicast.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_multicast.c
---- ./drivers/net/rtl819x/l3Driver/rtl865x_multicast.c	2013-02-04 03:15:32.725232392 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_multicast.c	2013-02-06 01:30:52.702153596 +0200
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_multicast.c	2013-02-04 03:15:32.725232392 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_multicast.c	2013-02-06 01:30:52.702153596 +0200
 @@ -22,23 +22,23 @@
  //#include "common/assert.h"
  
@@ -352,9 +338,8 @@ diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_multicast.c ../openwrt-git/build
  
  #ifdef RTL865X_TEST
  #include <string.h>
-diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_multipleWan.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_multipleWan.c
---- ./drivers/net/rtl819x/l3Driver/rtl865x_multipleWan.c	2012-12-03 00:13:21.000000000 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_multipleWan.c	2013-02-06 01:30:31.514881774 +0200
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_multipleWan.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_multipleWan.c	2013-02-06 01:30:31.514881774 +0200
 @@ -27,9 +27,9 @@
  
  #include <net/rtl/rtl_types.h>
@@ -380,9 +365,8 @@ diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_multipleWan.c ../openwrt-git/bui
  
  
  
-diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_nexthop.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_nexthop.c
---- ./drivers/net/rtl819x/l3Driver/rtl865x_nexthop.c	2012-12-03 00:13:21.000000000 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_nexthop.c	2013-02-06 01:30:11.677563555 +0200
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_nexthop.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_nexthop.c	2013-02-06 01:30:11.677563555 +0200
 @@ -24,8 +24,8 @@
  #include <net/rtl/rtl_types.h>
  #include <net/rtl/rtl_glue.h>
@@ -419,9 +403,8 @@ diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_nexthop.c ../openwrt-git/build_d
  #include <net/rtl/rtl865x_fdb_api.h>
  
  static rtl865x_nextHopEntry_t *rtl865x_nxtHopTable;
-diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_ppp.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_ppp.c
---- ./drivers/net/rtl819x/l3Driver/rtl865x_ppp.c	2012-12-03 00:13:21.000000000 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_ppp.c	2013-02-06 01:49:21.474048342 +0200
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_ppp.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_ppp.c	2013-02-06 01:49:21.474048342 +0200
 @@ -27,22 +27,22 @@
  #include <net/rtl/rtl865x_netif.h>
  #include <net/rtl/rtl865x_fdb_api.h>
@@ -454,9 +437,8 @@ diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_ppp.c ../openwrt-git/build_dir/t
  
  static rtl865x_ppp_t *rtl865x_pppTable;
  
-diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_route.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_route.c
---- ./drivers/net/rtl819x/l3Driver/rtl865x_route.c	2012-12-03 00:13:21.000000000 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_route.c	2013-02-06 01:49:39.084444456 +0200
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_route.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_route.c	2013-02-06 01:49:39.084444456 +0200
 @@ -24,9 +24,9 @@
  #include <net/rtl/rtl_glue.h>
  //#include <net/rtl/rtl865x_ppp.h>
@@ -495,9 +477,8 @@ diff -ur ./drivers/net/rtl819x/l3Driver/rtl865x_route.c ../openwrt-git/build_dir
  #include <net/rtl/rtl865x_fdb_api.h>
  
  static rtl865x_route_t *rtl865x_route_freeHead;
-diff -ur ./drivers/net/rtl819x/l4Driver/rtl865x_nat.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l4Driver/rtl865x_nat.c
---- ./drivers/net/rtl819x/l4Driver/rtl865x_nat.c	2013-02-04 03:15:32.726232358 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/net/rtl819x/l4Driver/rtl865x_nat.c	2013-02-06 01:35:19.058999258 +0200
+--- a/drivers/net/rtl819x/l4Driver/rtl865x_nat.c	2013-02-04 03:15:32.726232358 +0200
++++ b/drivers/net/rtl819x/l4Driver/rtl865x_nat.c	2013-02-06 01:35:19.058999258 +0200
 @@ -13,37 +13,37 @@
  #include <net/rtl/rtl_types.h>
  #include <net/rtl/rtl_glue.h>
@@ -551,9 +532,8 @@ Only in ./drivers/net/wireless/rtl8192cd/data: rtl8192cfw.bin
 Only in ./drivers/net/wireless/rtl8192cd/data: rtl8192cfwn.bin
 Only in ./drivers/net/wireless/rtl8192cd/data: rtl8192cfwua.bin
 Only in ./drivers/net/wireless/rtl8192cd/data_92d: rtl8192dfw_n.bin
-diff -ur ./drivers/usb/host/usb-rtl8652.h ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/usb/host/usb-rtl8652.h
---- ./drivers/usb/host/usb-rtl8652.h	2012-12-03 00:13:21.000000000 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/drivers/usb/host/usb-rtl8652.h	2013-02-06 02:05:03.071754444 +0200
+--- a/drivers/usb/host/usb-rtl8652.h	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/usb/host/usb-rtl8652.h	2013-02-06 02:05:03.071754444 +0200
 @@ -15,7 +15,7 @@
   * with this program; if not, write  to the Free Software Foundation, Inc.,
   * 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -563,9 +543,8 @@ diff -ur ./drivers/usb/host/usb-rtl8652.h ../openwrt-git/build_dir/target-mips_u
  #ifndef _USB_RTL8652_H
  #define _USB_RTL8652_H
  #define PADDR(addr)  ((addr) & 0x1FFFFFFF)
-diff -ur ./net/rtl/fastpath/fastpath_common.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/net/rtl/fastpath/fastpath_common.c
---- ./net/rtl/fastpath/fastpath_common.c	2013-02-04 03:15:32.875227255 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/net/rtl/fastpath/fastpath_common.c	2013-02-06 02:09:07.638365005 +0200
+--- a/net/rtl/fastpath/fastpath_common.c	2013-02-04 03:15:32.875227255 +0200
++++ b/net/rtl/fastpath/fastpath_common.c	2013-02-06 02:09:07.638365005 +0200
 @@ -6,7 +6,7 @@
  #include <net/netfilter/nf_conntrack_core.h>
  
@@ -575,9 +554,8 @@ diff -ur ./net/rtl/fastpath/fastpath_common.c ../openwrt-git/build_dir/target-mi
  #endif
  
  #if defined (FAST_PPTP) || defined(FAST_L2TP)
-diff -ur ./net/rtl/features/rtl_ps_hooks.c ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/net/rtl/features/rtl_ps_hooks.c
---- ./net/rtl/features/rtl_ps_hooks.c	2013-02-04 03:15:32.880227084 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/net/rtl/features/rtl_ps_hooks.c	2013-02-06 02:11:03.978373958 +0200
+--- a/net/rtl/features/rtl_ps_hooks.c	2013-02-04 03:15:32.880227084 +0200
++++ b/net/rtl/features/rtl_ps_hooks.c	2013-02-06 02:11:03.978373958 +0200
 @@ -19,7 +19,7 @@
  #include <linux/ip_vs.h>
  
@@ -587,15 +565,3 @@ diff -ur ./net/rtl/features/rtl_ps_hooks.c ../openwrt-git/build_dir/target-mips_
  #endif
  
  #include <net/rtl/rtl_types.h>
-diff -ur ./rtkload/Makefile ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/rtkload/Makefile
---- ./rtkload/Makefile	2013-02-05 01:54:54.283265028 +0200
-+++ ../openwrt-git/build_dir/target-mips_uClibc-0.9.33.2_lexra/linux-realtek/linux-2.6.30.9/rtkload/Makefile	2013-02-06 02:52:53.538612082 +0200
-@@ -1,7 +1,7 @@
- # The kernel tree you do builds in.
- # Uncomment if you're building for the emulator
- include ../.config
--include ../../.config	# to check toolchain CONFIG_RSDK_rsdk-1.5.4-5281-EB-2.6.30-0.9.30.3-uls-101110
-+#include ../../.config	# to check toolchain CONFIG_RSDK_rsdk-1.5.4-5281-EB-2.6.30-0.9.30.3-uls-101110
- 
- KERNEL_ROOT = ..
- 
