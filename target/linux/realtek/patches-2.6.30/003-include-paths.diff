@@ -1,35 +1,30 @@
-Index: linux-2.6.30.9/drivers/net/rtl819x/Makefile
-===================================================================
---- linux-2.6.30.9.orig/drivers/net/rtl819x/Makefile	2011-12-04 15:06:28.000000000 +0000
-+++ linux-2.6.30.9/drivers/net/rtl819x/Makefile	2011-12-04 15:09:11.000000000 +0000
+commit 82b68e4028feb70c7c6d6f2c380f342945a6b7f7
+Author: Roman Yeryomin <roman@advem.lv>
+Date:   Tue Feb 5 01:40:38 2013 +0200
+
+    adopt 003-include-paths.diff
+    
+    Signed-off-by: Roman Yeryomin <roman@advem.lv>
+
+diff --git a/drivers/net/rtl819x/Makefile b/drivers/net/rtl819x/Makefile
+index 7a08142..cfd0152 100644
+--- a/drivers/net/rtl819x/Makefile
++++ b/drivers/net/rtl819x/Makefile
 @@ -11,7 +11,7 @@
  #obj-y := mmap.o
  
- DIR_RTLASIC = $(TOPDIR)/drivers/net/rtl819x/
+ DIR_RTLASIC = $(DIR_LINUX)/drivers/net/rtl819x/
 -EXTRA_CFLAGS += -DCONFIG_RTL865X_MODULE_INTERNAL
 +EXTRA_CFLAGS += -DCONFIG_RTL865X_MODULE_INTERNAL -I$(TOPDIR)/arch/rlx
  
  #obj-y := rtl_glue.o
  #Add mips16 Support
-Index: linux-2.6.30.9/drivers/usb/host/Makefile
-===================================================================
---- linux-2.6.30.9.orig/drivers/usb/host/Makefile	2009-10-05 15:38:08.000000000 +0000
-+++ linux-2.6.30.9/drivers/usb/host/Makefile	2011-12-04 15:09:11.000000000 +0000
-@@ -6,6 +6,8 @@
- 	EXTRA_CFLAGS		+= -DDEBUG
- endif
- 
-+EXTRA_CFLAGS += -I$(TOPDIR)/arch/rlx
-+
- isp1760-objs := isp1760-hcd.o isp1760-if.o
- fhci-objs := fhci-hcd.o fhci-hub.o fhci-q.o fhci-mem.o \
- 	     fhci-tds.o fhci-sched.o
-Index: linux-2.6.30.9/drivers/net/wireless/rtl8192cd/Makefile
-===================================================================
---- linux-2.6.30.9.orig/drivers/net/wireless/rtl8192cd/Makefile	2011-12-04 15:15:51.000000000 +0000
-+++ linux-2.6.30.9/drivers/net/wireless/rtl8192cd/Makefile	2011-12-04 15:16:25.000000000 +0000
-@@ -14,6 +14,8 @@
- #  RTL_WLAN_DATA_DIR_D := data_92d
+diff --git a/drivers/net/wireless/rtl8192cd/Makefile b/drivers/net/wireless/rtl8192cd/Makefile
+index 33ef469..51cff6b 100644
+--- a/drivers/net/wireless/rtl8192cd/Makefile
++++ b/drivers/net/wireless/rtl8192cd/Makefile
+@@ -35,6 +35,8 @@ ifeq ($(CONFIG_RTL_MESH_SUPPORT),y)
+         ../mesh_ext/hash_table.o
  endif
  
 +EXTRA_CFLAGS += -I$(TOPDIR)/arch/rlx
@@ -37,3 +32,17 @@ Index: linux-2.6.30.9/drivers/net/wireless/rtl8192cd/Makefile
  SRCS_TXT = $(addprefix $(src)/data_,$(notdir $(patsubst %.txt,%.c,$(wildcard $(src)/$(RTL_WLAN_DATA_DIR)/*.txt))))
  SRCS_BIN = $(addprefix $(src)/data_,$(notdir $(patsubst %.bin,%.c,$(wildcard $(src)/$(RTL_WLAN_DATA_DIR)/*.bin))))
  SRCS_TXT += $(addprefix $(src)/data_,$(notdir $(patsubst %.txt,%.c,$(wildcard $(src)/$(RTL_WLAN_DATA_DIR_D)/*.txt))))
+diff --git a/drivers/usb/host/Makefile b/drivers/usb/host/Makefile
+index 9e62ed1..19afd87 100644
+--- a/drivers/usb/host/Makefile
++++ b/drivers/usb/host/Makefile
+@@ -9,6 +9,9 @@ endif
+ ifeq ($(CONFIG_RTL_819X),y)
+ 	EXTRA_CFLAGS		+= -I$(DIR_BOARD)
+ endif
++
++EXTRA_CFLAGS += -I$(TOPDIR)/arch/rlx
++
+ isp1760-objs := isp1760-hcd.o isp1760-if.o
+ fhci-objs := fhci-hcd.o fhci-hub.o fhci-q.o fhci-mem.o \
+ 	     fhci-tds.o fhci-sched.o

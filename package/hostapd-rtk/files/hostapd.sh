@@ -21,15 +21,45 @@ hostapd_set_bss_options() {
 	config_get basic_rates "$device" basic_rates
 	[ -n $basic_rates ] && basic_rates="10 20"
 	append "$var" "basic_rates=$supported_rates" "$N"
+	append "$var" "hw_mode=g" "$N"
 
 	config_get max_num_sta "$device" max_num_sta
 	[ -n $max_num_sta ] && max_num_sta="31"
 	append "$var" "max_num_sta=$max_num_sta" "$N"
 	
 	append "$var" "ctrl_interface=/var/run/hostapd-$phy" "$N"
-	append "$var" "ctrl_interface=/var/run/hostapd-$phy" "$N"
+	append "$var" "wmm_enabled=1" "$N"
 
-	append "$var" "ctrl_interface=/var/run/hostapd-$phy" "$N"
+        append "$var" "# Low priority / AC_BK = background" "$N"
+        append "$var" "wmm_ac_bk_cwmin=4" "$N"
+        append "$var" "wmm_ac_bk_cwmax=10" "$N"
+        append "$var" "wmm_ac_bk_aifs=7" "$N"
+        append "$var" "wmm_ac_bk_txop_limit=0" "$N"
+        append "$var" "wmm_ac_bk_acm=0" "$N"
+
+        append "$var" "# Normal priority / AC_BE = best effort" "$N"
+        append "$var" "wmm_ac_be_aifs=3" "$N"
+        append "$var" "wmm_ac_be_cwmin=4" "$N"
+        append "$var" "wmm_ac_be_cwmax=10" "$N"
+        append "$var" "wmm_ac_be_txop_limit=0" "$N"
+        append "$var" "wmm_ac_be_acm=0" "$N"
+
+        append "$var" "# High priority / AC_VI = video" "$N"
+        append "$var" "wmm_ac_vi_aifs=2" "$N"
+        append "$var" "wmm_ac_vi_cwmin=3" "$N"
+        append "$var" "wmm_ac_vi_cwmax=4" "$N"
+        append "$var" "wmm_ac_vi_txop_limit=94" "$N"
+        append "$var" "wmm_ac_vi_acm=0" "$N"
+
+        append "$var" "# Highest priority / AC_VO = voice" "$N"
+        append "$var" "wmm_ac_vo_aifs=2" "$N"
+        append "$var" "wmm_ac_vo_cwmin=2" "$N"
+        append "$var" "wmm_ac_vo_cwmax=3" "$N"
+        append "$var" "wmm_ac_vo_txop_limit=47" "$N"
+        append "$var" "wmm_ac_vo_acm=0" "$N"
+
+	append "$var" "ieee80211n=1" "$N"
+	append "$var" "ht_capab=[HT40-][GF][DELAYED-BA][MAX-AMSDU-7935][SHORT-GI-20][SHORT-GI-40][TX-STBC][RX-STBC1]" "$N"
 
 	if [ "$ap_isolate" -gt 0 ]; then
 		append "$var" "ap_isolate=$ap_isolate" "$N"
@@ -275,4 +305,5 @@ $hostapd_cfg
 EOF
 	hostapd -P /var/run/wifi-$ifname.pid -B /var/run/hostapd-$ifname.conf
 }
+
 
