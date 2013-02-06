@@ -1,8 +1,16 @@
-Index: linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
-===================================================================
---- linux-2.6.30.9.orig/drivers/net/wireless/rtl8192cd/8192cd_cfg.h	2011-12-04 15:04:13.000000000 +0000
-+++ linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_cfg.h	2011-12-04 15:05:08.000000000 +0000
-@@ -1709,6 +1709,13 @@
+commit 91f39c0015a2c181f259487f0ce99fab8d5c3eea
+Author: Roman Yeryomin <roman@advem.lv>
+Date:   Tue Feb 5 01:44:08 2013 +0200
+
+    adopt 004-stop-gcc-dying.diff
+    
+    Signed-off-by: Roman Yeryomin <roman@advem.lv>
+
+diff --git a/drivers/net/wireless/rtl8192cd/8192cd_cfg.h b/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
+index 7da9174..ae02e5a 100644
+--- a/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
++++ b/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
+@@ -1826,6 +1826,13 @@
  #undef CONFIG_RTK_VLAN_SUPPORT
  #endif
  

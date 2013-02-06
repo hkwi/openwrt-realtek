@@ -64,7 +64,7 @@ endif
 #CONFIG_SINUX_SUPPORT=1
 ifeq ($(CONFIG_SINUX_SUPPORT),1)
 EXTRA_CFLAGS  += -DOPENSSL_FIPS -D__linux__ -DRSDK_BUILT -DOPENSSL_NO_SPEED -DOPENSSL_THREADS -D_REENTRANT \
-                        -DDSO_DLFCN -DHAVE_DLFCN_H -DOPENSSL_NO_KRB5 -DB_ENDIAN -DTERMIO \
+                        -DDSO_DLFCN -DHAVE_DLFCN_H -DOPENSSL_NO_KRB5 -DB_ENDIAN -DTERMIO -DSUPPORT_SNMP_MIB \
 			-fomit-frame-pointer 
 # -save-temps                      
                         

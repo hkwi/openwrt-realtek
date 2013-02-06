@@ -1,8 +1,30 @@
-Index: linux-2.6.30.9/arch/rlx/Kconfig
-===================================================================
---- linux-2.6.30.9.orig/arch/rlx/Kconfig	2011-12-04 19:44:01.000000000 +0000
-+++ linux-2.6.30.9/arch/rlx/Kconfig	2011-12-05 01:19:43.000000000 +0000
-@@ -844,3 +844,9 @@
+commit a0d28029b6ca8fe1e97fa8ef4b70cdc32f09bbc1
+Author: Roman Yeryomin <roman@advem.lv>
+Date:   Tue Feb 5 01:55:36 2013 +0200
+
+    adopt 006-make-image.diff
+    
+    Signed-off-by: Roman Yeryomin <roman@advem.lv>
+
+diff --git a/Makefile b/Makefile
+index 674b79b..30b7100 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1507,6 +1507,9 @@ kernelrelease:
+ kernelversion:
+ 	@echo $(KERNELVERSION)
+ 
++do_rtkload:
++	$(Q)$(MAKE) -C rtkload
++
+ # Single targets
+ # ---------------------------------------------------------------------------
+ # Single targets are compatible with:
+diff --git a/arch/rlx/Kconfig b/arch/rlx/Kconfig
+index 14f97b8..94bf573 100644
+--- a/arch/rlx/Kconfig
++++ b/arch/rlx/Kconfig
+@@ -500,3 +500,9 @@ source "security/Kconfig"
  source "crypto/Kconfig"
  source "lib/Kconfig"
  
@@ -12,18 +34,19 @@ Index: linux-2.6.30.9/arch/rlx/Kconfig
 +	help
 +          kernel load address in ram
 +
-Index: linux-2.6.30.9/rtkload/Makefile
-===================================================================
---- linux-2.6.30.9.orig/rtkload/Makefile	2011-12-04 19:44:01.000000000 +0000
-+++ linux-2.6.30.9/rtkload/Makefile	2011-12-05 01:43:31.000000000 +0000
-@@ -2,63 +2,42 @@
+diff --git a/rtkload/Makefile b/rtkload/Makefile
+index 235673b..4a8839e 100644
+--- a/rtkload/Makefile
++++ b/rtkload/Makefile
+@@ -2,64 +2,42 @@
  # Uncomment if you're building for the emulator
  include ../.config
- #include ../../.config	# to check toolchain CONFIG_RSDK_rsdk-1.5.4-5281-EB-2.6.30-0.9.30.3-uls-101110
+ include ../../.config	# to check toolchain CONFIG_RSDK_rsdk-1.5.4-5281-EB-2.6.30-0.9.30.3-uls-101110
 -DOQUIET = false
 -#DOQUIET = true 
 -#EMULATOR = true
 -#KERNEL_ROOT = /home/john/RealTek/linux-2.5/linux
++
  KERNEL_ROOT = ..
 -ifeq ($(wildcard $(DIR_USERS)/boa/tools/cvimg),)
 -ifeq ($(wildcard $(DIR_USERS)/goahead-2.1.1/LINUX/cvimg),)
@@ -31,11 +54,13 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -else
 -CVIMG=$(DIR_USERS)/goahead-2.1.1/LINUX/cvimg
 -endif
++
+ .NOTPARALLEL : all
 -else
 -CVIMG=$(DIR_USERS)/boa/tools/cvimg
 -endif
 -# ---- shouldn't need to modify below this line.
--
+ 
 -ifdef EMULATOR
 -EMUOPTS = -DEMULATOR
 -LDSCRIPT = ld-emu.script
@@ -51,7 +76,6 @@ Index: linux-2.6.30.9/rtkload/Makefile
 +STRIP           = $(CROSS_COMPILE)strip
 +OBJCOPY         = $(CROSS_COMPILE)objcopy
 +OBJDUMP         = $(CROSS_COMPILE)objdump
-+
 +
  EMUOPTS =
  LDSCRIPT = ld.script
@@ -88,26 +112,24 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -endif
 -endif	
 -endif
-+
+-    
+-CFLAGS =-Os -g -fno-pic -mno-abicalls $(EMUOPTS)
+-ifeq ($(strip $(DOQUIET)),true)
+-CFLAGS  += $(WARNINGS)  -D__DO_QUIET__
+-endif
 +
 +#SUPPORT_FILES = misc.o cache.o # bzip2
 +#SUPPORT_FILES = vsprintf.o prom_printf.o string.o ctype.o misc.o cache.o #gzip
 +#SUPPORT_FILES = string.o ctype.o misc.o cache.o LzmaDecode.o #quiet
 +SUPPORT_FILES = vsprintf.o prom_printf.o string.o ctype.o misc.o cache.o LzmaDecode.o  #lzma
-     
--CFLAGS =-Os -g -fno-pic -mno-abicalls $(EMUOPTS)
--ifeq ($(strip $(DOQUIET)),true)
--CFLAGS  += $(WARNINGS)  -D__DO_QUIET__
--endif
++
 +CFLAGS =-Os -g -fno-pic -mno-abicalls $(EMUOPTS) -march=rlx4181
-+
 +#CFLAGS  += $(WARNINGS)  -D__DO_QUIET__ #quiet
-+
 +
  CFLAGS += -DEMBEDDED -I$(KERNEL_ROOT)/include/linux -I$(KERNEL_ROOT)/include -I$(KERNEL_ROOT)/lib $(COPTIONS) -G 0
  CFLAGS += -I$(KERNEL_ROOT)/arch/rlx/bsp -I$(KERNEL_ROOT)/arch/rlx/include -I$(KERNEL_ROOT)/arch/rlx/include/asm/mach-generic 
  #ASFLAGS = -g $(EMUOPTS) -DEMBEDDED -I$(KERNEL_ROOT)/include -I$(KERNEL_ROOT)/arch/rlx/include
-@@ -68,214 +47,57 @@
+@@ -69,214 +47,57 @@ ASFLAGS = -g -fno-pic -mno-abicalls $(EMUOPTS) -DEMBEDDED -I$(KERNEL_ROOT)/inclu
  
  LDFLAGS=-static -nostdlib
  
@@ -120,6 +142,8 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -ASFLAGS += -DLZMA_COMPRESS
 -endif
 -endif
+-
+-START_FILE = start.o
 +#CFLAGS += -DBZ2_COMPRESS #bzip2
 +#ASFLAGS += -DBZ2_COMPRESS #bzip2
 +#CFLAGS += #gzip
@@ -127,9 +151,6 @@ Index: linux-2.6.30.9/rtkload/Makefile
 +CFLAGS += -DLZMA_COMPRESS #lzma
 +ASFLAGS += -DLZMA_COMPRESS #lzma
  
--START_FILE = start.o
- 
-+START_FILE = start.o
  
 -#RTL_819X normal LOAD_START_ADDR and FLASH_OFFSET
 -ifdef CONFIG_RTL_819X
@@ -200,7 +221,8 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -else
 -FLASH_OFFSET=20000
 -endif
--
++START_FILE = start.o
+ 
 -ifdef CONFIG_RTK_VOIP_BOARD
 -LOAD_START_ADDR=0x80C00000
 -endif
@@ -243,19 +265,17 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -OBJCOPY=$(CROSS_COMPILE)objcopy
 -
 -SEDFLAGS	= s/LOAD_ADDR/$(LOAD_START_ADDR)/;
--
++#CV_OPTION=linux
+ 
 -ifdef CONFIG_RTK_VOIP_BOARD
 -STRIP-OPTIONS-$(CONFIG_RSDK_rsdk-1.5.4-5281-EB-2.6.30-0.9.30.3-uls-101110) = --remove-section=.bss
 -endif
--
++SEDFLAGS       = s/LOAD_ADDR/$(CONFIG_RTL_KERNEL_LOAD_ADDRESS)/;
+ 
 -# jffs2 related definitions 
 -DIR_ROMFS_BOOT = $(DIR_ROMFS)/boot/
 -MKJFFS2 = ./mkfs.jffs2
 -MKIMAGE_UBOOT = ./mkimage-uboot
-+#CV_OPTION=linux
-+
-+SEDFLAGS       = s/LOAD_ADDR/$(CONFIG_RTL_KERNEL_LOAD_ADDRESS)/;
-+
  
  O_TARGET := rtk
  obj-y		:= vmlinux_img.o $(START_FILE) $(LOADER_FILES) $(SUPPORT_FILES)
@@ -265,7 +285,8 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -else
 -all: rtk-clean rtk-vmlinux_img $(START_FILE) $(LOADER_FILES) $(SUPPORT_FILES)
 -endif
--
++all: linux.bin
+ 
 -#memload-partial
 -ifdef CONFIG_ROOTFS_JFFS2
 -jffs2_no_this:
@@ -273,8 +294,6 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -	$(CC) -fno-pic -mno-abicalls -Os -fomit-frame-pointer -D__KERNEL__ -c vmlinux_img.c -o vmlinux_img.o	
 -	$(OBJCOPY) --add-section .vmlinux=vmlinux_img.gz vmlinux_img.o
 -	@sed "$(SEDFLAGS)" < ld.script.in > $(LDSCRIPT)
-+all: linux.bin
-+
 +%.o:%.S
 +	${CC} ${CFLAGS} -c -o $@ $<
 +%.o:%.c
@@ -307,7 +326,11 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -	@$(CVIMG) flash_size_chk linux.bin || exit $$?
 -endif
 -endif
--
++	$(CVIMG) $(CV_OPTION) nfjrom linux.bin $(CONFIG_RTL_KERNEL_LOAD_ADDRESS) $(CONFIG_RTL_LINUX_IMAGE_OFFSET) $(CV_SIGNATURE)
++
++clean:
++	rm -f *.o memload system.map nfjrom memload-partial memload-full vmlinux_img.squish vmlinux_img.squish.hdr target target.img strip1 linux.bin vmlinux-stripped  $(LDSCRIPT) vmlinux_img vmlinux_img.gzip.uboot.jffs2
+ 
 -rtk-clean:
 -	rm -f *.o memload system.map nfjrom memload-partial memload-full vmlinux_img.gz target target.img strip1 linux.bin vmlinux-stripped  $(LDSCRIPT) vmlinux_img vmlinux_img.gzip.uboot.jffs2
 -	
@@ -328,7 +351,7 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -endif
 -	$(CVIMG) vmlinuxhdr vmlinux_img.gz vmlinux_img.gz $(KERNEL_ROOT)/vmlinux
 -endif # CONFIG_ROOTFS_JFFS2
--
+ 
 -target:	nfjrom $(BOOT_CODE) $(EXT2_IMG)
 -# Pading boot code to 512 bytes long (but only 256 bytes are allowed, 512 is to make it page alignment)
 -	$(OBJCOPY) -Obinary --pad-to=0x80000200 $(BOOT_CODE) bootcode
@@ -336,12 +359,6 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -	$(LD) -G0 -Ttarget.script -o target  -bbinary bootcode -bbinary nandrom -bbinary $(EXT2_IMG)
 -	$(OBJCOPY) -Obinary target target.img		 
 -	cp -f ./target.img /tftpboot
-+	$(CVIMG) $(CV_OPTION) nfjrom linux.bin $(CONFIG_RTL_KERNEL_LOAD_ADDRESS) $(CONFIG_RTL_LINUX_IMAGE_OFFSET) $(CV_SIGNATURE)
-+
-+clean:
-+	rm -f *.o memload system.map nfjrom memload-partial memload-full vmlinux_img.squish vmlinux_img.squish.hdr target target.img strip1 linux.bin vmlinux-stripped  $(LDSCRIPT) vmlinux_img vmlinux_img.gzip.uboot.jffs2
-+
-+
  depend:
  	rm -f .depend
  	$(CC) $(CFLAGS) -MM $(SOURCES) >.depend
@@ -358,17 +375,3 @@ Index: linux-2.6.30.9/rtkload/Makefile
 -	$(MKIMAGE_UBOOT) -A mips -O linux -T kernel -C gzip -a 80000000 -e 80000000 -n 8954c_kernel -d vmlinux_img.gzip $(DIR_ROMFS_BOOT)/vmlinux_img.gzip.uboot
 -	$(MKJFFS2) -n -p -b -e $(CONFIG_JFFS2_ERASE_SIZE) -o $(DIR_IMAGE)/vmlinux_img.gzip.uboot.jffs2 -d $(DIR_ROMFS)
  
-Index: linux-2.6.30.9/Makefile
-===================================================================
---- linux-2.6.30.9.orig/Makefile	2011-12-05 01:19:42.000000000 +0000
-+++ linux-2.6.30.9/Makefile	2011-12-05 01:19:43.000000000 +0000
-@@ -1480,6 +1480,9 @@
- kernelversion:
- 	@echo $(KERNELVERSION)
- 
-+do_rtkload:
-+	$(Q)$(MAKE) -C rtkload
-+
- # Single targets
- # ---------------------------------------------------------------------------
- # Single targets are compatible with:
