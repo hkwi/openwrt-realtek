@@ -29,12 +29,28 @@
 
 #include "./8192cd_cfg.h"
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && !defined(__ECOS)
 #include "./sys-support.h"
+#endif
+
+#ifdef __ECOS
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
 #endif
 
 #ifdef SUPPORT_SNMP_MIB
 #include "./8192cd_mib.h"
+#endif
+
+#ifdef P2P_SUPPORT
+#include "./8192cd_p2p.h"
+#endif
+
+#ifdef USE_OUT_SRC
+#include "OUTSRC/odm_types.h"
+#include "./odm_inc.h"
+#include "OUTSRC/odm.h"
 #endif
 
 #define TRUE		1
@@ -47,6 +63,7 @@
 #define SUCCESS		1
 #define FAIL		0
 
+#if 0
 typedef unsigned char	UINT8;
 typedef unsigned short	UINT16;
 typedef unsigned long	UINT32;
@@ -60,9 +77,15 @@ typedef signed int		INT;
 
 typedef unsigned long long	UINT64;
 typedef signed long long	INT64;
+#endif
 
 
+#ifdef __KERNEL__
 #include "./ieee802_mib.h"
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wlan/ieee802_mib.h>
+#endif
+
 #include "./wifi.h"
 #include "./8192cd_security.h"
 
@@ -93,10 +116,10 @@ typedef signed long long	INT64;
 #endif
 
 #ifdef CONFIG_RTK_MESH
-#include "./mesh_ext/mesh.h"
-#include "./mesh_ext/hash_table.h"
-#include "./mesh_ext/mesh_route.h"
-#include "./mesh_ext/mesh_security.h"
+#include "../mesh_ext/mesh.h"
+#include "../mesh_ext/hash_table.h"
+#include "../mesh_ext/mesh_route.h"
+#include "../mesh_ext/mesh_security.h"
 #endif
 #define DWNGRADE_PROBATION_TIME		3
 #define UPGRADE_PROBATION_TIME		3
@@ -150,8 +173,9 @@ enum ps_enable {
 };
 
 enum pwr_state_change {
-	IN=1,
-	OUT=2
+// Renamed by Annie for ODM OUTSRC porting and conflict naming issue, 2011-09-22
+	PWR_STATE_IN=1,
+	PWR_STATE_OUT=2
 };
 #endif
 
@@ -197,6 +221,9 @@ enum wifi_state {
 	WIFI_MP_CTX_OFDM_HW				= 0x00800000,	// in ofdm continuous tx
 	WIFI_MP_RX							= 0x01000000,
 	WIFI_MP_ARX_FILTER				= 0x02000000,
+#if 1//def CONFIG_RTL8672
+	WIFI_MP_CTX_BACKGROUND_STOPPING	= 0x04000000,	// stopping ctx
+#endif
 #endif
 
 #ifdef WIFI_SIMPLE_CONFIG
@@ -211,6 +238,15 @@ enum wifi_state {
 
 #ifdef A4_STA
 	WIFI_A4_STA		=	0x04000000,
+#endif
+
+
+#ifdef CONFIG_RTL8672
+    WIFI_WAIT_FOR_CHANNEL_SELECT    = 0x04000000,
+#endif
+
+#ifdef P2P_SUPPORT
+	WIFI_P2P_SUPPORT	=	0x08000000
 #endif
 };
 
@@ -232,12 +268,17 @@ enum led_type {
 	LEDTYPE_SW_ADATA_GDATA,
 	LEDTYPE_SW_ENABLETXRXDATA_1,
 	LEDTYPE_SW_CUSTOM1,
-	LEDTYPE_SW_LED2_GPIO8_LINKTXRX,					//11
-	LEDTYPE_SW_LED2_GPIO8_ENABLETXRXDATA,
-	LEDTYPE_SW_LED2_GPIO10_LINKTXRX,				//13
-	LEDTYPE_SW_LED1_GPIO10_LINKTXRX,				//14 for 92D LED Control = 92C LED_TYPE 13
+	LEDTYPE_SW_LED2_GPIO8_LINKTXRX,					// 11
+	LEDTYPE_SW_LED2_GPIO8_ENABLETXRXDATA,			// 12
+	LEDTYPE_SW_LED2_GPIO10_LINKTXRX,				// 13
+	LEDTYPE_SW_RESERVED,							// 14, redirect to 52
+	LEDTYPE_SW_LED2_GPIO8_LINKTXRXDATA,				// 15
+	LEDTYPE_SW_LED2_GPIO8_ASOCTXRXDATA,  			// 16, mark_led
+	LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA,			// 17 LED Control = LED_TYPE 7
 	// Latest 92D customized LED types start from 50
-	LEDTYPE_SW_LED1_ENABLETXRXDATA = 50,			// 50 for 92D LED Control = 92C LED_TYPE 7	
+	LEDTYPE_SW_LED2_GPIO10_ENABLETXRXDATA_92D = 50,	// 50 for 92D, LED Control = 92C LED_TYPE 7
+	LEDTYPE_SW_LED1_GPIO9_LINKTXRX_92D = 51,		// 51 for 92D, LED Control = 92C LED_TYPE 13
+	LEDTYPE_SW_LED2_GPIO10_LINKTXRX_92D = 52,		// 52 for 92D, LED Control = 92C LED_TYPE 13
 	LEDTYPE_SW_MAX,
 };
 
@@ -289,7 +330,10 @@ enum FREQUENCY_BAND {
 
 enum _HT_CHANNEL_WIDTH {
 	HT_CHANNEL_WIDTH_20		= 0,
-	HT_CHANNEL_WIDTH_20_40	= 1
+	HT_CHANNEL_WIDTH_20_40	= 1,
+	HT_CHANNEL_WIDTH_80		= 2,
+	HT_CHANNEL_WIDTH_160	= 3,
+	HT_CHANNEL_WIDTH_10		= 4
 };
 
 enum SECONDARY_CHANNEL_OFFSET {
@@ -338,7 +382,8 @@ enum _H2C_CMD_ID_ {
 	AP_REQ_RPT = 11,
 	BT_COEX_DUTY_CYCLE = 12,
 	H2C_CMD_INFO_PKT = 13,
-	H2C_CMD_SMCC = 14
+	H2C_CMD_SMCC = 14,
+	H2C_CMD_AP_WPS_CTRL = 64,
 };
 
 enum _ANTENNA_ {
@@ -354,7 +399,7 @@ enum _ANTENNA_ {
 };
 
 enum qos_prio { BK, BE, VI, VO, VI_AG, VO_AG };
-  	 
+
 #ifdef WIFI_HAPD
 enum HAPD_EVENT{
 	HAPD_EXIRED = 0,
@@ -377,7 +422,7 @@ enum WPAS_EVENT{
 	WPAS_EXIRED = 10,
 	WPAS_REGISTERED = 11,
 	WPAS_MIC_FAILURE = 12,
-	WPAS_ASSOC_INFO = 13, 
+	WPAS_ASSOC_INFO = 13,
 	WPAS_SCAN_DONE = 14
 };
 
@@ -392,7 +437,7 @@ typedef struct _WPAS_ASSOCIATION_INFO
         char            RespIE[RESPIELEN];
 } WPAS_ASSOCIATION_INFO;
 #endif
-  	 
+
 static const struct ParaRecord rtl_ap_EDCA[] =
 {
 //ACM,AIFSN, ECWmin, ECWmax, TXOplimit
@@ -449,7 +494,7 @@ struct dz_addba_info{
 #endif
 #endif
 
-#if defined(GREEN_HILL) || defined(PACK_STRUCTURE)
+#if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack(1)
 #endif
 
@@ -476,12 +521,15 @@ __PACK struct wlan_hdr {
 	unsigned char	iv[8];
 } __WLAN_ATTRIB_PACK__;
 
-#if defined(GREEN_HILL) || defined(PACK_STRUCTURE)
+#if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack()
 #endif
 
 struct wlan_hdrnode {
 	struct list_head	list;
+#ifdef TX_EARLY_MODE
+	unsigned char		em_info[8];		// early mode info
+#endif		
 	struct wlan_hdr		hdr;
 };
 
@@ -490,7 +538,7 @@ struct wlan_hdr_poll {
 	int					count;
 };
 
-#if defined(GREEN_HILL) || defined(PACK_STRUCTURE)
+#if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack(1)
 #endif
 
@@ -502,12 +550,15 @@ __PACK struct wlanllc_hdr {
 	struct llc_snap		llcsnaphdr;
 } __WLAN_ATTRIB_PACK__;
 
-#if defined(GREEN_HILL) || defined(PACK_STRUCTURE)
+#if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack()
 #endif
 
 struct wlanllc_node {
 	struct list_head	list;
+#ifdef TX_EARLY_MODE
+	unsigned char		em_info[8];		// early mode info
+#endif	
 	struct wlanllc_hdr	hdr;
 
 #ifdef CONFIG_RTK_MESH
@@ -604,6 +655,10 @@ struct tx_insn	{
 	struct  lls_mesh_header mesh_header;
 #endif
 
+#ifdef SUPPORT_TX_MCAST2UNI
+	unsigned char		isMC2UC;
+#endif
+
 };
 
 struct reorder_ctrl_entry
@@ -630,6 +685,11 @@ struct tx_sc_entry {
 	struct tx_desc		hwdesc2;
 	struct tx_desc_info	swdesc1;
 	struct tx_desc_info	swdesc2;
+#ifdef TX_SCATTER
+	struct tx_desc		hwdesc3;
+	struct tx_desc_info	swdesc3;
+	int	has_desc3;
+#endif	
 	int					sc_keyid;
 	struct wlan_ethhdr_t	ethhdr;
 	unsigned char		pktpri;
@@ -637,19 +697,27 @@ struct tx_sc_entry {
 #endif
 
 #ifdef SW_TX_QUEUE
+#define CHECK_DEC_AGGN		0
+#define CHECK_INC_AGGN		1
+#define MAX_BACKOFF_CNT		8
+
 struct sw_tx_q {
 	struct sk_buff_head     be_queue;
-        struct sk_buff_head     bk_queue;
-        struct sk_buff_head     vi_queue;
+    struct sk_buff_head     bk_queue;
+    struct sk_buff_head     vi_queue;
 	struct sk_buff_head     vo_queue;
 	struct timer_list       beq_timer;
-        struct timer_list       bkq_timer;
-        struct timer_list       viq_timer;
-        struct timer_list       voq_timer;
-	int           beq_empty;      //0:empty; 1:not empty
-        int           bkq_empty;
-        int           viq_empty;
-        int           voq_empty;
+    struct timer_list       bkq_timer;
+    struct timer_list       viq_timer;
+    struct timer_list       voq_timer;
+	int           			beq_empty;      //0:empty; 1:not empty
+    int           			bkq_empty;
+    int           			viq_empty;
+    int           			voq_empty;
+    int						q_aggnum[8];
+	int						q_TOCount[8];
+	unsigned char 			q_used[8];
+	unsigned char			q_aggnumIncSlow[8];
 };
 #endif
 
@@ -681,6 +749,10 @@ struct stat_info {
 
 #if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
 	WPA_STA_INFO		*wpa_sta_info;
+#endif
+
+#ifdef TLN_STATS
+	unsigned int		enterpise_wpa_info;
 #endif
 
 #ifdef WIFI_HAPD
@@ -720,9 +792,9 @@ struct stat_info {
 	unsigned short		tpcache[8][TUPLE_WINDOW];
 	unsigned short		tpcache_mgt;	// mgt cache number
 
-#ifdef CLIENT_MODE 
-    unsigned short      tpcache_mcast;  // for client mode broadcast or multicast used 
-#endif 
+#ifdef CLIENT_MODE
+    unsigned short      tpcache_mcast;  // for client mode broadcast or multicast used
+#endif
 
 #ifdef _DEBUG_RTL8192CD_
 	unsigned int		rx_amsdu_err;
@@ -811,20 +883,25 @@ struct stat_info {
 	unsigned char		rssi_level;
 	unsigned char		hp_level;
 	unsigned char		is_realtek_sta;
+#ifndef USE_OUT_SRC	
 	unsigned char		is_apclient;
 	unsigned char		is_rtl8192s_sta;
+	unsigned char		is_rtl8192cd_apclient;
 	unsigned char		is_rtl81xxc_sta;
 	unsigned char		is_broadcom_sta;
 	unsigned char		is_ralink_sta;
 	unsigned char		is_marvell_sta;
 	unsigned char		is_intel_sta;
+#ifdef RTK_WOW
+	unsigned char		is_rtk_wow_sta;
+#endif
+
+#endif	
 	unsigned char		leave;
 	unsigned char		no_rts;
 	unsigned char		is_2t_mimo_sta;
 	unsigned int		check_init_tx_rate;
-#ifdef RTK_WOW
-	unsigned char		is_rtk_wow_sta;
-#endif
+
 	unsigned char		is_forced_ampdu;
 	unsigned char		is_forced_rts;
 	unsigned char		aggre_mthd;
@@ -838,6 +915,8 @@ struct stat_info {
 
 	unsigned int		tx_bytes;
 	unsigned int		rx_bytes;
+	unsigned int		tx_bytes_1m;
+	unsigned int		rx_bytes_1m;
 	unsigned int		tx_pkts;
 	unsigned int		rx_pkts;
 	unsigned int		tx_fail;
@@ -915,6 +994,36 @@ struct stat_info {
 		char CurAntenna;
 #endif
 	unsigned int		retry_inc;
+#ifdef P2P_SUPPORT
+		unsigned char is_p2p_client;
+#endif
+
+#ifdef TX_EARLY_MODE
+	int empkt_num;	// how many pending packet in next
+	int emextra_len;	// extra 802.11 length for each 802.3 pkt
+	int empkt_len[10];	// packet length for next pending packet
+#endif
+	unsigned long def_expired_time;
+	unsigned long def_expired_throughput;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	unsigned char txpause_flag;
+	unsigned long txpause_time;
+#endif
+#ifdef USE_OUT_SRC
+	// Driver Write
+//	BOOLEAN		bValid;				// record the sta status link or not?
+	UINT8		WirelessMode;		// 
+	UINT8		IOTPeer;			// Enum value.	HT_IOT_PEER_E
+
+	// ODM Write
+	//1 PHY_STATUS_INFO
+	UINT8		RSSI_Path[4];		// 
+	UINT8		RSSI_Ave;
+	UINT8		RXEVM[4];
+	UINT8		RXSNR[4];
+	RSSI_STA	rssi_stat;
+#endif
+	unsigned int			low_tp_disable_ampdu;
 };
 
 
@@ -960,7 +1069,65 @@ struct extra_stats {
 #if defined(CONFIG_RTL_NOISE_CONTROL) || defined(CONFIG_RTL_NOISE_CONTROL_92C)
 	unsigned int		tp_average_pre;
 #endif
+
+#if defined(__ECOS) && defined(_DEBUG_RTL8192CD_)
+	unsigned long		tx_cnt_nosc;
+	unsigned long		tx_cnt_sc1;
+	unsigned long		tx_cnt_sc2;
+	unsigned long		rx_cnt_nosc;
+	unsigned long		rx_cnt_sc;
+	unsigned long		br_cnt_nosc;
+	unsigned long		br_cnt_sc;
+#endif	
 };
+
+
+#ifdef TLN_STATS
+struct tln_wifi_stats {
+	unsigned long		connected_sta;
+	unsigned long		max_sta;
+	unsigned long		max_sta_timestamp;
+	unsigned long		rejected_sta;
+};
+
+
+struct tln_ext_wifi_stats {
+	unsigned long		rson_UNSPECIFIED_1;
+	unsigned long		rson_AUTH_INVALID_2;
+	unsigned long		rson_DEAUTH_STA_LEAVING_3;
+	unsigned long		rson_INACTIVITY_4;
+	unsigned long		rson_RESOURCE_INSUFFICIENT_5;
+	unsigned long		rson_UNAUTH_CLS2FRAME_6;
+	unsigned long		rson_UNAUTH_CLS3FRAME_7;
+	unsigned long		rson_DISASSOC_STA_LEAVING_8;
+	unsigned long		rson_ASSOC_BEFORE_AUTH_9;
+	unsigned long		rson_INVALID_IE_13;
+	unsigned long		rson_MIC_FAILURE_14;
+	unsigned long		rson_4WAY_TIMEOUT_15;
+	unsigned long		rson_GROUP_KEY_TIMEOUT_16;
+	unsigned long		rson_DIFF_IE_17;
+	unsigned long		rson_MCAST_CIPHER_INVALID_18;
+	unsigned long		rson_UCAST_CIPHER_INVALID_19;
+	unsigned long		rson_AKMP_INVALID_20;
+	unsigned long		rson_UNSUPPORT_RSNIE_VER_21;
+	unsigned long		rson_RSNIE_CAP_INVALID_22;
+	unsigned long		rson_802_1X_AUTH_FAIL_23;
+	unsigned long		rson_OUT_OF_SCOPE;
+
+	unsigned long		status_FAILURE_1;
+	unsigned long		status_CAP_FAIL_10;
+	unsigned long		status_NO_ASSOC_11;
+	unsigned long		status_OTHER_12;
+	unsigned long		status_NOT_SUPPORT_ALG_13;
+	unsigned long		status_OUT_OF_AUTH_SEQ_14;
+	unsigned long		status_CHALLENGE_FAIL_15;
+	unsigned long		status_AUTH_TIMEOUT_16;
+	unsigned long		status_RESOURCE_INSUFFICIENT_17;
+	unsigned long		status_RATE_FAIL_18;
+	unsigned long		status_OUT_OF_SCOPE;
+};
+#endif
+
 
 #ifdef WIFI_SIMPLE_CONFIG
 #ifndef INCLUDE_WPS
@@ -1006,6 +1173,10 @@ struct ss_res {
 	struct rsn_ie_info	rsn_ie[MAX_BSS_NUM];
 	struct rsn_ie_info	rsn_ie_backup[MAX_BSS_NUM];
 #endif
+#ifdef CONFIG_RTL_NEW_AUTOCH
+	unsigned int		to_scan_40M;
+#endif
+	unsigned int		hidden_ap_found;
 };
 
 #if defined(CONFIG_RTL_NEW_AUTOCH) && defined(SS_CH_LOAD_PROC)
@@ -1016,7 +1187,7 @@ struct ss_report{
 	unsigned char	rssi;
 	unsigned short	fa_count;
 	unsigned short	cca_count;
-	unsigned int	ch_load; 
+	unsigned int	ch_load;
 };
 
 #endif
@@ -1026,6 +1197,11 @@ struct ss_report{
 //	struct stat_info	*pstat;
 //	unsigned char		hwaddr[6];
 //};
+
+struct mc2u_flood_mac_entry 
+{
+	unsigned char macAddr[MACADDRLEN];
+};
 
 struct rf_finetune_var {
 	unsigned char		ofdm_1ss_oneAnt;// for 2T2R
@@ -1039,6 +1215,7 @@ struct rf_finetune_var {
 	unsigned char		raGoUp20MLower;
 	unsigned char		raGoUp40MLower;
 	unsigned char		dig_enable;
+	unsigned char		adaptivity_enable;
 	unsigned char		digGoLowerLevel;
 	unsigned char		digGoUpperLevel;
 	unsigned char		dcThUpper;
@@ -1046,6 +1223,10 @@ struct rf_finetune_var {
 	unsigned char		rssiTx20MUpper;
 	unsigned char		rssiTx20MLower;
 	unsigned char		rssi_expire_to;
+#ifdef INTERFERENCE_CONTROL
+	unsigned char		nbi_filter_enable;
+#endif
+	unsigned char		rts_init_rate;
 
 	unsigned char		cck_pwr_max;
 	unsigned char		cck_tx_pathB;
@@ -1063,6 +1244,16 @@ struct rf_finetune_var {
 	// TXOP enlarge
 	unsigned char		txop_enlarge_upper;
 	unsigned char		txop_enlarge_lower;
+#ifdef LOW_TP_TXOP
+	unsigned char		low_tp_txop;
+	unsigned int		low_tp_txop_thd_n;
+	unsigned int		low_tp_txop_thd_g;
+	unsigned int		low_tp_txop_thd_low;
+	unsigned char		low_tp_txop_close;
+	unsigned char		low_tp_txop_count;
+	unsigned char		low_tp_txop_delay;
+	unsigned int		cwmax_enhance_thd;
+#endif
 
 	// 2.3G support
 	unsigned char		use_frq_2_3G;
@@ -1078,6 +1269,11 @@ struct rf_finetune_var {
 #ifdef IGMP_FILTER_CMO
 	unsigned char		igmp_deny;
 #endif
+	unsigned char 		mc2u_drop_unknown;
+	unsigned int		mc2u_flood_ctrl;	
+	struct mc2u_flood_mac_entry mc2u_flood_mac[MAX_FLOODING_MAC_NUM];
+	unsigned int		mc2u_flood_mac_num __attribute__ ((packed));
+
 #endif
 
 #ifdef	HIGH_POWER_EXT_PA
@@ -1093,6 +1289,12 @@ struct rf_finetune_var {
 	unsigned char		use_ext_lna;
 	unsigned char           NDSi_support;
 	unsigned char		edcca_thd;
+	unsigned char 		dynamic_edcca;
+	unsigned char		force_edcca;
+	unsigned int		IGI_base;	
+	unsigned int		IGI_target;
+	unsigned int		TH_H;		
+	unsigned int		TH_L;	
 #ifdef ADD_TX_POWER_BY_CMD
 	char		txPowerPlus_cck_1;
 	char		txPowerPlus_cck_2;
@@ -1141,11 +1343,15 @@ struct rf_finetune_var {
 	int             	swq_dis_lowthd;
 	int             	swq_enable;
 	int             	swq_dbg;
+	int					swq_aggnum;
+	int					timeout_thd;
+	int					timeout_thd2;
+	int					timeout_thd3;
 #endif
 
-#ifdef A4_STA	
+#ifdef A4_STA
 	unsigned char		a4_enable;
-#endif	
+#endif
 
 #ifdef SW_ANT_SWITCH
 	unsigned char		antSw_enable;
@@ -1167,8 +1373,14 @@ struct rf_finetune_var {
 #if defined(CONFIG_RTL_NOISE_CONTROL) || defined(CONFIG_RTL_NOISE_CONTROL_92C)
 	unsigned char		dnc_enable;
 #endif
-
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+	unsigned int		bws_Thd;
+	unsigned char		bws_enable;
+#endif	
 	unsigned char		pwr_by_rate;
+#ifdef DPK_92D
+	unsigned char		dpk_on;
+#endif
 
 #if defined(TXPWR_LMT)
 	unsigned char		disable_txpwrlmt;
@@ -1176,6 +1388,34 @@ struct rf_finetune_var {
 #ifdef CONFIG_RTL_92D_DMDP
 	unsigned char		peerReinit;
 #endif
+#ifdef WIFI_WMM
+	unsigned char		wifi_beq_iot;
+#endif
+	unsigned char		bcast_to_dzq;
+#ifdef TLN_STATS
+	unsigned int		stats_time_interval;
+#endif
+#ifdef TX_EARLY_MODE
+	unsigned char		em_enable;
+	unsigned char		em_que_num;
+	unsigned int		em_swq_thd_high;
+	unsigned int		em_swq_thd_low;
+#endif
+#ifdef CLIENT_MODE
+	unsigned char		sta_mode_ps;
+#endif
+#ifdef CONFIG_RTL_WLAN_DOS_FILTER
+	unsigned int		dos_block_time;
+#endif
+
+	unsigned int		intel_rtylmt_tp_margin;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	unsigned char		disable_pkt_pause;
+	unsigned char		disable_pkt_nolink;
+	unsigned char		max_pkt_fail;
+	unsigned char		min_pkt_fail;	
+#endif
+	unsigned char		low_tp_no_aggr;	
 };
 
 
@@ -1279,6 +1519,43 @@ struct ring_que {
 };
 #endif
 
+#ifdef USE_TXQUEUE
+struct txq_node {
+	struct list_head list;
+	struct sk_buff *skb;
+	struct net_device *dev;
+};
+struct txq_list_head {
+	struct list_head list;
+	unsigned int qlen;
+};
+
+#define init_txq_head(_q) \
+	do { \
+		INIT_LIST_HEAD(&((_q)->list)); \
+		(_q)->qlen = 0; \
+	}while(0)
+#define is_txq_empty(_q) ((_q)->qlen ? 0 : 1)
+#define txq_len(_q) ((_q)->qlen)
+#define add_txq_tail(_q, _n) \
+	do { \
+		list_add_tail(&((_n)->list), &((_q)->list)); \
+		(_q)->qlen ++; \
+	}while(0)
+#define add_txq_head(_q, _n) \
+	do { \
+		list_add(&((_n)->list), &((_q)->list)); \
+		(_q)->qlen ++; \
+	}while(0)
+#define unlink_txq(_q, _n) \
+	do { \
+		list_del(&((_n)->list)); \
+		(_q)->qlen --; \
+	}while(0)
+#define deq_txq(_q) \
+	( (_q)->qlen ? (struct txq_node *)((_q)->list.next) : NULL ); \
+	unlink_txq(_q, (struct txq_node *)((_q)->list.next));
+#endif
 
 #ifdef A4_STA
 #define A4_STA_HASH_BITS		3
@@ -1296,7 +1573,7 @@ struct a4_sta_db_entry {
 
 struct a4_tbl_entry {
 	int used;
-	struct a4_sta_db_entry	entry;	
+	struct a4_sta_db_entry	entry;
 };
 #endif
 
@@ -1319,7 +1596,7 @@ struct a4_tbl_entry {
 #define SELANT_MAP_SIZE	8
 
 // 20100514 Joseph: Add definition for antenna switching test after link.
-// This indicates two different the steps. 
+// This indicates two different the steps.
 // In SWAW_STEP_PEAK, driver needs to switch antenna and listen to the signal on the air.
 // In SWAW_STEP_DETERMINE, driver just compares the signal captured in SWAW_STEP_PEAK
 // with original RSSI to determine if it is necessary to switch antenna.
@@ -1339,6 +1616,7 @@ typedef struct _SW_Antenna_Switch_
 
 #endif
 
+#ifndef USE_OUT_SRC
 #if defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)
 
 typedef enum tag_SW_Antenna_Switch_Definition
@@ -1347,9 +1625,55 @@ typedef enum tag_SW_Antenna_Switch_Definition
 	Antenna_R = 2,
 	Antenna_MAX = 3,
 }DM_SWAS_E;
+#endif
+#endif
 
+
+#if defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)
+typedef struct StationInfoRAStruct
+{
+	unsigned char RateID;	// old rate id, by every conn per station
+	unsigned int RateMask;	// old rate mask
+	unsigned int RAUseRate;
+	unsigned char RateSGI;	// use SGI by decision
+	unsigned char RssiStaRA;
+	unsigned char PreRssiStaRA;
+	unsigned char SGIEnable;	// set if station support SGI, by every conn per station
+	unsigned char DecisionRate;	// update txrate info for desc setting
+	unsigned char PreRate;
+	unsigned char HighestRate;
+	unsigned char LowestRate;
+	unsigned int NscUp;
+	unsigned int NscDown;
+	unsigned short RTY[5];
+	unsigned int TOTAL;
+	unsigned short DROP;
+	unsigned char Active;
+	unsigned short RptTime;
+#if 1
+	unsigned char RAWaitingCounter;
+	unsigned char RAPendingCounter;
+#endif
+#if 0
+	unsigned char TryingState;
+	unsigned char RateBeforeTrying;
+#endif
+	struct stat_info *pstat;
+} STATION_RA_INFO,*PSTATION_RA_INFO;
+#endif
+
+
+#if defined(CONFIG_RTL_88E_SUPPORT) && !defined(CALIBRATE_BY_ODM) //for 88e tx power tracking
+
+#define IQK_Matrix_REG_NUM	8
+
+typedef struct _IQK_MATRIX_REGS_SETTING{
+	char 	bIQKDone;
+	int		Value[1][IQK_Matrix_REG_NUM];
+}IQK_MATRIX_REGS_SETTING,*PIQK_MATRIX_REGS_SETTING;
 
 #endif
+
 
 
 // common private structure which info are shared between root interface and virtual interface
@@ -1417,15 +1741,6 @@ struct priv_shared_info {
 	struct list_head		galileo_list;
 #endif
 
-#if defined(MERGE_FW) ||defined(DW_FW_BY_MALLOC_BUF)
-	unsigned char			*fw_IMEM_buf;
-	unsigned char			*fw_EMEM_buf;
-	unsigned char			*fw_DMEM_buf;
-#else
-	unsigned char			fw_IMEM_buf[FW_IMEM_SIZE];
-	unsigned char			fw_EMEM_buf[FW_EMEM_SIZE];
-	unsigned char			fw_DMEM_buf[FW_DMEM_SIZE];
-#endif
 	unsigned char			agc_tab_buf[AGC_TAB_SIZE];
 	unsigned char			mac_reg_buf[MAC_REG_SIZE];
 	unsigned char			phy_reg_buf[PHY_REG_SIZE];
@@ -1460,6 +1775,14 @@ struct priv_shared_info {
 	unsigned int			tgpwr_HT2S;
 #endif
 
+#ifdef _TRACKING_TABLE_FILE
+	unsigned char			txpwr_tracking_2G_CCK[4][index_mapping_NUM_MAX];
+	unsigned char			txpwr_tracking_2G_OFDM[4][index_mapping_NUM_MAX];
+	unsigned char			txpwr_tracking_5GL[4][index_mapping_NUM_MAX];
+	unsigned char			txpwr_tracking_5GM[4][index_mapping_NUM_MAX];
+	unsigned char			txpwr_tracking_5GH[4][index_mapping_NUM_MAX];
+#endif
+
 //	unsigned char			phy_reg_2to1[PHY_REG_1T2R];
 	unsigned short			fw_IMEM_len;
 	unsigned short			fw_EMEM_len;
@@ -1491,12 +1814,24 @@ struct priv_shared_info {
 	unsigned char			rssi_min;
 #ifdef WIFI_WMM
 	unsigned char			iot_mode_enable;
+	unsigned int			iot_mode_VI_exist;
 	unsigned int			iot_mode_VO_exist;
+	unsigned char			wifi_beq_lower;
+#ifdef WMM_VIBE_PRI
+	unsigned int            iot_mode_BE_exist;
+#endif
+#ifdef WMM_BEBK_PRI
+	unsigned int            iot_mode_BK_exist;
+#endif
+#endif
+
+#ifdef LOW_TP_TXOP
+	unsigned char			BE_cwmax_enhance;
 #endif
 
 	int						is_40m_bw;
 	int						is_40m_bw_bak;
-	int						offset_2nd_chan;
+	char						offset_2nd_chan;
 //	int						is_giga_exist;
 
 #ifdef CONFIG_RTK_MESH
@@ -1533,6 +1868,24 @@ struct priv_shared_info {
 	struct wsc_context		WSC_CONT_S;
 #endif
 
+	unsigned int			current_num_tx_desc;
+
+#ifdef USE_OUT_SRC
+	DM_ODM_T				_dmODM;
+#endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+#ifdef SUPPORT_RTL8188E_TC
+	unsigned int			rtl8188e_testchip_checked;
+#endif
+#if defined(TXREPORT) && !defined(RATEADAPTIVE_BY_ODM)
+	STATION_RA_INFO  RaInfo[RTL8188E_NUM_STAT];
+#endif
+#endif
+
+#ifdef DFS
+	unsigned int			dfsSwitchChannel;
+#endif
+
 	/*********************************************************
 	 * from here on, data will be clear in rtl8192cd_init_sw() *
 	 *********************************************************/
@@ -1546,6 +1899,7 @@ struct priv_shared_info {
 	unsigned int			LED_rx_cnt_log;
 	unsigned int			LED_tx_cnt;
 	unsigned int			LED_rx_cnt;
+	unsigned char			LED_cnt_mgn_pkt;
 
 	//for TxPwrTracking
 
@@ -1577,12 +1931,12 @@ struct priv_shared_info {
 	unsigned char			bDPKdone[2];
 	unsigned char			bDPKstore;
 	short					index_mapping_DPK_current[4][index_mapping_DPK_NUM];
-	int						OFDM_min_index_internalPA_DPK[2];
-	int						TxPowerLevelDPK[2];
+	unsigned char			OFDM_min_index_internalPA_DPK[2];
+	unsigned char			TxPowerLevelDPK[2];
 #endif
 	unsigned int			RegRF18[2];
 	unsigned int			RegRF28[2];
-#endif
+#endif // CONFIG_RTL_92D_SUPPORT
 
 
 	unsigned int			RegE94;
@@ -1597,15 +1951,75 @@ struct priv_shared_info {
 	unsigned int			ADDA_backup[IQK_ADDA_REG_NUM];
 	unsigned int			IQK_MAC_backup[IQK_MAC_REG_NUM];
 
+#ifdef CONFIG_RTL_88E_SUPPORT
+	//for 8188E IQK
+	unsigned int			IQK_BB_backup[IQK_BB_REG_NUM];
+	unsigned int 			IQK_BB_backup_recover[IQK_BB_REG_NUM];
+	unsigned char			bRfPiEnable;
+	unsigned char			IQK_88E_done;
+#endif 	
+
+#ifdef CONFIG_RTL_88E_SUPPORT //for 88e tx power tracking
+
+	unsigned char	Power_tracking_on_88E;
+
+	unsigned int 	TXPowerTrackingCallbackCnt; //cosa add for debug
+	unsigned int	RegA24; // for TempCCK
+	unsigned char	EEPROMThermalMeter;			// EEPROM default ThermalMeter value.
+
+	//u1Byte bTXPowerTracking;
+	unsigned char	TXPowercount;
+	char 			bTXPowerTrackingInit; 
+	char 			bTXPowerTracking;
+	unsigned char	TxPowerTrackControl; //for mp mode, turn off txpwrtracking as default
+	unsigned char	TM_Trigger;
+	unsigned char	InternalPA5G[2];	//pathA / pathB
+
+	unsigned char	ThermalMeter[2];	// ThermalMeter, index 0 for RFIC0, and 1 for RFIC1	
+	unsigned char	ThermalValue_AVG[AVG_THERMAL_NUM];
+	unsigned char	ThermalValue_AVG_index; 	
+	unsigned char	ThermalValue_RxGain;
+	unsigned char	ThermalValue_Crystal;
+	unsigned char	ThermalValue_DPKstore;
+	unsigned char	ThermalValue_DPKtrack;
+	char 			TxPowerTrackingInProgress;
+	char 			bDPKenable;
+
+	char 			bReloadtxpowerindex;	
+	//unsigned char	bRfPiEnable;
+	//unsigned int	TXPowerTrackingCallbackCnt; //cosa add for debug
+
+	unsigned char	bCCKinCH14;
+	char 			bDoneTxpower;
+		
+	unsigned char	ThermalValue_HP[HP_THERMAL_NUM];
+	unsigned char	ThermalValue_HP_index;
+	IQK_MATRIX_REGS_SETTING IQKMatrixRegSetting[IQK_Matrix_Settings_NUM];
+
+	unsigned char	Delta_IQK;
+	unsigned char	Delta_LCK;
+
+#endif
+
+	// MP DIG
+	struct timer_list		MP_DIGTimer;
+	unsigned char			mp_dig_on;
+	unsigned char			mp_dig_reg_backup;
+	unsigned int			RxPWDBAve;
+	unsigned int			NumQryPhyStatus;
+	unsigned int			LastNumQryPhyStatusAll;
+	unsigned int			NumQryPhyStatusCCK;
+	unsigned int			NumQryPhyStatusOFDM;
+
 #if 0 //def SMART_CONCURRENT_92D
 	unsigned int			bcnCount;
 #endif
 
-#ifdef MBSSID
+//#ifdef MBSSID
 	struct rtl8192cd_priv	*bcnDOk_priv;
-#endif
+//#endif
 
-#ifdef TXREPORT
+#if defined(TXREPORT) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 		int sta_query_idx;
 #endif
 
@@ -1616,6 +2030,12 @@ struct priv_shared_info {
 #ifdef CHECK_HANGUP
 #ifdef CHECK_TX_HANGUP
 	struct desc_check_info	Q_info[5];
+#endif
+#ifdef CHECK_RX_DMA_ERROR
+	unsigned int			rx_dma_err_cnt;
+	unsigned short			rxff_pkt;
+	unsigned short			rxff_rdptr;
+	unsigned int			rx_byte_cnt;
 #endif
 #ifdef CHECK_RX_HANGUP
 	unsigned int			rx_hang_checking;
@@ -1628,9 +2048,11 @@ struct priv_shared_info {
 	unsigned int			beacon_pending_cnt;
 	unsigned int			beacon_wait_cnt;
 #endif
+#ifdef CHECK_AFTER_RESET
 	unsigned int			reset_monitor_cnt_down;
 	unsigned int			reset_monitor_pending;
 	unsigned int			reset_monitor_rx_pkt_cnt;
+#endif
 #endif
 
 #ifdef MP_TEST
@@ -1656,6 +2078,11 @@ struct priv_shared_info {
 	unsigned char			mp_cck_swing_idx;
 	unsigned char			mp_txpwr_tracking;
 
+#ifdef MP_SWITCH_LNA
+	unsigned char			rx_packet_ss_a;
+	unsigned char			rx_packet_ss_b;
+#endif
+
 #ifdef B2B_TEST
 	volatile unsigned long	mp_rx_ok, mp_rx_sequence, mp_rx_lost_packet, mp_rx_dup;
 	volatile unsigned short	mp_cached_seq;
@@ -1680,7 +2107,14 @@ struct priv_shared_info {
 	unsigned long			current_tx_bytes;
 	unsigned long			current_rx_bytes;
 
-	unsigned int			CurrentChannelBW;
+#ifdef USE_OUT_SRC
+	u8Byte					NumTxBytesUnicast;
+	u8Byte					NumRxBytesUnicast;
+	unsigned char			bScanInProcess;
+	u8Byte					dummy;
+#endif	
+
+	unsigned char			CurrentChannelBW;
 	unsigned char			*txcmd_buf;
 	unsigned long			cmdbuf_phyaddr;
 	unsigned long			InterruptMask;
@@ -1690,11 +2124,11 @@ struct priv_shared_info {
 	unsigned int			rx_rpt_ht;
 	unsigned int			successive_bb_hang;
 #ifdef CLIENT_MODE
-	unsigned int			AP_BW;
+	int					AP_BW;
 #endif
 
 	unsigned long			rxFiFoO_pre;
-	unsigned int			pkt_in_hiQ;
+//	unsigned int			pkt_in_hiQ;
 
 #ifdef RTK_QUE
 	struct ring_que 		skb_queue;
@@ -1706,6 +2140,7 @@ struct priv_shared_info {
 	struct reorder_ctrl_timer	rc_timer[64];
 	unsigned short				rc_timer_head;
 	unsigned short				rc_timer_tail;
+	unsigned short				rc_timer_tick;
 
 	struct reorder_ctrl_timer	amsdu_timer[64];
 	unsigned short				amsdu_timer_head;
@@ -1715,6 +2150,9 @@ struct priv_shared_info {
 #ifdef WIFI_WMM
 	unsigned int			ht_sta_num;
 	unsigned int			mimo_ps_dynamic_sta;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	unsigned int			mimo_ps_dynamic_sta_88e_hw_ext;
+#endif
 #ifdef STA_EXT
 	unsigned int			mimo_ps_dynamic_sta_ext;
 #endif
@@ -1726,6 +2164,22 @@ struct priv_shared_info {
 //	unsigned int			has_2r_sta; // Used when AP is 2T2R. bitmap of 2R aid
 	int						has_triggered_rx_tasklet;
 	int						has_triggered_tx_tasklet;
+#ifdef __ECOS
+	int						call_dsr;
+#ifdef USE_WLAN_TIMER_FOR_RC
+	int						has_triggered_reorder_ctrl_timeout;
+#endif
+	int						has_triggered_process_mcast_dzqueue;
+#ifdef MBSSID
+	int				has_triggered_vap_process_mcast_dzqueue[RTL8192CD_NUM_VWLAN];
+#endif
+#if defined(TXREPORT) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
+	int						has_triggered_C2H_isr;
+#endif
+#ifdef DFS
+	int				has_triggered_dfs_switch_channel;
+#endif
+#endif
 
 #ifdef STA_EXT
 	unsigned char			fw_free_space;
@@ -1745,6 +2199,9 @@ struct priv_shared_info {
 	unsigned short			ofdm_FA_cnt3;
 	unsigned short			ofdm_FA_cnt4;
 	unsigned short			cck_FA_cnt;
+#ifdef INTERFERENCE_CONTROL
+	unsigned int			ofdm_FA_total_cnt;
+#endif
 	unsigned int			FA_total_cnt;
 	unsigned int			CCA_total_cnt;
 
@@ -1761,7 +2218,7 @@ struct priv_shared_info {
 	unsigned int			Reg664_cnt;
 	unsigned int			Reg664_cntOK;
 #endif
-	
+
 	int 					digDownCount;
 	int 					digDeadPoint;
 	int 					digDeadPointCandidate;
@@ -1783,11 +2240,15 @@ struct priv_shared_info {
 	unsigned int			num_txdesc_cnt;		// less or equal max available tx desc
 	unsigned int			num_txdesc_upper_limit;
 	unsigned int			num_txdesc_lower_limit;
+#ifdef USE_TXQUEUE
+	unsigned int			num_txq_cnt;
+	unsigned int			num_txq_upper_limit;
+	unsigned int			num_txq_lower_limit;
+#endif
 #endif
 
 	// Retry Limit register content
-	unsigned char				RLShort;		// Short Retry Limit
-	unsigned char				RLLong;		// Long Retry Limit
+	unsigned short		RL_setting;
 
 #ifdef SW_ANT_SWITCH
 	SWAT_T				DM_SWAT_Table;
@@ -1811,26 +2272,70 @@ struct priv_shared_info {
 #ifdef DETECT_STA_EXISTANCE
 	struct timer_list			rl_recover_timer;
 	unsigned char				bRLShortened;
-#endif	
+#endif
 
 #ifdef DFS
-	unsigned int			dfsSwitchChannel;
 	unsigned int			dfsSwitchChCountDown;
 	unsigned int			dfsSwCh_ongoing;
 #endif
 
 #ifdef RX_BUFFER_GATHER
-	unsigned int 			gather_state;	
-	struct list_head		gather_list;	
+	unsigned int 			gather_state;
+	struct list_head		gather_list;
 	int					gather_len;
+#endif
+
+#ifdef USE_TXQUEUE
+	struct txq_list_head	txq_list[7];
+	unsigned int			txq_isr;
+	unsigned int			txq_stop;
+	unsigned int			txq_check;
+	struct list_head		txq_pool;
+	unsigned char			*txq_pool_addr;
 #endif
 
 	unsigned char  	Reg_RRSR_2;
 	unsigned char  	Reg_81b;
 	unsigned int 	marvellMapBit;
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+	unsigned char	bws_triggered;
+	unsigned int	_40m_staMap; 
+#endif	
+#ifdef CONFIG_RTL_88E_SUPPORT
+	unsigned int 	marvellMapBit_88e_hw_ext;
+#endif
 #ifdef STA_EXT
 	unsigned int 	marvellMapBitExt;
 #endif
+
+#ifdef TX_EARLY_MODE
+	unsigned int	em_waitq_on;
+	unsigned int	em_tx_byte_cnt;
+	unsigned int	reach_tx_limit_cnt;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	unsigned short  aggrmax_bak;
+#endif	
+#endif
+
+	unsigned int	iqk_2g_done;	
+#ifdef CONFIG_RTL_92D_SUPPORT	
+	unsigned int	iqk_5g_done;
+#endif	
+
+	unsigned int	intel_active_sta;
+	unsigned int	intel_rty_lmt;
+
+#if defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)
+	unsigned int total_assoc_num;
+	unsigned int txRptMacid;
+#endif
+
+#ifdef SMART_REPEATER_MODE
+	struct timer_list	check_vxd_ap;
+	unsigned int		switch_chan_rp;
+	unsigned int		switch_2ndchoff_rp;
+	unsigned int		band_width_rp;
+#endif	
 };
 
 #ifdef CONFIG_RTL8186_KB
@@ -1844,7 +2349,7 @@ typedef struct guestmac {
 struct rtl8192cd_priv {
 
 #ifdef NETDEV_NO_PRIV
-	struct rtl8192cd_priv*	wlan_priv;		//This element shall be put at top of this struct	
+	struct rtl8192cd_priv*	wlan_priv;		//This element shall be put at top of this struct
 #endif
 
 	int						drv_state;		// bit0 - init, bit1 - open/close
@@ -1871,6 +2376,8 @@ struct rtl8192cd_priv {
 	unsigned int			txdesc_num;
 	unsigned char			*phypara_file_start;
 	unsigned char			*phypara_file_end;
+#elif defined(__ECOS)
+	unsigned int			txdesc_num;
 #endif
 
 #ifdef CONFIG_RTK_MESH
@@ -1892,6 +2399,9 @@ struct rtl8192cd_priv {
 	struct rtl8192cd_priv		*proot_priv;	// ptr of private structure of root interface
 #ifdef RESERVE_TXDESC_FOR_EACH_IF
 	unsigned int			use_txdesc_cnt[7];
+#ifdef USE_TXQUEUE
+	unsigned int			use_txq_cnt[7];
+#endif
 #endif
 #endif
 #ifdef UNIVERSAL_REPEATER
@@ -1930,6 +2440,9 @@ struct rtl8192cd_priv {
 	 */
 	unsigned int			NOP_chnl[15];
 	unsigned int			NOP_chnl_num;
+
+	unsigned int			Not_DFS_chnl[32];
+	unsigned int			Not_DFS_chnl_num;
 #endif
 
 #if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
@@ -1940,11 +2453,8 @@ struct rtl8192cd_priv {
 	int						reset_hangup;
 	unsigned int			check_cnt_tx;
 	unsigned int			check_cnt_rx;
-	unsigned int			check_cnt_isr;
 	unsigned int			check_cnt_bcn;
 	unsigned int			check_cnt_rst;
-	unsigned int			check_cnt_bb;
-	unsigned int			check_cnt_cca;
 #endif
 
 #ifdef WDS
@@ -2026,6 +2536,11 @@ struct rtl8192cd_priv {
 	unsigned int			ch_ss_rpt_cnt;
 	struct ss_report		ch_ss_rpt[MAX_BSS_NUM];
 #endif
+#ifdef P2P_SUPPORT
+	struct timer_list		p2p_listen_timer_t;
+	struct timer_list		p2p_search_timer_t;
+	struct p2p_context*		p2pPtr;
+#endif
 
 	/*********************************************************
 	 * from here on, data will be clear in rtl8192cd_init_sw() *
@@ -2033,6 +2548,11 @@ struct rtl8192cd_priv {
 
 	struct net_device_stats	net_stats;
 	struct extra_stats		ext_stats;
+#ifdef TLN_STATS
+	struct tln_wifi_stats		wifi_stats;
+	struct tln_ext_wifi_stats	ext_wifi_stats;
+	unsigned int			stats_time_countdown;
+#endif
 
 	struct timer_list		frag_to_filter;
 	unsigned int			frag_to;
@@ -2051,7 +2571,7 @@ struct timer_list			ps_timer;
 	unsigned int			site_survey_times;
 	unsigned char			ss_ssid[32];
 	unsigned int			ss_ssidlen;
-	unsigned int			ss_req_ongoing;
+	unsigned char			ss_req_ongoing;
 #ifdef CONFIG_RTL_COMAPI_WLTOOLS
 	wait_queue_head_t		ss_wait;
 #endif
@@ -2077,10 +2597,10 @@ struct timer_list			ps_timer;
 	struct bss_desc			dot11Bss_original;
 	int						hidden_ap_mib_backup;
 	unsigned	char		*pbeacon_ssid;
-	/*WPS client improve ; WPS2DOTX */
+
 	unsigned	char 		orig_SSID[33];
 	int 					orig_SSID_LEN;
-	/*WPS client improve ; WPS2DOTX */	
+
 #else
 	unsigned int			beaconbuf[128];
 #endif
@@ -2089,14 +2609,17 @@ struct timer_list			ps_timer;
 	unsigned int			ht_cap_len;
 	struct ht_info_elmt		ht_ie_buf;
 	unsigned int			ht_ie_len;
-	unsigned int			ht_legacy_obss_to;
+	unsigned int			ht_legacy_obss_to;	
+	unsigned int			ht_nomember_legacy_sta_to;
 	unsigned int			ht_legacy_sta_num;
 	unsigned int			ht_protection;
 	unsigned int			dc_th_current_state;
 
 	// to avoid add RAtid fail
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
 	struct timer_list		add_RATid_timer;
 	struct timer_list		add_rssi_timer;
+#endif
 	struct timer_list		add_ps_timer;
 #if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_NOISE_CONTROL)
 	struct timer_list		dnc_timer;
@@ -2108,6 +2631,7 @@ struct timer_list			ps_timer;
 	unsigned short			timoffset;
 	unsigned char			dtimcount;
 	unsigned char			pkt_in_dtimQ;
+	unsigned char			pkt_in_hiQ;
 
 	//struct stat_info_cache	stainfo_cache;
 	struct stat_info		*pstat_cache;
@@ -2125,12 +2649,18 @@ struct timer_list			ps_timer;
 	unsigned int			available_chnl[76];		// all available channel we can use
 	unsigned int			available_chnl_num;		// record the number
 
-#ifdef CONFIG_RTL_NEW_AUTOCH	
+#ifdef CONFIG_RTL_NEW_AUTOCH
 	unsigned int			chnl_ss_fa_count[76];	// record FA count while ss
 	unsigned int			chnl_ss_cca_count[76];	// record CCA count while ss
 #ifdef SS_CH_LOAD_PROC
 	unsigned char			chnl_ss_load[76];	// record noise level while ss
-#endif	
+#endif
+	unsigned int			chnl_ss_mac_rx_count[76];
+	unsigned int			chnl_ss_mac_rx_count_40M[76];
+#endif
+#ifdef P2P_SUPPORT
+	unsigned int	back_available_chnl[76];		// all available channel we can use
+	unsigned int	back_available_chnl_num;		// record the number
 #endif
 
 
@@ -2201,6 +2731,10 @@ struct timer_list			ps_timer;
 #endif
 	unsigned int					force_20_sta;
 	unsigned int					switch_20_sta;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	unsigned int					force_20_sta_88e_hw_ext;
+	unsigned int					switch_20_sta_88e_hw_ext;
+#endif
 #ifdef STA_EXT
 	unsigned int					force_20_sta_ext;
 	unsigned int					switch_20_sta_ext;
@@ -2214,6 +2748,10 @@ struct timer_list			ps_timer;
 	unsigned int			join_res;
 	unsigned int			beacon_period;
 	unsigned short			aid;
+	unsigned int			ps_state;
+#if defined(WIFI_WMM) && defined (WMM_APSD)
+	unsigned int			uapsd_assoc;
+#endif
 #ifdef RTK_BR_EXT
 	unsigned int			macclone_completed;
 	struct nat25_network_db_entry	*nethash[NAT25_HASH_SIZE];
@@ -2224,6 +2762,8 @@ struct timer_list			ps_timer;
 	struct nat25_network_db_entry	*scdb_entry;
 	unsigned char			br_mac[MACADDRLEN];
 	unsigned char			br_ip[4];
+	unsigned char			ukpro_mac[MACADDRLEN];	// mac address of unknown protocol
+	unsigned char			ukpro_mac_valid;		// if the above entry is valid
 #endif
 	unsigned char 			up_flag;
 #endif
@@ -2240,6 +2780,7 @@ struct timer_list			ps_timer;
 #ifdef DFS
 	struct timer_list		DFS_timer;			/* timer for radar detection */
 	struct timer_list		ch_avail_chk_timer;	/* timer for channel availability check */
+	struct timer_list		dfs_chk_timer;	/* timer for dfs trigger */
 #endif
 
 #ifdef GBWC
@@ -2378,23 +2919,37 @@ struct timer_list			ps_timer;
 #endif
 
 #ifdef SW_TX_QUEUE
-        unsigned char   record_mac[6];
-        int             record_qnum;
-        int             swq_txmac_chg;
-        int             swq_en;
-        unsigned short  record_aid;
+    unsigned char   record_mac[6];
+    int             record_qnum;
+    int             swq_txmac_chg;
+    int             swq_en;
+    int		    swq_decision;
+    unsigned short  record_aid;
+    unsigned long   swqen_keeptime;    
 #endif
-
+	int	em_txop_tp_high;
 #ifdef A4_STA
 	struct list_head			a4_sta_list;
 	struct a4_sta_db_entry		*machash[A4_STA_HASH_SIZE];
 	struct a4_tbl_entry 		a4_ent[MAX_A4_TBL_NUM];
-#endif	
+#endif
 
 #ifdef WIFI_WPAS
 	unsigned char 	wpas_manual_assoc; //_Eric ??
 #endif
-	int		update_bcn_period;
+	int update_bcn_period;
+
+#ifdef SUPPORT_MULTI_PROFILE
+	int	profile_idx;			// indicate next used profile. 
+	int mask_n_band;
+#endif
+
+#ifdef SWITCH_CHAN
+	int	chan_backup;
+	int	bw_backup;
+	int	offset_backup;
+	int func_backup;
+#endif
 };
 
 struct rtl8192cd_chr_priv {
@@ -2406,10 +2961,35 @@ struct rtl8192cd_chr_priv {
 
 #ifdef NETDEV_NO_PRIV
 struct rtl8192cd_wds_priv {
-	struct rtl8192cd_priv*	wlan_priv;      //This element shall be put at top of this struct	
+	struct rtl8192cd_priv*	wlan_priv;      //This element shall be put at top of this struct
 };
 #endif
 
+/* station info, reported to web server */
+typedef struct _sta_info_2_web {
+	unsigned short	aid;
+	unsigned char	addr[6];
+	unsigned long	tx_packets;
+	unsigned long	rx_packets;
+	unsigned long	expired_time;	// 10 msec unit
+	unsigned short	flags;
+	unsigned char	TxOperaRate;
+	unsigned char	rssi;
+	unsigned long	link_time;		// 1 sec unit
+	unsigned long	tx_fail;
+	unsigned long	tx_bytes;
+	unsigned long	rx_bytes;
+	unsigned char	network;
+	unsigned char	ht_info;		// bit0: 0=20M mode, 1=40M mode; bit1: 0=longGI, 1=shortGI
+	unsigned char	RxOperaRate;
+#ifdef TLN_STATS
+	unsigned char	auth_type;
+	unsigned char	enc_type;
+	unsigned char 	resv[3];
+#else
+	unsigned char 	resv[5];
+#endif
+} sta_info_2_web;
 
 #define NULL_MAC_ADDR		("\x0\x0\x0\x0\x0\x0")
 
@@ -2451,6 +3031,14 @@ struct rtl8192cd_wds_priv {
 
 #define IEEE8021X_FUN	((GET_MIB(priv))->dot118021xAuthEntry.dot118021xAlgrthm)
 
+#define ACCT_FUN		((GET_MIB(priv))->dot118021xAuthEntry.acct_enabled)
+
+#define ACCT_FUN_TIME	((GET_MIB(priv))->dot118021xAuthEntry.acct_timeout_period)
+
+#define ACCT_FUN_TP		((GET_MIB(priv))->dot118021xAuthEntry.acct_timeout_throughput)
+
+#define ACCT_TP_INT		60
+
 #define SHORTPREAMBLE	((GET_MIB(priv))->dot11RFEntry.shortpreamble)
 
 #define SSID2SCAN		((GET_MIB(priv))->dot11StationConfigEntry.dot11SSIDtoScan)
@@ -2482,6 +3070,15 @@ struct rtl8192cd_wds_priv {
 #ifdef DOT11D
 #define COUNTRY_CODE_ENABLED 	((GET_MIB(priv))->dot11dCountry.dot11CountryCodeSwitch)
 #endif
+
+#ifdef P2P_SUPPORT
+#define P2PMODE			((GET_MIB(priv))->p2p_mib.p2p_type)
+#define P2P_STATE		((GET_MIB(priv))->p2p_mib.p2p_state)
+#define P2P_DISCOVERY		((GET_MIB(priv))->p2p_mib.p2p_on_discovery)
+#define P2P_EVENT_INDICATE		((GET_MIB(priv))->p2p_mib.p2p_event_indiate)
+
+#endif
+
 
 #define AMPDU_ENABLE	((GET_MIB(priv))->dot11nConfigEntry.dot11nAMPDU)
 #define AMSDU_ENABLE	((GET_MIB(priv))->dot11nConfigEntry.dot11nAMSDU)
@@ -2548,6 +3145,17 @@ struct rtl8192cd_wds_priv {
 #define NONE_OCCUPANCY_PERIOD	RTL_10MILISECONDS_TO_JIFFIES(priv->pmib->dot11DFSEntry.NOP_timeout)
 #endif
 
+#ifdef TX_EARLY_MODE
+#define GET_TX_EARLY_MODE			(priv->pshare->rf_ft_var.em_enable)
+#define GET_EM_SWQ_ENABLE			(priv->pshare->em_waitq_on)
+#define MAX_EM_QUE_NUM				(priv->pshare->rf_ft_var.em_que_num)
+#define EM_TP_UP_BOUND				(priv->pshare->rf_ft_var.em_swq_thd_high) 
+#define EM_TP_LOW_BOUND				(priv->pshare->rf_ft_var.em_swq_thd_low)
+#define WAIT_TP_TIME				3	/* wait TP limit for this period in sec */
+#endif
+
+
+#ifdef __KERNEL__
 #ifdef _DEBUG_RTL8192CD_
 #define ASSERT(expr) \
         if(!(expr)) {					\
@@ -2556,6 +3164,11 @@ struct rtl8192cd_wds_priv {
         }
 #else
 	#define ASSERT(expr)
+#endif
+#endif
+
+#ifdef USE_OUT_SRC
+#define	ODMPTR					(&(priv->pshare->_dmODM))
 #endif
 
 #ifdef RTL8190_SWGPIO_LED
@@ -2631,19 +3244,26 @@ struct rtl8192cd_wds_priv {
 
 
 #ifdef CONFIG_RTK_VLAN_SUPPORT
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+extern int  rx_vlan_process(struct net_device *dev, struct VlanConfig *info_ori, struct sk_buff *skb, struct sk_buff **new_skb);
+extern int  tx_vlan_process(struct net_device *dev, struct VlanConfig *info_ori, struct sk_buff *skb, int wlan_pri);
+#else
 extern int  rx_vlan_process(struct net_device *dev, struct VlanConfig *info, struct sk_buff *skb);
 extern int  tx_vlan_process(struct net_device *dev, struct VlanConfig *info, struct sk_buff *skb, int wlan_pri);
+#endif
 #endif
 
 
 #ifdef  SUPPORT_TX_MCAST2UNI
 #define IP_MCAST_MAC(mac)		((mac[0]==0x01)&&(mac[1]==0x00)&&(mac[2]==0x5e))
+#define IPV6_MCAST_MAC(mac)	((mac[0]==0x33)&&(mac[1]==0x33))
 
-/*match is  (1)ipv4 && (2)(IGMP control/management packet) */ 
+/*match is  (1)ipv4 && (2)(IGMP control/management packet) */
 #define IS_IGMP_PROTO(mac)	((mac[12]==0x08) && (mac[13]==0x00) && (mac[23]==0x02))
 
-#define IS_ICMPV6_PROTO(mac)		( (mac[12]==0x86)&&(mac[13]==0xdd) && mac[54]==0x3a)
-
+#define IS_ICMPV6_PROTO(mac)		( (mac[12]==0x86)&&(mac[13]==0xdd) && ((mac[20]==0x3a)||(mac[54]==0x3a)))
+#define IS_MDNSV4_MAC(mac) ((mac[0]==0x01)&&(mac[1]==0x00)&&(mac[2]==0x5e)&& (mac[3]==0x00)&&(mac[4]==0x00)&&(mac[5]==0xFB)&&(mac[12]==0x08)&&(mac[13]==0x00))
+#define IS_MDNSV6_MAC(mac) ((mac[0]==0x33)&&(mac[1]==0x33)&&(mac[2]==0x00)&& (mac[3]==0x00)&&(mac[4]==0x00)&&(mac[5]==0xFB)&&(mac[12]==0x86)&&(mac[13]==0xdd))
 
 #ifdef	TX_SUPPORT_IPV6_MCAST2UNI
 #define ICMPV6_MCAST_MAC(mac)	((mac[0]==0x33)&&(mac[1]==0x33)&&(mac[2]!=0xff))
@@ -2690,9 +3310,9 @@ typedef struct countryIE {
 } COUNTRY_IE_ELEMENT;
 #endif
 
-#ifdef TXREPORT
+#if defined(TXREPORT) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 struct tx_rpt{
-	unsigned short		txfail;   
+	unsigned short		txfail;
 	unsigned short      txok;
 	unsigned short      macid;
 };
@@ -2705,6 +3325,40 @@ struct _device_info_ {
 	int irq;
 	struct rtl8192cd_priv *priv;
 };
+
+#define HIDE_AP_FOUND			1
+#define HIDE_AP_FOUND_DO_ACTIVE_SSAN	2
+
+static __inline__ int is_passive_channel(int domain, int chan)
+{
+	if ((domain == DOMAIN_GLOBAL || domain == DOMAIN_WORLD_WIDE) &&
+			(chan == 12 || chan == 13 || chan == 14))
+		return 1;
+	
+	return 0;
+}
+
+#ifdef GBWC
+#define GBWC_MODE_DISABLE			0
+#define GBWC_MODE_LIMIT_MAC_INNER	1 // limit bw by mac address
+#define GBWC_MODE_LIMIT_MAC_OUTTER	2 // limit bw by excluding the mac
+#define GBWC_MODE_LIMIT_IF_TX		3 // limit bw by interface tx
+#define GBWC_MODE_LIMIT_IF_RX		4 // limit bw by interface rx
+#define GBWC_MODE_LIMIT_IF_TRX		5 // limit bw by interface tx/rx
+#endif
+
+// andrew, define a compatible data macro
+#if defined(LINUX_2_6_22_)
+#define SKB_MAC_HEADER(s) skb_mac_header(s)
+#define SKB_IP_HEADER(s) (struct iphdr *)(skb_mac_header(s) + ETH_HLEN);
+#else // older 2.6 header
+#define SKB_MAC_HEADER(s) (s)->mac.raw
+#define SKB_IP_HEADER(s) (struct iphdr *)((s)->mac.raw + ETH_HLEN);
+#endif
+
+#ifdef __ECOS
+extern struct _device_info_ wlan_device[];
+#endif
 
 #endif // _8192CD_H_
 

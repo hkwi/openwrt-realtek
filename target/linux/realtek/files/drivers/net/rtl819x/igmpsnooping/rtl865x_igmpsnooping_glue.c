@@ -10,26 +10,10 @@
 */
 
 
-/*	@doc RTL865X_IGMP_GlUE_API
-
-	@module rtl865x_igmpsnooping_glue.c - RTL865x Igmp Snooping Glue Function documentation	|
-	This document lists the glue functions when porting multicast snooping to different platform.
-	@normal Jun-Jie Qin (qjj_qin@realsil.com.cn) <date>
-
-	Copyright <cp>2006 Realsil<tm> Semiconductor Cooperation, All Rights Reserved.
-
- 	@head3 List of Symbols |
- 	Here is a list of all functions and variables in this module.
-
- 	@index | RTL8306_MULTICAST_GlUE_API
-*/
-
-
-
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_glue.h>
 #include <net/rtl/rtl865x_igmpsnooping_glue.h>
-#include "../AsicDriver/rtl865xc_asicregs.h"
+#include "AsicDriver/rtl865xc_asicregs.h"
 
 #ifdef __linux__
 #include <linux/mm.h>

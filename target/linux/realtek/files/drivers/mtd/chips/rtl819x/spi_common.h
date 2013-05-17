@@ -3,6 +3,12 @@
  * Written by sam (sam@realtek.com)
  * 2010-05-01
  *
+ *
+ *  Copyright (c) 2011 Realtek Semiconductor Corp.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
  */
 
 #include "../../../../include/linux/autoconf.h"
@@ -14,7 +20,7 @@
 //#define CONFIG_SPI_STD_MODE 1
 //#define SPI_KERNEL 1
 #ifdef SPI_KERNEL
-	#ifdef CONFIG_RTL8198
+	#if defined(CONFIG_RTL8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 		#define SPI_DRIVER_MODE	0
 	#elif defined(CONFIG_RTL_8196CS)
 		#define SPI_DRIVER_MODE 0
@@ -22,7 +28,7 @@
 		#define SPI_DRIVER_MODE	1
 	#endif
 #else
-	#ifdef CONFIG_RTL8198
+	#if defined(CONFIG_RTL8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 		#define SPI_DRIVER_MODE	0
 	#else
 		#ifdef CONFIG_SPI_STD_MODE

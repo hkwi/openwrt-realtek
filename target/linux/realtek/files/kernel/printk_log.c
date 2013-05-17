@@ -137,8 +137,7 @@ EXPORT_SYMBOL(console_set_on_cmdline);
 /* Flag: console code may call schedule() */
 static int console_may_schedule;
 
-#ifdef CONFIG_PRINTK_FUNC
-
+//#ifdef CONFIG_PRINTK_FUNC
 static char __log_buf[__LOG_BUF_LEN];
 static char *log_buf = __log_buf;
 static int log_buf_len = __LOG_BUF_LEN;
@@ -648,11 +647,11 @@ static int have_callable_console(void)
 
 #if defined (CONFIG_PRINTK)
 asmlinkage int printk(const char *fmt, ...)
-#elif defined(CONFIG_PANIC_PRINTK)
-asmlinkage int panic_printk(const char *fmt, ...)
-#else
-# error "CONFIG_PRINTK or CONFIG_PANIC_PRINTK must be defined"
-#endif
+//#elif defined(CONFIG_PANIC_PRINTK)
+//asmlinkage int panic_printk(const char *fmt, ...)
+//#else
+//# error "CONFIG_PRINTK or CONFIG_PANIC_PRINTK must be defined"
+//#endif
 {
 	va_list args;
 	int r;
@@ -663,6 +662,21 @@ asmlinkage int panic_printk(const char *fmt, ...)
 
 	return r;
 }
+#endif
+
+#if defined(CONFIG_PANIC_PRINTK)
+asmlinkage int panic_printk(const char *fmt, ...)
+{
+	va_list args;
+	int r;
+
+	va_start(args, fmt);
+	r = vprintk(fmt, args);
+	va_end(args);
+
+	return r;
+}
+#endif
 
 /* cpu currently holding logbuf_lock */
 static volatile unsigned int printk_cpu = UINT_MAX;
@@ -714,7 +728,7 @@ static int acquire_console_semaphore_for_printk(unsigned int cpu)
 	return retval;
 }
 
-#if defined (CONFIG_PRINTK_FUNC)
+//#if defined (CONFIG_PRINTK_FUNC)
 static const char recursion_bug_msg [] =
 		KERN_CRIT "BUG: recent printk recursion!\n";
 static int recursion_bug;
@@ -836,7 +850,11 @@ out_restore_irqs:
 	preempt_enable();
 	return printed_len;
 }
+
+#if defined(CONFIG_PRINTK)
 EXPORT_SYMBOL(printk);
+#endif
+
 EXPORT_SYMBOL(vprintk);
 #if defined(CONFIG_PANIC_PRINTK)
 EXPORT_SYMBOL(panic_printk);
@@ -844,6 +862,7 @@ EXPORT_SYMBOL(panic_printk);
 
 #endif /*endof CONFIG_PRINTK*/
 
+#if defined (CONFIG_PRINTK_FUNC)
 asmlinkage int scrlog_vprintk(const char *fmt, va_list args)
 {
 	int printed_len = 0;
@@ -973,17 +992,20 @@ asmlinkage int scrlog_printk(const char *fmt, ...)
 }
 
 EXPORT_SYMBOL(scrlog_vprintk);
-EXPORT_SYMBOL(scrlog_printk);
 
-#endif /*end  CONFIG_PRINTK_FUNC*/
+//#endif /*end  CONFIG_PRINTK_FUNC*/
 
 #else
-
-static void call_console_drivers(unsigned start, unsigned end)
+asmlinkage int scrlog_printk(const char *fmt, ...)
 {
+	return 0;
 }
-
+//static void call_console_drivers(unsigned start, unsigned end)
+//{
+//}
 #endif
+
+EXPORT_SYMBOL(scrlog_printk);
 
 static int __add_preferred_console(char *name, int idx, char *options,
 				   char *brl_options)
@@ -1510,7 +1532,8 @@ static int __init disable_boot_consoles(void)
 }
 late_initcall(disable_boot_consoles);
 
-#if defined(CONFIG_PRINTK) && !defined(CONFIG_PANIC_PRINTK)
+//#if defined(CONFIG_PRINTK) && !defined(CONFIG_PANIC_PRINTK)
+#if defined(CONFIG_PRINTK) 
 
 /*
  * printk rate limiting, lifted from the networking subsystem.

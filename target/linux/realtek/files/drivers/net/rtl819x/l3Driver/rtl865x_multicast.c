@@ -1,19 +1,11 @@
-
-
-/*      @doc RTL_LAYEREDDRV_API
-
-        @module rtl865x_multicast.c - RTL865x Home gateway controller Layered driver API documentation       |
-        This document explains the API interface of the table driver module. Functions with rtl865x prefix
-        are external functions.
-        @normal Hyking Liu (Hyking_liu@realsil.com.cn) <date>
-
-        Copyright <cp>2008 Realtek<tm> Semiconductor Cooperation, All Rights Reserved.
-
-        @head3 List of Symbols |
-        Here is a list of all functions and variables in this module.
-        
-        @index | RTL_LAYEREDDRV_API
-*/
+/*
+ *
+ *  Copyright (c) 2011 Realtek Semiconductor Corp.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
+ */
 
 #ifdef __linux__
 #include <linux/config.h>
@@ -382,6 +374,7 @@ static uint16 rtl865x_genMCastEntryCpuFlag(rtl865x_tblDrv_mCast_t *mCastEntry)
 	return cpuFlag;
 }
 
+#if defined (CONFIG_RTL_IGMP_SNOOPING)
 /*for linux bridge level igmp snooping usage*/
 static uint32 rtl865x_getMCastEntryDescPortMask(rtl865x_tblDrv_mCast_t *mCastEntry)
 {
@@ -400,7 +393,7 @@ static uint32 rtl865x_getMCastEntryDescPortMask(rtl865x_tblDrv_mCast_t *mCastEnt
 	return descPortMask;
 }
 
-
+#endif
 /*=======================================
   * Multicast Table APIs
   *=======================================*/
@@ -936,7 +929,9 @@ int32 rtl865x_addMulticastEntry(ipaddr_t mAddr, ipaddr_t sip, uint16 svid, uint1
 
 	rtl865x_tblDrv_mCast_t *mCast_t;
 	uint32 hashIndex = rtl8651_ipMulticastTableIndex(sip, mAddr);
+	#if defined (CONFIG_RTL_IGMP_SNOOPING)
 	struct rtl_groupInfo groupInfo;
+	#endif
 	/*windows xp upnp:239.255.255.0*/
 	if(mAddr==0xEFFFFFFA)
 	{
@@ -1003,7 +998,7 @@ int32 rtl865x_addMulticastEntry(ipaddr_t mAddr, ipaddr_t sip, uint16 svid, uint1
 		mCast_t->flag |= RTL865X_MULTICAST_EXTIP_SET;
 	else
 		mCast_t->flag &= ~RTL865X_MULTICAST_EXTIP_SET;
-
+	#if defined (CONFIG_RTL_IGMP_SNOOPING)
 	rtl_getGroupInfo(mAddr, &groupInfo);
 	if(groupInfo.ownerMask==0)
 	{
@@ -1013,7 +1008,7 @@ int32 rtl865x_addMulticastEntry(ipaddr_t mAddr, ipaddr_t sip, uint16 svid, uint1
 	{
 		mCast_t->unKnownMCast=FALSE;
 	}
-	
+	#endif
 	_rtl865x_patchPppoeWeak(mCast_t);
 	_rtl865x_arrangeMulticast(hashIndex);
 	return SUCCESS;	
@@ -1306,6 +1301,7 @@ static int32 _rtl865x_mCastFwdDescDequeue(mcast_fwd_descriptor_head_t * queueHea
 
 static int32 rtl865x_multicastCallbackFn(void *param)
 {
+	#if defined (CONFIG_RTL_IGMP_SNOOPING)
 	uint32 index;
 	uint32 oldDescPortMask,newDescPortMask;/*for device decriptor forwarding usage*/
 	
@@ -1339,7 +1335,11 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 	/*case 1:this is multicast event from bridge(br0) */
 	/*sync wlan and ethernet*/
 	//hyking:[Fix me] the RTL_BR_NAME...
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+    if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0 || memcmp(mcastEventContext.devName,RTL_BR1_NAME,3)==0)
+#else
 	if(memcmp(mcastEventContext.devName,RTL_BR_NAME,3)==0)
+#endif
 	{
 
 		for (index=0; index< RTL8651_MULTICASTTBL_SIZE; index++)
@@ -1402,7 +1402,11 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 			
 	/*case 2:this is multicast event from ethernet (eth0)*/
 	/*update ethernet forwarding port mask*/
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+       if(memcmp(mcastEventContext.devName,"eth*",4)==0 || memcmp(mcastEventContext.devName,RTL_PS_ETH_NAME_ETH2,4)==0)
+#else
 	if(memcmp(mcastEventContext.devName,"eth*",4)==0)
+#endif
 	{
 		#ifdef CONFIG_RTL865X_MUTLICAST_DEBUG
 		printk("%s:%d,multicast event from ethernet (%s),mcastEventContext.groupAddr[0] is 0x%x\n",__FUNCTION__,__LINE__,mcastEventContext.devName,mcastEventContext.groupAddr[0]);
@@ -1491,7 +1495,7 @@ static int32 rtl865x_multicastCallbackFn(void *param)
 			
 		}
 	}
-
+	#endif
 	return EVENT_CONTINUE_EXECUTE;
 }
 

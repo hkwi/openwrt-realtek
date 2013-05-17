@@ -88,6 +88,12 @@ enum PORTID
 	EXT3 = 9,
 	MULTEXT = 10,
 };
+enum GROUP
+{
+	GR0 = 0,
+	GR1 = 1,
+	GR2 = 2,
+};
 
 /* enum for queue ID */
 enum QUEUEID
@@ -341,11 +347,26 @@ int32 rtl865xC_waitForOutputQueueEmpty(void);
 int32 rtl8651_setAsic802D1xMacBaseAbility( enum PORTID port, uint32 isEnable );
 int32 rtl8651_setAsic802D1xMacBaseDirection(int32 dir);
 int32 rtl8651_setAsicGuestVlanProcessControl( uint32 process);
+int32 rtl8651_setAsicPortBasedPriority( enum PORTID port, enum PRIORITYVALUE priority );
+int32 rtl8651_setAsicQueueStrict( enum PORTID port, enum QUEUEID queueid, enum QUEUETYPE queueType);
+int32 rtl8651_setAsicVlanRemark(enum PORTID port, enum PRIORITYVALUE priority, int remark);
+int32 rtl8651_setAsicDscpRemark(enum PORTID port, enum PRIORITYVALUE priority, int remark);
+int32 rtl8651_getAsicPortBasedPriority( enum PORTID port, enum PRIORITYVALUE* priority );
+int32 rtl8651_getAsicQueueStrict( enum PORTID port, enum QUEUEID queueid, enum QUEUETYPE *pQueueType);
+int32 rtl8651_getAsicPriorityToQIDMappingTable( enum QUEUENUM qnum, enum PRIORITYVALUE priority, enum QUEUEID* qid );
+int32 rtl8651_getAsicPriorityDecision( uint32* portpri, uint32* dot1qpri, uint32* dscppri, uint32* aclpri, uint32* natpri );
+int32 rtl8651_getAsicVlanRemark(enum PORTID port, enum PRIORITYVALUE priority, int* remark);
+int32 rtl8651_getAsicDscpRemark(enum PORTID port, enum PRIORITYVALUE priority, int* remark);
 
-#if	defined(CONFIG_RTL_QOS_8021P_SUPPORT)
+
 /* for vlan base qos */
 int32 rtl8651_setAsicDot1qAbsolutelyPriority( enum PRIORITYVALUE srcpriority, enum PRIORITYVALUE priority );
 int32 rtl8651_getAsicDot1qAbsolutelyPriority( enum PRIORITYVALUE srcpriority, enum PRIORITYVALUE *pPriority );
+
+#if	defined(CONFIG_RTL_QOS_8021P_SUPPORT)
+/* for vlan base qos */
+//int32 rtl8651_setAsicDot1qAbsolutelyPriority( enum PRIORITYVALUE srcpriority, enum PRIORITYVALUE priority );
+//int32 rtl8651_getAsicDot1qAbsolutelyPriority( enum PRIORITYVALUE srcpriority, enum PRIORITYVALUE *pPriority );
 int32 rtl8651_flushAsicDot1qAbsolutelyPriority(void);
 #endif
 
@@ -355,11 +376,21 @@ int32 rtl8651_delAsicRateLimitTable(uint32 index);
 int32 rtl8651_getAsicRateLimitTable(uint32 index, rtl865x_tblAsicDrv_rateLimitParam_t *rateLimit_t);
 #endif
 
-#ifdef CONFIG_RTK_VOIP_QOS
+int32 rtl8651_setPortFlowControlConfigureRegister(enum PORTID port,uint32 enable);
+int32 rtl8651_setAsicPortPriority( enum PORTID port, enum PRIORITYVALUE priority);
+int32 rtl8651_getAsicPortPriority( enum PORTID port, enum PRIORITYVALUE *pPriority );
+
 int32 rtl8651_setAsicDscpPriority( uint32 dscp, enum PRIORITYVALUE priority );
 int32 rtl8651_getAsicDscpPriority( uint32 dscp, enum PRIORITYVALUE *pPriority );
+
+#ifdef CONFIG_RTK_VOIP_QOS
 int32 rtl8651_reset_dscp_priority(void);
 int32 rtl8651_cpu_tx_fc(int enable);
+int32 rtl8651_setQueueNumber(int port, int qnum);
+#endif
+
+#ifdef CONFIG_RTL_8197D_DYN_THR	
+int32 rtl819x_setQosThreshold(uint32 old_sts, uint32 new_sts);
 #endif
 
 #endif

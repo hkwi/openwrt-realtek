@@ -172,6 +172,13 @@ skip:
 		static int first_dump = 1;
 		static int hw_int_off, vec_int_off;
 #endif
+#ifdef CONFIG_RTL_819X_SWCORE
+		extern int cnt_swcore;
+		extern int cnt_swcore_tx;
+		extern int cnt_swcore_rx;
+		extern int cnt_swcore_link;
+		extern int cnt_swcore_err;
+#endif
 
 		seq_printf(p, "\n");
 #if defined(CONFIG_RTK_VOIP) || defined(CONFIG_RTL_819X)
@@ -213,6 +220,13 @@ skip:
 		seq_printf(p, "VEC: %10u\n", vec_int + vec_int_off);
 #endif
 
+#ifdef CONFIG_RTL_819X_SWCORE
+		seq_printf(p, "\n SW: %10u\n", cnt_swcore);
+		seq_printf(p, " TX: %10u\n", cnt_swcore_tx);
+		seq_printf(p, " RX: %10u\n", cnt_swcore_rx);
+		seq_printf(p, "LNK: %10u\n", cnt_swcore_link);
+		seq_printf(p, "ERR: %10u\n", cnt_swcore_err);
+#endif
 	}
 	return 0;
 }

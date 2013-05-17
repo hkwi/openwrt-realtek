@@ -1,10 +1,10 @@
 /*
-* Copyright c                  Realtek Semiconductor Corporation, 2008  
+* Copyright c                  Realtek Semiconductor Corporation, 2008
 * All rights reserved.
-* 
+*
 * Program : network interface driver
-* Abstract : 
-* Author : hyking (hyking_liu@realsil.com.cn)  
+* Abstract :
+* Author : hyking (hyking_liu@realsil.com.cn)
 */
 
 /*      @doc RTL_LAYEREDDRV_API
@@ -18,7 +18,7 @@
 
         @head3 List of Symbols |
         Here is a list of all functions and variables in this module.
-        
+
         @index | RTL_LAYEREDDRV_API
 */
 #include <net/rtl/rtl_types.h>
@@ -62,6 +62,351 @@ static int32 _rtl865x_unRegister_all_aclChain(char *netifName);
 #endif
 
 static int32 _rtl865x_delNetif(char *name);
+
+int32 rtl865x_dump_AclRule(	rtl865x_AclRule_t *rule)
+{
+
+	int8 *actionT[] = { "permit", "redirect to ether", "drop", "to cpu", "legacy drop",
+					"drop for log", "mirror", "redirect to pppoe", "default redirect", "mirror keep match",
+					"drop rate exceed pps", "log rate exceed pps", "drop rate exceed bps", "log rate exceed bps","priority "
+					};
+
+	switch(rule->ruleType_)
+	{
+		case RTL865X_ACL_MAC:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Ethernet", actionT[rule->actionType_]);
+			printk("\tether type: %x   ether type mask: %x\n", rule->typeLen_, rule->typeLenMask_);
+			printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n",
+					rule->dstMac_.octet[0], rule->dstMac_.octet[1], rule->dstMac_.octet[2],
+					rule->dstMac_.octet[3], rule->dstMac_.octet[4], rule->dstMac_.octet[5],
+					rule->dstMacMask_.octet[0], rule->dstMacMask_.octet[1], rule->dstMacMask_.octet[2],
+					rule->dstMacMask_.octet[3], rule->dstMacMask_.octet[4], rule->dstMacMask_.octet[5]
+					);
+
+			printk( "\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n",
+					rule->srcMac_.octet[0], rule->srcMac_.octet[1], rule->srcMac_.octet[2],
+					rule->srcMac_.octet[3], rule->srcMac_.octet[4], rule->srcMac_.octet[5],
+					rule->srcMacMask_.octet[0], rule->srcMacMask_.octet[1], rule->srcMacMask_.octet[2],
+					rule->srcMacMask_.octet[3], rule->srcMacMask_.octet[4], rule->srcMacMask_.octet[5]
+				);
+			break;
+
+		case RTL865X_ACL_IP:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "IP", actionT[rule->actionType_]);
+			printk( "\tdip: %d.%d.%d.%d dipM: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+			printk("\tsip: %d.%d.%d.%d sipM: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+			printk("\tTos: %x   TosM: %x   ipProto: %x   ipProtoM: %x   ipFlag: %x   ipFlagM: %x\n",
+					rule->tos_, rule->tosMask_, rule->ipProto_, rule->ipProtoMask_, rule->ipFlag_, rule->ipFlagMask_
+				);
+
+			printk("\t<FOP:%x> <FOM:%x> <http:%x> <httpM:%x> <IdentSdip:%x> <IdentSdipM:%x> \n",
+					rule->ipFOP_, rule->ipFOM_, rule->ipHttpFilter_, rule->ipHttpFilterM_, rule->ipIdentSrcDstIp_,
+					rule->ipIdentSrcDstIpM_
+					);
+			printk( "\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_);
+				break;
+
+		case RTL865X_ACL_IP_RANGE:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "IP Range", actionT[rule->actionType_]);
+			printk("\tdipU: %d.%d.%d.%d dipL: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+			printk("\tsipU: %d.%d.%d.%d sipL: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+			printk("\tTos: %x   TosM: %x   ipProto: %x   ipProtoM: %x   ipFlag: %x   ipFlagM: %x\n",
+					rule->tos_, rule->tosMask_, rule->ipProto_, rule->ipProtoMask_, rule->ipFlag_, rule->ipFlagMask_
+					);
+			printk("\t<FOP:%x> <FOM:%x> <http:%x> <httpM:%x> <IdentSdip:%x> <IdentSdipM:%x> \n",
+					rule->ipFOP_, rule->ipFOM_, rule->ipHttpFilter_, rule->ipHttpFilterM_, rule->ipIdentSrcDstIp_,
+					rule->ipIdentSrcDstIpM_
+					);
+				printk("\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_);
+				break;
+		case RTL865X_ACL_ICMP:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "ICMP", actionT[rule->actionType_]);
+			printk("\tdip: %d.%d.%d.%d dipM: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+			printk("\tsip: %d.%d.%d.%d sipM: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+			printk("\tTos: %x   TosM: %x   type: %x   typeM: %x   code: %x   codeM: %x\n",
+					rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_,
+					rule->icmpCode_, rule->icmpCodeMask_);
+			break;
+		case RTL865X_ACL_ICMP_IPRANGE:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "ICMP IP RANGE", actionT[rule->actionType_]);
+			printk("\tdipU: %d.%d.%d.%d dipL: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+			printk("\tsipU: %d.%d.%d.%d sipL: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+			printk("\tTos: %x   TosM: %x   type: %x   typeM: %x   code: %x   codeM: %x\n",
+					rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_,
+					rule->icmpCode_, rule->icmpCodeMask_);
+			break;
+		case RTL865X_ACL_IGMP:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "IGMP", actionT[rule->actionType_]);
+			printk("\tdip: %d.%d.%d.%d dipM: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+			printk("\tsip: %d.%d.%d.%d sipM: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+			printk("\tTos: %x   TosM: %x   type: %x   typeM: %x\n", rule->tos_, rule->tosMask_,
+					rule->igmpType_, rule->igmpTypeMask_
+					);
+			break;
+
+
+		case RTL865X_ACL_IGMP_IPRANGE:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "IGMP IP RANGE", actionT[rule->actionType_]);
+			printk("\tdip: %d.%d.%d.%d dipM: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+			printk("\tsip: %d.%d.%d.%d sipM: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+			printk("\tTos: %x   TosM: %x   type: %x   typeM: %x\n", rule->tos_, rule->tosMask_,
+					rule->igmpType_, rule->igmpTypeMask_
+					);
+			break;
+
+		case RTL865X_ACL_TCP:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "TCP", actionT[rule->actionType_]);
+			printk("\tdip: %d.%d.%d.%d dipM: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+			printk("\tsip: %d.%d.%d.%d sipM: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+			printk("\tTos:%x  TosM:%x  sportL:%d  sportU:%d  dportL:%d  dportU:%d\n",
+					rule->tos_, rule->tosMask_, rule->tcpSrcPortLB_, rule->tcpSrcPortUB_,
+					rule->tcpDstPortLB_, rule->tcpDstPortUB_
+					);
+			printk("\tflag: %x  flagM: %x  <URG:%x> <ACK:%x> <PSH:%x> <RST:%x> <SYN:%x> <FIN:%x>\n",
+					rule->tcpFlag_, rule->tcpFlagMask_, rule->tcpURG_, rule->tcpACK_,
+					rule->tcpPSH_, rule->tcpRST_, rule->tcpSYN_, rule->tcpFIN_
+					);
+			break;
+		case RTL865X_ACL_TCP_IPRANGE:
+				printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "TCP IP RANGE", actionT[rule->actionType_]);
+				printk("\tdipU: %d.%d.%d.%d dipL: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+				printk("\tsipU: %d.%d.%d.%d sipL: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+				printk("\tTos:%x  TosM:%x  sportL:%d  sportU:%d  dportL:%d  dportU:%d\n",
+					rule->tos_, rule->tosMask_, rule->tcpSrcPortLB_, rule->tcpSrcPortUB_,
+					rule->tcpDstPortLB_, rule->tcpDstPortUB_
+					);
+				printk("\tflag: %x  flagM: %x  <URG:%x> <ACK:%x> <PSH:%x> <RST:%x> <SYN:%x> <FIN:%x>\n",
+					rule->tcpFlag_, rule->tcpFlagMask_, rule->tcpURG_, rule->tcpACK_,
+					rule->tcpPSH_, rule->tcpRST_, rule->tcpSYN_, rule->tcpFIN_
+				);
+			break;
+
+		case RTL865X_ACL_UDP:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx,"UDP", actionT[rule->actionType_]);
+			printk("\tdip: %d.%d.%d.%d dipM: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+			printk("\tsip: %d.%d.%d.%d sipM: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+			printk("\tTos:%x  TosM:%x  sportL:%d  sportU:%d  dportL:%d  dportU:%d\n",
+					rule->tos_, rule->tosMask_, rule->udpSrcPortLB_, rule->udpSrcPortUB_,
+					rule->udpDstPortLB_, rule->udpDstPortUB_
+					);
+			break;
+		case RTL865X_ACL_UDP_IPRANGE:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "UDP IP RANGE", actionT[rule->actionType_]);
+			printk("\tdipU: %d.%d.%d.%d dipL: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
+					((rule->dstIpAddr_&0x00ff0000)>>16), ((rule->dstIpAddr_&0x0000ff00)>>8),
+					(rule->dstIpAddr_&0xff), (rule->dstIpAddrMask_>>24), ((rule->dstIpAddrMask_&0x00ff0000)>>16),
+					((rule->dstIpAddrMask_&0x0000ff00)>>8), (rule->dstIpAddrMask_&0xff)
+					);
+			printk("\tsipU: %d.%d.%d.%d sipL: %d.%d.%d.%d\n", (rule->srcIpAddr_>>24),
+					((rule->srcIpAddr_&0x00ff0000)>>16), ((rule->srcIpAddr_&0x0000ff00)>>8),
+					(rule->srcIpAddr_&0xff), (rule->srcIpAddrMask_>>24), ((rule->srcIpAddrMask_&0x00ff0000)>>16),
+					((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
+					);
+			printk("\tTos:%x  TosM:%x  sportL:%d  sportU:%d  dportL:%d  dportU:%d\n",
+					rule->tos_, rule->tosMask_, rule->udpSrcPortLB_, rule->udpSrcPortUB_,
+					rule->udpDstPortLB_, rule->udpDstPortUB_
+				);
+			break;
+
+
+		case RTL865X_ACL_SRCFILTER:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Source Filter", actionT[rule->actionType_]);
+			printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n",
+					rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2],
+					rule->srcFilterMac_.octet[3], rule->srcFilterMac_.octet[4], rule->srcFilterMac_.octet[5],
+					rule->srcFilterMacMask_.octet[0], rule->srcFilterMacMask_.octet[1], rule->srcFilterMacMask_.octet[2],
+					rule->srcFilterMacMask_.octet[3], rule->srcFilterMacMask_.octet[4], rule->srcFilterMacMask_.octet[5]
+					);
+			printk("\tsvidx: %d   svidxM: %x   sport: %d   sportM: %x   ProtoType: %x\n",
+					rule->srcFilterVlanIdx_, rule->srcFilterVlanIdxMask_, rule->srcFilterPort_, rule->srcFilterPortMask_,
+					(rule->srcFilterIgnoreL3L4_==TRUE? 2: (rule->srcFilterIgnoreL4_ == 1? 1: 0))
+					);
+			printk("\tsip: %d.%d.%d.%d   sipM: %d.%d.%d.%d\n", (rule->srcFilterIpAddr_>>24),
+					((rule->srcFilterIpAddr_&0x00ff0000)>>16), ((rule->srcFilterIpAddr_&0x0000ff00)>>8),
+					(rule->srcFilterIpAddr_&0xff), (rule->srcFilterIpAddrMask_>>24),
+					((rule->srcFilterIpAddrMask_&0x00ff0000)>>16), ((rule->srcFilterIpAddrMask_&0x0000ff00)>>8),
+					(rule->srcFilterIpAddrMask_&0xff)
+					);
+			printk("\tsportL: %d   sportU: %d\n", rule->srcFilterPortLowerBound_, rule->srcFilterPortUpperBound_);
+			break;
+
+		case RTL865X_ACL_SRCFILTER_IPRANGE:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Source Filter(IP RANGE)", actionT[rule->actionType_]);
+			printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n",
+					rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2],
+					rule->srcFilterMac_.octet[3], rule->srcFilterMac_.octet[4], rule->srcFilterMac_.octet[5],
+					rule->srcFilterMacMask_.octet[0], rule->srcFilterMacMask_.octet[1], rule->srcFilterMacMask_.octet[2],
+					rule->srcFilterMacMask_.octet[3], rule->srcFilterMacMask_.octet[4], rule->srcFilterMacMask_.octet[5]
+					);
+			printk("\tsvidx: %d   svidxM: %x   sport: %d   sportM: %x   ProtoType: %x\n",
+					rule->srcFilterVlanIdx_, rule->srcFilterVlanIdxMask_, rule->srcFilterPort_, rule->srcFilterPortMask_,
+					(rule->srcFilterIgnoreL3L4_==TRUE? 2: (rule->srcFilterIgnoreL4_ == 1? 1: 0))
+					);
+			printk("\tsipU: %d.%d.%d.%d   sipL: %d.%d.%d.%d\n", (rule->srcFilterIpAddr_>>24),
+					((rule->srcFilterIpAddr_&0x00ff0000)>>16), ((rule->srcFilterIpAddr_&0x0000ff00)>>8),
+					(rule->srcFilterIpAddr_&0xff), (rule->srcFilterIpAddrMask_>>24),
+					((rule->srcFilterIpAddrMask_&0x00ff0000)>>16), ((rule->srcFilterIpAddrMask_&0x0000ff00)>>8),
+					(rule->srcFilterIpAddrMask_&0xff)
+					);
+			printk("\tsportL: %d   sportU: %d\n", rule->srcFilterPortLowerBound_, rule->srcFilterPortUpperBound_);
+			break;
+
+		case RTL865X_ACL_DSTFILTER:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Deatination Filter", actionT[rule->actionType_]);
+			printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n",
+					rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2],
+					rule->dstFilterMac_.octet[3], rule->dstFilterMac_.octet[4], rule->dstFilterMac_.octet[5],
+					rule->dstFilterMacMask_.octet[0], rule->dstFilterMacMask_.octet[1], rule->dstFilterMacMask_.octet[2],
+					rule->dstFilterMacMask_.octet[3], rule->dstFilterMacMask_.octet[4], rule->dstFilterMacMask_.octet[5]
+					);
+			printk("\tdvidx: %d   dvidxM: %x  ProtoType: %x   dportL: %d   dportU: %d\n",
+					rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_,
+					(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)),
+					rule->dstFilterPortLowerBound_, rule->dstFilterPortUpperBound_
+					);
+			printk("\tdip: %d.%d.%d.%d   dipM: %d.%d.%d.%d\n", (rule->dstFilterIpAddr_>>24),
+					((rule->dstFilterIpAddr_&0x00ff0000)>>16), ((rule->dstFilterIpAddr_&0x0000ff00)>>8),
+					(rule->dstFilterIpAddr_&0xff), (rule->dstFilterIpAddrMask_>>24),
+					((rule->dstFilterIpAddrMask_&0x00ff0000)>>16), ((rule->dstFilterIpAddrMask_&0x0000ff00)>>8),
+					(rule->dstFilterIpAddrMask_&0xff)
+					);
+			break;
+		case RTL865X_ACL_DSTFILTER_IPRANGE:
+			printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Deatination Filter(IP Range)", actionT[rule->actionType_]);
+			printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n",
+					rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2],
+					rule->dstFilterMac_.octet[3], rule->dstFilterMac_.octet[4], rule->dstFilterMac_.octet[5],
+					rule->dstFilterMacMask_.octet[0], rule->dstFilterMacMask_.octet[1], rule->dstFilterMacMask_.octet[2],
+					rule->dstFilterMacMask_.octet[3], rule->dstFilterMacMask_.octet[4], rule->dstFilterMacMask_.octet[5]
+					);
+			printk("\tdvidx: %d   dvidxM: %x  ProtoType: %x   dportL: %d   dportU: %d\n",
+					rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_,
+					(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)),
+					rule->dstFilterPortLowerBound_, rule->dstFilterPortUpperBound_
+					);
+			printk("\tdipU: %d.%d.%d.%d   dipL: %d.%d.%d.%d\n", (rule->dstFilterIpAddr_>>24),
+					((rule->dstFilterIpAddr_&0x00ff0000)>>16), ((rule->dstFilterIpAddr_&0x0000ff00)>>8),
+					(rule->dstFilterIpAddr_&0xff), (rule->dstFilterIpAddrMask_>>24),
+					((rule->dstFilterIpAddrMask_&0x00ff0000)>>16), ((rule->dstFilterIpAddrMask_&0x0000ff00)>>8),
+					(rule->dstFilterIpAddrMask_&0xff)
+				);
+			break;
+
+			default:
+				printk("rule->ruleType_(0x%x)\n", rule->ruleType_);
+
+	}
+
+	switch (rule->actionType_)
+	{
+		case RTL865X_ACL_PERMIT:
+		case RTL865X_ACL_REDIRECT_ETHER:
+		case RTL865X_ACL_DROP:
+		case RTL865X_ACL_TOCPU:
+		case RTL865X_ACL_LEGACY_DROP:
+		case RTL865X_ACL_DROPCPU_LOG:
+		case RTL865X_ACL_MIRROR:
+		case RTL865X_ACL_REDIRECT_PPPOE:
+		case RTL865X_ACL_MIRROR_KEEP_MATCH:
+			printk("\tnetifIdx: %d   pppoeIdx: %d   l2Idx:%d  ", rule->netifIdx_, rule->pppoeIdx_, rule->L2Idx_);
+			break;
+
+		case RTL865X_ACL_PRIORITY:
+			printk("\tprioirty: %d   ",  rule->priority_) ;
+			break;
+
+		case RTL865X_ACL_DEFAULT_REDIRECT:
+			printk("\tnextHop:%d  ",  rule->nexthopIdx_);
+			break;
+
+		case RTL865X_ACL_DROP_RATE_EXCEED_PPS:
+		case RTL865X_ACL_LOG_RATE_EXCEED_PPS:
+		case RTL865X_ACL_DROP_RATE_EXCEED_BPS:
+		case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
+			printk("\tratelimitIdx: %d  ",  rule->ratelimtIdx_);
+			break;
+		default:
+			;
+
+		}
+		printk("pktOpApp: %d\n",  rule->pktOpApp_);
+		printk("===========================\n");
+		return SUCCESS;
+
+}
+
 #ifdef CONFIG_RTL_LAYERED_DRIVER_ACL
 int32 rtl865x_show_allAclChains(void)
 {
@@ -69,8 +414,8 @@ int32 rtl865x_show_allAclChains(void)
 	rtl865x_acl_chain_t *chain;
 	rtl865x_AclRule_t *rule;
 	int32 i,j;
-	int8 *actionT[] = { "permit", "redirect to ether", "drop", "to cpu", "legacy drop", 
-					"drop for log", "mirror", "redirect to pppoe", "default redirect", "mirror keep match", 
+	int8 *actionT[] = { "permit", "redirect to ether", "drop", "to cpu", "legacy drop",
+					"drop for log", "mirror", "redirect to pppoe", "default redirect", "mirror keep match",
 					"drop rate exceed pps", "log rate exceed pps", "drop rate exceed bps", "log rate exceed bps","priority "
 					};
 
@@ -84,7 +429,7 @@ int32 rtl865x_show_allAclChains(void)
 				printk("netif(%s),isEgress(%d):\n",netif->name,j);
 				chain = netif->chainListHead[j];
 				while(chain)
-				{					
+				{
 					printk("\tchain:priority(%d),rulecnt(%d)\n",chain->priority,chain->ruleCnt);
 					printk("===========================\n");
 					rule = chain->head;
@@ -101,7 +446,7 @@ int32 rtl865x_show_allAclChains(void)
 										rule->dstMacMask_.octet[0], rule->dstMacMask_.octet[1], rule->dstMacMask_.octet[2],
 										rule->dstMacMask_.octet[3], rule->dstMacMask_.octet[4], rule->dstMacMask_.octet[5]
 										);
-								
+
 								printk( "\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n",
 										rule->srcMac_.octet[0], rule->srcMac_.octet[1], rule->srcMac_.octet[2],
 										rule->srcMac_.octet[3], rule->srcMac_.octet[4], rule->srcMac_.octet[5],
@@ -125,14 +470,14 @@ int32 rtl865x_show_allAclChains(void)
 								printk("\tTos: %x   TosM: %x   ipProto: %x   ipProtoM: %x   ipFlag: %x   ipFlagM: %x\n",
 										rule->tos_, rule->tosMask_, rule->ipProto_, rule->ipProtoMask_, rule->ipFlag_, rule->ipFlagMask_
 									);
-								
+
 								printk("\t<FOP:%x> <FOM:%x> <http:%x> <httpM:%x> <IdentSdip:%x> <IdentSdipM:%x> \n",
 										rule->ipFOP_, rule->ipFOM_, rule->ipHttpFilter_, rule->ipHttpFilterM_, rule->ipIdentSrcDstIp_,
 										rule->ipIdentSrcDstIpM_
 										);
-								printk( "\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_); 
+								printk( "\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_);
 									break;
-									
+
 							case RTL865X_ACL_IP_RANGE:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "IP Range", actionT[rule->actionType_]);
 								printk("\tdipU: %d.%d.%d.%d dipL: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
@@ -152,8 +497,8 @@ int32 rtl865x_show_allAclChains(void)
 										rule->ipFOP_, rule->ipFOM_, rule->ipHttpFilter_, rule->ipHttpFilterM_, rule->ipIdentSrcDstIp_,
 										rule->ipIdentSrcDstIpM_
 										);
-									printk("\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_); 
-									break;			
+									printk("\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_);
+									break;
 							case RTL865X_ACL_ICMP:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "ICMP", actionT[rule->actionType_]);
 								printk("\tdip: %d.%d.%d.%d dipM: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
@@ -167,7 +512,7 @@ int32 rtl865x_show_allAclChains(void)
 										((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
 										);
 								printk("\tTos: %x   TosM: %x   type: %x   typeM: %x   code: %x   codeM: %x\n",
-										rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_, 
+										rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_,
 										rule->icmpCode_, rule->icmpCodeMask_);
 								break;
 							case RTL865X_ACL_ICMP_IPRANGE:
@@ -183,7 +528,7 @@ int32 rtl865x_show_allAclChains(void)
 										((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
 										);
 								printk("\tTos: %x   TosM: %x   type: %x   typeM: %x   code: %x   codeM: %x\n",
-										rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_, 
+										rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_,
 										rule->icmpCode_, rule->icmpCodeMask_);
 								break;
 							case RTL865X_ACL_IGMP:
@@ -280,7 +625,7 @@ int32 rtl865x_show_allAclChains(void)
 										rule->tos_, rule->tosMask_, rule->udpSrcPortLB_, rule->udpSrcPortUB_,
 										rule->udpDstPortLB_, rule->udpDstPortUB_
 										);
-								break;				
+								break;
 							case RTL865X_ACL_UDP_IPRANGE:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "UDP IP RANGE", actionT[rule->actionType_]);
 								printk("\tdipU: %d.%d.%d.%d dipL: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
@@ -297,13 +642,13 @@ int32 rtl865x_show_allAclChains(void)
 										rule->tos_, rule->tosMask_, rule->udpSrcPortLB_, rule->udpSrcPortUB_,
 										rule->udpDstPortLB_, rule->udpDstPortUB_
 									);
-								break;				
+								break;
 
-							
+
 							case RTL865X_ACL_SRCFILTER:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Source Filter", actionT[rule->actionType_]);
-								printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n", 
-										rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2], 
+								printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n",
+										rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2],
 										rule->srcFilterMac_.octet[3], rule->srcFilterMac_.octet[4], rule->srcFilterMac_.octet[5],
 										rule->srcFilterMacMask_.octet[0], rule->srcFilterMacMask_.octet[1], rule->srcFilterMacMask_.octet[2],
 										rule->srcFilterMacMask_.octet[3], rule->srcFilterMacMask_.octet[4], rule->srcFilterMacMask_.octet[5]
@@ -323,8 +668,8 @@ int32 rtl865x_show_allAclChains(void)
 
 							case RTL865X_ACL_SRCFILTER_IPRANGE:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Source Filter(IP RANGE)", actionT[rule->actionType_]);
-								printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n", 
-										rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2], 
+								printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n",
+										rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2],
 										rule->srcFilterMac_.octet[3], rule->srcFilterMac_.octet[4], rule->srcFilterMac_.octet[5],
 										rule->srcFilterMacMask_.octet[0], rule->srcFilterMacMask_.octet[1], rule->srcFilterMacMask_.octet[2],
 										rule->srcFilterMacMask_.octet[3], rule->srcFilterMacMask_.octet[4], rule->srcFilterMacMask_.octet[5]
@@ -344,15 +689,15 @@ int32 rtl865x_show_allAclChains(void)
 
 							case RTL865X_ACL_DSTFILTER:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Deatination Filter", actionT[rule->actionType_]);
-								printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n", 
-										rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2], 
+								printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n",
+										rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2],
 										rule->dstFilterMac_.octet[3], rule->dstFilterMac_.octet[4], rule->dstFilterMac_.octet[5],
 										rule->dstFilterMacMask_.octet[0], rule->dstFilterMacMask_.octet[1], rule->dstFilterMacMask_.octet[2],
 										rule->dstFilterMacMask_.octet[3], rule->dstFilterMacMask_.octet[4], rule->dstFilterMacMask_.octet[5]
 										);
 								printk("\tdvidx: %d   dvidxM: %x  ProtoType: %x   dportL: %d   dportU: %d\n",
-										rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_, 
-										(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)), 
+										rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_,
+										(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)),
 										rule->dstFilterPortLowerBound_, rule->dstFilterPortUpperBound_
 										);
 								printk("\tdip: %d.%d.%d.%d   dipM: %d.%d.%d.%d\n", (rule->dstFilterIpAddr_>>24),
@@ -364,15 +709,15 @@ int32 rtl865x_show_allAclChains(void)
 								break;
 							case RTL865X_ACL_DSTFILTER_IPRANGE:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Deatination Filter(IP Range)", actionT[rule->actionType_]);
-								printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n", 
-										rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2], 
+								printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n",
+										rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2],
 										rule->dstFilterMac_.octet[3], rule->dstFilterMac_.octet[4], rule->dstFilterMac_.octet[5],
 										rule->dstFilterMacMask_.octet[0], rule->dstFilterMacMask_.octet[1], rule->dstFilterMacMask_.octet[2],
 										rule->dstFilterMacMask_.octet[3], rule->dstFilterMacMask_.octet[4], rule->dstFilterMacMask_.octet[5]
 										);
 								printk("\tdvidx: %d   dvidxM: %x  ProtoType: %x   dportL: %d   dportU: %d\n",
-										rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_, 
-										(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)), 
+										rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_,
+										(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)),
 										rule->dstFilterPortLowerBound_, rule->dstFilterPortUpperBound_
 										);
 								printk("\tdipU: %d.%d.%d.%d   dipL: %d.%d.%d.%d\n", (rule->dstFilterIpAddr_>>24),
@@ -386,9 +731,9 @@ int32 rtl865x_show_allAclChains(void)
 								default:
 									printk("rule->ruleType_(0x%x)\n", rule->ruleType_);
 
-						}	
+						}
 
-						switch (rule->actionType_) 
+						switch (rule->actionType_)
 						{
 							case RTL865X_ACL_PERMIT:
 							case RTL865X_ACL_REDIRECT_ETHER:
@@ -402,10 +747,10 @@ int32 rtl865x_show_allAclChains(void)
 								printk("\tnetifIdx: %d   pppoeIdx: %d   l2Idx:%d  ", rule->netifIdx_, rule->pppoeIdx_, rule->L2Idx_);
 								break;
 
-							case RTL865X_ACL_PRIORITY: 
+							case RTL865X_ACL_PRIORITY:
 								printk("\tprioirty: %d   ",  rule->priority_) ;
 								break;
-								
+
 							case RTL865X_ACL_DEFAULT_REDIRECT:
 								printk("\tnextHop:%d  ",  rule->nexthopIdx_);
 								break;
@@ -416,12 +761,12 @@ int32 rtl865x_show_allAclChains(void)
 							case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
 								printk("\tratelimitIdx: %d  ",  rule->ratelimtIdx_);
 								break;
-							default: 
+							default:
 								;
-							
+
 							}
 						printk("pktOpApp: %d\n",  rule->pktOpApp_);
-						
+
 						rule = rule->next;
 					}
 					printk("===========================\n");
@@ -429,10 +774,10 @@ int32 rtl865x_show_allAclChains(void)
 				}
 				printk("--------------------------------\n\n");
 			}
-			
+
 		}
 	}
-	
+
 #if defined (CONFIG_RTL_LOCAL_PUBLIC)
 	{
 		if(virtualNetIf.valid == 1)
@@ -443,7 +788,7 @@ int32 rtl865x_show_allAclChains(void)
 				printk("netif(%s),isEgress(%d):\n",netif->name,j);
 				chain = netif->chainListHead[j];
 				while(chain)
-				{					
+				{
 					printk("\tchain:priority(%d),rulecnt(%d)\n",chain->priority,chain->ruleCnt);
 					printk("===========================\n");
 					rule = chain->head;
@@ -460,7 +805,7 @@ int32 rtl865x_show_allAclChains(void)
 										rule->dstMacMask_.octet[0], rule->dstMacMask_.octet[1], rule->dstMacMask_.octet[2],
 										rule->dstMacMask_.octet[3], rule->dstMacMask_.octet[4], rule->dstMacMask_.octet[5]
 										);
-								
+
 								printk( "\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n",
 										rule->srcMac_.octet[0], rule->srcMac_.octet[1], rule->srcMac_.octet[2],
 										rule->srcMac_.octet[3], rule->srcMac_.octet[4], rule->srcMac_.octet[5],
@@ -484,14 +829,14 @@ int32 rtl865x_show_allAclChains(void)
 								printk("\tTos: %x   TosM: %x   ipProto: %x   ipProtoM: %x   ipFlag: %x   ipFlagM: %x\n",
 										rule->tos_, rule->tosMask_, rule->ipProto_, rule->ipProtoMask_, rule->ipFlag_, rule->ipFlagMask_
 									);
-								
+
 								printk("\t<FOP:%x> <FOM:%x> <http:%x> <httpM:%x> <IdentSdip:%x> <IdentSdipM:%x> \n",
 										rule->ipFOP_, rule->ipFOM_, rule->ipHttpFilter_, rule->ipHttpFilterM_, rule->ipIdentSrcDstIp_,
 										rule->ipIdentSrcDstIpM_
 										);
-								printk( "\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_); 
+								printk( "\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_);
 									break;
-									
+
 							case RTL865X_ACL_IP_RANGE:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "IP Range", actionT[rule->actionType_]);
 								printk("\tdipU: %d.%d.%d.%d dipL: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
@@ -511,8 +856,8 @@ int32 rtl865x_show_allAclChains(void)
 										rule->ipFOP_, rule->ipFOM_, rule->ipHttpFilter_, rule->ipHttpFilterM_, rule->ipIdentSrcDstIp_,
 										rule->ipIdentSrcDstIpM_
 										);
-									printk("\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_); 
-									break;			
+									printk("\t<DF:%x> <MF:%x>\n", rule->ipDF_, rule->ipMF_);
+									break;
 							case RTL865X_ACL_ICMP:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "ICMP", actionT[rule->actionType_]);
 								printk("\tdip: %d.%d.%d.%d dipM: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
@@ -526,7 +871,7 @@ int32 rtl865x_show_allAclChains(void)
 										((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
 										);
 								printk("\tTos: %x   TosM: %x   type: %x   typeM: %x   code: %x   codeM: %x\n",
-										rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_, 
+										rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_,
 										rule->icmpCode_, rule->icmpCodeMask_);
 								break;
 							case RTL865X_ACL_ICMP_IPRANGE:
@@ -542,7 +887,7 @@ int32 rtl865x_show_allAclChains(void)
 										((rule->srcIpAddrMask_&0x0000ff00)>>8), (rule->srcIpAddrMask_&0xff)
 										);
 								printk("\tTos: %x   TosM: %x   type: %x   typeM: %x   code: %x   codeM: %x\n",
-										rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_, 
+										rule->tos_, rule->tosMask_, rule->icmpType_, rule->icmpTypeMask_,
 										rule->icmpCode_, rule->icmpCodeMask_);
 								break;
 							case RTL865X_ACL_IGMP:
@@ -639,7 +984,7 @@ int32 rtl865x_show_allAclChains(void)
 										rule->tos_, rule->tosMask_, rule->udpSrcPortLB_, rule->udpSrcPortUB_,
 										rule->udpDstPortLB_, rule->udpDstPortUB_
 										);
-								break;				
+								break;
 							case RTL865X_ACL_UDP_IPRANGE:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "UDP IP RANGE", actionT[rule->actionType_]);
 								printk("\tdipU: %d.%d.%d.%d dipL: %d.%d.%d.%d\n", (rule->dstIpAddr_>>24),
@@ -656,13 +1001,13 @@ int32 rtl865x_show_allAclChains(void)
 										rule->tos_, rule->tosMask_, rule->udpSrcPortLB_, rule->udpSrcPortUB_,
 										rule->udpDstPortLB_, rule->udpDstPortUB_
 									);
-								break;				
+								break;
 
-							
+
 							case RTL865X_ACL_SRCFILTER:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Source Filter", actionT[rule->actionType_]);
-								printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n", 
-										rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2], 
+								printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n",
+										rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2],
 										rule->srcFilterMac_.octet[3], rule->srcFilterMac_.octet[4], rule->srcFilterMac_.octet[5],
 										rule->srcFilterMacMask_.octet[0], rule->srcFilterMacMask_.octet[1], rule->srcFilterMacMask_.octet[2],
 										rule->srcFilterMacMask_.octet[3], rule->srcFilterMacMask_.octet[4], rule->srcFilterMacMask_.octet[5]
@@ -682,8 +1027,8 @@ int32 rtl865x_show_allAclChains(void)
 
 							case RTL865X_ACL_SRCFILTER_IPRANGE:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Source Filter(IP RANGE)", actionT[rule->actionType_]);
-								printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n", 
-										rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2], 
+								printk("\tSMAC: %x:%x:%x:%x:%x:%x  SMACM: %x:%x:%x:%x:%x:%x\n",
+										rule->srcFilterMac_.octet[0], rule->srcFilterMac_.octet[1], rule->srcFilterMac_.octet[2],
 										rule->srcFilterMac_.octet[3], rule->srcFilterMac_.octet[4], rule->srcFilterMac_.octet[5],
 										rule->srcFilterMacMask_.octet[0], rule->srcFilterMacMask_.octet[1], rule->srcFilterMacMask_.octet[2],
 										rule->srcFilterMacMask_.octet[3], rule->srcFilterMacMask_.octet[4], rule->srcFilterMacMask_.octet[5]
@@ -703,15 +1048,15 @@ int32 rtl865x_show_allAclChains(void)
 
 							case RTL865X_ACL_DSTFILTER:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Deatination Filter", actionT[rule->actionType_]);
-								printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n", 
-										rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2], 
+								printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n",
+										rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2],
 										rule->dstFilterMac_.octet[3], rule->dstFilterMac_.octet[4], rule->dstFilterMac_.octet[5],
 										rule->dstFilterMacMask_.octet[0], rule->dstFilterMacMask_.octet[1], rule->dstFilterMacMask_.octet[2],
 										rule->dstFilterMacMask_.octet[3], rule->dstFilterMacMask_.octet[4], rule->dstFilterMacMask_.octet[5]
 										);
 								printk("\tdvidx: %d   dvidxM: %x  ProtoType: %x   dportL: %d   dportU: %d\n",
-										rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_, 
-										(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)), 
+										rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_,
+										(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)),
 										rule->dstFilterPortLowerBound_, rule->dstFilterPortUpperBound_
 										);
 								printk("\tdip: %d.%d.%d.%d   dipM: %d.%d.%d.%d\n", (rule->dstFilterIpAddr_>>24),
@@ -723,15 +1068,15 @@ int32 rtl865x_show_allAclChains(void)
 								break;
 							case RTL865X_ACL_DSTFILTER_IPRANGE:
 								printk(" [%d] rule type: %s   rule action: %s\n", rule->aclIdx, "Deatination Filter(IP Range)", actionT[rule->actionType_]);
-								printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n", 
-										rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2], 
+								printk("\tDMAC: %x:%x:%x:%x:%x:%x  DMACM: %x:%x:%x:%x:%x:%x\n",
+										rule->dstFilterMac_.octet[0], rule->dstFilterMac_.octet[1], rule->dstFilterMac_.octet[2],
 										rule->dstFilterMac_.octet[3], rule->dstFilterMac_.octet[4], rule->dstFilterMac_.octet[5],
 										rule->dstFilterMacMask_.octet[0], rule->dstFilterMacMask_.octet[1], rule->dstFilterMacMask_.octet[2],
 										rule->dstFilterMacMask_.octet[3], rule->dstFilterMacMask_.octet[4], rule->dstFilterMacMask_.octet[5]
 										);
 								printk("\tdvidx: %d   dvidxM: %x  ProtoType: %x   dportL: %d   dportU: %d\n",
-										rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_, 
-										(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)), 
+										rule->dstFilterVlanIdx_, rule->dstFilterVlanIdxMask_,
+										(rule->dstFilterIgnoreL3L4_==TRUE? 2: (rule->dstFilterIgnoreL4_ == 1? 1: 0)),
 										rule->dstFilterPortLowerBound_, rule->dstFilterPortUpperBound_
 										);
 								printk("\tdipU: %d.%d.%d.%d   dipL: %d.%d.%d.%d\n", (rule->dstFilterIpAddr_>>24),
@@ -745,9 +1090,9 @@ int32 rtl865x_show_allAclChains(void)
 								default:
 									printk("rule->ruleType_(0x%x)\n", rule->ruleType_);
 
-						}	
+						}
 
-						switch (rule->actionType_) 
+						switch (rule->actionType_)
 						{
 							case RTL865X_ACL_PERMIT:
 							case RTL865X_ACL_REDIRECT_ETHER:
@@ -761,10 +1106,10 @@ int32 rtl865x_show_allAclChains(void)
 								printk("\tnetifIdx: %d   pppoeIdx: %d   l2Idx:%d  ", rule->netifIdx_, rule->pppoeIdx_, rule->L2Idx_);
 								break;
 
-							case RTL865X_ACL_PRIORITY: 
+							case RTL865X_ACL_PRIORITY:
 								printk("\tprioirty: %d   ",  rule->priority_) ;
 								break;
-								
+
 							case RTL865X_ACL_DEFAULT_REDIRECT:
 								printk("\tnextHop:%d  ",  rule->nexthopIdx_);
 								break;
@@ -775,12 +1120,12 @@ int32 rtl865x_show_allAclChains(void)
 							case RTL865X_ACL_LOG_RATE_EXCEED_BPS:
 								printk("\tratelimitIdx: %d  ",  rule->ratelimtIdx_);
 								break;
-							default: 
+							default:
 								;
-							
+
 							}
 						printk("pktOpApp: %d\n",  rule->pktOpApp_);
-						
+
 						rule = rule->next;
 					}
 					printk("===========================\n");
@@ -788,12 +1133,12 @@ int32 rtl865x_show_allAclChains(void)
 				}
 				printk("--------------------------------\n\n");
 			}
-			
+
 		}
 	}
 #endif
 	return SUCCESS;
-	
+
 }
 
 
@@ -804,7 +1149,7 @@ static int32 _rtl865x_print_allChain_allAcl(rtl865x_netif_local_t *netif)
 	rtl865x_acl_chain_t *chain;
 	rtl865x_AclRule_t *rule;
 	int32 i;
-	
+
 	for(i = RTL865X_ACL_INGRESS; i<= RTL865X_ACL_EGRESS;i++)
 	{
 		printk("netif(%s),isEgress(%d):\n",netif->name,i);
@@ -825,7 +1170,7 @@ static int32 _rtl865x_print_allChain_allAcl(rtl865x_netif_local_t *netif)
 		printk("--------------------------------\n\n");
 	}
 	return SUCCESS;
-	
+
 }
 
 
@@ -884,7 +1229,7 @@ static int32 _rtl865x_setAsicNetif(rtl865x_netif_local_t *entry)
 	asicEntry.valid = entry->valid;
 
 
-	
+
 	retval = rtl8651_setAsicNetInterface( entry->asicIdx, &asicEntry);
 	return retval;
 
@@ -894,7 +1239,7 @@ rtl865x_netif_local_t *_rtl865x_getSWNetifByName(char *name)
 {
 	int32 i;
 	rtl865x_netif_local_t *netif = NULL;
-	
+
 	if(name == NULL)
 		return NULL;
 
@@ -903,16 +1248,16 @@ rtl865x_netif_local_t *_rtl865x_getSWNetifByName(char *name)
 		//printk("%s:%d,i(%d),valid(%d),ifname(%s),strlen of name(%d), netifTbl(0x%p),netifTblName(%s)\n",__FUNCTION__,__LINE__,i,netifTbl[i].valid,name,strlen(name),&netifTbl[i],netifTbl[i].name);
 		if(netifTbl[i].valid == 1 && strlen(name) == strlen(netifTbl[i].name) && memcmp(netifTbl[i].name,name,strlen(name)) == 0)
 		{
-			netif = &netifTbl[i];			
+			netif = &netifTbl[i];
 			break;
 		}
 	}
-	
+
 	#if defined (CONFIG_RTL_LOCAL_PUBLIC)
 	if(virtualNetIf.valid == 1 && strlen(name) == strlen(virtualNetIf.name) && memcmp(virtualNetIf.name,name,strlen(name)) == 0)
 	{
 		netif = &virtualNetIf;
-		
+
 	}
 	#endif
 
@@ -923,7 +1268,7 @@ rtl865x_netif_local_t *_rtl865x_getNetifByName(char *name)
 {
 	int32 i;
 	rtl865x_netif_local_t *netif = NULL;
-	
+
 	if(name == NULL)
 		return NULL;
 
@@ -945,7 +1290,7 @@ rtl865x_netif_local_t *_rtl865x_getNetifByName(char *name)
 	if(virtualNetIf.valid == 1 && strlen(name) == strlen(virtualNetIf.name) && memcmp(virtualNetIf.name,name,strlen(name)) == 0)
 	{
 		netif = &virtualNetIf;
-	
+
 	}
 	#endif
 	return netif;
@@ -956,13 +1301,13 @@ rtl865x_netif_local_t *_rtl865x_getDefaultWanNetif(void)
 	int32 i;
 	rtl865x_netif_local_t *firstWan, *defNetif;
 	firstWan = defNetif = NULL;
-	
+
 	for(i = 0; i < NETIF_NUMBER; i++)
 	{
 		//printk("i(%d),netifTbl(0x%p)\n",i,&netifTbl[i]);
 		if(netifTbl[i].valid == 1 && netifTbl[i].is_wan == 1 && firstWan == NULL)
 			firstWan = &netifTbl[i];
-			
+
 		if(netifTbl[i].valid == 1 && netifTbl[i].is_defaultWan == 1)
 		{
 			defNetif = &netifTbl[i];
@@ -975,9 +1320,9 @@ rtl865x_netif_local_t *_rtl865x_getDefaultWanNetif(void)
 	{
 		defNetif = firstWan;
 	}
-	
+
 	return defNetif;
-	
+
 }
 
 int32 _rtl865x_setDefaultWanNetif(char *name)
@@ -988,7 +1333,7 @@ int32 _rtl865x_setDefaultWanNetif(char *name)
 	//printk("set default wan interface....(%s)\n",name);
 	if(entry)
 		entry->is_defaultWan = 1;
-	
+
 	return SUCCESS;
 }
 
@@ -1000,7 +1345,7 @@ int32 _rtl865x_clearDefaultWanNetif(char *name)
 	//printk("set default wan interface....(%s)\n",name);
 	if(entry)
 		entry->is_defaultWan = 0;
-	
+
 	return SUCCESS;
 }
 
@@ -1021,7 +1366,7 @@ static int32 _rtl865x_attachMasterNetif(char *slave, char *master)
 	slave_netif ->master = master_netif;
 
 	return SUCCESS;
-	
+
 }
 
 static int32 _rtl865x_detachMasterNetif(char *slave)
@@ -1029,7 +1374,7 @@ static int32 _rtl865x_detachMasterNetif(char *slave)
 	rtl865x_netif_local_t *slave_netif;
 
 	slave_netif = _rtl865x_getSWNetifByName(slave);
-	
+
 	if(slave_netif == NULL)
 		return RTL_EENTRYNOTFOUND;
 
@@ -1043,9 +1388,11 @@ int32 _rtl865x_addNetif(rtl865x_netif_t *netif)
 	rtl865x_netif_local_t *entry;
 	int32 retval = FAILED;
 	int32 i;
-#if defined (CONFIG_RTL_LOCAL_PUBLIC)
+#if defined (CONFIG_RTL_LOCAL_PUBLIC) || defined(CONFIG_RTL_MULTIPLE_WAN)
 	int asicIdx;
+#if defined(CONFIG_RTL_LOCAL_PUBLIC)
 	rtl865xc_tblAsic_netifTable_t asicEntry;
+#endif
 #endif
 	if(netif == NULL)
 		return RTL_EINVALIDINPUT;
@@ -1062,21 +1409,30 @@ int32 _rtl865x_addNetif(rtl865x_netif_t *netif)
 			break;
 	}
 
-#if defined (CONFIG_RTL_LOCAL_PUBLIC)
+#if defined (CONFIG_RTL_LOCAL_PUBLIC) || defined(CONFIG_RTL_MULTIPLE_WAN)
+#if defined(CONFIG_RTL_LOCAL_PUBLIC)
 	for (asicIdx=0;asicIdx<RTL865XC_NETIFTBL_SIZE;asicIdx++)
-	{	
+	{
 		_rtl8651_readAsicEntry(TYPE_NETINTERFACE_TABLE, asicIdx, &asicEntry);
 		if (asicEntry.valid==0)
 		{
 			break;
 		}
-	}	
+	}
+#endif
+
 	if(netif->forMacBasedMCast==TRUE)
 	{
 		asicIdx=RTL865XC_NETIFTBL_SIZE-1;
 	}
+#if defined(CONFIG_RTL_MULTIPLE_WAN)
+	else
+	{
+		asicIdx = i;
+	}
 #endif
-	
+#endif
+
 	if(i == NETIF_NUMBER)
 		return RTL_ENOFREEBUFFER;
 
@@ -1086,7 +1442,7 @@ int32 _rtl865x_addNetif(rtl865x_netif_t *netif)
 	#if defined (CONFIG_RTL_LOCAL_PUBLIC)
 	memset(entry, 0, sizeof(rtl865x_netif_local_t));
 	#endif
-	
+
 	entry->valid = 1;
 	entry->mtu = netif->mtu;
 	entry->if_type = netif->if_type;
@@ -1096,23 +1452,23 @@ int32 _rtl865x_addNetif(rtl865x_netif_t *netif)
 	entry->dmz = netif->dmz;
 	entry->is_slave = netif->is_slave;
 	memcpy(entry->name,netif->name,MAX_IFNAMESIZE);
-
+	
 	/*private number...*/
-#if defined (CONFIG_RTL_LOCAL_PUBLIC)
+#if defined (CONFIG_RTL_LOCAL_PUBLIC) ||defined(CONFIG_RTL_MULTIPLE_WAN)
 	entry->asicIdx=asicIdx;
 #else
 	entry->asicIdx = i;
 #endif
-	entry->enableRoute = netif->enableRoute; 
+	entry->enableRoute = netif->enableRoute;
 	entry->macAddrNumber = 1;
 	entry->inAclEnd = entry->inAclStart = entry->outAclEnd = entry->outAclStart = RTL865X_ACLTBL_PERMIT_ALL; /*default permit...*/
 	entry->refCnt = 1;
 	entry->master = NULL;
-	
+
 #ifdef 	CONFIG_RTL_LAYERED_DRIVER_ACL
 	//ingress acl chains head
 	entry->chainListHead[RTL865X_ACL_INGRESS] = NULL;
-	
+
 	//init egress acl
 	entry->chainListHead[RTL865X_ACL_EGRESS] = NULL;
 #endif
@@ -1123,20 +1479,20 @@ int32 _rtl865x_addNetif(rtl865x_netif_t *netif)
 		retval = _rtl865x_setAsicNetif(entry);
 		if(retval == SUCCESS)
 			rtl865x_referVlan(entry->vid);
-		
+
 #ifdef CONFIG_RTL_LAYERED_DRIVER_ACL
 		/*register 2 ingress chains: system/user*/
 		retval = rtl865x_regist_aclChain(netif->name, RTL865X_ACL_SYSTEM_USED, RTL865X_ACL_INGRESS);
 #if RTL_LAYERED_DRIVER_DEBUG
 		printk("register system acl chain, return %d\n",retval);
-		_rtl865x_print_freeChainNum();	
+		_rtl865x_print_freeChainNum();
 #endif
 		retval = rtl865x_regist_aclChain(netif->name, RTL865X_ACL_USER_USED, RTL865X_ACL_INGRESS);
 		retval = rtl865x_regist_aclChain(netif->name, RTL865X_ACL_USER_USED, RTL865X_ACL_EGRESS);
 
 #if RTL_LAYERED_DRIVER_DEBUG
 		printk("register user acl chain, return %d\n",retval);
-		_rtl865x_print_freeChainNum();	
+		_rtl865x_print_freeChainNum();
 #endif
 
 #if defined(CONFIG_RTL_HW_QOS_SUPPORT)
@@ -1146,7 +1502,7 @@ int32 _rtl865x_addNetif(rtl865x_netif_t *netif)
 #endif //CONFIG_RTL_LAYERED_DRIVER_ACL
 	}
 
-	
+
 	return SUCCESS;
 }
 
@@ -1171,19 +1527,19 @@ static int32 _rtl865x_delNetif(char *name)
 #ifdef CONFIG_RTL_LAYERED_DRIVER_ACL
 		retval = _rtl865x_unRegister_all_aclChain(name);
 #endif
-		
+
 		retval = rtl865x_delNetInterfaceByVid(entry->vid);
 		if(retval == SUCCESS)
 		{
 			rtl865x_deReferVlan(entry->vid);
-			
+
 			/*flush acl*/
 			#if 0
 			do_eventAction(EV_DEL_NETIF, (void*)entry);
 			#else
 			rtl865x_raiseEvent(EVENT_DEL_NETIF, (void*)entry);
 			#endif
-		}		
+		}
 
 		/*now delete all slave interface whose master is the deleting master interface*/
 		{
@@ -1195,14 +1551,14 @@ static int32 _rtl865x_delNetif(char *name)
 					netifTbl[i].master = NULL;
 			}
 		}
-#ifdef CONFIG_RTL_LAYERED_DRIVER_ACL		
+#ifdef CONFIG_RTL_LAYERED_DRIVER_ACL
 #if RTL_LAYERED_DRIVER_DEBUG
 		printk("unregist all acl chain, return %d\n",retval);
-		_rtl865x_print_freeChainNum();	
+		_rtl865x_print_freeChainNum();
 #endif
 #endif
 	}
-	
+
 	//entry->valid = 0;
 	memset(entry,0,sizeof(rtl865x_netif_local_t));
 	retval = SUCCESS;
@@ -1235,7 +1591,7 @@ static int32 _rtl865x_deReferNetif(char *ifName)
 		return RTL_EENTRYNOTFOUND;
 
 	entry->refCnt--;
-	
+
 	return SUCCESS;
 }
 
@@ -1253,9 +1609,9 @@ static int32 _rtl865x_setNetifVid(char *name, uint16 vid)
 
 	if(entry->vid > 0 && entry->vid <= 4095)
 		rtl865x_deReferVlan(entry->vid);
-	
+
 	entry->vid = vid;
-	
+
 	/*update asic table*/
 	if (entry->is_slave)
 		return SUCCESS;
@@ -1275,7 +1631,7 @@ static int32 _rtl865x_setNetifType(char *name, uint32 ifType)
 
 	if(entry == NULL)
 		return RTL_EENTRYNOTFOUND;
-	
+
 	entry->if_type = ifType;
 
 	return SUCCESS;
@@ -1289,7 +1645,7 @@ int32 _rtl865x_setNetifMac(rtl865x_netif_t *netif)
 	if(netif == NULL)
 		return RTL_EINVALIDINPUT;
 	entry = _rtl865x_getNetifByName(netif->name);
-	
+
 	if(entry == NULL)
 		return RTL_EENTRYNOTFOUND;
 
@@ -1297,9 +1653,9 @@ int32 _rtl865x_setNetifMac(rtl865x_netif_t *netif)
 
 	/*update asic table*/
 	retval = _rtl865x_setAsicNetif(entry);
-	
+
 	return retval;
-	
+
 }
 
 int32 _rtl865x_setNetifMtu(rtl865x_netif_t *netif)
@@ -1315,9 +1671,9 @@ int32 _rtl865x_setNetifMtu(rtl865x_netif_t *netif)
 
 	/*update asic table*/
 	retval = _rtl865x_setAsicNetif(entry);
-	
+
 	return retval;
-	
+
 }
 
 int32 _rtl865x_getNetifIdxByVid(uint16 vid)
@@ -1331,7 +1687,7 @@ int32 _rtl865x_getNetifIdxByVid(uint16 vid)
 
 	if(i == NETIF_NUMBER)
 		return -1;
-	
+
 	return i;
 }
 
@@ -1346,7 +1702,7 @@ int32 _rtl865x_getNetifIdxByName(uint8 *name)
 
 	if(i == NETIF_NUMBER)
 		return -1;
-	
+
 	return i;
 }
 
@@ -1361,7 +1717,7 @@ int32 _rtl865x_getNetifIdxByNameExt(uint8 *name)
 			{
 				if(netifTbl[i].master)
 					return _rtl865x_getNetifIdxByNameExt(netifTbl[i].master->name);
-				else 
+				else
 					return -1;
 			}
 			else
@@ -1428,7 +1784,7 @@ int32 _rtl865x_getAclFromAsic(int32 index, rtl865x_AclRule_t *rule)
 		 rule->ipIdentSrcDstIp_ = entry.is.L3L4.is.IP.identSDIPM;
 		 rule->ruleType_= entry.ruleType;
 		 goto l3l4_shared;
-	   
+
 	case RTL865X_ACL_ICMP: /* ICMP  (ip is mask) rule type */
 	case RTL865X_ACL_ICMP_IPRANGE: /* ICMP (ip is  range) rule type */
 		 rule->tos_ = entry.is.L3L4.is.ICMP.IPTOSP;
@@ -1441,7 +1797,7 @@ int32 _rtl865x_getAclFromAsic(int32 index, rtl865x_AclRule_t *rule)
 		 goto l3l4_shared;
 
 	case RTL865X_ACL_IGMP: /* IGMP (ip is mask) rule type */
-	case RTL865X_ACL_IGMP_IPRANGE: /* IGMP (ip is range) rule type */	
+	case RTL865X_ACL_IGMP_IPRANGE: /* IGMP (ip is range) rule type */
 		 rule->tos_ = entry.is.L3L4.is.IGMP.IPTOSP;
 		 rule->tosMask_ = entry.is.L3L4.is.IGMP.IPTOSM;
 		 rule->igmpType_ = entry.is.L3L4.is.IGMP.IGMPTypeP;
@@ -1459,7 +1815,7 @@ int32 _rtl865x_getAclFromAsic(int32 index, rtl865x_AclRule_t *rule)
 		 rule->tcpSrcPortLB_ = entry.is.L3L4.is.TCP.TCPSPLB;
 		 rule->tcpDstPortUB_ = entry.is.L3L4.is.TCP.TCPDPUB;
 		 rule->tcpDstPortLB_ = entry.is.L3L4.is.TCP.TCPDPLB;
-	 	 rule->ruleType_ = entry.ruleType;		 
+	 	 rule->ruleType_ = entry.ruleType;
          goto l3l4_shared;
 
 	case RTL865X_ACL_UDP: /* UDP rule type */
@@ -1479,14 +1835,14 @@ l3l4_shared:
 		break;
 
  	case RTL865X_ACL_SRCFILTER: /* Source Filter */
-	case RTL865X_ACL_SRCFILTER_IPRANGE:	
+	case RTL865X_ACL_SRCFILTER_IPRANGE:
 	 	 rule->srcFilterMac_.octet[0]     = entry.is.SRC_FILTER.sMacP47_32 >> 8;
 		 rule->srcFilterMac_.octet[1]     = entry.is.SRC_FILTER.sMacP47_32 & 0xff;
 		 rule->srcFilterMac_.octet[2]     = entry.is.SRC_FILTER.sMacP31_16 >> 8;
 		 rule->srcFilterMac_.octet[3]     = entry.is.SRC_FILTER.sMacP31_16 & 0xff;
 		 rule->srcFilterMac_.octet[4]     = entry.is.SRC_FILTER.sMacP15_0 >> 8;
 		 rule->srcFilterMac_.octet[5]     = entry.is.SRC_FILTER.sMacP15_0 & 0xff;
-		 if ( entry.is.SRC_FILTER.sMacM3_0&0x8)		 
+		 if ( entry.is.SRC_FILTER.sMacM3_0&0x8)
 	 	{
 			 rule->srcFilterMacMask_.octet[0] = 0xff;
 			 rule->srcFilterMacMask_.octet[1] = 0xff;
@@ -1516,7 +1872,7 @@ l3l4_shared:
 		 rule->srcFilterPortLowerBound_ = entry.is.SRC_FILTER.SPORTLB;
 	 	 rule->ruleType_ = entry.ruleType;
 		 break;
-		 
+
 	case RTL865X_ACL_DSTFILTER: /* Destination Filter */
 	case RTL865X_ACL_DSTFILTER_IPRANGE: /* Destination Filter(IP range) */
 	 	 rule->dstFilterMac_.octet[0]     = entry.is.DST_FILTER.dMacP47_32 >> 8;
@@ -1525,7 +1881,7 @@ l3l4_shared:
 		 rule->dstFilterMac_.octet[3]     = entry.is.DST_FILTER.dMacP31_16 & 0xff;
 		 rule->dstFilterMac_.octet[4]     = entry.is.DST_FILTER.dMacP15_0 >> 8;
 		 rule->dstFilterMac_.octet[5]     = entry.is.DST_FILTER.dMacP15_0 & 0xff;
-		 if ( entry.is.DST_FILTER.dMacM3_0&0x8)		 
+		 if ( entry.is.DST_FILTER.dMacM3_0&0x8)
 	 	{
 			 rule->dstFilterMacMask_.octet[0] = 0xff;
 			 rule->dstFilterMacMask_.octet[1] = 0xff;
@@ -1544,7 +1900,7 @@ l3l4_shared:
   		 	 rule->dstFilterMacMask_.octet[5] = entry.is.DST_FILTER.dMacM3_0;
 	 	}
 
-		
+
 		 rule->dstFilterVlanIdx_ = entry.is.DST_FILTER.vidP;
 		 rule->dstFilterVlanIdxMask_ = entry.is.DST_FILTER.vidM;
 		 if(entry.is.DST_FILTER.protoType == 1) rule->dstFilterIgnoreL3L4_ = 1;
@@ -1554,7 +1910,7 @@ l3l4_shared:
 		 rule->dstFilterPortUpperBound_ = entry.is.DST_FILTER.DPORTUB;
 		 rule->dstFilterPortLowerBound_ = entry.is.DST_FILTER.DPORTLB;
  	 	 rule->ruleType_ = entry.ruleType;
-		 break;		
+		 break;
 	default: return FAILED; /* Unknown rule type */
 
 	}
@@ -1574,13 +1930,13 @@ l3l4_shared:
 	case RTL865X_ACL_MIRROR_KEEP_MATCH:
 		rule->L2Idx_ = entry.nextHop ;
 		rule->netifIdx_ =  entry.vid;
-		rule->pppoeIdx_ = entry.PPPoEIndex;		 
+		rule->pppoeIdx_ = entry.PPPoEIndex;
 		 break;
-		 
+
 	case RTL865X_ACL_DEFAULT_REDIRECT:
-		rule->nexthopIdx_ = entry.nextHop;		
+		rule->nexthopIdx_ = entry.nextHop;
 		break;
-	
+
 	case RTL865X_ACL_DROP_RATE_EXCEED_PPS:
 		rule->ratelimtIdx_ = entry.nextHop;
 		break;
@@ -1596,14 +1952,14 @@ l3l4_shared:
 	case RTL865X_ACL_PRIORITY:
 		rule->priority_ = entry.nextHop;
 		break;
-		
+
 	}
 
 	rule->actionType_ = entry.actionType;
 	rule->pktOpApp_ = entry.pktOpApp;
 
 	return SUCCESS;
-	
+
 }
 
 static int32 _rtl865x_setAclToAsic(int32 startIdx, rtl865x_AclRule_t *rule)
@@ -1648,9 +2004,9 @@ static int32 _rtl865x_setAclToAsic(int32 startIdx, rtl865x_AclRule_t *rule)
 		 entry.is.L3L4.is.IP.FOM = rule->ipFOM_;
 		 entry.is.L3L4.is.IP.HTTPP = entry.is.L3L4.is.IP.HTTPM = rule->ipHttpFilter_;
 		 entry.is.L3L4.is.IP.identSDIPP = entry.is.L3L4.is.IP.identSDIPM = rule->ipIdentSrcDstIp_;
-		 
+
 		 goto l3l4_shared;
-		 
+
 	case RTL865X_ACL_ICMP:
 	case RTL865X_ACL_ICMP_IPRANGE:
 		 entry.is.L3L4.is.ICMP.IPTOSP = rule->tos_;
@@ -1666,8 +2022,8 @@ static int32 _rtl865x_setAclToAsic(int32 startIdx, rtl865x_AclRule_t *rule)
 		 entry.is.L3L4.is.IGMP.IPTOSP = rule->tos_;
 		 entry.is.L3L4.is.IGMP.IPTOSM = rule->tosMask_;
 		 entry.is.L3L4.is.IGMP.IGMPTypeP = rule->igmpType_;
-		 entry.is.L3L4.is.IGMP.IGMPTypeM = rule->igmpTypeMask_; 
-  		
+		 entry.is.L3L4.is.IGMP.IGMPTypeM = rule->igmpTypeMask_;
+
  		 goto l3l4_shared;
 
 	case RTL865X_ACL_TCP:
@@ -1680,7 +2036,7 @@ static int32 _rtl865x_setAclToAsic(int32 startIdx, rtl865x_AclRule_t *rule)
 		 entry.is.L3L4.is.TCP.TCPSPLB = rule->tcpSrcPortLB_;
 		 entry.is.L3L4.is.TCP.TCPDPUB = rule->tcpDstPortUB_;
 		 entry.is.L3L4.is.TCP.TCPDPLB = rule->tcpDstPortLB_;
- 		 
+
          goto l3l4_shared;
 
 	case RTL865X_ACL_UDP:
@@ -1691,7 +2047,7 @@ static int32 _rtl865x_setAclToAsic(int32 startIdx, rtl865x_AclRule_t *rule)
 		 entry.is.L3L4.is.UDP.UDPSPLB = rule->udpSrcPortLB_;
 		 entry.is.L3L4.is.UDP.UDPDPUB = rule->udpDstPortUB_;
 		 entry.is.L3L4.is.UDP.UDPDPLB = rule->udpDstPortLB_;
-  		 
+
 l3l4_shared:
 		 entry.ruleType = rule->ruleType_;
 		 entry.is.L3L4.sIPP = rule->srcIpAddr_;
@@ -1708,14 +2064,14 @@ l3l4_shared:
  		 rule->srcFilterMac_.octet[3] = rule->srcFilterMac_.octet[3] & rule->srcFilterMacMask_.octet[3];
  		 rule->srcFilterMac_.octet[4] = rule->srcFilterMac_.octet[4] & rule->srcFilterMacMask_.octet[4];
  		 rule->srcFilterMac_.octet[5] = rule->srcFilterMac_.octet[5] & rule->srcFilterMacMask_.octet[5];
- 		 
+
 		 entry.is.SRC_FILTER.sMacP47_32 = rule->srcFilterMac_.octet[0]<<8 | rule->srcFilterMac_.octet[1];
 		 entry.is.SRC_FILTER.sMacP31_16 = rule->srcFilterMac_.octet[2]<<8 | rule->srcFilterMac_.octet[3];
 		 entry.is.SRC_FILTER.sMacP15_0 = rule->srcFilterMac_.octet[4]<<8 | rule->srcFilterMac_.octet[5];
 		 entry.is.SRC_FILTER.sMacM3_0 =rule->srcFilterMacMask_.octet[5] &0xf;
 
 		 rule->srcFilterVlanId_ = rule->srcFilterVlanId_ & rule->srcFilterVlanIdMask_;
-		 entry.is.SRC_FILTER.spaP = rule->srcFilterPort_;	
+		 entry.is.SRC_FILTER.spaP = rule->srcFilterPort_;
 		 entry.is.SRC_FILTER.sVidP = rule->srcFilterVlanId_;
 		 entry.is.SRC_FILTER.sVidM = rule->srcFilterVlanIdMask_;
 		 if(rule->srcFilterIgnoreL3L4_)
@@ -1724,7 +2080,7 @@ l3l4_shared:
 		 	entry.is.SRC_FILTER.protoType = 2;
 		 else
 		 	entry.is.SRC_FILTER.protoType = 0;
-		 
+
 		 entry.is.SRC_FILTER.sIPP = rule->srcFilterIpAddr_;
 		 entry.is.SRC_FILTER.sIPM = rule->srcFilterIpAddrMask_;
 		 entry.is.SRC_FILTER.SPORTUB = rule->srcFilterPortUpperBound_;
@@ -1732,7 +2088,7 @@ l3l4_shared:
 
 		 entry.ruleType = rule->ruleType_;
 		 break;
-		 
+
 	case RTL865X_ACL_DSTFILTER:
  	case RTL865X_ACL_DSTFILTER_IPRANGE:
 		 entry.is.DST_FILTER.dMacP47_32 = rule->dstFilterMac_.octet[0]<<8 | rule->dstFilterMac_.octet[1];
@@ -1751,14 +2107,14 @@ l3l4_shared:
 		 entry.is.DST_FILTER.dIPM = rule->dstFilterIpAddrMask_;
 		 entry.is.DST_FILTER.DPORTUB = rule->dstFilterPortUpperBound_;
 		 entry.is.DST_FILTER.DPORTLB = rule->dstFilterPortLowerBound_;
-		 
+
     		 entry.ruleType = rule->ruleType_;
 		 break;
- 
+
 	default: return FAILED; /* Unknown rule type */
-	
+
 	}
-	
+
 	switch(rule->actionType_)
 	{
 	case RTL865X_ACL_PERMIT:
@@ -1772,13 +2128,13 @@ l3l4_shared:
 	case RTL865X_ACL_MIRROR_KEEP_MATCH:
 		 entry.nextHop = rule->L2Idx_;
 		 entry.vid = rule->netifIdx_;
-		 entry.PPPoEIndex = rule->pppoeIdx_;		 
+		 entry.PPPoEIndex = rule->pppoeIdx_;
 		 break;
-		 
+
 	case RTL865X_ACL_DEFAULT_REDIRECT:
-		entry.nextHop = rule->nexthopIdx_;		
+		entry.nextHop = rule->nexthopIdx_;
 		break;
-	
+
 	case RTL865X_ACL_DROP_RATE_EXCEED_PPS:
 		entry.nextHop = rule->ratelimtIdx_;
 		break;
@@ -1794,13 +2150,13 @@ l3l4_shared:
 	case RTL865X_ACL_PRIORITY:
 		entry.nextHop = rule->priority_;
 		break;
-		
+
 	}
 
 	entry.actionType = rule->actionType_;
 	entry.pktOpApp = rule->pktOpApp_;
 
-	
+
 	return _rtl8651_forceAddAsicEntry(TYPE_ACL_RULE_TABLE, startIdx + rule->aclIdx -1, &entry);
 }
 
@@ -1809,6 +2165,22 @@ static int32 _rtl865x_confReservedAcl(void)
 {
 	rtl865x_AclRule_t defAcl;
 
+	/*ipv6 packet trap to cpu*/
+	memset(&defAcl,0,sizeof(rtl865x_AclRule_t));
+	defAcl.ruleType_ = RTL865X_ACL_MAC;
+	defAcl.actionType_		= RTL865X_ACL_TOCPU;
+	defAcl.aclIdx = 1;
+	defAcl.pktOpApp_		= RTL865X_ACL_ALL_LAYER;
+	defAcl.dstMac_.octet[0]=0x33;
+	defAcl.dstMac_.octet[1]=0x33;
+	defAcl.dstMac_.octet[2]=0x00;
+	defAcl.dstMac_.octet[3]=0x00;
+	defAcl.dstMac_.octet[4]=0x00;
+	defAcl.dstMac_.octet[5]=0x00;
+	defAcl.dstMacMask_.octet[0]=0xFF;
+	defAcl.dstMacMask_.octet[1]=0xFF;
+	_rtl865x_setAclToAsic(RTL865X_ACLTBL_IPV6_TO_CPU,&defAcl);
+	
 	/*default permit*/
 	memset(&defAcl,0,sizeof(rtl865x_AclRule_t));
 	defAcl.actionType_ = RTL865X_ACL_PERMIT;
@@ -1832,9 +2204,9 @@ static int32 _rtl865x_confReservedAcl(void)
 	#ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
 	rtl865x_setDefACLForNetDecisionMiss(RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL);
 	#endif
-	
+
 	return SUCCESS;
-	
+
 }
 
 /*
@@ -1862,14 +2234,14 @@ static int32 _rtl865x_setDefACLForAllNetif(uint8 start_ingressAclIdx, uint8 end_
 		netif = &netifTbl[i];
 		if(netif->valid == 0 || netif->is_slave == 1)
 			continue;
-		
+
 		netif->inAclStart = start_ingressAclIdx;
 		netif->inAclEnd = end_ingressAclIdx;
 		netif->outAclStart = start_egressAclIdx;
 		netif->outAclEnd = end_egressAclIdx;
 		_rtl865x_setAsicNetif(netif);
 	}
-#if defined (CONFIG_RTL_LOCAL_PUBLIC)   
+#if defined (CONFIG_RTL_LOCAL_PUBLIC)
 	rtl865x_setDefACLForNetDecisionMiss(start_ingressAclIdx,end_ingressAclIdx,start_egressAclIdx,end_egressAclIdx);
 #endif
 
@@ -1892,7 +2264,7 @@ static int8 _rtl865x_sameAclRule(rtl865x_AclRule_t *rule1, rtl865x_AclRule_t *ru
 	case RTL865X_ACL_MAC:
 		 if (rule1->typeLen_ != rule2->typeLen_ || rule1->typeLenMask_ != rule2->typeLenMask_)
 		 	return FALSE;
-		 if (memcmp(&rule1->dstMac_, &rule2->dstMac_, sizeof(ether_addr_t)) || 
+		 if (memcmp(&rule1->dstMac_, &rule2->dstMac_, sizeof(ether_addr_t)) ||
 		 	 memcmp(&rule1->dstMacMask_, &rule2->dstMacMask_, sizeof(ether_addr_t)) ||
 			 memcmp(&rule1->srcMac_, &rule2->srcMac_, sizeof(ether_addr_t)) ||
 			 memcmp(&rule1->srcMacMask_, &rule2->srcMacMask_, sizeof(ether_addr_t)) )
@@ -1902,27 +2274,27 @@ static int8 _rtl865x_sameAclRule(rtl865x_AclRule_t *rule1, rtl865x_AclRule_t *ru
 	case RTL865X_ACL_IP_RANGE:
 		 if (rule1->ipProto_ != rule2->ipProto_ || rule1->ipProtoMask_ != rule2->ipProtoMask_ ||
 			rule1->ipFlag_ != rule2->ipFlag_ || rule1->ipFlagMask_ != rule2->ipFlagMask_)
-			return FALSE; 
+			return FALSE;
 		break;
-			
+
 	case RTL865X_ACL_ICMP:
 	case RTL865X_ACL_ICMP_IPRANGE:
 		 if (rule1->icmpType_ != rule2->icmpType_ || rule1->icmpTypeMask_ != rule2->icmpTypeMask_ ||
 			rule1->icmpCode_ != rule2->icmpCode_ || rule1->icmpCodeMask_ != rule2->icmpCodeMask_)
-			return FALSE; 
+			return FALSE;
 		 break;
 
 	case RTL865X_ACL_IGMP:
 	case RTL865X_ACL_IGMP_IPRANGE:
 		 if(rule1->igmpType_ != rule2->igmpType_ || rule1->igmpTypeMask_ != rule2->igmpTypeMask_)
-		 	return FALSE; 
+		 	return FALSE;
 		 break;
 	case RTL865X_ACL_TCP:
 	case RTL865X_ACL_TCP_IPRANGE:
 		 if(rule1->tcpFlag_ != rule2->tcpFlag_ || rule1->tcpFlagMask_ != rule2->tcpFlagMask_ ||
 			rule1->tcpSrcPortUB_ != rule2->tcpSrcPortUB_ || rule1->tcpSrcPortLB_ != rule2->tcpSrcPortLB_ ||
 			rule1->tcpDstPortUB_ != rule2->tcpDstPortUB_ || rule1->tcpDstPortLB_ != rule2->tcpDstPortLB_)
-		 	return FALSE; 
+		 	return FALSE;
 		 break;
 	case RTL865X_ACL_UDP:
 	case RTL865X_ACL_UDP_IPRANGE:
@@ -1957,9 +2329,9 @@ static int8 _rtl865x_sameAclRule(rtl865x_AclRule_t *rule1, rtl865x_AclRule_t *ru
 				(rule2->srcFilterIpAddrMask_ != rule2->srcFilterIpAddrMask_))
 				return FALSE;
 		}
-		
+
 		break;
-		
+
 	case RTL865X_ACL_DSTFILTER:
 	case RTL865X_ACL_DSTFILTER_IPRANGE:
 		if(	memcmp(&rule1->dstFilterMac_, &rule2->dstFilterMac_, sizeof(ether_addr_t)) != 0||
@@ -1985,17 +2357,17 @@ static int8 _rtl865x_sameAclRule(rtl865x_AclRule_t *rule1, rtl865x_AclRule_t *ru
 				(rule2->dstFilterIpAddrMask_ != rule2->dstFilterIpAddrMask_))
 				return FALSE;
 		}
-		
+
 		break;
 	default: return FALSE; /* Unknown rule type */
-	
+
 	}
 	/* Compare common part */
 	if (rule1->srcIpAddr_ != rule2->srcIpAddr_ || rule1->srcIpAddrMask_ != rule2->srcIpAddrMask_ ||
 		rule1->dstIpAddr_ != rule2->dstIpAddr_ || rule1->dstIpAddrMask_ != rule2->dstIpAddrMask_ ||
 		rule1->tos_ != rule2->tos_ || rule1->tosMask_ != rule2->tosMask_ )
 		return FALSE;
-	return TRUE;				
+	return TRUE;
 }
 
 
@@ -2003,13 +2375,13 @@ static int32 _rtl865x_addAclToChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t *
 {
 	rtl865x_AclRule_t *addAcl;
 	rtl865x_AclRule_t *tmpRule;
-	
+
 	if(head == NULL || tail == NULL)
 	{
 		return RTL_EINVALIDINPUT;
 	}
 
-	
+
 	if((*head) != NULL)
 	{
 		tmpRule = *head;
@@ -2022,7 +2394,7 @@ static int32 _rtl865x_addAclToChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t *
 			tmpRule = tmpRule->next;
 		}
 	}
-	
+
 	addAcl = freeAclList.freeHead;
 	if(addAcl == NULL)
 		return RTL_ENOFREEBUFFER;
@@ -2030,12 +2402,12 @@ static int32 _rtl865x_addAclToChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t *
 	/*remove acl buffer from freeAclList*/
 	freeAclList.freeHead = freeAclList.freeHead->next;
 	if(freeAclList.freeHead)
-		freeAclList.freeHead->pre = NULL;		
+		freeAclList.freeHead->pre = NULL;
 	freeAclList.freeCnt--;
 
 	memcpy(addAcl,rule,sizeof(rtl865x_AclRule_t));
-	
-	addAcl->pre = addAcl->next = NULL;	
+
+	addAcl->pre = addAcl->next = NULL;
 	if((*head) == NULL)
 	{
 		/*head = null, tail must null*/
@@ -2044,7 +2416,7 @@ static int32 _rtl865x_addAclToChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t *
 		*tail = addAcl;
 	}
 	else
-	{		
+	{
 		if(addAcl->aclIdx == 0 || addAcl->aclIdx > (*tail)->aclIdx)
 		{
 			/*append this rule to tail*/
@@ -2057,7 +2429,7 @@ static int32 _rtl865x_addAclToChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t *
 		else
 		{
 			/*user specified the index, it's means: this rule should be inserted before the rule->aclIdx*/
-			
+
 			tmpRule = *head;
 			while(tmpRule)
 			{
@@ -2066,15 +2438,15 @@ static int32 _rtl865x_addAclToChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t *
 					/*found the rule...*/
 					break;
 				}
-					
+
 				tmpRule = tmpRule->next;
 			}
 
 			if(tmpRule == NULL)
 			{
 				/*not found the correct position, append this rule at the tail??*/
-				
-				
+
+
 				printk("%s(%d): BUG!!!\n",__FUNCTION__,__LINE__);
 
 				addAcl->pre = NULL;
@@ -2101,7 +2473,7 @@ static int32 _rtl865x_addAclToChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t *
 				addAcl->pre = tmpRule->pre;
 				addAcl->next = tmpRule;
 				tmpRule->pre = addAcl;
-			}			
+			}
 
 			/*update aclIdx...*/
 			while(tmpRule)
@@ -2109,7 +2481,7 @@ static int32 _rtl865x_addAclToChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t *
 				tmpRule->aclIdx++;
 				tmpRule = tmpRule->next;
 			}
-			
+
 		}
 	}
 	return SUCCESS;
@@ -2119,7 +2491,7 @@ static int32 _rtl865x_delAclFromChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t
 {
 	rtl865x_AclRule_t *delRule,*nextRule;
 	int8 isSame = FALSE;
-		
+
 	if(head == NULL || tail == NULL)
 	{
 		return RTL_EINVALIDINPUT;
@@ -2143,7 +2515,7 @@ static int32 _rtl865x_delAclFromChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t
 				break;
 			}
 		}
-		
+
 		delRule = delRule->next;
 	}
 
@@ -2159,7 +2531,7 @@ static int32 _rtl865x_delAclFromChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t
 
 	if(delRule == *head)
 		*head = delRule->next;
-	
+
 	if(delRule == *tail)
 		*tail = delRule->pre;
 
@@ -2176,18 +2548,71 @@ static int32 _rtl865x_delAclFromChain(rtl865x_AclRule_t *rule, rtl865x_AclRule_t
 	{
 		nextRule->aclIdx--;
 		nextRule = nextRule->next;
-	}	
+	}
 	return SUCCESS;
 }
 
+static int _rtl865x_checkDefAclAvailable(rtl865x_AclRule_t *endRule)
+{
+	rtl865x_AclRule_t defRule;
+	bzero((void*)&defRule,sizeof(rtl865x_AclRule_t));
+	
+	
+	if(endRule==NULL)
+	{
+		return 0;
+	}
+			
 
+	defRule.ruleType_ = RTL865X_ACL_MAC;
+	defRule.actionType_ 	= RTL865X_ACL_PERMIT;
+	defRule.pktOpApp_		= RTL865X_ACL_ALL_LAYER;
+	
+	if(_rtl865x_sameAclRule(&defRule,endRule)==TRUE)
+	{
+		return 1;
+	}
+
+
+	defRule.actionType_ 	= RTL865X_ACL_TOCPU;
+	if(_rtl865x_sameAclRule(&defRule,endRule)==TRUE)
+	{
+		return 1;
+	}
+
+
+	defRule.actionType_ 	= RTL865X_ACL_DROP;
+	if(_rtl865x_sameAclRule(&defRule,endRule)==TRUE)
+	{
+		return 1;
+	}
+
+	return 0;
+}
+
+
+#if defined(CONFIG_RTL_IPTABLES2ACL_PATCH)
+int32 _rtl865x_synAclwithAsicTbl(void)
+#else
 static int32 _rtl865x_synAclwithAsicTbl(void)
+#endif
 {
 	rtl865x_netif_local_t *netif = NULL;
 	rtl865x_acl_chain_t *chain;
 	rtl865x_AclRule_t *rule;
 	int32 i,startIdx,addCnt,totalAddCnt;
 
+	rtl865x_AclRule_t *preRule=NULL;
+	rtl865x_AclRule_t *endRule=NULL;
+
+	/*prepare default permit acl*/
+	rtl865x_AclRule_t defRule;
+	bzero((void*)&defRule,sizeof(rtl865x_AclRule_t));
+	defRule.aclIdx=1;
+	defRule.ruleType_ = RTL865X_ACL_MAC;
+	defRule.actionType_		= RTL865X_ACL_PERMIT;
+	defRule.pktOpApp_ 		= RTL865X_ACL_ALL_LAYER;
+	
 	//hyking:when rearrange asic acl, permit all first...
 	_rtl865x_setDefACLForAllNetif(RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL);
 	startIdx = 0;
@@ -2196,18 +2621,28 @@ static int32 _rtl865x_synAclwithAsicTbl(void)
 		netif = &netifTbl[i];
 		if(netif->valid)
 		{
+			/*ingress acl*/
 			chain = netif->chainListHead[RTL865X_ACL_INGRESS];
 			totalAddCnt = 0;
 			netif->inAclStart = startIdx;
+			preRule=NULL;
 			while(chain)
 			{
 				addCnt = 0;
-				/*ingress acl*/
+				
 				rule = chain->head;
+				
 				while(rule)
 				{
-					_rtl865x_setAclToAsic(startIdx, rule);					
-					addCnt++;
+					
+					if((preRule==NULL) || (_rtl865x_sameAclRule(preRule,rule)==FALSE))
+					{	
+						_rtl865x_setAclToAsic(startIdx, rule);
+						addCnt++;
+					}
+					
+					preRule=rule;
+					endRule=rule;
 					rule = rule->next;
 				}
 				/*next chain..*/
@@ -2220,46 +2655,84 @@ static int32 _rtl865x_synAclwithAsicTbl(void)
 			if(totalAddCnt > 0)
 			{
 				netif->inAclEnd = netif->inAclStart + totalAddCnt -1;
-//				startIdx += addCnt; 
+//				startIdx += addCnt;
+
+				if(netif->inAclEnd<(RTL865X_ACL_MAX_NUMBER-1))
+				{
+					if(_rtl865x_checkDefAclAvailable(endRule)==0)
+					{
+						/*add default acl to permit all*/
+						_rtl865x_setAclToAsic(startIdx, &defRule);
+						startIdx++;
+						netif->inAclEnd++;
+						
+					}
+					
+				}
+		
 			}
 			else
 				netif->inAclEnd = netif->inAclStart = RTL865X_ACLTBL_PERMIT_ALL; /*default permit...*/
-				
+
 			/*egress acl*/
-			chain = netif->chainListHead[RTL865X_ACL_EGRESS];			
+			chain = netif->chainListHead[RTL865X_ACL_EGRESS];
 			totalAddCnt = 0;
 			netif->outAclStart = startIdx;
+			preRule=NULL;
 			while(chain)
 			{
 				addCnt = 0;
 				rule = chain->head;
 				while(rule)
 				{
-					_rtl865x_setAclToAsic(startIdx, rule);
-					addCnt++;
+					if((preRule==NULL) || (_rtl865x_sameAclRule(preRule,rule)==FALSE))
+					{
+						_rtl865x_setAclToAsic(startIdx, rule);
+						addCnt++;
+					}
+				
+					preRule=rule;
+					endRule=rule;
 					rule = rule->next;
 				}
 				chain = chain->nextChain;
 				startIdx += addCnt;
 				totalAddCnt += addCnt;
 			}
-			
+
 			if(totalAddCnt > 0)
 			{
 				netif->outAclEnd = netif->outAclStart + totalAddCnt -1;
 //				startIdx += addCnt;
+				if(netif->outAclEnd<(RTL865X_ACL_MAX_NUMBER-1))
+				{
+					if(_rtl865x_checkDefAclAvailable(endRule)==0)
+					{
+
+						/*add default acl to permit all*/
+						_rtl865x_setAclToAsic(startIdx, &defRule);
+						startIdx++;
+						netif->outAclEnd++;
+					}
+					
+				}
+
+			
+
 			}
 			else
 				netif->outAclEnd = netif->outAclStart = RTL865X_ACLTBL_PERMIT_ALL; /*default permit...*/
 
-			_rtl865x_setAsicNetif(netif);
 			
-		}		
+
+			_rtl865x_setAsicNetif(netif);
+
+		}
 	}
 
-#if defined (CONFIG_RTL_LOCAL_PUBLIC)	
+#if defined (CONFIG_RTL_LOCAL_PUBLIC)
 	{
-		
+
 		netif = &virtualNetIf;
 		if(netif->valid)
 		{
@@ -2273,7 +2746,7 @@ static int32 _rtl865x_synAclwithAsicTbl(void)
 				rule = chain->head;
 				while(rule)
 				{
-					_rtl865x_setAclToAsic(startIdx, rule);					
+					_rtl865x_setAclToAsic(startIdx, rule);
 					addCnt++;
 					rule = rule->next;
 				}
@@ -2287,14 +2760,14 @@ static int32 _rtl865x_synAclwithAsicTbl(void)
 			if(totalAddCnt > 0)
 			{
 				netif->inAclEnd = netif->inAclStart + totalAddCnt -1;
-//				startIdx += addCnt; 
+//				startIdx += addCnt;
 			}
 			else
 				netif->inAclEnd = netif->inAclStart = RTL865X_ACLTBL_PERMIT_ALL; /*default permit...*/
 
-				
+
 			/*egress acl*/
-			chain = netif->chainListHead[RTL865X_ACL_EGRESS];			
+			chain = netif->chainListHead[RTL865X_ACL_EGRESS];
 			totalAddCnt = 0;
 			netif->outAclStart = startIdx;
 			while(chain)
@@ -2311,7 +2784,7 @@ static int32 _rtl865x_synAclwithAsicTbl(void)
 				startIdx += addCnt;
 				totalAddCnt += addCnt;
 			}
-			
+
 			if(totalAddCnt > 0)
 			{
 				netif->outAclEnd = netif->outAclStart + totalAddCnt -1;
@@ -2321,7 +2794,7 @@ static int32 _rtl865x_synAclwithAsicTbl(void)
 				netif->outAclEnd = netif->outAclStart = RTL865X_ACLTBL_PERMIT_ALL; /*default permit...*/
 			 //printk("netif->inAclStart is %d,netif->inAclEnd is %d,netif->outAclStart is %d, netif->outAclEnd is %d\n",netif->inAclStart,netif->inAclEnd,netif->outAclStart, netif->outAclEnd);
 			 rtl865x_setDefACLForNetDecisionMiss(netif->inAclStart, netif->inAclEnd, netif->outAclStart, netif->outAclEnd);
-		}		
+		}
 	}
 #endif
 	return SUCCESS;
@@ -2334,18 +2807,18 @@ static int32 _rtl865x_regist_aclChain(char *netifName, int32 priority,uint32 fla
 	rtl865x_netif_local_t *netif;
 	rtl865x_acl_chain_t *addEntry,*chainEntry;
 	uint32 aclDir = RTL865X_ACL_INGRESS;/*default :RTL865X_ACL_INGRESS*/
-	
+
 	netif = _rtl865x_getNetifByName(netifName);
 
 	if(netif == NULL)
-		return RTL_ENETIFINVALID;	
+		return RTL_ENETIFINVALID;
 
 	if(flag == RTL865X_ACL_EGRESS)
-		aclDir = RTL865X_ACL_EGRESS;	
+		aclDir = RTL865X_ACL_EGRESS;
 
 	chainEntry = netif->chainListHead[aclDir];
 
-	
+
 	while(chainEntry)
 	{
 		if(chainEntry->priority < priority)
@@ -2376,7 +2849,7 @@ static int32 _rtl865x_regist_aclChain(char *netifName, int32 priority,uint32 fla
 
 	if(chainEntry)
 	{
-		/*insert addentry before the chainEntry*/		
+		/*insert addentry before the chainEntry*/
 		addEntry->nextChain = chainEntry;
 		addEntry->preChain = chainEntry->preChain;
 
@@ -2387,8 +2860,8 @@ static int32 _rtl865x_regist_aclChain(char *netifName, int32 priority,uint32 fla
 			/*insert before head???*/
 			netif->chainListHead[aclDir] = addEntry;
 		}
-		
-		chainEntry->preChain = addEntry;		
+
+		chainEntry->preChain = addEntry;
 	}
 	else
 	{
@@ -2402,7 +2875,7 @@ static int32 _rtl865x_regist_aclChain(char *netifName, int32 priority,uint32 fla
 			{
 				if(chainEntry->nextChain == NULL)
 					break;
-				
+
 				chainEntry = chainEntry->nextChain;
 			}
 
@@ -2425,18 +2898,18 @@ static int32 _rtl865x_unRegist_aclChain(char *netifName,int32 priority, uint32 f
 	rtl865x_AclRule_t *aclRule;
 	rtl865x_acl_chain_t *chainEntry;
 	uint32 aclDir = RTL865X_ACL_INGRESS;/*default :RTL865X_ACL_INGRESS*/
-	
+
 	netif = _rtl865x_getNetifByName(netifName);
 
 	if(netif == NULL)
-		return RTL_ENETIFINVALID;	
+		return RTL_ENETIFINVALID;
 
 	if(flag == RTL865X_ACL_EGRESS)
-		aclDir = RTL865X_ACL_EGRESS;	
+		aclDir = RTL865X_ACL_EGRESS;
 
 	chainEntry = netif->chainListHead[aclDir];
 
-	
+
 	while(chainEntry)
 	{
 		if(chainEntry->priority == priority)
@@ -2457,26 +2930,26 @@ static int32 _rtl865x_unRegist_aclChain(char *netifName,int32 priority, uint32 f
 	}
 
 	chainEntry->ruleCnt = 0;
-	
+
 	if(chainEntry->nextChain)
 		chainEntry->nextChain->preChain = chainEntry->preChain;
-	
+
 	if(chainEntry->preChain)
 		chainEntry->preChain->nextChain = chainEntry->nextChain;
 	else
-		/*remove head???*/	
+		/*remove head???*/
 		netif->chainListHead[aclDir] = chainEntry->nextChain;
 
-	
+
 	memset(chainEntry,0,sizeof(rtl865x_acl_chain_t));
 
 	chainEntry->nextChain = freeChainHead;
 	if (freeChainHead)
-		freeChainHead->preChain = chainEntry;	
+		freeChainHead->preChain = chainEntry;
 	freeChainHead = chainEntry;
 
 	_rtl865x_synAclwithAsicTbl();
-	
+
 	return SUCCESS;
 }
 
@@ -2488,16 +2961,16 @@ static int32 _rtl865x_flush_allAcl_fromChain(char *netifName,int32 priority, uin
 	uint32 aclDir = RTL865X_ACL_INGRESS;/*default :RTL865X_ACL_INGRESS*/
 
 	if(flag == RTL865X_ACL_EGRESS)
-		aclDir = RTL865X_ACL_EGRESS;	
+		aclDir = RTL865X_ACL_EGRESS;
 
 	if(netifName && netifName[0] != '\0')
 	{
 		netif = _rtl865x_getNetifByName(netifName);
 
 		if(netif == NULL)
-			return RTL_ENETIFINVALID;	
+			return RTL_ENETIFINVALID;
 
-		chainEntry = netif->chainListHead[aclDir];		
+		chainEntry = netif->chainListHead[aclDir];
 		while(chainEntry)
 		{
 			if(chainEntry->priority == priority)
@@ -2526,10 +2999,10 @@ static int32 _rtl865x_flush_allAcl_fromChain(char *netifName,int32 priority, uin
 		int32 i;
 		for(i = 0 ; i < NETIF_NUMBER; i++)
 		{
-			netif = &netifTbl[i];	
+			netif = &netifTbl[i];
 			if(netif->valid)
 			{
-				chainEntry = netif->chainListHead[aclDir];	
+				chainEntry = netif->chainListHead[aclDir];
 				while(chainEntry)
 				{
 					if(chainEntry->priority == priority)
@@ -2555,7 +3028,7 @@ static int32 _rtl865x_flush_allAcl_fromChain(char *netifName,int32 priority, uin
 	}
 
 	_rtl865x_synAclwithAsicTbl();
-	
+
 	return SUCCESS;
 }
 
@@ -2568,16 +3041,16 @@ static rtl865x_AclRule_t* _rtl865x_matched_layer4_aclChain(char *netifName,int32
 	uint32 aclDir = RTL865X_ACL_INGRESS;/*default :RTL865X_ACL_INGRESS*/
 
 	if(flag == RTL865X_ACL_EGRESS)
-		aclDir = RTL865X_ACL_EGRESS;	
+		aclDir = RTL865X_ACL_EGRESS;
 
 	if(netifName && netifName[0] != '\0')
 	{
 		netif = _rtl865x_getNetifByName(netifName);
 
 		if(netif == NULL)
-			return NULL;	
+			return NULL;
 
-		chainEntry = netif->chainListHead[aclDir];		
+		chainEntry = netif->chainListHead[aclDir];
 		while(chainEntry)
 		{
 			if(chainEntry->priority == priority)
@@ -2689,16 +3162,16 @@ static rtl865x_AclRule_t* _rtl865x_matched_layer2_aclChain(char *netifName,int32
 	uint32 aclDir = RTL865X_ACL_INGRESS;/*default :RTL865X_ACL_INGRESS*/
 
 	if(flag == RTL865X_ACL_EGRESS)
-		aclDir = RTL865X_ACL_EGRESS;	
+		aclDir = RTL865X_ACL_EGRESS;
 
 	if(netifName && netifName[0] != '\0')
 	{
 		netif = _rtl865x_getNetifByName(netifName);
 
 		if(netif == NULL)
-			return NULL;	
+			return NULL;
 
-		chainEntry = netif->chainListHead[aclDir];		
+		chainEntry = netif->chainListHead[aclDir];
 		while(chainEntry)
 		{
 			if(chainEntry->priority == priority)
@@ -2747,10 +3220,10 @@ static int32 _rtl865x_unRegister_all_aclChain(char *netifName)
 	rtl865x_AclRule_t *aclRule;
 	rtl865x_acl_chain_t *chainEntry;
 	uint32 aclDir = RTL865X_ACL_INGRESS;
-		
+
 	netif = _rtl865x_getNetifByName(netifName);
 	if(netif == NULL)
-		return RTL_ENETIFINVALID;	
+		return RTL_ENETIFINVALID;
 
 	for(aclDir = RTL865X_ACL_INGRESS; aclDir <= RTL865X_ACL_EGRESS; aclDir++)
 	{
@@ -2765,16 +3238,16 @@ static int32 _rtl865x_unRegister_all_aclChain(char *netifName)
 				aclRule = chainEntry->head;
 			}
 
-			chainEntry->ruleCnt = 0;			
+			chainEntry->ruleCnt = 0;
 			netif->chainListHead[aclDir] = chainEntry->nextChain;
 
 			/*remove to freelist*/
 			chainEntry->nextChain = freeChainHead;
 			if(freeChainHead)
-				freeChainHead->preChain = chainEntry;	
+				freeChainHead->preChain = chainEntry;
 			freeChainHead = chainEntry;
 
-			chainEntry = netif->chainListHead[aclDir];			
+			chainEntry = netif->chainListHead[aclDir];
 		}
 	}
 
@@ -2813,7 +3286,7 @@ static int32 _rtl865x_add_acl(rtl865x_AclRule_t *rule, char *netifName,int32 cha
 		netif = _rtl865x_getNetifByName(netifName);
 		if(netif == NULL)
 			return RTL_EINVALIDINPUT;
-	
+
 		chain = _rtl865x_find_aclChain_byPriority(netif->chainListHead[rule->direction_],chainNo);
 		if(chain == NULL)
 			return RTL_EENTRYNOTFOUND;
@@ -2842,7 +3315,7 @@ static int32 _rtl865x_add_acl(rtl865x_AclRule_t *rule, char *netifName,int32 cha
 				if(memcmp(netif->name,netifName,strlen(netifName)) == 0)
 					continue;
 			}
-			
+
 			/*add rule to netif*/
 			{
 				chain = _rtl865x_find_aclChain_byPriority(netif->chainListHead[rule->direction_],chainNo);
@@ -2858,11 +3331,11 @@ static int32 _rtl865x_add_acl(rtl865x_AclRule_t *rule, char *netifName,int32 cha
 			}
 		}
 	}
-	
+
 	if(isSynAsic == 1)
 		_rtl865x_synAclwithAsicTbl();
-	
-	return retval;	
+
+	return retval;
 }
 
 static int32 _rtl865x_del_acl(rtl865x_AclRule_t *rule, char *netifName,int32 chainNo)
@@ -2874,7 +3347,7 @@ static int32 _rtl865x_del_acl(rtl865x_AclRule_t *rule, char *netifName,int32 cha
 
 	if(rule == NULL)
 		return RTL_EINVALIDINPUT;
-	
+
 	if(netifName)
 	{
 		netif = _rtl865x_getNetifByName(netifName);
@@ -2888,7 +3361,7 @@ static int32 _rtl865x_del_acl(rtl865x_AclRule_t *rule, char *netifName,int32 cha
 		chain = _rtl865x_find_aclChain_byPriority(netif->chainListHead[rule->direction_],chainNo);
 		if(chain == NULL)
 			return RTL_EENTRYNOTFOUND;
-		
+
 		retval = _rtl865x_delAclFromChain(rule, &(chain->head), &(chain->tail));
 		if(retval == SUCCESS)
 		{
@@ -2902,7 +3375,7 @@ static int32 _rtl865x_del_acl(rtl865x_AclRule_t *rule, char *netifName,int32 cha
 		int32 i;
 		for(i = 0 ; i < NETIF_NUMBER; i++)
 		{
-			netif = &netifTbl[i];	
+			netif = &netifTbl[i];
 			if(netif->valid)
 			{
 				chain = _rtl865x_find_aclChain_byPriority(netif->chainListHead[rule->direction_],chainNo);
@@ -2920,9 +3393,9 @@ static int32 _rtl865x_del_acl(rtl865x_AclRule_t *rule, char *netifName,int32 cha
 
 	if(isSynAsic == 1)
 		_rtl865x_synAclwithAsicTbl();
-	
-	return retval;	
-	
+
+	return retval;
+
 }
 
 /*
@@ -2949,7 +3422,7 @@ ingress acl head--->acl chain(priority0)--->acl chain(priority1)--->acl chain(pr
 					|->acl rule3			|->acl rule3			|->aclrule3
 					|->acl rule4								|->aclrule4
 					|->acl rule5								|->aclrule5
-					
+
 
 */
 int32 rtl865x_regist_aclChain(char *netifName, int32 priority, uint32 flag)
@@ -2990,6 +3463,182 @@ int32 rtl865x_flush_allAcl_fromChain(char *netifName, int32 priority, uint32 fla
 	return _rtl865x_flush_allAcl_fromChain(netifName, priority, flag);
 }
 
+#if defined(CONFIG_RTL_IPTABLES2ACL_PATCH)
+
+static int32 _rtl865x_flush_allAcl_sw_fromChain(char *netifName,int32 priority, uint32 flag)
+{
+	rtl865x_netif_local_t *netif;
+	rtl865x_AclRule_t *aclRule;
+	rtl865x_acl_chain_t *chainEntry;
+	uint32 aclDir = RTL865X_ACL_INGRESS;/*default :RTL865X_ACL_INGRESS*/
+
+	if(flag == RTL865X_ACL_EGRESS)
+		aclDir = RTL865X_ACL_EGRESS;
+
+	if(netifName && netifName[0] != '\0')
+	{
+		netif = _rtl865x_getNetifByName(netifName);
+
+		if(netif == NULL)
+			return RTL_ENETIFINVALID;
+
+		chainEntry = netif->chainListHead[aclDir];
+		while(chainEntry)
+		{
+			if(chainEntry->priority == priority)
+				break;
+			chainEntry = chainEntry->nextChain;
+		}
+
+		if(chainEntry == NULL)
+			return RTL_EENTRYNOTFOUND;
+
+		/*remove all aclrule*/
+		aclRule = chainEntry->head;
+		while(aclRule)
+		{
+			_rtl865x_delAclFromChain(aclRule, &chainEntry->head, &chainEntry->tail);
+			aclRule = chainEntry->head;
+			chainEntry->ruleCnt--;
+		}
+
+		chainEntry->ruleCnt = 0;
+
+	}
+	else
+	{
+		/*add this rule to every netif*/
+		int32 i;
+		for(i = 0 ; i < NETIF_NUMBER; i++)
+		{
+			netif = &netifTbl[i];
+			if(netif->valid)
+			{
+				chainEntry = netif->chainListHead[aclDir];
+				while(chainEntry)
+				{
+					if(chainEntry->priority == priority)
+						break;
+					chainEntry = chainEntry->nextChain;
+				}
+
+				if(chainEntry == NULL)
+					continue;
+
+				/*remove all aclrule*/
+				aclRule = chainEntry->head;
+				while(aclRule)
+				{
+					_rtl865x_delAclFromChain(aclRule, &chainEntry->head, &chainEntry->tail);
+					aclRule = chainEntry->head;
+					chainEntry->ruleCnt--;
+				}
+
+				chainEntry->ruleCnt = 0;
+			}
+		}
+	}
+
+	//_rtl865x_synAclwithAsicTbl();
+	return SUCCESS;
+}
+
+int32 rtl865x_flush_allAcl_sw_fromChain(char *netifName, int32 priority, uint32 flag)
+{
+	return _rtl865x_flush_allAcl_sw_fromChain(netifName, priority, flag);
+}
+
+static int32 _rtl865x_add_sw_acl(rtl865x_AclRule_t *rule, char *netifName,int32 chainNo)
+{
+	rtl865x_netif_local_t *netif = NULL;
+	rtl865x_acl_chain_t *chain = NULL;
+	int32 isSynAsic = 0;
+	int32 retval = FAILED;
+
+	if(rule == NULL)
+		return RTL_EINVALIDINPUT;
+
+	if(netifName && netifName[0] != '\0' && (rule->inv_flag == 0))
+	{
+		netif = _rtl865x_getNetifByName(netifName);
+		if(netif == NULL)
+			return RTL_EINVALIDINPUT;
+
+		chain = _rtl865x_find_aclChain_byPriority(netif->chainListHead[rule->direction_],chainNo);
+		if(chain == NULL)
+			return RTL_EENTRYNOTFOUND;
+
+		retval = _rtl865x_addAclToChain(rule, &(chain->head), &(chain->tail));
+		if(retval == SUCCESS)
+		{
+			isSynAsic = 1;
+			chain->ruleCnt++;
+		}
+	}
+	else
+	{
+		/*add this rule to every netif*/
+		int32 i;
+		for(i = 0 ; i < NETIF_NUMBER; i++)
+		{
+			netif = &netifTbl[i];
+			if(netif->valid == 0)
+				continue;
+
+			/*inv_flag != 0, means alc should add to the other netifs else netifName*/
+			/*now: the inv_flag only should be RTL865X_INVERT_IN_NETIF or RTL865X_INVERT_OUT_NETIF*/
+			if(netifName && netifName[0] != '\0' && rule->inv_flag != 0)
+			{
+				if(memcmp(netif->name,netifName,strlen(netifName)) == 0)
+					continue;
+			}
+
+			/*add rule to netif*/
+			{
+				chain = _rtl865x_find_aclChain_byPriority(netif->chainListHead[rule->direction_],chainNo);
+				if(chain == NULL)
+					continue;
+
+				retval = _rtl865x_addAclToChain(rule, &(chain->head), &(chain->tail));
+				if(retval == SUCCESS)
+				{
+					isSynAsic = 1;
+					chain->ruleCnt++;
+				}
+			}
+		}
+	}
+
+	//if(isSynAsic == 1)
+		//_rtl865x_synAclwithAsicTbl();
+
+	return retval;
+}
+
+
+int32 rtl865x_add_sw_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
+{
+	int32 retval = FAILED;
+	unsigned long flags;
+	//printk("********%s(%d)*********,netif(%s),priority(%d)\n",__FUNCTION__,__LINE__,netifName,priority);
+#if defined(CONFIG_RTK_VLAN_SUPPORT)
+	if(rtl865x_acl_enable == 0)
+		return retval;
+#endif
+	//rtl_down_interruptible(&netif_sem);
+	local_irq_save(flags);
+	retval = _rtl865x_add_sw_acl(rule,netifName,priority);
+	if(retval == RTL_ENOFREEBUFFER){	// acl entries is full.
+		_rtl865x_setDefACLForAllNetif(RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL);
+	}
+	//rtl_up(&netif_sem);
+	local_irq_restore(flags);
+	//printk("********%s(%d)*********retval(%d)\n",__FUNCTION__,__LINE__,retval);
+	return retval;
+}
+
+#endif
+
 rtl865x_AclRule_t* rtl865x_matched_layer4_aclChain(char *netifName,int32 priority, uint32 flag, rtl865x_AclRule_t *match)
 {
 	return _rtl865x_matched_layer4_aclChain(netifName, priority, flag, match);
@@ -3025,7 +3674,7 @@ int32 rtl865x_init_acl_chain(void)
 	rtl865x_acl_chain_t *entry;
 
 	freeChainHead = NULL;
-		
+
 	TBL_MEM_ALLOC(entry, rtl865x_acl_chain_t, RTL865X_ACL_CHAIN_NUMBER);
 
 	for(i = 0; i<RTL865X_ACL_CHAIN_NUMBER;i++)
@@ -3040,7 +3689,7 @@ int32 rtl865x_init_acl_chain(void)
 			freeChainHead->preChain = &entry[i];
 		freeChainHead = &entry[i];
 	}
-	
+
 	return SUCCESS;
 }
 
@@ -3056,7 +3705,7 @@ int32 rtl865x_init_acl(void)
 	rtl865x_AclRule_t *aclEntry;
 
 	freeAclList.freeHead = NULL;
-		
+
 	TBL_MEM_ALLOC(aclEntry, rtl865x_AclRule_t, RTL865X_ACL_MAX_NUMBER);
 
 	for(i = 0; i<RTL865X_ACL_MAX_NUMBER;i++)
@@ -3067,11 +3716,11 @@ int32 rtl865x_init_acl(void)
 		if(freeAclList.freeHead)
 			freeAclList.freeHead->pre = &aclEntry[i];
 		freeAclList.freeHead = &aclEntry[i];
-			
+
 		freeAclList.totalCnt++;
-		freeAclList.freeCnt++;		
+		freeAclList.freeCnt++;
 	}
-	
+
 	_rtl865x_confReservedAcl();
 	/*init acl chains*/
 	rtl865x_init_acl_chain();
@@ -3093,9 +3742,9 @@ int32 rtl865x_init_acl(void)
 	ACL rule structure: please refer in header file.
 */
 int32 rtl865x_add_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
-{	
+{
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags;
 	//printk("********%s(%d)*********,netif(%s),priority(%d)\n",__FUNCTION__,__LINE__,netifName,priority);
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
 	if(rtl865x_acl_enable == 0)
@@ -3103,14 +3752,14 @@ int32 rtl865x_add_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
 #endif
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
-	retval = _rtl865x_add_acl(rule,netifName,priority);	
+	retval = _rtl865x_add_acl(rule,netifName,priority);
 	if(retval == RTL_ENOFREEBUFFER){	// acl entries is full.
 		_rtl865x_setDefACLForAllNetif(RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL);
 	}
 	//rtl_up(&netif_sem);
 	local_irq_restore(flags);
 	//printk("********%s(%d)*********retval(%d)\n",__FUNCTION__,__LINE__,retval);
-	return retval;	
+	return retval;
 }
 
 /*
@@ -3126,22 +3775,22 @@ int32 rtl865x_add_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
 	ACL rule structure: please refer in header file.
 */
 int32 rtl865x_del_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority)
-{	
+{
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
-	retval = _rtl865x_del_acl(rule,netifName,priority);	
+	retval = _rtl865x_del_acl(rule,netifName,priority);
 	//rtl_up(&netif_sem);
 	local_irq_restore(flags);
-	return retval;		
+	return retval;
 }
 
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
 int32 rtl865x_enable_acl(uint32 enable)
 {
 	if(enable)
-	{		
+	{
 		rtl865x_acl_enable = 1;
 		_rtl865x_setDefACLForAllNetif(RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL,RTL865X_ACLTBL_PERMIT_ALL);
 	}
@@ -3158,27 +3807,27 @@ int32 rtl865x_enable_acl(uint32 enable)
 
 int  rtl865x_add_pattern_acl_for_contentFilter(rtl865x_AclRule_t *rule,char *netifName)
 {
-	uint32 i;     
-	//### add by sen_liu 2011.5.4 to get wan prot  
+	uint32 i;
+	//### add by sen_liu 2011.5.4 to get wan prot
 	rtl865x_netif_local_t	*netif;
 	rtl865x_vlan_entry_t	*vlan;
-	union 
+	union
 	{
 		char pat[4];
 		uint32 pattern;
 	}u;
-		
+
 	if(rule == NULL)
-		return FAILED;	
-        
-        rtl865x_add_acl(rule, netifName, RTL865X_ACL_SYSTEM_USED);                
+		return FAILED;
+
+        rtl865x_add_acl(rule, netifName, RTL865X_ACL_SYSTEM_USED);
  		netif = _rtl865x_getNetifByName(netifName);
         if(netif == NULL)
         	return FAILED;
         vlan = _rtl8651_getVlanTableEntry(netif->vid);
         if(vlan == NULL)
         	return FAILED;
-        
+
         u.pat[0]='T';
         u.pat[1]='T';
         u.pat[2]='P';
@@ -3189,36 +3838,36 @@ int  rtl865x_add_pattern_acl_for_contentFilter(rtl865x_AclRule_t *rule,char *net
 				if(rtl8651_setAsicPortPatternMatch(i, u.pattern, 0xffffffff, 0x2)!=SUCCESS)
 					return FAILED;
 			}
-               
+
         }
-		
+
         return SUCCESS;
 }
 
 int  rtl865x_del_pattern_acl_for_contentFilter(rtl865x_AclRule_t *rule,char *netifName)
-{ 
-	union 
+{
+	union
 	{
 		char pat[4];
 		uint32 pattern;
-	}u;                     
+	}u;
 	int32 i;
 
 	rtl865x_netif_local_t	*netif;
 	rtl865x_vlan_entry_t	*vlan;
-	
+
 	if(rule == NULL)
-		return FAILED;	
-	
+		return FAILED;
+
 	rtl865x_del_acl(rule, netifName, RTL865X_ACL_SYSTEM_USED);
-	
+
 	netif = _rtl865x_getNetifByName(netifName);
         if(netif == NULL)
         	return FAILED;
         vlan = _rtl8651_getVlanTableEntry(netif->vid);
         if(vlan == NULL)
         	return FAILED;
-			
+
 	u.pat[0]='T';
 	u.pat[1]='T';
 	u.pat[2]='P';
@@ -3227,7 +3876,7 @@ int  rtl865x_del_pattern_acl_for_contentFilter(rtl865x_AclRule_t *rule,char *net
 	{
 		if (vlan->memberPortMask & 1<<i) {
 				rtl8651_setAsicPortPatternMatch(i, 0, 0, 0x2);
-			}	
+			}
 	}
 
 	return SUCCESS;
@@ -3265,7 +3914,7 @@ int32 rtl865x_detachMasterNetif(char *slave)
 int32 rtl865x_addNetif(rtl865x_netif_t *netif)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	retval = _rtl865x_addNetif(netif);
@@ -3281,12 +3930,12 @@ int32 rtl865x_addNetif(rtl865x_netif_t *netif)
 @rvalue RTL_EENTRYNOTFOUND | network interface is NOT found
 @rvalue RTL_EREFERENCEDBYOTHER | netif is referenced by onter table entry
 @rvalue FAILED | Failed
-@comm	
+@comm
 */
 int32 rtl865x_delNetif(char *ifName)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	retval = _rtl865x_delNetif(ifName);
@@ -3319,7 +3968,7 @@ int32 rtl865x_addVirtualNetif(rtl865x_netif_t *netif)
 	entry->inAclEnd = entry->inAclStart = entry->outAclEnd = entry->outAclStart = RTL865X_ACLTBL_PERMIT_ALL; /*default permit...*/
 	entry->refCnt = 1;
 
-	
+
 #ifdef 	CONFIG_RTL_LAYERED_DRIVER_ACL
 	entry->chainListHead[RTL865X_ACL_INGRESS] = NULL;
 	entry->chainListHead[RTL865X_ACL_EGRESS] = NULL;
@@ -3338,7 +3987,7 @@ int32 rtl865x_addVirtualNetif(rtl865x_netif_t *netif)
 int32 rtl865x_delVirtualNetif(char *ifName)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	retval = _rtl865x_delNetif(ifName);
@@ -3360,7 +4009,7 @@ when other table entry refer network interface table entry, please call this API
 int32 rtl865x_referNetif(char *ifName)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	retval = _rtl865x_referNetif(ifName);
@@ -3375,13 +4024,13 @@ int32 rtl865x_referNetif(char *ifName)
 @rvalue SUCCESS | Success.
 @rvalue RTL_EENTRYNOTFOUND | network interface is NOT found
 @rvalue FAILED | Failed
-@comm	
+@comm
 this API should be called after rtl865x_referNetif.
 */
 int32 rtl865x_deReferNetif(char *ifName)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	retval = _rtl865x_deReferNetif(ifName);
@@ -3397,12 +4046,12 @@ int32 rtl865x_deReferNetif(char *ifName)
 @rvalue SUCCESS | Success.
 @rvalue RTL_EENTRYNOTFOUND | network interface is NOT found
 @rvalue FAILED | Failed
-@comm	
+@comm
 */
 int32 rtl865x_setNetifVid(char *name, uint16 vid)
 {
 	int32 ret;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	ret = _rtl865x_setNetifVid(name,vid);
@@ -3416,11 +4065,11 @@ int32 rtl865x_setPortToNetif(char *name,uint32 port)
 	int32 ret;
 	rtl865x_netif_local_t *entry;
 	entry = _rtl865x_getNetifByName(name);
-	
+
 	if(entry == NULL)
 		return FAILED;
 
-	ret = rtl8651_setPortToNetif(port, entry->asicIdx);	
+	ret = rtl8651_setPortToNetif(port, entry->asicIdx);
 	return ret;
 }
 
@@ -3431,12 +4080,12 @@ int32 rtl865x_setPortToNetif(char *name,uint32 port)
 @rvalue SUCCESS | Success.
 @rvalue RTL_EENTRYNOTFOUND | network interface is NOT found
 @rvalue FAILED | Failed
-@comm	
+@comm
 */
 int32 rtl865x_setNetifType(char *name, uint32 ifType)
 {
 	int32 ret;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	ret = _rtl865x_setNetifType(name,ifType);
@@ -3451,12 +4100,12 @@ int32 rtl865x_setNetifType(char *name, uint32 ifType)
 @rvalue SUCCESS | Success.
 @rvalue RTL_EENTRYNOTFOUND | network interface is NOT found
 @rvalue FAILED | Failed
-@comm	
+@comm
 */
 int32 rtl865x_setNetifMac(rtl865x_netif_t *netif)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	retval = _rtl865x_setNetifMac(netif);
@@ -3471,16 +4120,16 @@ int32 rtl865x_setNetifMac(rtl865x_netif_t *netif)
 @rvalue SUCCESS | Success.
 @rvalue RTL_EENTRYNOTFOUND | network interface is NOT found
 @rvalue FAILED | Failed
-@comm	
+@comm
 */
 int32 rtl865x_setNetifMtu(rtl865x_netif_t *netif)
 {
 	int32 retval = FAILED;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	retval = _rtl865x_setNetifMtu(netif);
-	//rtl_up(&netif_sem);	
+	//rtl_up(&netif_sem);
 	local_irq_restore(flags);
 	return retval;
 }
@@ -3493,7 +4142,7 @@ int32 rtl865x_setNetifMtu(rtl865x_netif_t *netif)
 */
 int32 rtl865x_initNetifTable(void)
 {
-	TBL_MEM_ALLOC(netifTbl, rtl865x_netif_local_t, NETIF_NUMBER);	
+	TBL_MEM_ALLOC(netifTbl, rtl865x_netif_local_t, NETIF_NUMBER);
 	memset(netifTbl,0,sizeof(rtl865x_netif_local_t)*NETIF_NUMBER);
 #ifdef CONFIG_RTL_LAYERED_DRIVER_ACL
 	/*init reserved acl in function init_acl...*/
@@ -3506,7 +4155,7 @@ int32 rtl865x_initNetifTable(void)
 #endif
 	rtl_get_drv_netifName_by_psName = NULL;
 
-	return SUCCESS;	
+	return SUCCESS;
 }
 
 int32 rtl865x_config_callback_for_get_drv_netifName(int (*fun)(const char *psName,char *netifName))
@@ -3519,14 +4168,14 @@ int32 rtl865x_get_drvNetifName_by_psName(const char *psName,char *netifName)
 {
 	if(strlen(psName) >= MAX_IFNAMESIZE)
 		return FAILED;
-	
+
 	if(rtl_get_drv_netifName_by_psName)
 		rtl_get_drv_netifName_by_psName(psName,netifName);
 	else
 	{
 		memcpy(netifName,psName,MAX_IFNAMESIZE);
 	}
-	
+
 	return SUCCESS;
 }
 
@@ -3536,12 +4185,12 @@ int32 rtl865x_get_drvNetifName_by_psName(const char *psName,char *netifName)
 @rvalue SUCCESS | Success.
 @rvalue RTL_EINVALIDINPUT | input is invalid
 @rvalue FAILED | Failed
-@comm	
+@comm
 */
 int32 rtl865x_enableNetifRouting(rtl865x_netif_local_t *netif)
 {
 	int32 retval = FAILED;
-	
+
 	if(netif == NULL)
 		return RTL_EINVALIDINPUT;
 	if(netif ->enableRoute == 1)
@@ -3558,15 +4207,15 @@ int32 rtl865x_enableNetifRouting(rtl865x_netif_local_t *netif)
 @rvalue SUCCESS | Success.
 @rvalue RTL_EINVALIDINPUT | input is invalid
 @rvalue FAILED | Failed
-@comm	
+@comm
 */
 int32 rtl865x_disableNetifRouting(rtl865x_netif_local_t *netif)
 {
 	int32 retval = FAILED;
-	
+
 	if(netif == NULL)
 		return RTL_EINVALIDINPUT;
-	
+
 	if(netif ->enableRoute == 0)
 		return SUCCESS;
 
@@ -3581,12 +4230,12 @@ int32 rtl865x_disableNetifRouting(rtl865x_netif_local_t *netif)
 @rvalue SUCCESS | Success.
 @rvalue RTL_EINVALIDINPUT | input is invalid
 @rvalue FAILED | Failed
-@comm	
+@comm
 */
 int32 rtl865x_reinitNetifTable(void)
 {
 	int32 i;
-	unsigned long flags;	
+	unsigned long flags;
 	//rtl_down_interruptible(&netif_sem);
 	local_irq_save(flags);
 	for(i = 0; i < NETIF_NUMBER; i++)
@@ -3620,7 +4269,7 @@ uint32 rtl865x_getExternalPortMask(void)
 
 	for(i = 0; i < NETIF_NUMBER; i++)
 	{
-		netif = &netifTbl[i];		
+		netif = &netifTbl[i];
 		if((netif->valid == 1) && (netif->is_wan==1))
 		{
 			externalPortMask|=rtl865x_getVlanPortMask(netif->vid);
@@ -3645,10 +4294,10 @@ int32 rtl865x_getNetifVid(char *name, uint32 *vid)
 	{
 		return FAILED;
 	}
-	
+
 	*vid=(uint32)(entry->vid);
 	return SUCCESS;
-	
+
 }
 
 int32 rtl865x_getNetifType(char *name,uint32 *type)
@@ -3664,17 +4313,17 @@ int32 rtl865x_getNetifType(char *name,uint32 *type)
 	{
 		return FAILED;
 	}
-	
+
 	entry = _rtl865x_getNetifByName(name);
 
 	if(entry == NULL)
 	{
 		return FAILED;
 	}
-	
+
 	*type=(uint32)(entry->if_type);
 	return SUCCESS;
-	
+
 }
 #endif
 
@@ -3713,7 +4362,7 @@ int32 rtl865x_acl_test(int32 testNo)
 			printk("====================================\n");
 
 			retval = _rtl865x_unRegist_aclChain(RTL_DRV_LAN_NETIF_NAME, -500, RTL865X_ACL_INGRESS);
-			
+
 			chain = netif->chainListHead[RTL865X_ACL_INGRESS];
 			cnt = 0;
 			printk("=============after unregist the chain================\n");
@@ -3742,14 +4391,14 @@ int32 rtl865x_acl_test(int32 testNo)
 			printk("now the information of netif(%s) is:\n\n",netif->name);
 			_rtl865x_print_allChain_allAcl(netif);
 			_rtl865x_print_freeChainNum();
-			
+
 
 			memset(&rule,0,sizeof(rtl865x_AclRule_t));
 			rule.pktOpApp_ = RTL865X_ACL_L2_AND_L3;
 			rule.actionType_ = RTL865X_ACL_DROP;
 
 			printk("============add 1st acl===========\n");
-			rtl865x_add_acl(&rule, RTL_DRV_LAN_NETIF_NAME, -500);			
+			rtl865x_add_acl(&rule, RTL_DRV_LAN_NETIF_NAME, -500);
 			printk("now the information of netif(%s) is:\n\n",netif->name);
 			_rtl865x_print_allChain_allAcl(netif);
 			_rtl865x_print_freeChainNum();
@@ -3802,14 +4451,14 @@ int32 rtl865x_acl_test(int32 testNo)
 			printk("now the information of netif(%s) is:\n\n",netif->name);
 			_rtl865x_print_allChain_allAcl(netif);
 			_rtl865x_print_freeChainNum();
-			
+
 
 			printk("flush all chain of br0");
 			_rtl865x_unRegister_all_aclChain(RTL_DRV_LAN_NETIF_NAME);
 			printk("now the information of netif(%s) is:\n\n",netif->name);
 			_rtl865x_print_allChain_allAcl(netif);
 			_rtl865x_print_freeChainNum();
-			
+
 		}
 		break;
 
@@ -3827,18 +4476,18 @@ int32 rtl865x_acl_test(int32 testNo)
 			printk("now the information of netif(%s) is:\n\n",netif->name);
 			_rtl865x_print_allChain_allAcl(netif);
 			_rtl865x_print_freeChainNum();
-			
+
 
 			memset(&rule,0,sizeof(rtl865x_AclRule_t));
 			rule.pktOpApp_ = RTL865X_ACL_L2_AND_L3;
 			rule.actionType_ = RTL865X_ACL_DROP;
 
 			printk("============add 1st acl===========\n");
-			rtl865x_add_acl(&rule, RTL_DRV_LAN_NETIF_NAME, -500);			
+			rtl865x_add_acl(&rule, RTL_DRV_LAN_NETIF_NAME, -500);
 			printk("now the information of netif(%s) is:\n\n",netif->name);
 			_rtl865x_print_allChain_allAcl(netif);
-			_rtl865x_print_freeChainNum();			
-			
+			_rtl865x_print_freeChainNum();
+
 		}
 		break;
 
@@ -3848,26 +4497,26 @@ int32 rtl865x_acl_test(int32 testNo)
 			rtl865x_acl_chain_t *chain = NULL;
 			rtl865x_netif_local_t *netif = NULL;
 			rtl865x_AclRule_t rule1;
-			
+
 			netif = _rtl865x_getNetifByName(RTL_DRV_LAN_NETIF_NAME);
 			chain = netif->chainListHead[RTL865X_ACL_INGRESS];
 
 			printk("now the information of netif(%s) is:\n\n",netif->name);
 			_rtl865x_print_allChain_allAcl(netif);
 			_rtl865x_print_freeChainNum();
-			
+
 
 			memset(&rule1,0,sizeof(rtl865x_AclRule_t));
 			rule1.pktOpApp_ = RTL865X_ACL_L3_AND_L4;
 			rule1.actionType_ = RTL865X_ACL_DROP;
 			rule1.ruleType_ = RTL865X_ACL_IP;
 
-			
-			rtl865x_add_acl(&rule1, RTL_DRV_LAN_NETIF_NAME, -500);			
+
+			rtl865x_add_acl(&rule1, RTL_DRV_LAN_NETIF_NAME, -500);
 			printk("now the information of netif(%s) is:\n\n",netif->name);
 			_rtl865x_print_allChain_allAcl(netif);
-			_rtl865x_print_freeChainNum();			
-			
+			_rtl865x_print_freeChainNum();
+
 		}
 		break;
 
@@ -3886,16 +4535,16 @@ int32 rtl865x_acl_test(int32 testNo)
 		case 5:
 		{
 			rtl865x_AclRule_t rule;
-			union 
+			union
 			{
 				char pat[4];
 				uint32 pattern;
-			}u;			
+			}u;
 			int32 i;
 
-			
+
 			printk("for url filter test....");
-			memset(&rule,0,sizeof(rtl865x_AclRule_t));			
+			memset(&rule,0,sizeof(rtl865x_AclRule_t));
 			rule.actionType_ = RTL865X_ACL_TOCPU;
 			rule.ruleType_ = RTL865X_ACL_IP;
 			rule.ipHttpFilter_=rule.ipHttpFilterM_=1;
@@ -3906,7 +4555,7 @@ int32 rtl865x_acl_test(int32 testNo)
 			rule.actionType_ = RTL865X_ACL_PERMIT;
 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
 			rtl865x_add_acl(&rule, RTL_DRV_LAN_NETIF_NAME, -10000);
-			
+
 			u.pat[0]='T';
 			u.pat[1]='T';
 			u.pat[2]='P';
@@ -3916,7 +4565,7 @@ int32 rtl865x_acl_test(int32 testNo)
 				if(rtl8651_setAsicPortPatternMatch(i, u.pattern, 0xffffffff, 0x2 /* fwd to CPU */)!=SUCCESS)
 					return FAILED;
 			}
-			
+
 		}
 		break;
 
@@ -3926,12 +4575,12 @@ int32 rtl865x_acl_test(int32 testNo)
 			int32 i;
 			for(i = 0; i < NETIF_NUMBER; i++)
 			{
-				printk("i(%d),netifTbl(0x%p),name(%s)\n",i,&netifTbl[i],netifTbl[i].name);				
-			}			
+				printk("i(%d),netifTbl(0x%p),name(%s)\n",i,&netifTbl[i],netifTbl[i].name);
+			}
 		}
 		break;
 
-					
+
 	}
 	return retval;
 }
@@ -3944,15 +4593,15 @@ int rtl865x_show_all_netif(void)
 {
 	int32 i;
 	rtl865x_netif_local_t *netif = NULL;
-	
+
 	for(i = 0; i < NETIF_NUMBER; i++)
-	{		
+	{
 		if(netifTbl[i].valid == 1 )
 		{
 			netif = &netifTbl[i];
 			printk("idx(%d),valid(%d),name(%s),vid(%d),is_slave(%d),type(%d)\n",i,netif->valid,netif->name,netif->vid,netif->is_slave,netif->if_type);
 		}
-	}	
+	}
 
 	return SUCCESS;
 }
@@ -3963,7 +4612,7 @@ int32 rtl865x_getNetifFid(char *name,  uint16 *fid)
 {
 	rtl865x_netif_local_t *entry;
 	rtl865x_vlan_entry_t *vlan;
-	
+
 	if(name == NULL)
 	{
 		return FAILED;
@@ -3979,7 +4628,7 @@ int32 rtl865x_getNetifFid(char *name,  uint16 *fid)
 	vlan = _rtl8651_getVlanTableEntry(entry->vid);
 	*fid = vlan->fid;
 	return SUCCESS;
-	
+
 }
 #endif
 extern int rtk_vlan_support_enable;
@@ -3988,7 +4637,7 @@ int32 rtl865x_reConfigDefaultAcl(char *ifName)
 	rtl865x_AclRule_t	rule;
 	int ret=FAILED;
 
-	unsigned long flags;	
+	unsigned long flags;
 	local_irq_save(flags);
 
 #if defined (CONFIG_RTK_VLAN_SUPPORT)
@@ -4000,13 +4649,13 @@ int32 rtl865x_reConfigDefaultAcl(char *ifName)
 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
 			rule.actionType_ = RTL865X_ACL_PERMIT;
 			ret=_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
-			
+
 			/*add new default permit acl*/
 			bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
 			rule.ruleType_ = RTL865X_ACL_MAC;
 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
 			rule.actionType_ = RTL865X_ACL_PERMIT;
-			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED); 
+			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
 		}
 		else
 		{
@@ -4016,13 +4665,13 @@ int32 rtl865x_reConfigDefaultAcl(char *ifName)
 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
 			rule.actionType_ = RTL865X_ACL_TOCPU;
 			ret=_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
-			
+
 			/*add new default to cpu acl*/
 			bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
 			rule.ruleType_ = RTL865X_ACL_MAC;
 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
 			rule.actionType_ = RTL865X_ACL_TOCPU;
-			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED); 
+			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
 		}
 #else
 		{
@@ -4032,15 +4681,15 @@ int32 rtl865x_reConfigDefaultAcl(char *ifName)
 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
 			rule.actionType_ = RTL865X_ACL_PERMIT;
 			ret=_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
-			
+
 			/*add new default permit acl*/
 			bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
 			rule.ruleType_ = RTL865X_ACL_MAC;
 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
 			rule.actionType_ = RTL865X_ACL_PERMIT;
-			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED); 
+			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
 		}
-#endif			
+#endif
 		local_irq_restore(flags);
 
 		return SUCCESS;

@@ -79,7 +79,15 @@
 #include "dwc_otg_driver.h"
 #include "dwc_otg_pcd.h"
 
+#ifdef CONFIG_RTL_USB_OTG
+#include "otg_dbg.h"
 
+enum {
+	RTL_GADGET_FSG,
+	RTL_GADGET_ETH,
+};
+extern int rtl_otg_gadget;
+#endif
 
 /**
  * Static PCD pointer for use in usb_gadget_register_driver and
@@ -1597,10 +1605,19 @@ int  dwc_otg_pcd_init(struct lm_device *_lmdev)
   #if 0  //wei add for bind gadget
   	usb_gadget_register_driver( pcd->driver);  //wei add
   #else
-	extern int eth_reg_again();
-  	int ret=eth_reg_again();
-	if(ret!=0) printk("gadget register rc=%d\n", ret);
-#endif
+  	#if defined(CONFIG_RTL_ULINKER)
+		if (rtl_otg_gadget == RTL_GADGET_FSG) {
+			extern int fsg_reg_again();
+			int ret=fsg_reg_again();
+			if(ret!=0) printk("gadget register rc=%d\n", ret);
+		}
+		else {
+			extern int eth_reg_again();
+			int ret=eth_reg_again();
+			if(ret!=0) printk("gadget register rc=%d\n", ret);
+		}
+	#endif
+  #endif
 
 
   /*
@@ -1698,8 +1715,16 @@ void dwc_otg_pcd_remove( struct lm_device *_lmdev )
 #if 0  // for un-bind gadget	  
       usb_gadget_unregister_driver( pcd->driver);
 #else
-	extern int eth_unreg_again();
-	eth_unreg_again();	
+	#if defined(CONFIG_RTL_ULINKER_GADGET)
+		if (rtl_otg_gadget == RTL_GADGET_FSG) {
+			extern int fsg_unreg_again();
+			fsg_unreg_again();
+		}
+		else {
+			extern int eth_unreg_again();
+			eth_unreg_again();
+		}
+	#endif
 #endif
 	  	
     }
@@ -1736,11 +1761,13 @@ int usb_gadget_register_driver(struct usb_gadget_driver *_driver)
 
   DWC_DEBUGPL(DBG_PCD, "registering gadget driver '%s'\n", _driver->driver.name);
 
-	if (!_driver || _driver->speed == USB_SPEED_UNKNOWN || 
-		!_driver->bind || 
-		!_driver->unbind || 
+#ifdef IOT_ENHANCED_USB //JASON_PATCH
+	if (!_driver || 
+		_driver->speed == USB_SPEED_UNKNOWN ||  
 		!_driver->disconnect || 
 		!_driver->setup) 
+
+#endif
     {
       DWC_DEBUGPL(DBG_PCDV,"EINVAL\n");	
       return -EINVAL;
@@ -1762,6 +1789,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *_driver)
 
   DWC_DEBUGPL(DBG_PCD, "bind to driver %s\n", _driver->driver.name);
   retval = _driver->bind(&s_pcd->gadget);
+
   if (retval) 
 	{
       DWC_ERROR("bind to driver %s --> error %d\n", 

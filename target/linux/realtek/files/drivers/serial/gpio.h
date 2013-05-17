@@ -33,6 +33,8 @@
 #include "gpio_8952.h"
 #elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM8972B_FAMILY)
 #include "gpio_8972b.h"
+#elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#include "gpio_8972d.h"
 #else
 #error "unknown gpio driver"
 #endif
@@ -89,9 +91,18 @@
 #define RTK_GPIO_GET(pid, pData) _rtl8972B_getGpioDataBit(pid, pData) 
 #define RTK_GPIO_SET(pid, data) _rtl8972B_setGpioDataBit(pid, data)
 
+#elif defined(CONFIG_RTK_VOIP_DRIVERS_PCM89xxD)
+#define RTK_GPIO_INIT(pid, dedicate, dir, interrupt)  _rtl8972D_initGpioPin(pid, dedicate, dir, interrupt)
+#define RTK_GPIO_GET(pid, pData) _rtl8972D_getGpioDataBit(pid, pData) 
+#define RTK_GPIO_SET(pid, data) _rtl8972D_setGpioDataBit(pid, data)
 #else
 #error "unknown gpio driver"
 #endif
+
+// define generic naming for kernel's driver 
+#define _rtl_generic_initGpioPin(pid, dedicate, dir, interrupt)	RTK_GPIO_INIT(pid, dedicate, dir, interrupt)
+#define _rtl_generic_getGpioDataBit(pid, pData)					RTK_GPIO_GET(pid, pData)
+#define _rtl_generic_setGpioDataBit(pid, data)					RTK_GPIO_SET(pid, data)
 
 extern int gpio_debug;
 

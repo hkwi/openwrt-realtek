@@ -21,13 +21,10 @@
                 __asm__ __volatile__(                                   \
                 "       .set    push                            \n"     \
                 "       .set    noat                            \n"     \
-                "       .set    mips3                           \n"     \
                 "1:     " ld "  %0, %2          # __cmpxchg_asm \n"     \
 		"	nop					\n"	\
                 "       bne     %0, %z3, 2f                     \n"     \
-                "       .set    mips0                           \n"     \
                 "       move    $1, %z4                         \n"     \
-                "       .set    mips3                           \n"     \
                 "       " st "  $1, %1                          \n"     \
                 "       beqz    $1, 3f                          \n"     \
                 "2:                                             \n"     \
@@ -48,12 +45,9 @@
 		__asm__ __volatile__(					\
 		"	.set	push				\n"	\
 		"	.set	noat				\n"	\
-		"	.set	mips3				\n"	\
 		"1:	" ld "	%0, %2		# __cmpxchg_asm	\n"	\
 		"	bne	%0, %z3, 2f			\n"	\
-		"	.set	mips0				\n"	\
 		"	move	$1, %z4				\n"	\
-		"	.set	mips3				\n"	\
 		"	" st "	$1, %1				\n"	\
 		"	beqz	$1, 3f				\n"	\
 		"2:						\n"	\
@@ -71,13 +65,13 @@
 #define __cmpxchg_asm(ld, st, m, old, new)				\
 ({									\
 	__typeof(*(m)) __ret;						\
-		unsigned long __flags;					\
+	unsigned long __flags;					\
 									\
-		raw_local_irq_save(__flags);				\
-		__ret = *m;						\
-		if (__ret == old)					\
-			*m = new;					\
-		raw_local_irq_restore(__flags);				\
+	raw_local_irq_save(__flags);				\
+	__ret = *m;						\
+	if (__ret == old)					\
+		*m = new;					\
+	raw_local_irq_restore(__flags);				\
 									\
 	__ret;								\
 })

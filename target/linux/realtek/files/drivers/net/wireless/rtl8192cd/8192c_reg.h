@@ -117,8 +117,10 @@
 #define		MBIST_DONE			0x178	// MACTOP BIST DONE.
 #define		MBIST_FAIL			0x17C	// MACTOP BIST FAIL.
 
+#define		C2H_SYNC_BYTE		0x1AF	// 8051 set to 0xFF, Driver set to 0x0 after read C2H content 
 #define		MCUTST_I			0x1C0	// MCU Firmware TST-I.
 #define		MCUTST_II			0x1C4	// MCU Firmware TST-II.
+#define		MCU_UNLOCK		 0x01C7	// is used for Unlock MCU infinite-loop
 #define		FMETHR				0x1C8	// Firmware Message Exchange to Host.
 #define		HMETFR				0x1CC	// Host Message Interrupt to Firmware.
 #define		HMEBOX_0	 		0x1D0	// Host Message BOX_0 to Firmware.
@@ -1839,6 +1841,7 @@
 //----------------------------------------------------------------------------
 //       8192C RD_CTRL bits						(Offset 0x524-525, 16 bits)
 //----------------------------------------------------------------------------
+#define		HIQ_NO_LMT_EN			BIT(12)
 #define		EDCCA_MSK_CNTDWN		BIT(11)	// 1: disable, 0: enable,  EDCCA count down.
 #define		DIS_TXOP_CFE			BIT(10)	// Disable TXOP_CFE function.
 #define		DIS_LSIG_CFE			BIT(9)	// Disable LSIG_TXOP CF-END function.

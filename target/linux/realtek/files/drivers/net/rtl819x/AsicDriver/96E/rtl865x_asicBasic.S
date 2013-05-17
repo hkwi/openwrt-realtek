@@ -392,31 +392,29 @@ $LC0:
 	.type	bsp_swcore_init, @function
 bsp_swcore_init:
 	.set	nomips16
-	.frame	$sp,48,$31		# vars= 0, regs= 8/0, args= 16, gp= 0
-	.mask	0x807f0000,-4
+	.frame	$sp,40,$31		# vars= 0, regs= 6/0, args= 16, gp= 0
+	.mask	0x801f0000,-4
 	.fmask	0x00000000,0
 	.set	noreorder
 	.set	nomacro
 	
-	addiu	$sp,$sp,-48
-	sw	$31,44($sp)
-	sw	$22,40($sp)
-	sw	$21,36($sp)
+	addiu	$sp,$sp,-40
+	sw	$31,36($sp)
 	sw	$20,32($sp)
 	sw	$19,28($sp)
 	sw	$18,24($sp)
 	sw	$17,20($sp)
 	sw	$16,16($sp)
-	move	$22,$4
-	move	$19,$0
-	li	$16,-1207959552			# 0xffffffffb8000000
-	lw	$2,0($16)
-	li	$18,-65536			# 0xffffffffffff0000
-	and	$17,$2,$18
-	ori	$21,$16,0xc
-	lw	$2,0($21)
+	move	$20,$4
+	move	$17,$0
+	li	$2,-1207959552			# 0xffffffffb8000000
+	lw	$4,0($2)
+	li	$3,-65536			# 0xffffffffffff0000
+	and	$16,$4,$3
+	ori	$2,$2,0xc
+	lw	$18,0($2)
 	nop
-	andi	$20,$2,0xf
+	andi	$19,$18,0xf
 	lui	$4,%hi(fun_enable)
 	jal	rtl865x_initAsicFun
 	addiu	$4,$4,%lo(fun_enable)
@@ -425,121 +423,107 @@ bsp_swcore_init:
 	beq	$2,$3,$L38
 	li	$4,-1			# 0xffffffffffffffff
 
-	lw	$2,0($16)
-	nop
-	and	$2,$2,$18
-	li	$3,-1073741824			# 0xffffffffc0000000
-	bne	$2,$3,$L56
 	li	$2,-1073741824			# 0xffffffffc0000000
-
-	lw	$2,0($21)
-	nop
-	andi	$2,$2,0x8
-	bne	$2,$0,$L56
-	li	$2,-1073741824			# 0xffffffffc0000000
-
-	addiu	$2,$22,-8
-	sltu	$2,$2,2
-	bne	$2,$0,$L38
-	move	$4,$0
-
-	li	$2,-1073741824			# 0xffffffffc0000000
-$L56:
-	bne	$17,$2,$L43
+	bne	$16,$2,$L41
 	li	$2,-2147483648			# 0xffffffff80000000
 
 	li	$2,9			# 0x9
-	bne	$22,$2,$L46
-	move	$19,$0
+	bne	$20,$2,$L42
+	nop
 
-	beq	$20,$22,$L46
+	beq	$19,$20,$L42
+	andi	$2,$18,0x8
+
+	beq	$2,$0,$L42
 	lui	$4,%hi($LC0)
 
 	addiu	$4,$4,%lo($LC0)
 	jal	early_console_write
 	li	$5,27			# 0x1b
 
-	j	$L46
-	li	$19,-1			# 0xffffffffffffffff
+	j	$L44
+	li	$17,-1			# 0xffffffffffffffff
 
-$L43:
-	bne	$17,$2,$L47
+$L42:
+	j	$L44
+	move	$17,$0
+
+$L41:
+	bne	$16,$2,$L45
 	li	$2,-2120876032			# 0xffffffff81960000
 
 	li	$2,7			# 0x7
-	bne	$22,$2,$L57
+	bne	$20,$2,$L54
 	li	$2,15			# 0xf
 
-	beq	$20,$22,$L57
+	beq	$19,$20,$L54
 	lui	$4,%hi($LC0)
 
 	addiu	$4,$4,%lo($LC0)
 	jal	early_console_write
 	li	$5,27			# 0x1b
 
-	j	$L46
-	li	$19,-1			# 0xffffffffffffffff
+	j	$L44
+	li	$17,-1			# 0xffffffffffffffff
 
-$L57:
-	bne	$22,$2,$L58
+$L54:
+	bne	$20,$2,$L55
 	li	$2,3			# 0x3
 
-	beq	$20,$22,$L50
+	beq	$19,$20,$L48
 	li	$2,7			# 0x7
 
-	beq	$20,$2,$L50
+	beq	$19,$2,$L48
 	li	$2,3			# 0x3
 
-	beq	$20,$2,$L50
+	beq	$19,$2,$L48
 	li	$2,11			# 0xb
 
-	beq	$20,$2,$L50
+	beq	$19,$2,$L48
 	lui	$4,%hi($LC0)
 
 	addiu	$4,$4,%lo($LC0)
 	jal	early_console_write
 	li	$5,27			# 0x1b
 
-	j	$L46
-	li	$19,-1			# 0xffffffffffffffff
+	j	$L44
+	li	$17,-1			# 0xffffffffffffffff
 
-$L50:
+$L48:
 	li	$2,3			# 0x3
-$L58:
-	bne	$22,$2,$L46
-	move	$19,$0
+$L55:
+	bne	$20,$2,$L44
+	move	$17,$0
 
-	beq	$20,$22,$L46
+	beq	$19,$20,$L44
 	li	$2,7			# 0x7
 
-	beq	$20,$2,$L46
+	beq	$19,$2,$L44
 	lui	$4,%hi($LC0)
 
 	addiu	$4,$4,%lo($LC0)
 	jal	early_console_write
 	li	$5,27			# 0x1b
 
-	j	$L46
-	li	$19,-1			# 0xffffffffffffffff
+	j	$L44
+	li	$17,-1			# 0xffffffffffffffff
 
-$L47:
-	xor	$2,$17,$2
-	movz	$19,$0,$2		#RLX4181/RLX4281:conditional move
-$L46:
-	move	$4,$19
+$L45:
+	xor	$2,$16,$2
+	movz	$17,$0,$2		#RLX4181/RLX4281:conditional move
+$L44:
+	move	$4,$17
 $L40:
 $L38:
 	move	$2,$4
-	lw	$31,44($sp)
-	lw	$22,40($sp)
-	lw	$21,36($sp)
+	lw	$31,36($sp)
 	lw	$20,32($sp)
 	lw	$19,28($sp)
 	lw	$18,24($sp)
 	lw	$17,20($sp)
 	lw	$16,16($sp)
 	j	$31
-	addiu	$sp,$sp,48
+	addiu	$sp,$sp,40
 
 	.set	macro
 	.set	reorder
@@ -567,60 +551,60 @@ rtl865x_accessAsicTable:
 	addiu	$4,$sp,16
 
 	sltu	$2,$16,15
-	beq	$2,$0,$L75
+	beq	$2,$0,$L72
 	li	$2,1			# 0x1
 
 	li	$3,1			# 0x1
 	sll	$4,$3,$16
 	andi	$2,$4,0xe22
-	bne	$2,$0,$L68
+	bne	$2,$0,$L65
 	andi	$2,$4,0x8
 
-	bne	$2,$0,$L71
+	bne	$2,$0,$L68
 	andi	$2,$4,0x4000
 
-	beq	$2,$0,$L74
+	beq	$2,$0,$L71
 	li	$2,1			# 0x1
 
 	lw	$2,16($sp)
 	nop
 	andi	$2,$2,0x20
 	movz	$3,$0,$2		#RLX4181/RLX4281:conditional move
-	j	$L60
+	j	$L57
 	sw	$3,0($17)
+
+$L65:
+	lw	$2,16($sp)
+	nop
+	andi	$2,$2,0x4
+	beq	$2,$0,$L66
+	li	$2,1			# 0x1
+
+	j	$L57
+	sw	$2,0($17)
+
+$L66:
+	j	$L57
+	sw	$0,0($17)
 
 $L68:
 	lw	$2,16($sp)
 	nop
-	andi	$2,$2,0x4
+	andi	$2,$2,0x2
 	beq	$2,$0,$L69
 	li	$2,1			# 0x1
 
-	j	$L60
+	j	$L57
 	sw	$2,0($17)
 
 $L69:
-	j	$L60
+	j	$L57
 	sw	$0,0($17)
 
 $L71:
-	lw	$2,16($sp)
-	nop
-	andi	$2,$2,0x2
-	beq	$2,$0,$L72
-	li	$2,1			# 0x1
-
-	j	$L60
-	sw	$2,0($17)
-
 $L72:
-	j	$L60
-	sw	$0,0($17)
-
-$L74:
-$L75:
 	sw	$2,0($17)
-$L60:
+$L57:
 	move	$2,$0
 	lw	$31,32($sp)
 	lw	$17,28($sp)
@@ -653,7 +637,7 @@ _rtl8651_asicTableAccessForward:
 	.set	nomacro
 	
 	addiu	$sp,$sp,-24
-	bne	$6,$0,$L77
+	bne	$6,$0,$L74
 	sw	$31,16($sp)
 
 	lui	$4,%hi($LC1)
@@ -661,20 +645,20 @@ _rtl8651_asicTableAccessForward:
 	lui	$5,%hi($LC2)
 	addiu	$5,$5,%lo($LC2)
 	jal	panic_printk
-	li	$6,306			# 0x132
+	li	$6,324			# 0x144
 
-$L78:
-	j	$L78
+$L75:
+	j	$L75
 	nop
 
-$L77:
+$L74:
 	li	$2,-1149239296			# 0xffffffffbb800000
 	ori	$3,$2,0x4d00
-$L80:
+$L77:
 	lw	$2,0($3)
 	nop
 	andi	$2,$2,0x1
-	bne	$2,$0,$L80
+	bne	$2,$0,$L77
 	sll	$2,$4,2
 
 	move	$8,$2
@@ -683,13 +667,13 @@ $L80:
 	addu	$2,$2,$3
 	lw	$2,0($2)
 	nop
-	beq	$2,$0,$L87
+	beq	$2,$0,$L84
 	move	$7,$0
 
 	li	$9,-1149239296			# 0xffffffffbb800000
 	addu	$8,$8,$3
 	sll	$2,$7,2
-$L88:
+$L85:
 	addu	$3,$2,$9
 	addu	$2,$2,$6
 	lw	$2,0($2)
@@ -699,10 +683,10 @@ $L88:
 	lw	$2,0($8)
 	nop
 	sltu	$2,$7,$2
-	bne	$2,$0,$L88
+	bne	$2,$0,$L85
 	sll	$2,$7,2
 
-$L87:
+$L84:
 	sll	$3,$4,16
 	sll	$2,$5,5
 	addu	$3,$3,$2
@@ -745,7 +729,7 @@ _rtl8651_addAsicEntry:
 
 	lw	$2,16($sp)
 	nop
-	beq	$2,$0,$L89
+	beq	$2,$0,$L86
 	li	$3,-1			# 0xffffffffffffffff
 
 	move	$4,$16
@@ -756,28 +740,28 @@ _rtl8651_addAsicEntry:
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,2			# 0x2
-	bne	$3,$2,$L105
+	bne	$3,$2,$L102
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 
 	lui	$2,%hi(RtkHomeGatewayChipRevisionID)
 	lw	$2,%lo(RtkHomeGatewayChipRevisionID)($2)
 	nop
-	bgtz	$2,$L106
+	bgtz	$2,$L103
 	li	$3,-1149239296			# 0xffffffffbb800000
 
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
-$L105:
+$L102:
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,3			# 0x3
-	beq	$3,$2,$L92
+	beq	$3,$2,$L89
 	li	$2,4			# 0x4
 
-	bne	$3,$2,$L107
+	bne	$3,$2,$L104
 	li	$2,3			# 0x3
 
-$L92:
+$L89:
 	li	$3,-1149239296			# 0xffffffffbb800000
-$L106:
+$L103:
 	ori	$3,$3,0x4418
 	lw	$2,0($3)
 	li	$4,262144			# 0x40000
@@ -785,88 +769,88 @@ $L106:
 	sw	$2,0($3)
 	move	$4,$3
 	li	$3,524288			# 0x80000
-$L94:
+$L91:
 	lw	$2,0($4)
 	nop
 	and	$2,$2,$3
-	beq	$2,$0,$L94
+	beq	$2,$0,$L91
 	li	$2,3			# 0x3
 
-$L107:
+$L104:
 	li	$3,-1149239296			# 0xffffffffbb800000
 	ori	$3,$3,0x4d00
 	sw	$2,0($3)
-$L96:
+$L93:
 	lw	$2,0($3)
 	nop
 	andi	$2,$2,0x1
-	bne	$2,$0,$L96
+	bne	$2,$0,$L93
 	li	$2,-1149239296			# 0xffffffffbb800000
 
 	ori	$2,$2,0x4d04
 	lw	$2,0($2)
 	nop
 	andi	$2,$2,0x1
-	beq	$2,$0,$L98
+	beq	$2,$0,$L95
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,2			# 0x2
-	bne	$3,$2,$L108
+	bne	$3,$2,$L105
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 
 	lui	$2,%hi(RtkHomeGatewayChipRevisionID)
 	lw	$2,%lo(RtkHomeGatewayChipRevisionID)($2)
 	nop
-	bgtz	$2,$L100
+	bgtz	$2,$L97
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 
-$L108:
+$L105:
+	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
+	li	$2,3			# 0x3
+	beq	$3,$2,$L97
+	li	$2,4			# 0x4
+
+	bne	$3,$2,$L96
+	nop
+
+$L97:
+	li	$4,-1149239296			# 0xffffffffbb800000
+	ori	$4,$4,0x4418
+	lw	$3,0($4)
+	li	$2,-327680			# 0xfffffffffffb0000
+	ori	$2,$2,0xffff
+	and	$3,$3,$2
+	sw	$3,0($4)
+$L96:
+	j	$L86
+	li	$3,-1			# 0xffffffffffffffff
+
+$L95:
+	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
+	li	$2,2			# 0x2
+	bne	$3,$2,$L106
+	lui	$2,%hi(RtkHomeGatewayChipNameID)
+
+	lui	$2,%hi(RtkHomeGatewayChipRevisionID)
+	lw	$2,%lo(RtkHomeGatewayChipRevisionID)($2)
+	nop
+	bgtz	$2,$L107
+	li	$4,-1149239296			# 0xffffffffbb800000
+
+	lui	$2,%hi(RtkHomeGatewayChipNameID)
+$L106:
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,3			# 0x3
 	beq	$3,$2,$L100
 	li	$2,4			# 0x4
 
-	bne	$3,$2,$L99
-	nop
+	bne	$3,$2,$L86
+	move	$3,$0
 
 $L100:
 	li	$4,-1149239296			# 0xffffffffbb800000
-	ori	$4,$4,0x4418
-	lw	$3,0($4)
-	li	$2,-327680			# 0xfffffffffffb0000
-	ori	$2,$2,0xffff
-	and	$3,$3,$2
-	sw	$3,0($4)
-$L99:
-	j	$L89
-	li	$3,-1			# 0xffffffffffffffff
-
-$L98:
-	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
-	li	$2,2			# 0x2
-	bne	$3,$2,$L109
-	lui	$2,%hi(RtkHomeGatewayChipNameID)
-
-	lui	$2,%hi(RtkHomeGatewayChipRevisionID)
-	lw	$2,%lo(RtkHomeGatewayChipRevisionID)($2)
-	nop
-	bgtz	$2,$L110
-	li	$4,-1149239296			# 0xffffffffbb800000
-
-	lui	$2,%hi(RtkHomeGatewayChipNameID)
-$L109:
-	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
-	li	$2,3			# 0x3
-	beq	$3,$2,$L103
-	li	$2,4			# 0x4
-
-	bne	$3,$2,$L89
-	move	$3,$0
-
-$L103:
-	li	$4,-1149239296			# 0xffffffffbb800000
-$L110:
+$L107:
 	ori	$4,$4,0x4418
 	lw	$3,0($4)
 	li	$2,-327680			# 0xfffffffffffb0000
@@ -874,7 +858,7 @@ $L110:
 	and	$3,$3,$2
 	sw	$3,0($4)
 	move	$3,$0
-$L89:
+$L86:
 	move	$2,$3
 	lw	$31,36($sp)
 	lw	$18,32($sp)
@@ -939,11 +923,11 @@ _rtl8651_forceAddAsicEntry:
 
 	lw	$2,16($sp)
 	nop
-	beq	$2,$0,$L112
+	beq	$2,$0,$L109
 	li	$3,-1			# 0xffffffffffffffff
 
 	li	$2,3			# 0x3
-	bne	$16,$2,$L125
+	bne	$16,$2,$L122
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 
 	lui	$3,%hi(mcastForceAddOpCnt)
@@ -952,7 +936,62 @@ _rtl8651_forceAddAsicEntry:
 	addiu	$2,$2,1
 	sw	$2,%lo(mcastForceAddOpCnt)($3)
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
+$L122:
+	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
+	li	$2,2			# 0x2
+	bne	$3,$2,$L123
+	lui	$2,%hi(RtkHomeGatewayChipNameID)
+
+	lui	$2,%hi(RtkHomeGatewayChipRevisionID)
+	lw	$2,%lo(RtkHomeGatewayChipRevisionID)($2)
+	nop
+	bgtz	$2,$L124
+	li	$3,-1149239296			# 0xffffffffbb800000
+
+	lui	$2,%hi(RtkHomeGatewayChipNameID)
+$L123:
+	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
+	li	$2,3			# 0x3
+	beq	$3,$2,$L113
+	li	$2,4			# 0x4
+
+	bne	$3,$2,$L125
+	move	$4,$16
+
+$L113:
+	li	$3,-1149239296			# 0xffffffffbb800000
+$L124:
+	ori	$3,$3,0x4418
+	lw	$2,0($3)
+	li	$4,262144			# 0x40000
+	or	$2,$2,$4
+	sw	$2,0($3)
+	move	$4,$3
+	li	$3,524288			# 0x80000
+$L115:
+	lw	$2,0($4)
+	nop
+	and	$2,$2,$3
+	beq	$2,$0,$L115
+	nop
+
+	move	$4,$16
 $L125:
+	move	$5,$17
+	jal	_rtl8651_asicTableAccessForward
+	move	$6,$18
+
+	li	$2,9			# 0x9
+	li	$3,-1149239296			# 0xffffffffbb800000
+	ori	$3,$3,0x4d00
+	sw	$2,0($3)
+$L117:
+	lw	$2,0($3)
+	nop
+	andi	$2,$2,0x1
+	bne	$2,$0,$L117
+	lui	$2,%hi(RtkHomeGatewayChipNameID)
+
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,2			# 0x2
 	bne	$3,$2,$L126
@@ -962,76 +1001,21 @@ $L125:
 	lw	$2,%lo(RtkHomeGatewayChipRevisionID)($2)
 	nop
 	bgtz	$2,$L127
-	li	$3,-1149239296			# 0xffffffffbb800000
+	li	$4,-1149239296			# 0xffffffffbb800000
 
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 $L126:
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,3			# 0x3
-	beq	$3,$2,$L116
+	beq	$3,$2,$L120
 	li	$2,4			# 0x4
 
-	bne	$3,$2,$L128
-	move	$4,$16
-
-$L116:
-	li	$3,-1149239296			# 0xffffffffbb800000
-$L127:
-	ori	$3,$3,0x4418
-	lw	$2,0($3)
-	li	$4,262144			# 0x40000
-	or	$2,$2,$4
-	sw	$2,0($3)
-	move	$4,$3
-	li	$3,524288			# 0x80000
-$L118:
-	lw	$2,0($4)
-	nop
-	and	$2,$2,$3
-	beq	$2,$0,$L118
-	nop
-
-	move	$4,$16
-$L128:
-	move	$5,$17
-	jal	_rtl8651_asicTableAccessForward
-	move	$6,$18
-
-	li	$2,9			# 0x9
-	li	$3,-1149239296			# 0xffffffffbb800000
-	ori	$3,$3,0x4d00
-	sw	$2,0($3)
-$L120:
-	lw	$2,0($3)
-	nop
-	andi	$2,$2,0x1
-	bne	$2,$0,$L120
-	lui	$2,%hi(RtkHomeGatewayChipNameID)
-
-	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
-	li	$2,2			# 0x2
-	bne	$3,$2,$L129
-	lui	$2,%hi(RtkHomeGatewayChipNameID)
-
-	lui	$2,%hi(RtkHomeGatewayChipRevisionID)
-	lw	$2,%lo(RtkHomeGatewayChipRevisionID)($2)
-	nop
-	bgtz	$2,$L130
-	li	$4,-1149239296			# 0xffffffffbb800000
-
-	lui	$2,%hi(RtkHomeGatewayChipNameID)
-$L129:
-	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
-	li	$2,3			# 0x3
-	beq	$3,$2,$L123
-	li	$2,4			# 0x4
-
-	bne	$3,$2,$L112
+	bne	$3,$2,$L109
 	move	$3,$0
 
-$L123:
+$L120:
 	li	$4,-1149239296			# 0xffffffffbb800000
-$L130:
+$L127:
 	ori	$4,$4,0x4418
 	lw	$3,0($4)
 	li	$2,-327680			# 0xfffffffffffb0000
@@ -1039,7 +1023,7 @@ $L130:
 	and	$3,$3,$2
 	sw	$3,0($4)
 	move	$3,$0
-$L112:
+$L109:
 	move	$2,$3
 	lw	$31,36($sp)
 	lw	$18,32($sp)
@@ -1058,168 +1042,152 @@ $L112:
 	.type	_rtl8651_readAsicEntry, @function
 _rtl8651_readAsicEntry:
 	.set	nomips16
-	.frame	$sp,112,$31		# vars= 72, regs= 6/0, args= 16, gp= 0
-	.mask	0x801f0000,-4
+	.frame	$sp,112,$31		# vars= 72, regs= 5/0, args= 16, gp= 0
+	.mask	0x800f0000,-8
 	.fmask	0x00000000,0
 	.set	noreorder
 	.set	nomacro
 	
 	addiu	$sp,$sp,-112
-	sw	$31,108($sp)
-	sw	$20,104($sp)
+	sw	$31,104($sp)
 	sw	$19,100($sp)
 	sw	$18,96($sp)
 	sw	$17,92($sp)
 	sw	$16,88($sp)
-	move	$18,$4
-	move	$19,$5
-	move	$20,$6
-	li	$16,2			# 0x2
-	li	$17,10			# 0xa
+	move	$17,$4
+	move	$18,$5
+	move	$19,$6
+	li	$16,10			# 0xa
 	jal	rtl865x_accessAsicTable
 	addiu	$5,$sp,80
 
 	lw	$2,80($sp)
 	nop
-	beq	$2,$0,$L131
+	beq	$2,$0,$L128
 	li	$3,-1			# 0xffffffffffffffff
 
-	bne	$20,$0,$L133
-	sll	$10,$18,16
+	bne	$19,$0,$L130
+	sll	$6,$17,16
 
 	lui	$4,%hi($LC1)
 	addiu	$4,$4,%lo($LC1)
 	lui	$5,%hi($LC2)
 	addiu	$5,$5,%lo($LC2)
 	jal	panic_printk
-	li	$6,444			# 0x1bc
+	li	$6,462			# 0x1ce
 
-$L134:
-	j	$L134
+$L131:
+	j	$L131
 	nop
 
-$L133:
-	sll	$2,$19,5
-	addu	$10,$10,$2
+$L130:
+	sll	$2,$18,5
+	addu	$6,$6,$2
 	li	$2,-1157627904			# 0xffffffffbb000000
-	addu	$10,$10,$2
+	addu	$6,$6,$2
 	li	$2,-1149239296			# 0xffffffffbb800000
 	ori	$3,$2,0x4d00
-$L136:
+$L133:
 	lw	$2,0($3)
 	nop
 	andi	$2,$2,0x1
-	bne	$2,$0,$L136
-	addiu	$13,$sp,16
+	bne	$2,$0,$L133
+	addiu	$10,$sp,16
 
-$L138:
-	move	$9,$0
-$L145:
-	beq	$16,$9,$L143
-	sll	$3,$9,5
-
-	addu	$3,$3,$13
-	lw	$2,0($10)
+	move	$12,$10
+	li	$11,1			# 0x1
+$L135:
+	move	$8,$0
+	sll	$3,$8,5
+$L163:
+	addu	$3,$3,$10
+	lw	$2,0($6)
 	nop
 	sw	$2,0($3)
-	lw	$2,4($10)
+	lw	$2,4($6)
 	nop
 	sw	$2,4($3)
-	lw	$2,8($10)
+	lw	$2,8($6)
 	nop
 	sw	$2,8($3)
-	lw	$2,12($10)
+	lw	$2,12($6)
 	nop
 	sw	$2,12($3)
-	lw	$2,16($10)
+	lw	$2,16($6)
 	nop
 	sw	$2,16($3)
-	lw	$2,20($10)
+	lw	$2,20($6)
 	nop
 	sw	$2,20($3)
-	lw	$2,24($10)
+	lw	$2,24($6)
 	nop
 	sw	$2,24($3)
-	lw	$2,28($10)
+	lw	$2,28($6)
 	nop
 	sw	$2,28($3)
-	move	$16,$9
-$L143:
-	addiu	$9,$9,1
-	sltu	$2,$9,2
-	bne	$2,$0,$L145
-	move	$11,$0
+	addiu	$8,$8,1
+	sltu	$2,$8,2
+	bne	$2,$0,$L163
+	sll	$3,$8,5
 
 	move	$9,$0
-	addiu	$12,$sp,16
-	sltu	$2,$9,2
-$L174:
-	beq	$2,$0,$L168
-	move	$8,$9
-
-	sll	$7,$9,3
+	li	$8,1			# 0x1
 	move	$5,$12
-$L158:
+$L151:
 	move	$4,$0
-	sll	$6,$8,3
+	sll	$7,$8,3
 	addu	$3,$7,$4
-$L173:
+$L164:
 	sll	$3,$3,2
 	addu	$3,$3,$5
-	addu	$2,$6,$4
-	sll	$2,$2,2
+	sll	$2,$4,2
 	addu	$2,$2,$5
 	lw	$3,0($3)
 	lw	$2,0($2)
 	nop
-	beq	$3,$2,$L154
+	beq	$3,$2,$L147
 	addiu	$4,$4,1
 
 	addiu	$4,$4,-1
-	j	$L156
-	li	$11,1			# 0x1
+	j	$L149
+	li	$9,1			# 0x1
 
-$L154:
+$L147:
 	slt	$2,$4,8
-	bne	$2,$0,$L173
+	bne	$2,$0,$L164
 	addu	$3,$7,$4
 
 	addiu	$8,$8,1
 	sltu	$2,$8,2
-	bne	$2,$0,$L158
+	bne	$2,$0,$L151
 	nop
 
-$L168:
-	addiu	$9,$9,1
-	sltu	$2,$9,2
-	bne	$2,$0,$L174
+$L149:
+	bne	$9,$11,$L136
+	addiu	$16,$16,-1
+
+	bne	$16,$0,$L135
 	nop
 
-$L156:
-	bne	$11,$0,$L139
-	addiu	$17,$17,-1
-
-	bne	$17,$0,$L138
-	nop
-
-$L139:
-	sll	$3,$16,5
-	addiu	$2,$sp,16
-	addu	$10,$2,$3
-	sll	$3,$18,2
+$L136:
+	li	$2,1			# 0x1
+	sll	$2,$2,5
+	addiu	$3,$sp,16
+	addu	$6,$3,$2
+	sll	$3,$17,2
 	lui	$2,%hi(_rtl8651_asicTableSize)
 	addiu	$2,$2,%lo(_rtl8651_asicTableSize)
 	addu	$3,$3,$2
 	lw	$2,0($3)
 	nop
-	beq	$2,$0,$L172
+	beq	$2,$0,$L162
 	move	$5,$0
 
 	move	$4,$3
 	sll	$2,$5,2
-$L175:
-	addu	$3,$2,$20
-	addu	$2,$2,$10
+$L165:
+	addu	$3,$2,$19
+	addu	$2,$2,$6
 	lw	$2,0($2)
 	nop
 	sw	$2,0($3)
@@ -1227,15 +1195,14 @@ $L175:
 	lw	$2,0($4)
 	nop
 	sltu	$2,$5,$2
-	bne	$2,$0,$L175
+	bne	$2,$0,$L165
 	sll	$2,$5,2
 
-$L172:
+$L162:
 	move	$3,$0
-$L131:
+$L128:
 	move	$2,$3
-	lw	$31,108($sp)
-	lw	$20,104($sp)
+	lw	$31,104($sp)
 	lw	$19,100($sp)
 	lw	$18,96($sp)
 	lw	$17,92($sp)
@@ -1272,10 +1239,10 @@ _rtl8651_readAsicEntryStopTLU:
 
 	lw	$2,16($sp)
 	nop
-	beq	$2,$0,$L176
+	beq	$2,$0,$L166
 	li	$3,-1			# 0xffffffffffffffff
 
-	bne	$18,$0,$L178
+	bne	$18,$0,$L168
 	sll	$6,$16,16
 
 	lui	$4,%hi($LC1)
@@ -1283,13 +1250,13 @@ _rtl8651_readAsicEntryStopTLU:
 	lui	$5,%hi($LC2)
 	addiu	$5,$5,%lo($LC2)
 	jal	panic_printk
-	li	$6,550			# 0x226
+	li	$6,557			# 0x22d
 
-$L179:
-	j	$L179
+$L169:
+	j	$L169
 	nop
 
-$L178:
+$L168:
 	sll	$2,$17,5
 	addu	$6,$6,$2
 	li	$2,-1157627904			# 0xffffffffbb000000
@@ -1297,47 +1264,47 @@ $L178:
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,2			# 0x2
-	bne	$3,$2,$L193
+	bne	$3,$2,$L183
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 
 	lui	$2,%hi(RtkHomeGatewayChipRevisionID)
 	lw	$2,%lo(RtkHomeGatewayChipRevisionID)($2)
 	nop
-	bgtz	$2,$L194
+	bgtz	$2,$L184
 	li	$2,-1149239296			# 0xffffffffbb800000
 
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
-$L193:
+$L183:
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,3			# 0x3
-	beq	$3,$2,$L182
+	beq	$3,$2,$L172
 	li	$2,4			# 0x4
 
-	bne	$3,$2,$L195
+	bne	$3,$2,$L185
 	sll	$2,$16,2
 
-$L182:
+$L172:
 	li	$2,-1149239296			# 0xffffffffbb800000
-$L194:
+$L184:
 	ori	$2,$2,0x4418
 	lw	$3,0($2)
 	li	$4,262144			# 0x40000
 	or	$3,$3,$4
 	sw	$3,0($2)
 	sll	$2,$16,2
-$L195:
+$L185:
 	move	$4,$2
 	lui	$3,%hi(_rtl8651_asicTableSize)
 	addiu	$3,$3,%lo(_rtl8651_asicTableSize)
 	addu	$2,$2,$3
 	lw	$2,0($2)
 	nop
-	beq	$2,$0,$L192
+	beq	$2,$0,$L182
 	move	$5,$0
 
 	addu	$4,$4,$3
 	sll	$2,$5,2
-$L196:
+$L186:
 	addu	$3,$2,$18
 	addu	$2,$2,$6
 	lw	$2,0($2)
@@ -1347,32 +1314,32 @@ $L196:
 	lw	$2,0($4)
 	nop
 	sltu	$2,$5,$2
-	bne	$2,$0,$L196
+	bne	$2,$0,$L186
 	sll	$2,$5,2
 
-$L192:
+$L182:
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,2			# 0x2
-	bne	$3,$2,$L197
+	bne	$3,$2,$L187
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 
 	lui	$2,%hi(RtkHomeGatewayChipRevisionID)
 	lw	$2,%lo(RtkHomeGatewayChipRevisionID)($2)
 	nop
-	bgtz	$2,$L189
+	bgtz	$2,$L179
 	lui	$2,%hi(RtkHomeGatewayChipNameID)
 
-$L197:
+$L187:
 	lw	$3,%lo(RtkHomeGatewayChipNameID)($2)
 	li	$2,3			# 0x3
-	beq	$3,$2,$L189
+	beq	$3,$2,$L179
 	li	$2,4			# 0x4
 
-	bne	$3,$2,$L176
+	bne	$3,$2,$L166
 	move	$3,$0
 
-$L189:
+$L179:
 	li	$4,-1149239296			# 0xffffffffbb800000
 	ori	$4,$4,0x4418
 	lw	$3,0($4)
@@ -1381,7 +1348,7 @@ $L189:
 	and	$3,$3,$2
 	sw	$3,0($4)
 	move	$3,$0
-$L176:
+$L166:
 	move	$2,$3
 	lw	$31,36($sp)
 	lw	$18,32($sp)
@@ -1408,11 +1375,11 @@ _rtl8651_delAsicEntry:
 	
 	li	$2,-1149239296			# 0xffffffffbb800000
 	ori	$3,$2,0x4d00
-$L199:
+$L189:
 	lw	$2,0($3)
 	nop
 	andi	$2,$2,0x1
-	bne	$2,$0,$L199
+	bne	$2,$0,$L189
 	sll	$2,$4,2
 
 	move	$7,$2
@@ -1421,7 +1388,7 @@ $L199:
 	addu	$2,$2,$3
 	lw	$2,0($2)
 	nop
-	beq	$2,$0,$L212
+	beq	$2,$0,$L202
 	move	$3,$0
 
 	li	$8,-1149239296			# 0xffffffffbb800000
@@ -1429,19 +1396,19 @@ $L199:
 	addiu	$2,$2,%lo(_rtl8651_asicTableSize)
 	addu	$7,$7,$2
 	sll	$2,$3,2
-$L215:
+$L205:
 	addu	$2,$2,$8
 	sw	$0,19744($2)
 	addiu	$3,$3,1
 	lw	$2,0($7)
 	nop
 	sltu	$2,$3,$2
-	bne	$2,$0,$L215
+	bne	$2,$0,$L205
 	sll	$2,$3,2
 
-$L212:
+$L202:
 	sltu	$2,$6,$5
-	bne	$2,$0,$L214
+	bne	$2,$0,$L204
 	nop
 
 	li	$2,-1149239296			# 0xffffffffbb800000
@@ -1451,41 +1418,187 @@ $L212:
 	ori	$3,$2,0x4d00
 	li	$8,9			# 0x9
 	ori	$7,$2,0x4d04
-$L210:
+$L200:
 	sll	$2,$5,5
 	addu	$2,$4,$2
 	addu	$2,$2,$9
 	sw	$2,0($10)
 	sw	$8,0($3)
-$L207:
+$L197:
 	lw	$2,0($3)
 	nop
 	andi	$2,$2,0x1
-	bne	$2,$0,$L207
+	bne	$2,$0,$L197
 	nop
 
 	lw	$2,0($7)
 	nop
 	andi	$2,$2,0x1
-	beq	$2,$0,$L209
+	beq	$2,$0,$L199
 	addiu	$5,$5,1
 
 	addiu	$5,$5,-1
 	j	$31
 	li	$2,-1			# 0xffffffffffffffff
 
-$L209:
+$L199:
 	sltu	$2,$6,$5
-	beq	$2,$0,$L210
+	beq	$2,$0,$L200
 	nop
 
-$L214:
+$L204:
 	j	$31
 	move	$2,$0
 
 	.set	macro
 	.set	reorder
 	.end	_rtl8651_delAsicEntry
+	.data
+	.align	2
+	.type	rtl819x_lastTxDesc, @object
+	.size	rtl819x_lastTxDesc, 4
+rtl819x_lastTxDesc:
+	.word	0
+	.align	2
+	.type	rtl819x_lastRxDesc, @object
+	.size	rtl819x_lastRxDesc, 4
+rtl819x_lastRxDesc:
+	.word	0
+	.align	2
+	.type	rtl819x_swHangCnt, @object
+	.size	rtl819x_swHangCnt, 4
+rtl819x_swHangCnt:
+	.word	0
+	.align	2
+	.type	rtl819x_checkSwCoreTimer, @object
+	.size	rtl819x_checkSwCoreTimer, 4
+rtl819x_checkSwCoreTimer:
+	.word	0
+	.rdata
+	.align	2
+$LC3:
+	.ascii	".........................................\n\000"
+	.section	.text.rtl819x_poll_sw,"ax",@progbits
+	.align	2
+	.globl	rtl819x_poll_sw
+	.ent	rtl819x_poll_sw
+	.type	rtl819x_poll_sw, @function
+rtl819x_poll_sw:
+	.set	nomips16
+	.frame	$sp,24,$31		# vars= 0, regs= 1/0, args= 16, gp= 0
+	.mask	0x80000000,-8
+	.fmask	0x00000000,0
+	.set	noreorder
+	.set	nomacro
+	
+	addiu	$sp,$sp,-24
+	sw	$31,16($sp)
+	li	$2,-1149239296			# 0xffffffffbb800000
+	ori	$2,$2,0x610c
+	lw	$3,0($2)
+	li	$2,65536			# 0x10000
+	and	$8,$3,$2
+	li	$3,-1207894016			# 0xffffffffb8010000
+	ori	$2,$3,0x4
+	lw	$2,0($2)
+	li	$4,-4			# 0xfffffffffffffffc
+	and	$6,$2,$4
+	ori	$3,$3,0x20
+	lw	$2,0($3)
+	nop
+	and	$7,$2,$4
+	lui	$5,%hi(rtl819x_checkSwCoreTimer)
+	lw	$4,%lo(rtl819x_checkSwCoreTimer)($5)
+	li	$2,-859045888			# 0xffffffffcccc0000
+	ori	$2,$2,0xcccd
+	multu	$4,$2
+	mfhi	$2
+	srl	$2,$2,4
+	sll	$3,$2,2
+	addu	$3,$3,$2
+	sll	$3,$3,2
+	subu	$3,$4,$3
+	addiu	$4,$4,1
+	bne	$3,$0,$L206
+	sw	$4,%lo(rtl819x_checkSwCoreTimer)($5)
+
+	bne	$8,$0,$L208
+	lui	$2,%hi(rtl819x_lastTxDesc)
+
+	lui	$2,%hi(rtl819x_swHangCnt)
+	j	$L209
+	sw	$0,%lo(rtl819x_swHangCnt)($2)
+
+$L208:
+	lw	$2,%lo(rtl819x_lastTxDesc)($2)
+	nop
+	beq	$2,$0,$L216
+	lui	$2,%hi(rtl819x_lastRxDesc)
+
+	lw	$2,%lo(rtl819x_lastRxDesc)($2)
+	nop
+	bne	$2,$0,$L210
+	lui	$2,%hi(rtl819x_lastRxDesc)
+
+$L216:
+	sw	$6,%lo(rtl819x_lastRxDesc)($2)
+	lui	$2,%hi(rtl819x_lastTxDesc)
+	sw	$7,%lo(rtl819x_lastTxDesc)($2)
+	lui	$2,%hi(rtl819x_swHangCnt)
+	j	$L209
+	sw	$0,%lo(rtl819x_swHangCnt)($2)
+
+$L210:
+	lw	$2,%lo(rtl819x_lastRxDesc)($2)
+	nop
+	bne	$2,$6,$L217
+	lui	$2,%hi(rtl819x_swHangCnt)
+
+	lui	$2,%hi(rtl819x_lastTxDesc)
+	lw	$2,%lo(rtl819x_lastTxDesc)($2)
+	nop
+	bne	$2,$7,$L213
+	lui	$2,%hi(rtl819x_swHangCnt)
+
+	lui	$3,%hi(rtl819x_swHangCnt)
+	lw	$2,%lo(rtl819x_swHangCnt)($3)
+	nop
+	addiu	$2,$2,1
+	j	$L209
+	sw	$2,%lo(rtl819x_swHangCnt)($3)
+
+$L213:
+$L217:
+	sw	$0,%lo(rtl819x_swHangCnt)($2)
+$L209:
+	lui	$2,%hi(rtl819x_lastRxDesc)
+	sw	$6,%lo(rtl819x_lastRxDesc)($2)
+	lui	$2,%hi(rtl819x_lastTxDesc)
+	sw	$7,%lo(rtl819x_lastTxDesc)($2)
+	lui	$3,%hi(rtl819x_swHangCnt)
+	lw	$2,%lo(rtl819x_swHangCnt)($3)
+	nop
+	sltu	$2,$2,3
+	bne	$2,$0,$L206
+	nop
+
+	sw	$0,%lo(rtl819x_swHangCnt)($3)
+	lui	$4,%hi($LC3)
+	jal	panic_printk
+	addiu	$4,$4,%lo($LC3)
+
+	jal	machine_restart
+	move	$4,$0
+
+$L206:
+	lw	$31,16($sp)
+	nop
+	j	$31
+	addiu	$sp,$sp,24
+
+	.set	macro
+	.set	reorder
+	.end	rtl819x_poll_sw
 	.globl	RtkHomeGatewayChipName
 	.section	.bss
 	.align	2

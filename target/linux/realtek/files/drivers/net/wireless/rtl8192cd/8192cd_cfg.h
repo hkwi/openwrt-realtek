@@ -13,6 +13,10 @@
 #ifndef _8192CD_CFG_H_
 #define _8192CD_CFG_H_
 
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+#include "linux/ulinker_brsc.h"
+#endif
+
 //#define _LITTLE_ENDIAN_
 //#define _BIG_ENDIAN_
 
@@ -66,14 +70,18 @@
 #endif
 #endif // __KERNEL__
 
+//-------------------------------------------------------------
+// Type definition
+//-------------------------------------------------------------
+#include "typedef.h"
+
 #ifdef __ECOS
 	#include <pkgconf/system.h>
-	#include <pkgconf/devs_eth_rltk_819x_wrapper.h>	
+	#include <pkgconf/devs_eth_rltk_819x_wrapper.h>
+	#include <pkgconf/devs_eth_rltk_819x_wlan.h>
 	
-	#define CONFIG_RTL_819X
-	#define CONFIG_RTL8196C
 #ifndef RTLPKG_DEVS_ETH_RLTK_819X_RX_ZERO_COPY
-	#define CONFIG_RTL8190_PRIV_SKB	
+	#define CONFIG_RTL8190_PRIV_SKB
 #endif
 #endif
 
@@ -82,7 +90,7 @@
  *	Following Definition Sync 2.4/2.6 SDK Definitions
  */
 
-#if !defined(__LINUX_2_6__)
+#if !defined(__LINUX_2_6__) && !defined(__ECOS)
 
 #if defined(CONFIG_RTL8196B) || defined(CONFIG_RTL8196C) || defined(CONFIG_RTL8198)
 #define CONFIG_RTL_819X
@@ -114,13 +122,15 @@
 #endif // !defined(__LINUX_2_6__)
 
 
-#ifndef CONFIG_RTL_8198_AP_ROOT
+#if !defined(CONFIG_RTL_8198_AP_ROOT) && !defined(__ECOS)
 #define CONFIG_RTL_CUSTOM_PASSTHRU
 #endif
 
+#ifndef __ECOS
 #define CONFIG_RTL_CUSTOM_PASSTHRU
+#endif
 #if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
-#define CONFIG_RTL_CUSTOM_PASSTHRU_PPPOE
+//#define CONFIG_RTL_CUSTOM_PASSTHRU_PPPOE
 
 #define IP6_PASSTHRU_MASK 0x1
 #if	defined(CONFIG_RTL_CUSTOM_PASSTHRU_PPPOE)
@@ -146,47 +156,29 @@
 #endif
 #endif
 
-#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_8198)
-/*	Currenlty 98 support 92D should use pcie slot 1	*/
-	#if defined(CONFIG_RTK_VOIP_BOARD)
-	#define	RTL_USED_PCIE_SLOT	0
+
+#ifdef CONFIG_RTK_VOIP_BOARD
+	#define	RTL_MAX_PCIE_SLOT_NUM	1
+	#define	RTL_USED_PCIE_SLOT		0
+#elif defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_8197D) || defined(CONFIG_RTL_8197DL)
+	#define	RTL_MAX_PCIE_SLOT_NUM	2
+	#ifdef CONFIG_RTL_92D_SUPPORT
+		#define	RTL_USED_PCIE_SLOT	1
 	#else
-	#define	RTL_USED_PCIE_SLOT	1
-	#endif /* CONFIG_RTK_VOIP_BOARD */
+		#define	RTL_USED_PCIE_SLOT	0
+	#endif
 #else
-#define	RTL_USED_PCIE_SLOT	0
+	#define	RTL_MAX_PCIE_SLOT_NUM	1
+	#define	RTL_USED_PCIE_SLOT		0
 #endif
 
-#if defined(CONFIG_RTL_8198)
-
-	#if defined(CONFIG_RTK_VOIP_BOARD)
-	#define	RTL_MAX_PCIE_SLOT_NUM	1
-	#else
-	#define	RTL_MAX_PCIE_SLOT_NUM	2
-	#endif /*CONFIG_RTK_VOIP_BOARD*/
-
-	#if defined(CONFIG_RTL_92D_SUPPORT)
-
-		#if defined(CONFIG_RTK_VOIP_BOARD)
-		#define	RTL_USED_PCIE_SLOT	0
-		#else
-		#define	RTL_USED_PCIE_SLOT	1
-		#endif /*ONFIG_RTK_VOIP_BOARD*/
-
-	#else	/*	defined(CONFIG_RTL_92D_SUPPORT)	*/
-		#define	RTL_USED_PCIE_SLOT	0
-	#endif	/*	defined(CONFIG_RTL_92D_SUPPORT)	*/
-#else	/*	defined(CONFIG_RTL_8198)	*/
-	#define	RTL_MAX_PCIE_SLOT_NUM	1
-	#define	RTL_USED_PCIE_SLOT	0
-#endif	/*	defined(CONFIG_RTL_8198)	*/
 
 #ifdef CONFIG_RTK_MESH
-#include "mesh_ext/mesh_cfg.h"
+#include "../mesh_ext/mesh_cfg.h"
 #endif
 
 #if defined(CONFIG_RTL8196B) || defined(CONFIG_RTL_819X)
-	#if defined(CONFIG_RTL8196B_AP_ROOT) || defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL8196B_GW) || defined(CONFIG_RTL_8196C_GW) || defined(CONFIG_RTL_8198_GW) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_RTL8196C_AP_ROOT) || defined(CONFIG_RTL8196C_AP_HCM) || defined(CONFIG_RTL8198_AP_ROOT) || defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL8196C_CLIENT_ONLY) || defined(CONFIG_RTL_8198_NFBI_BOARD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC) || defined(CONFIG_RTL_8196C_iNIC) || defined(CONFIG_RTL_8198_INBAND_AP)
+	#if defined(CONFIG_RTL8196B_AP_ROOT) || defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL8196B_GW) || defined(CONFIG_RTL_8196C_GW) || defined(CONFIG_RTL_8198_GW) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_RTL8196C_AP_ROOT) || defined(CONFIG_RTL8196C_AP_HCM) || defined(CONFIG_RTL8198_AP_ROOT) || defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL8196C_CLIENT_ONLY) || defined(CONFIG_RTL_8198_NFBI_BOARD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC) || defined(CONFIG_RTL_8196C_iNIC) || defined(CONFIG_RTL_8198_INBAND_AP) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B) || defined(__ECOS)
 		#define USE_RTL8186_SDK
 	#endif
 #endif
@@ -206,17 +198,17 @@
 #define MAX_NUM(_x_, _y_)	(((_x_)>(_y_))? (_x_) : (_y_))
 #define MIN_NUM(_x_, _y_)	(((_x_)<(_y_))? (_x_) : (_y_))
 
+#define POWER_MIN_CHECK(a,b)            (((a) > (b)) ? (b) : (a))
+#define POWER_RANGE_CHECK(val)		(((val) > 0x3f)? 0x3f : ((val < 0) ? 0 : val))
+#define COUNT_SIGN_OFFSET(val, oft)	(((oft & 0x08) == 0x08)? (val - (0x10 - oft)) : (val + oft))
+
 //-------------------------------------------------------------
 // Driver version information
 //-------------------------------------------------------------
 #define DRV_VERSION_H	1
 #define DRV_VERSION_L	6
-#define DRV_RELDATE		"2011-07-18"
-#ifdef LINUX_2_6_22_
-#define DRV_NAME		"RTL8192C/RTL8188C"
-#else
-#define DRV_NAME		"RTL8192C-RTL8188C"
-#endif
+#define DRV_RELDATE		"2012-12-04"
+#define DRV_NAME		"Realtek WLAN driver"
 
 
 //-------------------------------------------------------------
@@ -257,26 +249,20 @@
 #define TESTCHIP_SUPPORT
 #endif
 
+
 //-------------------------------------------------------------
 // Support software tx queue
 // ------------------------------------------------------------
 #define SW_TX_QUEUE
-#if defined(CONFIG_RTL_8198)
-#define MAX_AGGR_NUM    16
-#else
-#define MAX_AGGR_NUM    8
-#endif
-#define MIN_AGGR_NUM    8
+
 
 //-------------------------------------------------------------
 // Support Tx Report
 //-------------------------------------------------------------
-//#ifndef CONFIG_RTL_92D_SUPPORT
 #define TXREPORT
 #ifdef TXREPORT
 #define DETECT_STA_EXISTANCE
 #endif
-//#endif
 //#define LEAVESTADETECT
 
 
@@ -284,16 +270,9 @@
 // PCIe power saving function
 //-------------------------------------------------------------
 #ifdef CONFIG_PCIE_POWER_SAVING
-#if !defined(CONFIG_NET_PCI) && !defined(CONFIG_RTL_8196CS)
+#if !defined(CONFIG_NET_PCI) && !defined(CONFIG_RTL_8196CS) && (!defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_ULINKER)) && !defined(CONFIG_RTL_88E_SUPPORT)
 #define PCIE_POWER_SAVING
 #endif
-#if	defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_92C_SUPPORT)
-#undef PCIE_POWER_SAVING
-#endif
-#if	defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_8198)
-#undef PCIE_POWER_SAVING
-#endif
-
 
 #endif
 
@@ -316,7 +295,7 @@
 #define CONFIG_SLOT1S	0xb8b30000
 
 
-#if defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define CFG_92C_SLOTH		CONFIG_SLOT0H
 #define CFG_92C_SLOTS		CONFIG_SLOT0S
 #if (RTL_USED_PCIE_SLOT==1)
@@ -359,11 +338,9 @@
 //-------------------------------------------------------------
 // WPA Supplicant 
 //-------------------------------------------------------------
-
 //#define WIFI_WPAS
 
 #ifdef WIFI_WPAS
-
 #ifndef WIFI_HAPD
 #define WIFI_HAPD
 #endif
@@ -371,7 +348,6 @@
 #ifndef CLIENT_MODE
 #define CLIENT_MODE
 #endif
-
 #endif
 
 
@@ -387,6 +363,10 @@
 	#define CL_IPV6_PASS	// Enable IPV6 pass-through. RTK_BR_EXT must be defined
 #endif
 
+#ifdef CONFIG_RTL_SUPPORT_MULTI_PROFILE
+	#define SUPPORT_MULTI_PROFILE		// support multiple AP profile
+#endif
+
 
 //-------------------------------------------------------------
 // Defined when WPA2 is used
@@ -398,7 +378,7 @@
 //-------------------------------------------------------------
 // MP test
 //-------------------------------------------------------------
-#if !defined(CONFIG_RTL8196B_GW_8M) || defined(CONFIG_RTL8196B_GW_MP)
+#if (!defined(CONFIG_RTL8196B_GW_8M) || defined(CONFIG_RTL8196B_GW_MP))
 #define MP_TEST
 #ifdef CONFIG_RTL_92D_SUPPORT
 //#define TEMP_MP_92D
@@ -426,7 +406,22 @@
 #if defined(CONFIG_RTK_MESH) && defined(RX_SHORTCUT)
 #define RX_RL_SHORTCUT
 #endif
+#ifdef __ECOS
+#ifdef RTLPKG_DEVS_ETH_RLTK_819X_BRSC
 #define BR_SHORTCUT
+#endif
+#elif !defined(CONFIG_RTL_FASTBRIDGE)
+#ifdef CONFIG_RTL8672
+#ifndef CONFIG_RTL8672_BRIDGE_FASTPATH
+#define BR_SHORTCUT
+#endif
+#else
+#define BR_SHORTCUT
+#ifndef CONFIG_RTL_8198B
+#define BR_SHORTCUT_C2
+#endif
+#endif
+#endif
 #if defined(CONFIG_RTK_MESH) && defined(TX_SHORTCUT)
 	#define MESH_TX_SHORTCUT
 #endif
@@ -447,15 +442,18 @@
 #define EN_EFUSE
 #endif
 
+
 //-------------------------------------------------------------
 // new Auto channel
 //-------------------------------------------------------------
 #define CONFIG_RTL_NEW_AUTOCH
 
+
 //-------------------------------------------------------------
 // new IQ calibration for 92c / 88c
 //-------------------------------------------------------------
 #define CONFIG_RTL_NEW_IQK
+
 
 //-------------------------------------------------------------
 // noise control
@@ -464,11 +462,17 @@
 //#define CONFIG_RTL_NOISE_CONTROL_92C
 #endif
 
+
 //-------------------------------------------------------------
 // Universal Repeater (support AP + Infra client concurrently)
 //-------------------------------------------------------------
 #if defined(CONFIG_RTL_REPEATER_MODE_SUPPORT)
 #define UNIVERSAL_REPEATER
+#define SMART_REPEATER_MODE
+#ifdef SMART_REPEATER_MODE
+	#define CHECK_VXD_AP_TIMEOUT	RTL_SECONDS_TO_JIFFIES(60)
+#endif
+//#define	SWITCH_CHAN
 #endif
 
 
@@ -478,6 +482,7 @@
 #define CHECK_HANGUP
 #ifdef CHECK_HANGUP
 	#define CHECK_TX_HANGUP
+	#define CHECK_RX_DMA_ERROR
 	#define FAST_RECOVERY
 #endif
 
@@ -518,6 +523,10 @@
 //#ifdef CONFIG_RTL_HOSTAPD_SUPPORT 
 //#define WIFI_HAPD
 //#endif
+#ifdef CONFIG_RTL_P2P_SUPPORT
+#define P2P_SUPPORT  //  support for WIFI_Direct
+//#define P2P_DEBUGMSG
+#endif
 
 #ifdef WIFI_HAPD
 
@@ -552,7 +561,7 @@
 #ifdef WPS2DOTX
 #define SUPPORT_PROBE_REQ_REASSEM	//for AP mode
 #define SUPPORT_PROBE_RSP_REASSEM	// for STA mode
-#define WPS2DOTX_DEBUG
+//#define WPS2DOTX_DEBUG
 #endif
 
 #ifdef	WPS2DOTX_DEBUG	  //0614 for wps2.0  trace
@@ -564,6 +573,7 @@
 #define SME_DEBUG(fmt, args...) 
 #endif
 /* WPS2DOTX   */
+
 
 //-------------------------------------------------------------
 // Support Multiple BSSID
@@ -586,7 +596,7 @@
 //-------------------------------------------------------------
 #ifdef CONFIG_RTL_TX_RESERVE_DESC
 #if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
-//#define RESERVE_TXDESC_FOR_EACH_IF
+#define RESERVE_TXDESC_FOR_EACH_IF
 #endif
 #endif
 
@@ -621,7 +631,15 @@
 #ifdef CONFIG_ANT_SWITCH
 //#define SW_ANT_SWITCH
 #define HW_ANT_SWITCH
+//#define GPIO_ANT_SWITCH
+#ifdef HW_ANT_SWITCH
+#define HW_DIV_ENABLE	(priv->pshare->rf_ft_var.antHw_enable&1)
 #endif
+#ifdef SW_ANT_SWITCH
+#define SW_DIV_ENABLE	(priv->pshare->rf_ft_var.antSw_enable&1)
+#endif
+#endif
+
 
 //-------------------------------------------------------------
 // WPAI performance issue
@@ -640,14 +658,18 @@
 // Use local ring for pre-alloc Rx buffer.
 // If no defined, will use kernel skb que
 //-------------------------------------------------------------
+#ifndef __ECOS
 #define RTK_QUE
+#endif
 
 
 //-------------------------------------------------------------
 //Support IP multicast->unicast
 //-------------------------------------------------------------
+#ifndef __ECOS
 #define SUPPORT_TX_MCAST2UNI
-//#define MCAST2UI_REFINE
+#define MCAST2UI_REFINE
+#endif
 
 #ifdef CLIENT_MODE
 #define SUPPORT_RX_UNI2MCAST
@@ -725,17 +747,12 @@
 // WiFi 11n 20/40 coexistence
 //-------------------------------------------------------------
 #define WIFI_11N_2040_COEXIST
-
+#define WIFI_11N_2040_COEXIST_EXT
 
 //-------------------------------------------------------------
 // Add TX power by command
 //-------------------------------------------------------------
 #define ADD_TX_POWER_BY_CMD
-
-//-------------------------------------------------------------
-// Merge firmware and phy parameter files into binary
-//-------------------------------------------------------------
-#define MERGE_FW
 
 
 //-------------------------------------------------------------
@@ -755,7 +772,7 @@
 //-------------------------------------------------------------
 // Cache station info for bridge
 //-------------------------------------------------------------
-//#define RTL_CACHED_BR_STA
+#define RTL_CACHED_BR_STA
 
 
 //-------------------------------------------------------------
@@ -773,9 +790,10 @@
 //-------------------------------------------------------------
 // Auto test support
 //-------------------------------------------------------------
-#ifndef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
 #define AUTO_TEST_SUPPORT
 #endif
+
 
 //-------------------------------------------------------------
 // to prevent broadcast storm attacks
@@ -804,7 +822,11 @@
 //-------------------------------------------------------------
 // Rx buffer gather feature
 //-------------------------------------------------------------
+#ifdef CONFIG_RTL8672
+//#define RX_BUFFER_GATHER
+#else
 #define RX_BUFFER_GATHER
+#endif
 
 
 //-------------------------------------------------------------
@@ -833,6 +855,51 @@
 // No padding between members in the structure for specified CPU
 //-------------------------------------------------------------
 //#define PACK_STRUCTURE
+
+
+//-------------------------------------------------------------
+// customers proprietary info display
+//-------------------------------------------------------------
+//#define TLN_STATS
+
+
+//-------------------------------------------------------------
+// Tx early mode
+//-------------------------------------------------------------
+//#ifdef CONFIG_RTL_TX_EARLY_MODE_SUPPORT
+#ifdef CONFIG_RTL_88E_SUPPORT
+	#define TX_EARLY_MODE
+#endif
+
+
+//-------------------------------------------------------------
+// Dynamically switch LNA for 97d High Power in MP mode to pass Rx Test
+//-------------------------------------------------------------
+#if defined(CONFIG_RTL_819XD) && !defined(CONFIG_RTL_8196D) && defined(CONFIG_HIGH_POWER_EXT_PA) //for 97d High Power only
+//#define MP_SWITCH_LNA
+#endif
+
+
+//-------------------------------------------------------------
+// RTL8188E GPIO Control
+//-------------------------------------------------------------
+#define RTLWIFINIC_GPIO_CONTROL
+
+
+//-------------------------------------------------------------
+// Tx power limit function
+//-------------------------------------------------------------
+#ifdef CONFIG_TXPWR_LMT
+#define TXPWR_LMT
+#endif
+
+
+//-------------------------------------------------------------
+// RADIUS Accounting supportive functions
+//-------------------------------------------------------------
+#define RADIUS_ACCOUNTING
+
+
 
 
 /*********************************************************************/
@@ -864,10 +931,18 @@
 
 
 #undef __MIPS16
+#ifdef __ECOS
+#ifdef RTLPKG_DEVS_ETH_RLTK_819X_USE_MIPS16
+#define __MIPS16			__attribute__ ((mips16))
+#else
+#define __MIPS16
+#endif
+#else
 #if defined(CONFIG_WIRELESS_LAN_MODULE)
 #define __MIPS16
 #else
 #define __MIPS16			__attribute__ ((mips16))
+#endif
 #endif
 
 #ifdef IRAM_FOR_WIRELESS_AND_WAPI_PERFORMANCE
@@ -1112,7 +1187,7 @@
 #ifdef CONFIG_RTL8672
 
 #undef DRV_RELDATE
-#define DRV_RELDATE		"2009-11-18/2010-0104"
+#define DRV_RELDATE		"2010-03-31/2011-07-08"
 
 #ifndef RX_TASKLET
 	#define RX_TASKLET
@@ -1126,7 +1201,7 @@
 	#undef RTL8190_ISR_RX
 #endif
 
-#ifdef USE_RLX_BSP
+#if defined(USE_RLX_BSP) && !defined(LINUX_2_6_22_)
 	#undef USE_RLX_BSP
 #endif
 
@@ -1148,9 +1223,30 @@
 #endif
 #define __IRAM_IN_865X_HI	__attribute__ ((section(".iram-tx")))
 
+#define USE_TXQUEUE
+#ifdef USE_TXQUEUE
+	#define TXQUEUE_SIZE	512
+#endif
+
+// Support dynamically adjust TXOP in low throughput feature
+#define LOW_TP_TXOP
+
+// Support four different AC stream
+#define WMM_VIBE_PRI
+
+// Resist interference 
+#define INTERFERENCE_CONTROL
 #ifdef PCIE_POWER_SAVING
 	#undef PCIE_POWER_SAVING
 #endif
+
+#ifdef CONFIG_RTL_8196C
+	#undef CONFIG_RTL_8196C
+#endif
+#ifdef CONFIG_RTL8196C_REVISION_B
+	#undef CONFIG_RTL8196C_REVISION_B
+#endif
+
 
 #endif // CONFIG_RTL8672
 
@@ -1160,10 +1256,7 @@
 //-------------------------------------------------------------
 #ifdef CONFIG_RTL_92D_SUPPORT
 #define SW_LCK_92D
-
-#ifdef CONFIG_TXPWR_LMT
-#define TXPWR_LMT
-#endif
+#define DPK_92D
 
 #define RX_GAIN_TRACK_92D
 //#define CONFIG_RTL_NOISE_CONTROL
@@ -1174,8 +1267,44 @@
 //#ifdef CONFIG_RTL_92D_INT_PA
 #define RTL8192D_INT_PA
 //#endif
+
+#ifdef RTL8192D_INT_PA
+//Use Gain Table with suffix '_new'  for purpose
+//1. refine the large gap between power index 39 &40
+//#define RTL8192D_INT_PA_GAIN_TABLE_NEW //for both Non-USB & USB Power
+
+//Use Gain Table with suffix '_new1' for purpose
+//1. refine the large gap between power index 39 &40
+//2. increase tx power 
+//#define RTL8192D_INT_PA_GAIN_TABLE_NEW1 //for USB Power only
 #endif
 
+#endif
+
+
+//-------------------------------------------------------------
+// Define flag of RTL8188E features
+//-------------------------------------------------------------
+#ifdef CONFIG_RTL_88E_SUPPORT
+/* RTL8188E test chip support*/
+#define SUPPORT_RTL8188E_TC
+#ifndef CALIBRATE_BY_ODM
+
+//for 8188E IQK
+#define IQK_BB_REG_NUM		9		
+
+//for 88e tx power tracking
+#define	index_mapping_NUM_88E	15
+#define AVG_THERMAL_NUM_88E		4
+#define IQK_Matrix_Settings_NUM	1+24+21
+#define	AVG_THERMAL_NUM 8
+#define	HP_THERMAL_NUM 8
+
+#define	RF_T_METER_88E			0x42
+//===
+#endif
+
+#endif
 
 
 #if 0
@@ -1257,6 +1386,44 @@
 
 #endif // CONFIG_RTL8196C_KLD
 
+
+//-------------------------------------------------------------
+// eCos define flag
+//-------------------------------------------------------------
+#ifdef __ECOS
+	#undef USE_PID_NOTIFY
+	//#undef EAP_BY_QUEUE
+	#undef EVENT_LOG
+	#undef SUPPORT_TX_MCAST2UNI
+	#undef AUTO_TEST_SUPPORT
+	#undef SUPPORT_RX_UNI2MCAST
+#if !defined(UNIVERSAL_REPEATER) && !defined(MBSSID)
+	#define USE_WEP_DEFAULT_KEY
+#endif	
+#ifndef RX_TASKLET
+	#define	RX_TASKLET
+#endif
+
+#ifdef RTL8192CD_NUM_VWLAN
+	#undef RTL8192CD_NUM_VWLAN
+	#define RTL8192CD_NUM_VWLAN	RTLPKG_DEVS_ETH_RLTK_819X_WLAN_MBSSID_NUM
+#endif
+	
+#ifdef CYGSEM_HAL_IMEM_SUPPORT
+	#define __IRAM_IN_865X		__attribute__ ((section(".iram-rtkwlan")))
+#else
+	#define __IRAM_IN_865X
+#endif
+#ifdef CYGSEM_HAL_DMEM_SUPPORT
+	#define __DRAM_IN_865X		__attribute__ ((section(".dram-rtkwlan")))
+#else
+	#define __DRAM_IN_865X
+#endif
+
+	#define dev_kfree_skb_any(skb)	kfree_skb_chk_key(skb, wlan_device[0].priv->dev);
+#endif /* __ECOS */
+
+
 //-------------------------------------------------------------
 // Dependence check of define flag
 //-------------------------------------------------------------
@@ -1267,6 +1434,11 @@
 
 #if defined(UNIVERSAL_REPEATER) && !defined(CLIENT_MODE)
 	#error "Define flag error, CLIENT_MODE is not defined!\n"
+#endif
+
+
+#if defined(TX_EARLY_MODE) && !defined(SW_TX_QUEUE)
+	#error "Define flag error, SW_TX_QUEUE is not defined!\n"
 #endif
 
 
@@ -1349,9 +1521,11 @@
 	#define DRAM_START_ADDR		0x81000000	// start address of internal data ram
 #endif
 
+#ifndef __ECOS
 #ifdef __GNUC__
 #define __WLAN_ATTRIB_PACK__		__attribute__ ((packed))
 #define __PACK
+#endif
 #endif
 
 #ifdef __arm
@@ -1359,7 +1533,7 @@
 #define __PACK	__packed
 #endif
 
-#ifdef GREEN_HILL
+#if defined(GREEN_HILL) || defined(__ECOS)
 #define __WLAN_ATTRIB_PACK__
 #define __PACK
 #endif
@@ -1368,7 +1542,7 @@
 /*=============================================================*/
 /*-----------_ Driver module flags ----------------------------*/
 /*=============================================================*/
-#ifdef CONFIG_WIRELESS_LAN_MODULE
+#if defined(CONFIG_WIRELESS_LAN_MODULE) || defined(CONFIG_RTL_ULINKER_WLAN_DELAY_INIT)
 	#define	MODULE_NAME		"Realtek WirelessLan Driver"
 	#define	MODULE_VERSION	"v1.00"
 
@@ -1392,7 +1566,7 @@
 #if defined(CONFIG_RTL8196B_GW_8M)
 #define NUM_TX_DESC		200
 #else
-#if defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) 
 #if defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D)
 #define NUM_TX_DESC		640
 #else
@@ -1403,7 +1577,7 @@
 #endif
 #endif
 
-#if defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) 
 	#if defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D)
 		#define NUM_RX_DESC		256
 	#else
@@ -1424,11 +1598,23 @@
 	#endif
 #endif
 
+#define CURRENT_NUM_TX_DESC	priv->pshare->current_num_tx_desc
+#if defined (CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_92D_DMDP)
+#define MAX_NUM_TX_DESC_DMDP		256
+#endif
+
 #ifdef DELAY_REFILL_RX_BUF
 	#define REFILL_THRESHOLD	NUM_RX_DESC
 #endif
 
 #define FW_NUM_STAT 32
+#ifdef CONFIG_RTL_88E_SUPPORT
+#ifdef __ECOS
+#define RTL8188E_NUM_STAT 32
+#else
+#define RTL8188E_NUM_STAT 64
+#endif
+#endif
 
 #if (defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD)) && defined(MBSSID)
 #define NUM_CMD_DESC	2
@@ -1439,7 +1625,11 @@
 #ifdef STA_EXT
 #define NUM_STAT		64
 #else
-#define NUM_STAT		31 //32
+#ifdef CONFIG_RTL_88E_SUPPORT
+#define NUM_STAT		(RTL8188E_NUM_STAT - 1)
+#else
+#define NUM_STAT		(FW_NUM_STAT - 1)
+#endif
 #endif
 #define MAX_GUEST_NUM   NUM_STAT
 
@@ -1533,7 +1723,7 @@
 #define LED_MAX_PACKET_CNT_B	400
 #define LED_MAX_PACKET_CNT_AG	1200
 #define LED_MAX_SCALE			100
-#define LED_NOBLINK_TIME		RTL_SECONDS_TO_JIFFIES(11)/10	// time more than watchdog interval
+#define LED_NOBLINK_TIME		RTL_SECONDS_TO_JIFFIES(15)/10	// time more than watchdog interval
 #define LED_INTERVAL_TIME		RTL_MILISECONDS_TO_JIFFIES(500)	// 500ms
 #define LED_ON_TIME				RTL_MILISECONDS_TO_JIFFIES(40)	// 40ms
 #define LED_ON					0
@@ -1558,7 +1748,7 @@
 #endif
 
 #define MAX_RX_BUF_LEN	(MAX_SKB_BUF -sizeof(struct skb_shared_info) - 128)
-#define MIN_RX_BUF_LEN MAX_RX_BUF_LEN	
+#define MIN_RX_BUF_LEN MAX_RX_BUF_LEN
 
 #else
 #define MAX_RX_BUF_LEN	8400
@@ -1566,8 +1756,8 @@
 #endif
 
 /* for RTL865x suspend mode */
-#define TP_HIGH_WATER_MARK 50 //80 /* unit: Mbps */
-#define TP_LOW_WATER_MARK 30 //40 /* unit: Mbps */
+#define TP_HIGH_WATER_MARK 55 //80 /* unit: Mbps */
+#define TP_LOW_WATER_MARK 35 //40 /* unit: Mbps */
 
 #define FW_BOOT_SIZE	400
 #define FW_MAIN_SIZE	52000
@@ -1596,39 +1786,36 @@
 
 #ifdef SUPPORT_TX_MCAST2UNI
 #define MAX_IP_MC_ENTRY		8
+#define MAX_FLOODING_MAC_NUM 32
 #endif
 
+#ifndef CALIBRATE_BY_ODM
 #define IQK_ADDA_REG_NUM	16
 #define MAX_TOLERANCE		5
 #define	IQK_DELAY_TIME		1		//ms
 #define IQK_MAC_REG_NUM		4
+#endif
+
 
 #define SKIP_MIC_NUM	300
 
-//Analog Pre-distortion calibration
-#define		APK_BB_REG_NUM	5
-#define		APK_AFE_REG_NUM	16
-#define		APK_CURVE_REG_NUM 4
-#define		PATH_NUM		2
 
 // for dynamic mechanism of reserving tx desc
 #if defined(RESERVE_TXDESC_FOR_EACH_IF) && (defined(UNIVERSAL_REPEATER) || defined(MBSSID))
 #define IF_TXDESC_UPPER_LIMIT	70	// percentage
+#ifdef USE_TXQUEUE
+#define IF_TXQ_UPPER_LIMIT		85	// percentage
+#endif
 #endif
 
 // for dynamic mechanism of retry count
 #define RETRY_TRSHLD_H	3750000
 #define RETRY_TRSHLD_L	3125000
-
+#define MP_PSD_SUPPORT 1
 //-------------------------------------------------------------
 // Define flag for 8M gateway configuration
 //-------------------------------------------------------------
 #if defined(CONFIG_RTL8196B_GW_8M)
-
-//#ifdef MERGE_FW
-//	#undef MERGE_FW
-//#endif
-//#define DW_FW_BY_MALLOC_BUF
 
 #ifdef MBSSID
 	#undef RTL8192CD_NUM_VWLAN
@@ -1707,6 +1894,27 @@
 #undef CONFIG_RTL865X_ETH_PRIV_SKB
 #undef CONFIG_RTL_ETH_PRIV_SKB
 #undef CONFIG_RTK_VLAN_SUPPORT
+#endif
+#if defined(CONFIG_RTL8672) && defined(LINUX_2_6_22_) && defined(CONFIG_MEM_LIMITATION)
+	#undef NUM_STAT
+	#define NUM_STAT	16
+#endif
+
+//-------------------------------------------------------------
+// OUT SOURCE
+//-------------------------------------------------------------
+#ifdef CONFIG_RTL_88E_SUPPORT
+#ifdef CONFIG_RTL_ODM_WLAN_DRIVER
+#define USE_OUT_SRC					1
+#define CONFIG_MACBBRF_BY_ODM		1
+#define RATEADAPTIVE_BY_ODM			1
+#define CALIBRATE_BY_ODM			1
+#endif
+// Support four different AC stream
+#ifndef WMM_VIBE_PRI
+#define WMM_VIBE_PRI
+#endif
+#define WMM_BEBK_PRI
 #endif
 
 

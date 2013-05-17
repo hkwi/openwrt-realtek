@@ -700,6 +700,9 @@ update_isoc_urb_state(dwc_otg_hcd_t *_hcd,
 		frame_desc->actual_length =
 			get_actual_xfer_length(_hc, _hc_regs, _qtd,
 					       _halt_status, NULL);
+		
+		urb->actual_length+=frame_desc->actual_length ;  //avoid interrupt endpoint issue for web cam
+		
 		break;
 	case DWC_OTG_HC_XFER_FRAME_OVERRUN:
 		urb->error_count++;

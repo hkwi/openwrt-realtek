@@ -21,6 +21,9 @@
 #include "dwc_otg_pcd.h"
 #include "dwc_otg_hcd.h"
 
+
+#define SYS_OTG_CONTROL 0xb8000098 
+
 #define OTGCTRL_CFG_DEV_R  (1<<18)
 #define OTGCTRL_VBUS_ON  (1<<19)
 #define OTGCTRL_PJ_ON  (1<<20)

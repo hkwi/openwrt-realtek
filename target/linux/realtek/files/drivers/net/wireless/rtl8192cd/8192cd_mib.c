@@ -10,12 +10,25 @@
  *  published by the Free Software Foundation.
  */
 #define _8192CD_MIB_C_
+
+#ifdef __KERNEL__
 #include <linux/module.h>
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
+#endif
+
 #include "./8192cd_cfg.h"
 
 #ifdef SUPPORT_SNMP_MIB
 
+#ifdef __KERNEL__
 #include "./ieee802_mib.h"
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wlan/ieee802_mib.h>
+#endif
 #include "./8192cd_headers.h"
 #include "./8192cd_debug.h"
 #include "./8192cd_mib.h"

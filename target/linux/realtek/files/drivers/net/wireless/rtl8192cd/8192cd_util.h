@@ -26,7 +26,7 @@
 #include "./8192cd_hw.h"
 
 #ifdef CONFIG_RTK_MESH
-#include "./mesh_ext/mesh_util.h"
+#include "../mesh_ext/mesh_util.h"
 #endif
 
 #ifdef GREEN_HILL
@@ -54,8 +54,10 @@
 #else
 #define SAVE_INT_AND_CLI(__x__)		spin_lock_irqsave(&priv->pshare->lock, (__x__))
 #define RESTORE_INT(__x__)			spin_unlock_irqrestore(&priv->pshare->lock, (__x__))
+#ifndef __ECOS
 #define SMP_LOCK(__x__)	
 #define SMP_UNLOCK(__x__)
+#endif
 #define SMP_LOCK_XMIT(__x__)		
 #define SMP_UNLOCK_XMIT(__x__)		
 #define SMP_LOCK_SKB(__x__)			
@@ -87,14 +89,21 @@
 #define RTL_MILISECONDS_TO_JIFFIES(x) ((x*HZ)/1000)
 #define RTL_10MILISECONDS_TO_JIFFIES(x) ((x*HZ)/100)
 #define RTL_JIFFIES_TO_MICROSECOND ((1000*1000)/HZ)
+#define RTL_JIFFIES_TO_MILISECONDS(x) ((x*1000)/HZ)
 
 #define GET_CHIP_VER(priv)		((priv->pshare->version_id&VERSION_MASK))
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(SUPPORT_RTL8188E_TC)
 #define IS_TEST_CHIP(priv)		((priv->pshare->version_id&0x100))
+#endif
+#ifdef CONFIG_RTL_92C_SUPPORT
 #define IS_88RE(priv)			((priv->pshare->version_id&0x200))
+#endif
 #define IS_UMC_A_CUT(priv)		((priv->pshare->version_id&0x4f0)==0x400)
 #define IS_UMC_B_CUT(priv)		((priv->pshare->version_id&0x4f0)==0x410)
+#ifdef CONFIG_RTL_92C_SUPPORT
 #define IS_UMC_A_CUT_88C(priv)	(IS_UMC_A_CUT(priv) && (GET_CHIP_VER(priv) == VERSION_8188C))
 #define IS_UMC_B_CUT_88C(priv)	(IS_UMC_B_CUT(priv) && (GET_CHIP_VER(priv) == VERSION_8188C))
+#endif
 
 #define RTL_SET_MASK(reg,mask,val,shift) (((reg)&(~(mask)))|((val)<<(shift)))
 
@@ -136,8 +145,10 @@
 #endif
 
 extern unsigned char rfc1042_header[WLAN_LLC_HEADER_SIZE];
+#ifdef CONFIG_RTL_8198
 #ifndef REG32
 	#define REG32(reg)	 	(*(volatile unsigned int *)(reg))
+#endif
 #endif
 static __inline__ unsigned char RTL_R8_F(struct rtl8192cd_priv *priv, unsigned int reg)
 {
@@ -423,10 +434,11 @@ static __inline__ struct list_head *dequeue_frame(struct rtl8192cd_priv *priv, s
 	unsigned long flags;
 	struct list_head *pnext;
 
-	if (list_empty(head))
-		return (void *)NULL;
-
 	SAVE_INT_AND_CLI(flags);
+	if (list_empty(head)) {
+		RESTORE_INT(flags);
+		return (void *)NULL;
+	}
 
 	pnext = head->next;
 	list_del_init(pnext);
@@ -475,13 +487,15 @@ enum _skb_flag_ {
 };
 
 // Allocate net device socket buffer
-extern __MIPS16 __IRAM_IN_865X struct sk_buff *alloc_skb_from_queue(struct rtl8192cd_priv *priv);
 static __inline__ struct sk_buff *rtl_dev_alloc_skb(struct rtl8192cd_priv *priv,
 				unsigned int length, int flag, int could_alloc_from_kerenl)
 {
 	struct sk_buff *skb = NULL;
 
 //	skb = dev_alloc_skb(length);
+ __MIPS16 
+__IRAM_IN_865X 	extern  struct sk_buff *alloc_skb_from_queue(struct rtl8192cd_priv *priv);
+
 	skb = alloc_skb_from_queue(priv);
 
 	if (skb == NULL && could_alloc_from_kerenl)
@@ -553,10 +567,11 @@ static __inline__ int is_MCS_2SS_rate(unsigned char rate)
 static __inline__ void rtl_cache_sync_wback(struct rtl8192cd_priv *priv, unsigned int start,
 				unsigned int size, int direction)
 {
+		if (0 == size) return;	// if the size of cache sync is equal to zero, don't do sync action
 #ifdef __LINUX_2_6__
 		start = CPHYSADDR(start);
 #endif
-#ifdef CONFIG_NET_PCI
+#if defined(CONFIG_NET_PCI) && !defined(USE_RTL8186_SDK)
 		if (IS_PCIBIOS_TYPE) {
 #ifdef __LINUX_2_6__
 			pci_dma_sync_single_for_cpu(priv->pshare->pdev, start, size, direction);
@@ -589,7 +604,7 @@ static __inline__ unsigned long get_physical_addr(struct rtl8192cd_priv *priv, v
 				unsigned int size, int direction)
 {
 #if defined(CONFIG_NET_PCI) && !defined(USE_RTL8186_SDK)
-	if (IS_PCIBIOS_TYPE)
+	if ((IS_PCIBIOS_TYPE) && (0 != size))
 		return pci_map_single(priv->pshare->pdev, ptr, size, direction);
 	else
 #endif
@@ -623,7 +638,11 @@ static __inline__ unsigned int get_supported_mcs(struct rtl8192cd_priv *priv)
 		return (priv->pmib->dot11nConfigEntry.dot11nSupportedMCS & 0xffff);
 }
 
+#ifdef CONFIG_RTL8672
+static __inline__ void tx_sum_up(struct rtl8192cd_priv *priv, struct stat_info *pstat, int pktlen, struct tx_insn* txcfg)
+#else
 static __inline__ void tx_sum_up(struct rtl8192cd_priv *priv, struct stat_info *pstat, int pktlen)
+#endif
 {
 	struct net_device_stats *pnet_stats;
 
@@ -636,15 +655,20 @@ static __inline__ void tx_sum_up(struct rtl8192cd_priv *priv, struct stat_info *
 
 		// bcm old 11n chipset iot debug, and TXOP enlarge
 		priv->pshare->current_tx_bytes += pktlen;
+
+#ifdef USE_OUT_SRC
+		if (pstat)
+			priv->pshare->NumTxBytesUnicast += pktlen;
+#endif		
 	}
 
 	if (pstat) {
 
-#ifdef TXREPORT
-#ifdef TESTCHIP_SUPPORT
-		if (IS_TEST_CHIP(priv))
+#if defined(TXREPORT) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
+#if defined(TESTCHIP_SUPPORT) && defined(CONFIG_RTL_92C_SUPPORT)
+		if (IS_TEST_CHIP(priv)) {
 			pstat->tx_pkts++;
-		else
+		} else
 #endif
 #ifdef STA_EXT
 		if (pstat->remapped_aid == FW_NUM_STAT-1)
@@ -652,7 +676,16 @@ static __inline__ void tx_sum_up(struct rtl8192cd_priv *priv, struct stat_info *
 		if (pstat->aid == FW_NUM_STAT)	
 #endif			
 #endif
+		{
+#ifdef CONFIG_RTL8672
+		if (txcfg->fr_type == _SKB_FRAME_TYPE_
+#ifdef SUPPORT_TX_MCAST2UNI
+			&& !txcfg->isMC2UC
+#endif		
+		)
+#endif
 		pstat->tx_pkts++;
+		}
 		pstat->tx_bytes += pktlen;
 		pstat->tx_byte_cnt += pktlen;
 	}
@@ -721,6 +754,15 @@ extern struct pid *_wlanapp_pid;
 #if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
 INT32 rtl_isPassthruFrame(UINT8 *data);
 #endif
+
+#ifdef USE_TXQUEUE
+int init_txq_pool(struct list_head *head, unsigned char **ppool);
+void free_txq_pool(struct list_head *head, unsigned char *ppool);
+void append_skb_to_txq_head(struct txq_list_head *head, struct rtl8192cd_priv *priv, struct sk_buff *skb, struct net_device *dev, struct list_head *pool);
+void append_skb_to_txq_tail(struct txq_list_head *head, struct rtl8192cd_priv *priv, struct sk_buff *skb, struct net_device *dev, struct list_head *pool);
+void remove_skb_from_txq(struct txq_list_head *head, struct sk_buff **pskb, struct net_device **pdev, struct list_head *pool);
+#endif
+void mem_dump(unsigned char *ptitle, unsigned char *pbuf, int len);
 
 #endif // _8192CD_UTIL_H_
 

@@ -27,6 +27,9 @@ ifdef CONFIG_RTL_8198T
 L4_SUPPORT=1
 endif
 
+ifdef CONFIG_RTL_819XDT
+L4_SUPPORT=1
+endif
 ifdef CONFIG_RTL_LAYERED_DRIVER
 	ifdef CONFIG_RTL_LAYERED_DRIVER_L2
                obj-y += ../l2Driver/built-in.o

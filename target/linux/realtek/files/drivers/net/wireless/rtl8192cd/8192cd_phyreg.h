@@ -91,15 +91,15 @@
 #define		rFPGA0_RFWakeUpParameter		0x850	// Useless now
 #define		rFPGA0_RFSleepUpParameter		0x854
 #define		rFPGA0_XAB_SwitchControl		0x858	// RF Channel switch
-//#define		rFPGA0_XCD_SwitchControl		0x85c
+#define		rFPGA0_XCD_SwitchControl		0x85c
 #define		rFPGA0_XA_RFInterfaceOE		0x860	// RF Channel switch
 #define		rFPGA0_XB_RFInterfaceOE		0x864
 #define		rTxAGC_B_Mcs15_Mcs12			0x868
 #define		rTxAGC_A_CCK11_2_B_CCK11		0x86c
 #define		rFPGA0_XAB_RFInterfaceSW		0x870	// RF Interface Software Control
-//#define		rFPGA0_XCD_RFInterfaceSW		0x874
+#define		rFPGA0_XCD_RFInterfaceSW		0x874
 #define		rFPGA0_XAB_RFParameter		0x878	// RF Parameter
-//#define		rFPGA0_XCD_RFParameter		0x87c
+#define		rFPGA0_XCD_RFParameter		0x87c
 #define		rFPGA0_AnalogParameter1		0x880	// Crystal cap setting RF-R/W protection for parameter4??
 #define		rFPGA0_AnalogParameter2		0x884
 #if defined(CONFIG_RTL_92D_SUPPORT)
@@ -935,6 +935,7 @@
 #define		bMaskLWord					0x0000ffff
 #define		bMaskDWord				0xffffffff
 #define		bMaskH4Bits				  0xf0000000
+#define		bMaskH3Bytes			  	0xffffff00	
 #define 	bMaskOFDM_D				  0xffc00000
 #define		bMaskCCK				  0x3f3f3f3f
 

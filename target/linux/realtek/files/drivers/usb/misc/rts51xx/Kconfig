@@ -1,0 +1,12 @@
+
+
+config RTS51XX
+	tristate "Realtek RTS5139/29 USB card reader support"
+	depends on USB && SCSI
+	help
+	  Say Y here to include driver code to support the Realtek
+	  RTS51xx USB card readers.
+
+	  If this driver is compiled as a module, it will be named rts5139.
+
+

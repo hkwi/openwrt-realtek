@@ -9,7 +9,7 @@
 
 #Add mips16 Support
 
-DIR_RTLASIC = $(TOPDIR)/drivers/net/rtl819x/
+DIR_RTLASIC = $(DIR_LINUX)/drivers/net/rtl819x/
 
 ifeq ($(CONFIG_RTK_IPTABLES_FAST_PATH),m)
 EXTRA_CFLAGS += -DCONFIG_FAST_PATH_MODULE

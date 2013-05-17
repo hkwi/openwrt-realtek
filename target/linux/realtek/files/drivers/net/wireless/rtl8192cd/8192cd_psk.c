@@ -17,6 +17,11 @@
 #include <linux/netdevice.h>
 #include <linux/timer.h>
 #include <linux/random.h>
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
 #endif
 
 #include "./8192cd_cfg.h"
@@ -28,12 +33,16 @@
 #include "./8192cd_util.h"
 #include "./8192cd_headers.h"
 #include "./8192cd_security.h"
+#ifdef __KERNEL__
 #include "./ieee802_mib.h"
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wlan/ieee802_mib.h>
+#endif
 #include "./8192cd_debug.h"
 #include "./8192cd_psk.h"
 #include "./1x_rc4.h"
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && !defined(__ECOS)
 #include "./sys-support.h"
 #endif
 
@@ -53,40 +62,40 @@
 #define PTK_LEN_CCMP            		48
 
 /*
-   2008-12-16, For Corega CG-WLCB54GL 54Mbps NIC interoperability issue.
-   The behavior of this NIC when it connect to the other AP with WPA/TKIP is:
-   AP	<----------------------> 	STA
-   ....................
-   ------------> Assoc Rsp (ok)
-   ------------> EAPOL-key (4-way msg 1)
-   <------------ unknown TKIP encryption data
-   ------------> EAPOL-key (4-way msg 1)
-   <------------ unknown TKIP encryption data
-   .....................
-   <------------ disassoc (code=8, STA is leaving) when the 5 seconds timer timeout counting from Assoc_Rsp is got.
-   ....................
-   ------------> Assoc Rsp (ok)
-   <-----------> EAPOL-key (4-way handshake success)
+	2008-12-16, For Corega CG-WLCB54GL 54Mbps NIC interoperability issue.
+	The behavior of this NIC when it connect to the other AP with WPA/TKIP is:
+		AP	<----------------------> 	STA
+			....................
+			------------> Assoc Rsp (ok)
+			------------> EAPOL-key (4-way msg 1)
+			<------------ unknown TKIP encryption data
+			------------> EAPOL-key (4-way msg 1)
+			<------------ unknown TKIP encryption data
+			.....................
+			<------------ disassoc (code=8, STA is leaving) when the 5 seconds timer timeout counting from Assoc_Rsp is got.
+			....................
+			------------> Assoc Rsp (ok)
+			<-----------> EAPOL-key (4-way handshake success)
 
-   If MAX_RESEND_NUM=3, our AP will send disassoc (code=15, 4-way timeout) to STA before STA sending disassoc to AP.
-   And this NIC will always can not connect to our AP.
-   set MAX_RESEND_NUM=5 can fix this issue.
+	If MAX_RESEND_NUM=3, our AP will send disassoc (code=15, 4-way timeout) to STA before STA sending disassoc to AP.
+	And this NIC will always can not connect to our AP.
+	set MAX_RESEND_NUM=5 can fix this issue.
  */
 //#define MAX_RESEND_NUM					3
 #define MAX_RESEND_NUM					5
 
 #define RESEND_TIME						RTL_SECONDS_TO_JIFFIES(1)	// in 10ms
 
-#ifdef CLIENT_MODE	
-#define WAIT_EAP_TIME				500
+#ifdef CLIENT_MODE
+	#define WAIT_EAP_TIME				RTL_SECONDS_TO_JIFFIES(5)
 #endif
 
 #define LargeIntegerOverflow(x) (x.field.HighPart == 0xffffffff) && \
-						   (x.field.LowPart == 0xffffffff)
+								(x.field.LowPart == 0xffffffff)
 #define LargeIntegerZero(x) memset(&x.charData, 0, 8);
 
 #define Octet16IntegerOverflow(x) LargeIntegerOverflow(x.field.HighPart) && \
-	LargeIntegerOverflow(x.field.LowPart)
+								  LargeIntegerOverflow(x.field.LowPart)
 #define Octet16IntegerZero(x) memset(&x.charData, 0, 16);
 
 #define SetNonce(ocDst, oc32Counter) SetEAPOL_KEYIV(ocDst, oc32Counter)
@@ -97,19 +106,19 @@ int authRes = 0;//0: success; 1: fail
 #endif
 
 extern void hmac_sha(
-		unsigned char*	k,     /* secret key */
-		int				lk,    /* length of the key in bytes */
-		unsigned char*	d,     /* data */
-		int				ld,    /* length of data in bytes */
-		unsigned char*	out,   /* output buffer, at least "t" bytes */
-		int				t
-		);
+	unsigned char*	k,     /* secret key */
+	int				lk,    /* length of the key in bytes */
+	unsigned char*	d,     /* data */
+	int				ld,    /* length of data in bytes */
+	unsigned char*	out,   /* output buffer, at least "t" bytes */
+	int				t
+	);
 
 extern void hmac_sha1(unsigned char *text, int text_len, unsigned char *key,
-		int key_len, unsigned char *digest);
+		 int key_len, unsigned char *digest);
 
 extern void hmac_md5(unsigned char *text, int text_len, unsigned char *key,
-		int key_len, void * digest);
+		 int key_len, void * digest);
 
 #ifdef RTL_WPA2
 extern void AES_WRAP(unsigned char *plain, int plain_len,
@@ -118,13 +127,17 @@ extern void AES_WRAP(unsigned char *plain, int plain_len,
 		unsigned char *cipher, unsigned short *cipher_len);
 #ifdef CLIENT_MODE
 extern void AES_UnWRAP(unsigned char *cipher, int cipher_len, unsigned char *kek,
-		int kek_len, unsigned char *plain);
+				int kek_len, unsigned char *plain);
 #endif
 #endif
 
 static void UpdateGK(struct rtl8192cd_priv *priv);
 static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int resend);
+#ifdef __KERNEL__
 static void ResendTimeout(unsigned long task_psta);
+#elif defined(__ECOS)
+static void ResendTimeout(void *task_psta);
+#endif
 
 
 #ifdef DEBUG_PSK
@@ -162,7 +175,7 @@ static char *STATE2RXMSG(struct stat_info *pstat)
 				return ("4-4");
 		}
 		else if (pstat->wpa_sta_info->state == PSK_STATE_PTKINITDONE)
-			return ("4-4 (duplicated)");
+				return ("4-4 (duplicated)");
 		else
 			return ("invalid state");
 
@@ -183,13 +196,13 @@ static OCTET_STRING SubStr(OCTET_STRING f, unsigned short s, unsigned short l)
 }
 
 static void i_P_SHA1(
-		unsigned char*  key,                // pointer to authentication key
-		int             key_len,            // length of authentication key
-		unsigned char*  text,               // pointer to data stream
-		int             text_len,           // length of data stream
-		unsigned char*  digest,             // caller digest to be filled in
-		int				digest_len			// in byte
-		)
+	unsigned char*  key,                // pointer to authentication key
+	int             key_len,            // length of authentication key
+	unsigned char*  text,               // pointer to data stream
+	int             text_len,           // length of data stream
+	unsigned char*  digest,             // caller digest to be filled in
+	int				digest_len			// in byte
+	)
 {
 	int i;
 	int offset=0;
@@ -205,15 +218,15 @@ static void i_P_SHA1(
 }
 
 static void i_PRF(
-		unsigned char*	secret,
-		int				secret_len,
-		unsigned char*	prefix,
-		int				prefix_len,
-		unsigned char*	random,
-		int				random_len,
-		unsigned char*  digest,             // caller digest to be filled in
-		int				digest_len			// in byte
-		)
+	unsigned char*	secret,
+	int				secret_len,
+	unsigned char*	prefix,
+	int				prefix_len,
+	unsigned char*	random,
+	int				random_len,
+	unsigned char*  digest,             // caller digest to be filled in
+	int				digest_len			// in byte
+	)
 {
 	unsigned char data[1000];
 	memcpy(data,prefix,prefix_len);
@@ -231,13 +244,13 @@ static void i_PRF(
  */
 
 static void F(
-		char *password,
-		int passwordlength,
-		unsigned char *ssid,
-		int ssidlength,
-		int iterations,
-		int count,
-		unsigned char *output)
+	char *password,
+	int passwordlength,
+	unsigned char *ssid,
+	int ssidlength,
+	int iterations,
+	int count,
+	unsigned char *output)
 {
 	unsigned char digest[36], digest1[A_SHA_DIGEST_LEN];
 	int i, j;
@@ -249,13 +262,13 @@ static void F(
 	digest[ssidlength+2] = (unsigned char)((count>>8) & 0xff);
 	digest[ssidlength+3] = (unsigned char)(count & 0xff);
 	hmac_sha1(digest, ssidlength + 4,
-			(unsigned char*) password, (int)strlen(password),
-			digest1);
+		(unsigned char*) password, (int)strlen(password),
+           	digest1);
 
 	/*
-	   hmac_sha1((unsigned char*) password, passwordlength,
-	   digest, ssidlength+4, digest1);
-	 */
+	hmac_sha1((unsigned char*) password, passwordlength,
+           digest, ssidlength+4, digest1);
+	*/
 
 	/* output = U1 */
 	memcpy(output, digest1, A_SHA_DIGEST_LEN);
@@ -281,13 +294,13 @@ static void F(
  * output must be 40 octets in length and outputs 256 bits of key
  */
 static int PasswordHash (
-		char *password,
-		unsigned char *ssid,
-		short ssidlength,
-		unsigned char *output)
+	char *password,
+	unsigned char *ssid,
+	short ssidlength,
+	unsigned char *output)
 {
 	int passwordlength = strlen(password);
-	//	int ssidlength = strlen(ssid);
+//	int ssidlength = strlen(ssid);
 
 	if ((passwordlength > 63) || (ssidlength > 32))
 		return 0;
@@ -300,19 +313,19 @@ static int PasswordHash (
 static void Message_ReplayCounter_OC2LI(OCTET_STRING f, LARGE_INTEGER * li)
 {
 	li->field.HighPart = ((unsigned long)(*(f.Octet + ReplayCounterPos + 3)))
-		+ ((unsigned long)(*(f.Octet + ReplayCounterPos+ 2)) <<8 )
-		+ ((unsigned long)(*(f.Octet + ReplayCounterPos + 1)) <<  16)
-		+ ((unsigned long)(*(f.Octet + ReplayCounterPos + 0)) <<24);
+					     + ((unsigned long)(*(f.Octet + ReplayCounterPos+ 2)) <<8 )
+						 + ((unsigned long)(*(f.Octet + ReplayCounterPos + 1)) <<  16)
+						 + ((unsigned long)(*(f.Octet + ReplayCounterPos + 0)) <<24);
 	li->field.LowPart =  ((unsigned long)(*(f.Octet + ReplayCounterPos + 7)))
-		+ ((unsigned long)(*(f.Octet + ReplayCounterPos + 6)) <<8 )
-		+ ((unsigned long)(*(f.Octet + ReplayCounterPos + 5)) <<  16)
-		+ ((unsigned long)(*(f.Octet + ReplayCounterPos + 4)) <<24);
+						 + ((unsigned long)(*(f.Octet + ReplayCounterPos + 6)) <<8 )
+					  	 + ((unsigned long)(*(f.Octet + ReplayCounterPos + 5)) <<  16)
+						 + ((unsigned long)(*(f.Octet + ReplayCounterPos + 4)) <<24);
 }
 
 #if 1
 /*-----------------------------------------------------------------------------------------------
-  f is EAPOL-KEY message
-  ------------------------------------------------------------------------------------------------*/
+	f is EAPOL-KEY message
+------------------------------------------------------------------------------------------------*/
 static int Message_EqualReplayCounter(LARGE_INTEGER li1, OCTET_STRING f)
 {
 	LARGE_INTEGER li2;
@@ -326,9 +339,9 @@ static int Message_EqualReplayCounter(LARGE_INTEGER li1, OCTET_STRING f)
 
 #ifdef CLIENT_MODE
 /*-------------------------------------------------------------------------------------------
-  li1 is recorded replay counter on STA
-  f is the replay counter from EAPOL-KEY message
-  ---------------------------------------------------------------------------------------------*/
+	li1 is recorded replay counter on STA
+	f is the replay counter from EAPOL-KEY message
+---------------------------------------------------------------------------------------------*/
 static int Message_SmallerEqualReplayCounter(LARGE_INTEGER li1, OCTET_STRING f)
 {
 	LARGE_INTEGER li2;
@@ -347,9 +360,9 @@ static int Message_SmallerEqualReplayCounter(LARGE_INTEGER li1, OCTET_STRING f)
 #endif
 
 /*---------------------------------------------------------------------------------------------
-  li1 is recorded replay counter on STA
-  f is the replay counter from EAPOL-KEY message
-  -----------------------------------------------------------------------------------------------*/
+	li1 is recorded replay counter on STA
+	f is the replay counter from EAPOL-KEY message
+-----------------------------------------------------------------------------------------------*/
 static int Message_LargerReplayCounter(LARGE_INTEGER li1, OCTET_STRING f)
 {
 	LARGE_INTEGER li2;
@@ -420,65 +433,65 @@ static void ConstructIE(struct rtl8192cd_priv *priv, unsigned char *pucOut, int 
 		dot11RSNGroupSuite.Type = priv->wpa_global_info->MulticastCipher;
 		ulIELength += sizeof(DOT11_RSN_IE_SUITE);
 
-		// - UnicastSuite
-		pDot11RSNPairwiseSuite = &countSuite;
-		memset(pDot11RSNPairwiseSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
+    	// - UnicastSuite
+        pDot11RSNPairwiseSuite = &countSuite;
+        memset(pDot11RSNPairwiseSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
 		usSuitCount = 0;
-		for (ulIndex=0; ulIndex<priv->wpa_global_info->NumOfUnicastCipher; ulIndex++)
-		{
+        for (ulIndex=0; ulIndex<priv->wpa_global_info->NumOfUnicastCipher; ulIndex++)
+        {
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x50;
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xF2;
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = priv->wpa_global_info->UnicastCipher[ulIndex];
 			usSuitCount++;
-		}
+        }
 		pDot11RSNPairwiseSuite->SuiteCount = cpu_to_le16(usSuitCount);
-		ulPairwiseLength = sizeof(pDot11RSNPairwiseSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
-		ulIELength += ulPairwiseLength;
+        ulPairwiseLength = sizeof(pDot11RSNPairwiseSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
+        ulIELength += ulPairwiseLength;
 
 		//
 		// Construction of Auth Algo List
 		//
-		pDot11RSNAuthSuite = &authCountSuite;
-		memset(pDot11RSNAuthSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
+        pDot11RSNAuthSuite = &authCountSuite;
+        memset(pDot11RSNAuthSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
 		usSuitCount = 0;
 		pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
 		pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x50;
 		pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xF2;
 		pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_PSK;
-		usSuitCount++;
+	    usSuitCount++;
 
 		pDot11RSNAuthSuite->SuiteCount = cpu_to_le16(usSuitCount);
-		ulAuthLength = sizeof(pDot11RSNAuthSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
-		ulIELength += ulAuthLength;
+        ulAuthLength = sizeof(pDot11RSNAuthSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
+        ulIELength += ulAuthLength;
 
-		//---------------------------------------------------------------------------------------------
-		// Do not encapsulate capability field to solve TI WPA issue
-		//---------------------------------------------------------------------------------------------
-		/*
-		   dot11RSNCapability.field.PreAuthentication = 0;//auth->RSNVariable.isSupportPreAuthentication
-		   dot11RSNCapability.field.PairwiseAsDefaultKey = auth->RSNVariable.isSupportPairwiseAsDefaultKey;
-		   switch(auth->RSNVariable.NumOfRxTSC)
-		   {
-		   case 1:
-		   dot11RSNCapability.field.NumOfReplayCounter = 0;
-		   break;
-		   case 2:
-		   dot11RSNCapability.field.NumOfReplayCounter = 1;
-		   break;
-		   case 4:
-		   dot11RSNCapability.field.NumOfReplayCounter = 2;
-		   break;
-		   case 16:
-		   dot11RSNCapability.field.NumOfReplayCounter = 3;
-		   break;
-		   default:
-		   dot11RSNCapability.field.NumOfReplayCounter = 0;
-		   }
+	//---------------------------------------------------------------------------------------------
+	// Do not encapsulate capability field to solve TI WPA issue
+	//---------------------------------------------------------------------------------------------
+	/*
+        dot11RSNCapability.field.PreAuthentication = 0;//auth->RSNVariable.isSupportPreAuthentication
+        dot11RSNCapability.field.PairwiseAsDefaultKey = auth->RSNVariable.isSupportPairwiseAsDefaultKey;
+        switch(auth->RSNVariable.NumOfRxTSC)
+        {
+        case 1:
+	        dot11RSNCapability.field.NumOfReplayCounter = 0;
+        	break;
+	case 2:
+		dot11RSNCapability.field.NumOfReplayCounter = 1;
+		break;
+	case 4:
+		dot11RSNCapability.field.NumOfReplayCounter = 2;
+		break;
+	case 16:
+		dot11RSNCapability.field.NumOfReplayCounter = 3;
+        	break;
+        default:
+		dot11RSNCapability.field.NumOfReplayCounter = 0;
+        }
 
-		   ulRSNCapabilityLength = sizeof(DOT11_RSN_CAPABILITY);
-		   ulIELength += ulRSNCapabilityLength;
-		 */
+        ulRSNCapabilityLength = sizeof(DOT11_RSN_CAPABILITY);
+        ulIELength += ulRSNCapabilityLength;
+	*/
 
 		pucBlob = pucOut;
 		pucBlob += sizeof(DOT11_RSN_IE_HEADER);
@@ -497,7 +510,7 @@ static void ConstructIE(struct rtl8192cd_priv *priv, unsigned char *pucOut, int 
 
 #ifdef RTL_WPA2
 	if ( priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA2 ) {
-		DOT11_WPA2_IE_HEADER dot11WPA2IEHeader = { 0 };
+       	DOT11_WPA2_IE_HEADER dot11WPA2IEHeader = { 0 };
 		ulIELength = 0;
 		ulIndex = 0;
 		ulPairwiseLength = 0;
@@ -526,62 +539,62 @@ static void ConstructIE(struct rtl8192cd_priv *priv, unsigned char *pucOut, int 
 		ulIELength += sizeof(DOT11_RSN_IE_SUITE);
 
 		//      - UnicastSuite
-		pDot11RSNPairwiseSuite = &countSuite;
-		memset(pDot11RSNPairwiseSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
+        pDot11RSNPairwiseSuite = &countSuite;
+        memset(pDot11RSNPairwiseSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
 		usSuitCount = 0;
 		for (ulIndex=0; ulIndex<priv->wpa_global_info->NumOfUnicastCipherWPA2; ulIndex++)
-		{
+        {
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x0F;
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xAC;
 			pDot11RSNPairwiseSuite->dot11RSNIESuite[usSuitCount].Type = priv->wpa_global_info->UnicastCipherWPA2[ulIndex];
 			usSuitCount++;
-		}
+        }
 		pDot11RSNPairwiseSuite->SuiteCount = cpu_to_le16(usSuitCount);
-		ulPairwiseLength = sizeof(pDot11RSNPairwiseSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
-		ulIELength += ulPairwiseLength;
+        ulPairwiseLength = sizeof(pDot11RSNPairwiseSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
+        ulIELength += ulPairwiseLength;
 
 		//
 		// Construction of Auth Algo List
 		//
-		pDot11RSNAuthSuite = &authCountSuite;
-		memset(pDot11RSNAuthSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
+        pDot11RSNAuthSuite = &authCountSuite;
+        memset(pDot11RSNAuthSuite, 0, sizeof(DOT11_RSN_IE_COUNT_SUITE));
 		usSuitCount = 0;
 		pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[0] = 0x00;
 		pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[1] = 0x0F;
 		pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].OUI[2] = 0xAC;
 		pDot11RSNAuthSuite->dot11RSNIESuite[usSuitCount].Type = DOT11_AuthKeyType_PSK;
-		usSuitCount++;
+	    usSuitCount++;
 
 		pDot11RSNAuthSuite->SuiteCount = cpu_to_le16(usSuitCount);
-		ulAuthLength = sizeof(pDot11RSNAuthSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
-		ulIELength += ulAuthLength;
+        ulAuthLength = sizeof(pDot11RSNAuthSuite->SuiteCount) + usSuitCount*sizeof(DOT11_RSN_IE_SUITE);
+        ulIELength += ulAuthLength;
 
 		//---------------------------------------------------------------------------------------------
 		// Do not encapsulate capability field to solve TI WPA issue
 		//---------------------------------------------------------------------------------------------
 
-		//#ifdef RTL_WPA2
+//#ifdef RTL_WPA2
 #if 1
 		dot11RSNCapability.field.PreAuthentication = 0;
 #else
 		dot11RSNCapability.field.PairwiseAsDefaultKey = auth->RSNVariable.isSupportPairwiseAsDefaultKey;
 		switch(auth->RSNVariable.NumOfRxTSC)
 		{
-			case 1:
-				dot11RSNCapability.field.NumOfReplayCounter = 0;
-				break;
-			case 2:
-				dot11RSNCapability.field.NumOfReplayCounter = 1;
-				break;
-			case 4:
-				dot11RSNCapability.field.NumOfReplayCounter = 2;
-				break;
-			case 16:
-				dot11RSNCapability.field.NumOfReplayCounter = 3;
-				break;
-			default:
-				dot11RSNCapability.field.NumOfReplayCounter = 0;
+		case 1:
+			dot11RSNCapability.field.NumOfReplayCounter = 0;
+			break;
+		case 2:
+			dot11RSNCapability.field.NumOfReplayCounter = 1;
+			break;
+		case 4:
+			dot11RSNCapability.field.NumOfReplayCounter = 2;
+			break;
+		case 16:
+			dot11RSNCapability.field.NumOfReplayCounter = 3;
+			break;
+		default:
+			dot11RSNCapability.field.NumOfReplayCounter = 0;
 		}
 #endif
 		ulRSNCapabilityLength = sizeof(DOT11_RSN_CAPABILITY);
@@ -601,7 +614,7 @@ static void ConstructIE(struct rtl8192cd_priv *priv, unsigned char *pucOut, int 
 		dot11WPA2IEHeader.Length = (unsigned char)ulIELength - 2; //This -2 is to minus elementID and Length in OUI header
 		memcpy(pucBlob, &dot11WPA2IEHeader, sizeof(DOT11_WPA2_IE_HEADER));
 		*usOutLen = *usOutLen + (int)ulIELength;
-	}
+   	}
 #endif // RTL_WPA2
 
 }
@@ -681,50 +694,54 @@ static void SetEAPOL_KEYIV(OCTET_STRING ocDst, OCTET32_INTEGER oc32Counter)
 
 	ptr+=4;
 
-	ulTmp = cpu_to_le32(oc32Counter.field.LowPart.field.HighPart.field.HighPart);
-	memcpy(ptr, (char *)&ulTmp, sizeof(ulTmp));
+ 	ulTmp = cpu_to_le32(oc32Counter.field.LowPart.field.HighPart.field.HighPart);
+ 	memcpy(ptr, (char *)&ulTmp, sizeof(ulTmp));
 	ptr+=4;
 
-	ulTmp = cpu_to_le32(oc32Counter.field.LowPart.field.HighPart.field.LowPart);
-	memcpy(ptr, (char *)&ulTmp, sizeof(ulTmp));
+ 	ulTmp = cpu_to_le32(oc32Counter.field.LowPart.field.HighPart.field.LowPart);
+ 	memcpy(ptr, (char *)&ulTmp, sizeof(ulTmp));
 	ptr+=4;
 
-	ulTmp = cpu_to_le32(oc32Counter.field.LowPart.field.LowPart.field.HighPart);
-	memcpy(ptr, (char *)&ulTmp, sizeof(ulTmp));
+ 	ulTmp = cpu_to_le32(oc32Counter.field.LowPart.field.LowPart.field.HighPart);
+ 	memcpy(ptr, (char *)&ulTmp, sizeof(ulTmp));
 	ptr+=4;
 
-	ulTmp = cpu_to_le32(oc32Counter.field.LowPart.field.LowPart.field.LowPart);
-	memcpy(ptr, (char *)&ulTmp, sizeof(ulTmp));
+ 	ulTmp = cpu_to_le32(oc32Counter.field.LowPart.field.LowPart.field.LowPart);
+ 	memcpy(ptr, (char *)&ulTmp, sizeof(ulTmp));
 }
 
 static void EncGTK(struct rtl8192cd_priv *priv, struct stat_info *pstat,
-		unsigned char *kek, int keklen, unsigned char *key,
-		int keylen, unsigned char *out, unsigned short *outlen)
+			unsigned char *kek, int keklen, unsigned char *key,
+			int keylen, unsigned char *out, unsigned short *outlen)
 {
 
 	unsigned char tmp1[257], tmp2[257];
-	RC4_KEY	 rc4key;
+	RC4_KEY	 *rc4key;
 #ifdef RTL_WPA2
 	unsigned char default_key_iv[] = { 0xA6,0xA6,0xA6,0xA6,0xA6,0xA6,0xA6,0xA6 };
 #endif
 	OCTET_STRING EAPOLMsgSend;
 	lib1x_eapol_key *eapolkey;
 
+	rc4key = (RC4_KEY *)kmalloc(sizeof(RC4_KEY), GFP_ATOMIC);
+	if (rc4key == NULL)
+		return;
+
 	EAPOLMsgSend.Octet = pstat->wpa_sta_info->EAPOLMsgSend.Octet;
 	eapolkey = (lib1x_eapol_key *)(EAPOLMsgSend.Octet + ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN);
 
-	// should refer tx packet, david+2006-04-06
-	//	if (Message_KeyDescVer(pstat->wpa_sta_info->EapolKeyMsgRecvd) == key_desc_ver1) {
+// should refer tx packet, david+2006-04-06
+//	if (Message_KeyDescVer(pstat->wpa_sta_info->EapolKeyMsgRecvd) == key_desc_ver1) {
 	if (Message_KeyDescVer(pstat->wpa_sta_info->EapolKeyMsgSend) == key_desc_ver1) {
 
 		memcpy(tmp1, eapolkey->key_iv, KEY_IV_LEN);
 		memcpy(tmp1 + KEY_IV_LEN, kek, keklen);
 
-		RC4_set_key(&rc4key, KEY_IV_LEN + keklen, tmp1);
+		RC4_set_key(rc4key, KEY_IV_LEN + keklen, tmp1);
 
 		//first 256 bytes are discarded
-		RC4(&rc4key, 256, (unsigned char *)tmp1, (unsigned char *)tmp2);
-		RC4(&rc4key, keylen, (unsigned char *)key, out);
+		RC4(rc4key, 256, (unsigned char *)tmp1, (unsigned char *)tmp2);
+   		RC4(rc4key, keylen, (unsigned char *)key, out);
 		*outlen = keylen;
 	}
 #ifdef RTL_WPA2
@@ -733,6 +750,7 @@ static void EncGTK(struct rtl8192cd_priv *priv, struct stat_info *pstat,
 		//KeyIV field which shall be padded with 0, so eapolkey->key_iv + 8
 		AES_WRAP(key, keylen, default_key_iv, 8, kek, keklen, out, outlen);
 #endif
+	kfree(rc4key);
 }
 
 static int CheckMIC(OCTET_STRING EAPOLMsgRecvd, unsigned char *key, int keylen)
@@ -747,9 +765,9 @@ static int CheckMIC(OCTET_STRING EAPOLMsgRecvd, unsigned char *key, int keylen)
 	unsigned char sha1digest[20];
 
 	EapolKeyMsgRecvd.Octet = EAPOLMsgRecvd.Octet +
-		ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN;
+					ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN;
 	EapolKeyMsgRecvd.Length = EAPOLMsgRecvd.Length -
-		(ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN);
+					(ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN);
 	ucAlgo = Message_KeyDescVer(EapolKeyMsgRecvd);
 
 	tmp.Length = EAPOLMsgRecvd.Length;
@@ -761,12 +779,12 @@ static int CheckMIC(OCTET_STRING EAPOLMsgRecvd, unsigned char *key, int keylen)
 
 	if (ucAlgo == key_desc_ver1) {
 		hmac_md5((unsigned char*)tmpeapol, EAPOLMsgRecvd.Length - ETHER_HDRLEN ,
-				key, keylen, tmpeapolkey->key_mic);
+					key, keylen, tmpeapolkey->key_mic);
 #if 0
 		lib1x_hexdump2(MESS_DBG_KEY_MANAGE, "CheckMIC", EapolKeyMsgRecvd.Octet +
-				KeyMICPos, KEY_MIC_LEN, "Original");
+					KeyMICPos, KEY_MIC_LEN, "Original");
 		lib1x_hexdump2(MESS_DBG_KEY_MANAGE, "CheckMIC", tmpeapolkey->key_mic,
-				KEY_MIC_LEN, "Calculated");
+					KEY_MIC_LEN, "Calculated");
 #endif
 		if (!memcmp(tmpeapolkey->key_mic, EapolKeyMsgRecvd.Octet + KeyMICPos, KEY_MIC_LEN))
 			retVal = 1;
@@ -788,11 +806,11 @@ static void CalcMIC(OCTET_STRING EAPOLMsgSend, int algo, unsigned char *key, int
 	memset(eapolkey->key_mic, 0, KEY_MIC_LEN);
 
 	if (algo == key_desc_ver1)
-		hmac_md5((unsigned char*)eapol, EAPOLMsgSend.Length - ETHER_HDRLEN ,
-				key, keylen, eapolkey->key_mic);
+  		hmac_md5((unsigned char*)eapol, EAPOLMsgSend.Length - ETHER_HDRLEN ,
+					key, keylen, eapolkey->key_mic);
 	else if (algo == key_desc_ver2) {
 		hmac_sha1((unsigned char*)eapol, EAPOLMsgSend.Length - ETHER_HDRLEN ,
-				key, keylen, sha1digest);
+					key, keylen, sha1digest);
 		memcpy(eapolkey->key_mic, sha1digest, KEY_MIC_LEN);
 	}
 }
@@ -800,10 +818,10 @@ static void CalcMIC(OCTET_STRING EAPOLMsgSend, int algo, unsigned char *key, int
 /* GTK-PRF-X
    X = 256 in TKIP
    X = 128 in CCMP, WRAP, and WEP
- */
+*/
 static void CalcGTK(unsigned char *addr, unsigned char *nonce,
-		unsigned char *keyin, int keyinlen,
-		unsigned char *keyout, int keyoutlen)
+				unsigned char *keyin, int keyinlen,
+				unsigned char *keyout, int keyoutlen)
 {
 	unsigned char data[ETHER_ADDRLEN + KEY_NONCE_LEN], tmp[64];
 
@@ -811,8 +829,8 @@ static void CalcGTK(unsigned char *addr, unsigned char *nonce,
 	memcpy(data + ETHER_ADDRLEN, nonce, KEY_NONCE_LEN);
 
 	i_PRF(keyin, keyinlen, (unsigned char*)GMK_EXPANSION_CONST,
-			GMK_EXPANSION_CONST_SIZE, data, sizeof(data),
-			tmp, keyoutlen);
+						GMK_EXPANSION_CONST_SIZE, data, sizeof(data),
+						tmp, keyoutlen);
 	memcpy(keyout, tmp, keyoutlen);
 }
 
@@ -821,11 +839,11 @@ static int MIN(unsigned char *ucStr1, unsigned char *ucStr2, unsigned long ulLen
 	int i;
 	for (i=0 ; i<ulLen ; i++) {
 		if ((unsigned char)ucStr1[i] < (unsigned char)ucStr2[i])
-			return -1;
+				return -1;
 		else if((unsigned char)ucStr1[i] > (unsigned char)ucStr2[i])
 			return 1;
 		else if(i == ulLen - 1)
-			return 0;
+  			return 0;
 		else
 			continue;
 	}
@@ -833,9 +851,9 @@ static int MIN(unsigned char *ucStr1, unsigned char *ucStr2, unsigned long ulLen
 }
 
 static void CalcPTK(unsigned char *addr1, unsigned char *addr2,
-		unsigned char *nonce1, unsigned char *nonce2,
-		unsigned char * keyin, int keyinlen,
-		unsigned char *keyout, int keyoutlen)
+					unsigned char *nonce1, unsigned char *nonce2,
+					unsigned char * keyin, int keyinlen,
+					unsigned char *keyout, int keyoutlen)
 {
 	unsigned char data[2*ETHER_ADDRLEN+ 2*KEY_NONCE_LEN], tmpPTK[128];
 
@@ -859,15 +877,15 @@ static void CalcPTK(unsigned char *addr1, unsigned char *addr2,
 	}
 
 	i_PRF(keyin, keyinlen, (unsigned char*)PMK_EXPANSION_CONST,
-			PMK_EXPANSION_CONST_SIZE, data,sizeof(data),
-			tmpPTK, PTK_LEN_TKIP);
+						PMK_EXPANSION_CONST_SIZE, data,sizeof(data),
+						tmpPTK, PTK_LEN_TKIP);
 	memcpy(keyout, tmpPTK, keyoutlen);
 }
 
 #ifdef CLIENT_MODE
 /*
-   decrypt WPA2 Message 3's Key Data
- */
+	decrypt WPA2 Message 3's Key Data
+*/
 // Use RC4 or AES to decode the keydata by checking desc-ver, david-2006-01-06
 //int DecWPA2KeyData(u_char *key, int keylen, u_char *kek, int keklen, u_char *kout)
 int DecWPA2KeyData(WPA_STA_INFO* pStaInfo, unsigned char *key, int keylen, unsigned char *kek, int keklen, unsigned char *kout)
@@ -876,29 +894,33 @@ int DecWPA2KeyData(WPA_STA_INFO* pStaInfo, unsigned char *key, int keylen, unsig
 	unsigned char		default_key_iv[] = { 0xA6,0xA6,0xA6,0xA6,0xA6,0xA6,0xA6,0xA6 };
 	unsigned char		tmp2[257];
 
-	// Use RC4 or AES to decode the keydata by checking desc-ver, david-2006-01-06
+// Use RC4 or AES to decode the keydata by checking desc-ver, david-2006-01-06
 	unsigned char 	tmp1[257];
-	RC4_KEY			rc4key;
+	RC4_KEY			*rc4key;
 
 	lib1x_eapol_key *eapolkey = (lib1x_eapol_key *)(pStaInfo->EAPOLMsgRecvd.Octet + ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN);
+
+	rc4key = (RC4_KEY *)kmalloc(sizeof(RC4_KEY), GFP_ATOMIC);
+	if (rc4key == NULL)
+		return 0;
 
 	if (Message_KeyDescVer(pStaInfo->EapolKeyMsgRecvd) == key_desc_ver1) {
 		memcpy(tmp1, eapolkey->key_iv, KEY_IV_LEN);
 		memcpy(tmp1+KEY_IV_LEN, kek, keklen);
-		RC4_set_key(&rc4key, KEY_IV_LEN + keklen, tmp1);
+		RC4_set_key(rc4key, KEY_IV_LEN + keklen, tmp1);
 
 		//first 256 bits is discard
-		RC4(&rc4key, 256, (unsigned char*)tmp1, (unsigned char*)tmp2);
+		RC4(rc4key, 256, (unsigned char*)tmp1, (unsigned char*)tmp2);
 
-		//RC4(&rc4key, keylen, eapol_key->key_data, global->skm_sm->GTK[Message_KeyIndex(global->EapolKeyMsgRecvd)]);
-		RC4(&rc4key, keylen, pStaInfo->EapolKeyMsgRecvd.Octet + KeyDataPos, (unsigned char*)tmp2);
+		//RC4(rc4key, keylen, eapol_key->key_data, global->skm_sm->GTK[Message_KeyIndex(global->EapolKeyMsgRecvd)]);
+		RC4(rc4key, keylen, pStaInfo->EapolKeyMsgRecvd.Octet + KeyDataPos, (unsigned char*)tmp2);
 
 		memcpy(kout, tmp2, keylen);
 		//memcpy(&global->supp_kmsm->GTK[Message_KeyIndex(global->EapolKeyMsgRecvd)], tmp2, keylen);
 		retVal = 1;
 	}
 	else {
-		//--------------------------------------------------------
+//--------------------------------------------------------
 		AES_UnWRAP(key, keylen, kek, keklen, tmp2);
 		if(memcmp(tmp2, default_key_iv, 8))
 			retVal = 0;
@@ -907,6 +929,7 @@ int DecWPA2KeyData(WPA_STA_INFO* pStaInfo, unsigned char *key, int keylen, unsig
 			retVal = 1;
 		}
 	}
+	kfree(rc4key);
 	return retVal;
 }
 
@@ -914,9 +937,14 @@ int DecGTK(OCTET_STRING EAPOLMsgRecvd, unsigned char *kek, int keklen, int keyle
 {
 	int		retVal = 0;
 	unsigned char		tmp1[257], tmp2[257];
-	RC4_KEY		rc4key;
+	RC4_KEY		*rc4key;
 	lib1x_eapol_key * eapol_key = (lib1x_eapol_key *)(EAPOLMsgRecvd.Octet + ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN);
 	OCTET_STRING	EapolKeyMsgRecvd;
+
+	rc4key = (RC4_KEY *)kmalloc(sizeof(RC4_KEY), GFP_ATOMIC);
+	if (rc4key == NULL)
+		return 0;
+
 	EapolKeyMsgRecvd.Octet = EAPOLMsgRecvd.Octet + ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN;
 	EapolKeyMsgRecvd.Length = EAPOLMsgRecvd.Length - (ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN);
 
@@ -924,11 +952,11 @@ int DecGTK(OCTET_STRING EAPOLMsgRecvd, unsigned char *kek, int keklen, int keyle
 	{
 		memcpy(tmp1, eapol_key->key_iv, KEY_IV_LEN);
 		memcpy(tmp1 + KEY_IV_LEN, kek, keklen);
-		RC4_set_key(&rc4key, KEY_IV_LEN + keklen, tmp1);
+		RC4_set_key(rc4key, KEY_IV_LEN + keklen, tmp1);
 		//first 256 bits is discard
-		RC4(&rc4key, 256, (unsigned char*)tmp1, (unsigned char*)tmp2);
-		//RC4(&rc4key, keylen, eapol_key->key_data, global->skm_sm->GTK[Message_KeyIndex(global->EapolKeyMsgRecvd)]);
-		RC4(&rc4key, keylen, EapolKeyMsgRecvd.Octet + KeyDataPos, (unsigned char*)tmp2);
+		RC4(rc4key, 256, (unsigned char*)tmp1, (unsigned char*)tmp2);
+      	//RC4(rc4key, keylen, eapol_key->key_data, global->skm_sm->GTK[Message_KeyIndex(global->EapolKeyMsgRecvd)]);
+		RC4(rc4key, keylen, EapolKeyMsgRecvd.Octet + KeyDataPos, (unsigned char*)tmp2);
 		memcpy(kout, tmp2, keylen);
 		//memcpy(&global->supp_kmsm->GTK[Message_KeyIndex(global->EapolKeyMsgRecvd)], tmp2, keylen);
 		retVal = 1;
@@ -937,12 +965,12 @@ int DecGTK(OCTET_STRING EAPOLMsgRecvd, unsigned char *kek, int keklen, int keyle
 	{
 		// kenny: should use default IV 0xA6A6A6A6A6A6A6A6
 		unsigned char	default_key_iv[] = { 0xA6,0xA6,0xA6,0xA6,0xA6,0xA6,0xA6,0xA6 };
-		// david, get key len from eapol packet
-		//			AES_UnWRAP(EapolKeyMsgRecvd.Octet + KeyDataPos, keylen + 8, kek, keklen, tmp2);
+// david, get key len from eapol packet
+//			AES_UnWRAP(EapolKeyMsgRecvd.Octet + KeyDataPos, keylen + 8, kek, keklen, tmp2);
 
 		keylen = Message_KeyDataLength(EapolKeyMsgRecvd);
 		AES_UnWRAP(EapolKeyMsgRecvd.Octet + KeyDataPos, keylen, kek, keklen, tmp2);
-		//------------------------- 2005-08-01
+//------------------------- 2005-08-01
 
 		//if(memcmp(tmp2, eapol_key->key_iv + 8, 8))
 		if(memcmp(tmp2, default_key_iv, 8))
@@ -955,12 +983,13 @@ int DecGTK(OCTET_STRING EAPOLMsgRecvd, unsigned char *kek, int keklen, int keyle
 			retVal = 1;
 		}
 	}
+	kfree(rc4key);
 	return retVal;
 }
 #endif /* CLIENT_MODE */
 
 static int parseIE(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
-		unsigned char *pucIE, unsigned long ulIELength)
+						unsigned char *pucIE, unsigned long ulIELength)
 {
 	unsigned short usSuitCount;
 	DOT11_RSN_IE_HEADER *pDot11RSNIEHeader;
@@ -981,9 +1010,9 @@ static int parseIE(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	}
 
 	if (pDot11RSNIEHeader->ElementID != RSN_ELEMENT_ID ||
-			pDot11RSNIEHeader->Length != ulIELength -2 ||
-			pDot11RSNIEHeader->OUI[0] != 0x00 || pDot11RSNIEHeader->OUI[1] != 0x50 ||
-			pDot11RSNIEHeader->OUI[2] != 0xf2 || pDot11RSNIEHeader->OUI[3] != 0x01 ) {
+		pDot11RSNIEHeader->Length != ulIELength -2 ||
+		pDot11RSNIEHeader->OUI[0] != 0x00 || pDot11RSNIEHeader->OUI[1] != 0x50 ||
+		pDot11RSNIEHeader->OUI[2] != 0xf2 || pDot11RSNIEHeader->OUI[3] != 0x01 ) {
 		DEBUG_WARN("parseIE err 3!\n");
 		return ERROR_INVALID_RSNIE;
 	}
@@ -993,15 +1022,15 @@ static int parseIE(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	pucIE += sizeof(DOT11_RSN_IE_HEADER);
 
 	//----------------------------------------------------------------------------------
-	// Multicast Cipher Suite processing
+ 	// Multicast Cipher Suite processing
 	//----------------------------------------------------------------------------------
 	if (ulIELength < sizeof(DOT11_RSN_IE_SUITE))
 		return 0;
 
 	pDot11RSNIESuite = (DOT11_RSN_IE_SUITE *)pucIE;
 	if (pDot11RSNIESuite->OUI[0] != 0x00 ||
-			pDot11RSNIESuite->OUI[1] != 0x50 ||
-			pDot11RSNIESuite->OUI[2] != 0xF2) {
+		pDot11RSNIESuite->OUI[1] != 0x50 ||
+		pDot11RSNIESuite->OUI[2] != 0xF2) {
 		DEBUG_WARN("parseIE err 4!\n");
 		return ERROR_INVALID_RSNIE;
 	}
@@ -1030,9 +1059,9 @@ static int parseIE(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	usSuitCount = le16_to_cpu(pDot11RSNIECountSuite->SuiteCount);
 
 	if (usSuitCount != 1 ||
-			pDot11RSNIESuite->OUI[0] != 0x00 ||
-			pDot11RSNIESuite->OUI[1] != 0x50 ||
-			pDot11RSNIESuite->OUI[2] != 0xF2) {
+		pDot11RSNIESuite->OUI[0] != 0x00 ||
+		pDot11RSNIESuite->OUI[1] != 0x50 ||
+		pDot11RSNIESuite->OUI[2] != 0xF2) {
 		DEBUG_WARN("parseIE err 7!\n");
 		return ERROR_INVALID_RSNIE;
 	}
@@ -1043,7 +1072,7 @@ static int parseIE(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	}
 
 	if ((pDot11RSNIESuite->Type < DOT11_ENC_WEP40)
-			|| (!(BIT(pDot11RSNIESuite->Type - 1) & priv->pmib->dot1180211AuthEntry.dot11WPACipher))) {
+		|| (!(BIT(pDot11RSNIESuite->Type - 1) & priv->pmib->dot1180211AuthEntry.dot11WPACipher))) {
 		DEBUG_WARN("parseIE err 9!\n");
 		return ERROR_INVALID_UNICASTCIPHER;
 	}
@@ -1068,15 +1097,15 @@ static int parseIE(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	usSuitCount = le16_to_cpu(pDot11RSNIECountSuite->SuiteCount);
 
 	if (usSuitCount != 1 ||
-			pDot11RSNIESuite->OUI[0] != 0x00 ||
-			pDot11RSNIESuite->OUI[1] != 0x50 ||
-			pDot11RSNIESuite->OUI[2] != 0xF2 ) {
+		pDot11RSNIESuite->OUI[0] != 0x00 ||
+		pDot11RSNIESuite->OUI[1] != 0x50 ||
+		pDot11RSNIESuite->OUI[2] != 0xF2 ) {
 		DEBUG_WARN("parseIE err 10!\n");
 		return ERROR_INVALID_RSNIE;
 	}
 
 	if( pDot11RSNIESuite->Type < DOT11_AuthKeyType_RSN ||
-			pDot11RSNIESuite->Type > DOT11_AuthKeyType_PSK) {
+		pDot11RSNIESuite->Type > DOT11_AuthKeyType_PSK) {
 		DEBUG_WARN("parseIE err 11!\n");
 		return ERROR_INVALID_AUTHKEYMANAGE;
 	}
@@ -1094,30 +1123,30 @@ static int parseIE(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	if (ulIELength < sizeof(DOT11_RSN_CAPABILITY))
 		return 0;
 
-	//#ifndef RTL_WPA2
+//#ifndef RTL_WPA2
 #if 0
 	//----------------------------------------------------------------------------------
-	// Capability field
+    // Capability field
 	//----------------------------------------------------------------------------------
 	pDot11RSNCapability = (DOT11_RSN_CAPABILITY * )pucIE;
 	pInfo->isSuppSupportPreAuthentication = pDot11RSNCapability->field.PreAuthentication;
 	pInfo->isSuppSupportPairwiseAsDefaultKey = pDot11RSNCapability->field.PairwiseAsDefaultKey;
 
 	switch (pDot11RSNCapability->field.NumOfReplayCounter) {
-		case 0:
-			pInfo->NumOfRxTSC = 1;
-			break;
-		case 1:
-			pInfo->NumOfRxTSC = 2;
-			break;
-		case 2:
-			pInfo->NumOfRxTSC = 4;
-			break;
-		case 3:
-			pInfo->NumOfRxTSC = 16;
-			break;
-		default:
-			pInfo->NumOfRxTSC = 1;
+	case 0:
+		pInfo->NumOfRxTSC = 1;
+		break;
+	case 1:
+		pInfo->NumOfRxTSC = 2;
+		break;
+	case 2:
+		pInfo->NumOfRxTSC = 4;
+		break;
+	case 3:
+		pInfo->NumOfRxTSC = 16;
+		break;
+	default:
+		pInfo->NumOfRxTSC = 1;
 	}
 #endif /* RTL_WPA2 */
 
@@ -1126,7 +1155,7 @@ static int parseIE(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 
 #ifdef RTL_WPA2
 static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
-		unsigned char *pucIE, unsigned long ulIELength)
+						unsigned char *pucIE, unsigned long ulIELength)
 {
 	unsigned short usSuitCount;
 	DOT11_WPA2_IE_HEADER *pDot11WPA2IEHeader = NULL;
@@ -1148,7 +1177,7 @@ static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	}
 
 	if (pDot11WPA2IEHeader->ElementID != WPA2_ELEMENT_ID ||
-			pDot11WPA2IEHeader->Length != ulIELength -2 ) {
+		pDot11WPA2IEHeader->Length != ulIELength -2 ) {
 		DEBUG_WARN("ERROR_INVALID_RSNIE, err 3!\n");
 		return ERROR_INVALID_RSNIE;
 	}
@@ -1160,7 +1189,7 @@ static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	pucIE += sizeof(DOT11_WPA2_IE_HEADER);
 
 	//----------------------------------------------------------------------------------
-	// Multicast Cipher Suite processing
+ 	// Multicast Cipher Suite processing
 	//----------------------------------------------------------------------------------
 	if (ulIELength < sizeof(DOT11_RSN_IE_SUITE))
 		return 0;
@@ -1168,7 +1197,7 @@ static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	pDot11RSNIESuite = (DOT11_RSN_IE_SUITE *)pucIE;
 	if (pDot11RSNIESuite->OUI[0] != 0x00 ||
 			pDot11RSNIESuite->OUI[1] != 0x0F ||
-			pDot11RSNIESuite->OUI[2] != 0xAC) {
+				pDot11RSNIESuite->OUI[2] != 0xAC) {
 		DEBUG_WARN("ERROR_INVALID_RSNIE, err 4!\n");
 		return ERROR_INVALID_RSNIE;
 	}
@@ -1197,9 +1226,9 @@ static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	usSuitCount = le16_to_cpu(pDot11RSNIECountSuite->SuiteCount);
 
 	if (usSuitCount != 1 ||
-			pDot11RSNIESuite->OUI[0] != 0x00 ||
+		pDot11RSNIESuite->OUI[0] != 0x00 ||
 			pDot11RSNIESuite->OUI[1] != 0x0F ||
-			pDot11RSNIESuite->OUI[2] != 0xAC) {
+				pDot11RSNIESuite->OUI[2] != 0xAC) {
 		DEBUG_WARN("ERROR_INVALID_RSNIE, err 7!\n");
 		return ERROR_INVALID_RSNIE;
 	}
@@ -1210,7 +1239,7 @@ static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	}
 
 	if ((pDot11RSNIESuite->Type < DOT11_ENC_WEP40)
-			|| (!(BIT(pDot11RSNIESuite->Type - 1) & priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher))) {
+		|| (!(BIT(pDot11RSNIESuite->Type - 1) & priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher))) {
 		DEBUG_WARN("ERROR_INVALID_UNICASTCIPHER, err 9!\n");
 		return ERROR_INVALID_UNICASTCIPHER;
 	}
@@ -1235,14 +1264,14 @@ static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 
 	if (usSuitCount != 1 ||
 			pDot11RSNIESuite->OUI[0] != 0x00 ||
-			pDot11RSNIESuite->OUI[1] != 0x0F ||
-			pDot11RSNIESuite->OUI[2] != 0xAC ) {
+				pDot11RSNIESuite->OUI[1] != 0x0F ||
+					pDot11RSNIESuite->OUI[2] != 0xAC ) {
 		DEBUG_WARN("ERROR_INVALID_RSNIE, err 10!\n");
 		return ERROR_INVALID_RSNIE;
 	}
 
 	if (pDot11RSNIESuite->Type < DOT11_AuthKeyType_RSN ||
-			pDot11RSNIESuite->Type > DOT11_AuthKeyType_PSK) {
+		  pDot11RSNIESuite->Type > DOT11_AuthKeyType_PSK) {
 		DEBUG_WARN("ERROR_INVALID_AUTHKEYMANAGE, err 11!\n");
 		return ERROR_INVALID_AUTHKEYMANAGE;
 	}
@@ -1268,7 +1297,7 @@ static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 	pDot11RSNCapability = (DOT11_RSN_CAPABILITY * )pucIE;
 #if 0
 	global->RSNVariable.isSuppSupportPreAuthentication = pDot11RSNCapability->field.PreAuthentication;
-	//#ifdef RTL_WPA2_PREAUTH  // kenny temp
+//#ifdef RTL_WPA2_PREAUTH  // kenny temp
 	//wpa2_hexdump("WPA2 IE Capability", pucIE, 2);
 	//global->RSNVariable.isSuppSupportPreAuthentication = (pDot11RSNCapability->charData[0] & 0x01)?TRUE:FALSE;
 #endif
@@ -1278,20 +1307,20 @@ static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 #else
 	global->RSNVariable.isSuppSupportPairwiseAsDefaultKey = pDot11RSNCapability->field.PairwiseAsDefaultKey;
 	switch (pDot11RSNCapability->field.NumOfReplayCounter) {
-		case 0:
-			global->RSNVariable.NumOfRxTSC = 1;
-			break;
-		case 1:
-			global->RSNVariable.NumOfRxTSC = 2;
-			break;
-		case 2:
-			global->RSNVariable.NumOfRxTSC = 4;
-			break;
-		case 3:
-			global->RSNVariable.NumOfRxTSC = 16;
-			break;
-		default:
-			global->RSNVariable.NumOfRxTSC = 1;
+	case 0:
+		global->RSNVariable.NumOfRxTSC = 1;
+		break;
+	case 1:
+		global->RSNVariable.NumOfRxTSC = 2;
+		break;
+	case 2:
+		global->RSNVariable.NumOfRxTSC = 4;
+		break;
+	case 3:
+		global->RSNVariable.NumOfRxTSC = 16;
+		break;
+	default:
+		global->RSNVariable.NumOfRxTSC = 1;
 	}
 #endif
 	pucIE += 2;
@@ -1307,22 +1336,22 @@ static int parseIEWPA2(struct rtl8192cd_priv *priv, WPA_STA_INFO *pInfo,
 
 	//printf("PMKID Count = %d\n",usSuitCount);
 	pucIE += 2;
-	/*
-	   if ( usSuitCount > 0) {
-	   struct _WPA2_PMKSA_Node* pmksa_node;
-	   int i;
-	   for (i=0; i < usSuitCount; i++) {
-	   pmksa_node = find_pmksa(pucIE+(PMKID_LEN*i));
-	   if ( pmksa_node != NULL) {
-	//wpa2_hexdump("Cached PMKID found", pmksa_node->pmksa.pmkid, PMKID_LEN);
-	global->RSNVariable.PMKCached = TRUE;
-	global->RSNVariable.cached_pmk_node = pmksa_node;
-	break;
-	}
-	}
+/*
+	if ( usSuitCount > 0) {
+		struct _WPA2_PMKSA_Node* pmksa_node;
+		int i;
+		for (i=0; i < usSuitCount; i++) {
+			pmksa_node = find_pmksa(pucIE+(PMKID_LEN*i));
+			if ( pmksa_node != NULL) {
+				//wpa2_hexdump("Cached PMKID found", pmksa_node->pmksa.pmkid, PMKID_LEN);
+				global->RSNVariable.PMKCached = TRUE;
+				global->RSNVariable.cached_pmk_node = pmksa_node;
+				break;
+			}
+		}
 
 	}
-	 */
+*/
 	return 0;
 }
 #endif // RTL_WPA2
@@ -1335,7 +1364,7 @@ static void GenNonce(unsigned char *nonce, unsigned char *addr)
 	memset(secret, 0, sizeof(secret));
 
 	i_PRF(secret, sizeof(secret), (unsigned char*)RANDOM_EXPANSION_CONST, RANDOM_EXPANSION_CONST_SIZE,
-			random, sizeof(random), result, KEY_NONCE_LEN);
+                        random, sizeof(random), result, KEY_NONCE_LEN);
 
 	memcpy(nonce, result, KEY_NONCE_LEN);
 }
@@ -1351,10 +1380,10 @@ static void IntegrityFailure(struct rtl8192cd_priv *priv)
 
 	//waitupto60;
 	INCOctet32_INTEGER(&priv->wpa_global_info->Counter);
-	//	SetNonce(global->akm_sm->ANonce, global->auth->Counter);
+//	SetNonce(global->akm_sm->ANonce, global->auth->Counter);
 
 	INCOctet32_INTEGER(&priv->wpa_global_info->Counter);
-	//	SetNonce(global->akm_sm->ANonce, global->auth->Counter);
+//	SetNonce(global->akm_sm->ANonce, global->auth->Counter);
 }
 
 static void ToDrv_RspAssoc(struct rtl8192cd_priv *priv, int id, unsigned char *mac, int status)
@@ -1366,7 +1395,7 @@ static void ToDrv_RspAssoc(struct rtl8192cd_priv *priv, int id, unsigned char *m
 
 #ifdef DEBUG_PSK
 	printk("PSK: Issue assoc-rsp [%x], mac:%02x:%02x:%02x:%02x:%02x:%02x\n",
-			status, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+		status, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 #endif
 
 	wrq.pointer = (caddr_t)&Association_Rsp;
@@ -1392,7 +1421,7 @@ static void ToDrv_RemovePTK(struct rtl8192cd_priv *priv, unsigned char *mac, int
 
 #ifdef DEBUG_PSK
 	printk("PSK: Remove PTK, mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
-			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 #endif
 
 	wrq.pointer = (caddr_t)&Delete_Key;
@@ -1415,8 +1444,8 @@ static void ToDrv_SetPTK(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 
 #ifdef DEBUG_PSK
 	printk("PSK: Set PTK, mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
-			pstat->hwaddr[0], pstat->hwaddr[1], pstat->hwaddr[2],
-			pstat->hwaddr[3], pstat->hwaddr[4], pstat->hwaddr[5]);
+		pstat->hwaddr[0], pstat->hwaddr[1], pstat->hwaddr[2],
+		pstat->hwaddr[3], pstat->hwaddr[4], pstat->hwaddr[5]);
 #endif
 
 	wrq.pointer = (caddr_t)&Set_Key;
@@ -1427,13 +1456,13 @@ static void ToDrv_SetPTK(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	memcpy(&Set_Key.MACAddr, pstat->hwaddr, 6);
 	switch (pstat->wpa_sta_info->UnicastCipher) {
 		case DOT11_ENC_TKIP:
-			ulKeyLength =  PTK_LEN_TKIP - (PTK_LEN_EAPOLMIC + PTK_LEN_EAPOLENC);
-			break;
+		ulKeyLength =  PTK_LEN_TKIP - (PTK_LEN_EAPOLMIC + PTK_LEN_EAPOLENC);
+		break;
 
-			// Kenny
+		// Kenny
 		case DOT11_ENC_CCMP:
-			ulKeyLength =  PTK_LEN_CCMP - (PTK_LEN_EAPOLMIC + PTK_LEN_EAPOLENC);
-			break;
+		ulKeyLength =  PTK_LEN_CCMP - (PTK_LEN_EAPOLMIC + PTK_LEN_EAPOLENC);
+		break;
 	}
 	pucKeyMaterial = pstat->wpa_sta_info->PTK + (PTK_LEN_EAPOLMIC + PTK_LEN_EAPOLENC);
 
@@ -1487,8 +1516,8 @@ void ToDrv_SetGTK(struct rtl8192cd_priv *priv)
 	{
 		//ulKeyIndex = priv->wpa_global_info->GN;
 		memcpy(Set_Key.KeyMaterial,
-				priv->wpa_global_info->GTK[priv->wpa_global_info->GN],
-				ulKeyLength);
+			priv->wpa_global_info->GTK[priv->wpa_global_info->GN],
+			ulKeyLength);
 		Set_Key.KeyIndex = priv->wpa_global_info->GN;
 	}
 
@@ -1511,8 +1540,8 @@ static void ToDrv_SetPort(struct rtl8192cd_priv *priv, struct stat_info *pstat, 
 
 #ifdef DEBUG_PSK
 	printk("PSK: Set PORT [%x], mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
-			status, pstat->hwaddr[0], pstat->hwaddr[1], pstat->hwaddr[2],
-			pstat->hwaddr[3], pstat->hwaddr[4], pstat->hwaddr[5]);
+		status, pstat->hwaddr[0], pstat->hwaddr[1], pstat->hwaddr[2],
+		pstat->hwaddr[3], pstat->hwaddr[4], pstat->hwaddr[5]);
 #endif
 
 	wrq.pointer = (caddr_t)&Set_Port;
@@ -1530,7 +1559,7 @@ static void ToDrv_SetIE(struct rtl8192cd_priv *priv)
 
 #ifdef DEBUG_PSK
 	debug_out("PSK: Set RSNIE", priv->wpa_global_info->AuthInfoElement.Octet,
-			priv->wpa_global_info->AuthInfoElement.Length);
+								priv->wpa_global_info->AuthInfoElement.Length);
 #endif
 
 	wrq.pointer = (caddr_t)&Set_Rsnie;
@@ -1553,8 +1582,8 @@ static void ToDrv_DisconnectSTA(struct rtl8192cd_priv *priv, struct stat_info *p
 
 #ifdef DEBUG_PSK
 	printk("PSK: disconnect sta, mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
-			pstat->hwaddr[0], pstat->hwaddr[1], pstat->hwaddr[2],
-			pstat->hwaddr[3], pstat->hwaddr[4], pstat->hwaddr[5]);
+		pstat->hwaddr[0], pstat->hwaddr[1], pstat->hwaddr[2],
+		pstat->hwaddr[3], pstat->hwaddr[4], pstat->hwaddr[5]);
 #endif
 
 	wrq.pointer = (caddr_t)&Disconnect_Req;
@@ -1613,9 +1642,14 @@ static void reset_sta_info(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	pInfo->EAPOLMsgRecvd.Octet = pInfo->eapRecvdBuf;
 	pInfo->EapolKeyMsgRecvd.Octet = pInfo->EAPOLMsgRecvd.Octet + ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN;
 
+#ifdef __KERNEL__
 	init_timer(&pInfo->resendTimer);
 	pInfo->resendTimer.data = (unsigned long)pstat;
 	pInfo->resendTimer.function = ResendTimeout;
+#elif defined(__ECOS)
+	init_timer(&pInfo->resendTimer, (unsigned long)pstat, ResendTimeout);
+#endif
+
 	pInfo->priv = priv;
 
 	if (OPMODE & WIFI_AP_STATE)
@@ -1638,7 +1672,12 @@ static void reset_sta_info(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	RESTORE_INT(flags);
 }
 
+
+#ifdef __KERNEL__
 static void ResendTimeout(unsigned long task_psta)
+#elif defined(__ECOS)
+static void ResendTimeout(void *task_psta)
+#endif
 {
 	struct stat_info *pstat = (struct stat_info *)task_psta;
 	struct rtl8192cd_priv *priv = pstat->wpa_sta_info->priv;
@@ -1651,18 +1690,18 @@ static void ResendTimeout(unsigned long task_psta)
 	if (pstat == NULL)
 		return;
 
-#ifdef CLIENT_MODE	
-	if ((OPMODE & WIFI_STATION_STATE) && !pstat->wpa_sta_info->clientHndshkProcessing) {		
-		DEBUG_ERR("Wait EAP timeout, disconnect  AP!\n");		
-		ToDrv_DisconnectSTA(priv, pstat, expire);		
-		return;			
+#ifdef CLIENT_MODE
+	if ((OPMODE & WIFI_STATION_STATE) && !pstat->wpa_sta_info->clientHndshkProcessing) {
+		DEBUG_ERR("Wait EAP timeout, disconnect  AP!\n");
+		ToDrv_DisconnectSTA(priv, pstat, expire);
+		return;
 	}
 #endif
 
 	if (++pstat->wpa_sta_info->resendCnt > MAX_RESEND_NUM) {
 
-		// When the case of group rekey timeout, update GTK to driver when it is
-		// the last one node
+// When the case of group rekey timeout, update GTK to driver when it is
+// the last one node
 		if (OPMODE & WIFI_AP_STATE) {
 			if (pstat->wpa_sta_info->state == PSK_STATE_PTKINITDONE &&
 					pstat->wpa_sta_info->gstate == PSK_GSTATE_REKEYNEGOTIATING) {
@@ -1670,7 +1709,7 @@ static void ResendTimeout(unsigned long task_psta)
 					priv->wpa_global_info->GKeyDoneStations--;
 
 				if (priv->wpa_global_info->GKeyDoneStations==0 && !priv->wpa_global_info->GkeyReady) {
-					ToDrv_SetGTK(priv);
+   		        	ToDrv_SetGTK(priv);
 					priv->wpa_global_info->GkeyReady = TRUE;
 					priv->wpa_global_info->GResetCounter = TRUE;
 
@@ -1689,11 +1728,11 @@ static void ResendTimeout(unsigned long task_psta)
 				}
 			}
 		}
-		//--------------------------------------------------------- david+2006-04-06
+//--------------------------------------------------------- david+2006-04-06
 
 		ToDrv_DisconnectSTA(priv, pstat, RSN_4_way_handshake_timeout);
-		// need not reset because ToDrv_DisconnectSTA() will take care of it, david+2006-04-06
-		//		reset_sta_info(priv, pstat);
+// need not reset because ToDrv_DisconnectSTA() will take care of it, david+2006-04-06
+//		reset_sta_info(priv, pstat);
 
 #ifdef DEBUG_PSK
 		printk("PSK: Exceed max retry, disconnect sta\n");
@@ -1710,7 +1749,12 @@ static void ResendTimeout(unsigned long task_psta)
 	}
 }
 
+
+#ifdef __KERNEL__
 static void GKRekeyTimeout(unsigned long task_priv)
+#elif defined(__ECOS)
+static void GKRekeyTimeout(void *task_priv)
+#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	unsigned long flags;
@@ -1809,7 +1853,7 @@ static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int 
 			Message_setRequest(EapolKeyMsgSend, 0);
 			Message_setReserved(EapolKeyMsgSend, 0);
 			Message_setKeyLength(EapolKeyMsgSend, (pStaInfo->UnicastCipher  == DOT11_ENC_TKIP) ? 32:16);
-			//			Message_setKeyLength(EapolKeyMsgSend, 32);
+//			Message_setKeyLength(EapolKeyMsgSend, 32);
 
 			// make 4-1's ReplyCounter increased
 			Message_setReplayCounter(EapolKeyMsgSend, pStaInfo->CurrentReplayCounter.field.HighPart, pStaInfo->CurrentReplayCounter.field.LowPart);
@@ -1818,13 +1862,13 @@ static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int 
 			INCLargeInteger(&pStaInfo->CurrentReplayCounter);
 
 			INCOctet32_INTEGER(&pGblInfo->Counter);
-			//#ifndef RTL_WPA2_PREAUTH
+//#ifndef RTL_WPA2_PREAUTH
 			// ANonce is only updated in lib1x_init_authenticator()
 			// or after 4-way handshake
 			// To avoid different ANonce values among multiple issued 4-1 messages because of multiple association requests
 			// Different ANonce values among multiple 4-1 messages induce 4-2 MIC failure.
 			SetNonce(pStaInfo->ANonce, pGblInfo->Counter);
-			//#endif
+//#endif
 			Message_setKeyNonce(EapolKeyMsgSend, pStaInfo->ANonce);
 
 			memset(IV.Octet, 0, IV.Length);
@@ -1834,16 +1878,16 @@ static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int 
 			memset(KeyID.Octet, 0, KeyID.Length);
 			Message_setKeyID(EapolKeyMsgSend, KeyID);
 
-			// enable it to interoper with Intel 11n Centrino, david+2007-11-19
+// enable it to interoper with Intel 11n Centrino, david+2007-11-19
 #if 1
 			// otherwise PMK cache
 			if ((pStaInfo->RSNEnabled & PSK_WPA2) && (pStaInfo->AuthKeyMethod == DOT11_AuthKeyType_PSK || pStaInfo->PMKCached) ) {
 				static char PMKID_KDE_TYPE[] = { 0xDD, 0x14, 0x00, 0x0F, 0xAC, 0x04 };
 				Message_setKeyDataLength(EapolKeyMsgSend, 22);
 				memcpy(EapolKeyMsgSend.Octet + KeyDataPos,
-						PMKID_KDE_TYPE, sizeof(PMKID_KDE_TYPE));
-				//				memcpy(EapolKeyMsgSend.Octet+KeyDataPos+sizeof(PMKID_KDE_TYPE),
-				//					global->akm_sm->PMKID, PMKID_LEN);
+							PMKID_KDE_TYPE, sizeof(PMKID_KDE_TYPE));
+//				memcpy(EapolKeyMsgSend.Octet+KeyDataPos+sizeof(PMKID_KDE_TYPE),
+//					global->akm_sm->PMKID, PMKID_LEN);
 			}
 			else
 #endif
@@ -1883,10 +1927,10 @@ static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int 
 			Message_setInstall(EapolKeyMsgSend, 1);
 			Message_setKeyAck(EapolKeyMsgSend, 1);
 			Message_setKeyMIC(EapolKeyMsgSend, 1);
-			//??
-			//	Message_setSecure(pStaInfo->EapolKeyMsgSend, pStaInfo->RSNVariable.isSuppSupportMulticastCipher ? 0:1);
+		//??
+		//	Message_setSecure(pStaInfo->EapolKeyMsgSend, pStaInfo->RSNVariable.isSuppSupportMulticastCipher ? 0:1);
 			Message_setSecure(EapolKeyMsgSend, 0);
-			//??
+		//??
 			Message_setError(EapolKeyMsgSend, 0);
 			Message_setRequest(EapolKeyMsgSend, 0);
 			Message_setReserved(EapolKeyMsgSend, 0);
@@ -1904,7 +1948,7 @@ static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int 
 				unsigned char GTK_KDE_TYPE[] = {0xDD, 0x16, 0x00, 0x0F, 0xAC, 0x01, 0x01, 0x00 };
 
 				EapolKeyMsgSend.Octet[1] = 0x13;
-				//???
+//???
 				if (KeyDescriptorVer == key_desc_ver2 ) {
 					INCOctet32_INTEGER(&pGblInfo->Counter);
 					SetEAPOL_KEYIV(IV, pGblInfo->Counter);
@@ -1939,8 +1983,8 @@ static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int 
 
 
 				// FIX GROUPKEY ALL ZERO
-				// david+2006-04-04, fix the issue of re-generating group key
-				//				pGblInfo->GInitAKeys = TRUE;
+// david+2006-04-04, fix the issue of re-generating group key
+//				pGblInfo->GInitAKeys = TRUE;
 				UpdateGK(priv);
 				memcpy(key_data_pos, pGblInfo->GTK[pGblInfo->GN], (pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
 
@@ -1956,10 +2000,10 @@ static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int 
 
 				}
 				EncGTK(priv, pstat,
-						pStaInfo->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
-						key_data,
-						(key_data_pos - key_data),
-						KeyData.Octet, &tmpKeyData_Length);
+					pStaInfo->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
+					key_data,
+					(key_data_pos - key_data),
+					 KeyData.Octet, &tmpKeyData_Length);
 				KeyData.Length = (int)tmpKeyData_Length;
 				Message_setKeyData(EapolKeyMsgSend, KeyData);
 				Message_setKeyDataLength(EapolKeyMsgSend, KeyData.Length);
@@ -2082,68 +2126,68 @@ static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int 
 				static char GTK_KDE_TYPE[] = { 0xDD, 0x16, 0x00, 0x0F, 0xAC, 0x01, 0x01, 0x00 };
 				memcpy(key_data_pos, GTK_KDE_TYPE, sizeof(GTK_KDE_TYPE));
 
-				//fix the bug of using default KDE length -----------
+//fix the bug of using default KDE length -----------
 				key_data_pos[1] = (unsigned char)(6+((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16));
-				//------------------------------ david+2006-04-04
+//------------------------------ david+2006-04-04
 
 				key_data_pos += sizeof(GTK_KDE_TYPE);
 
 				EapolKeyMsgSend.Octet[1] = 0x13;
-				// fill key-data length after encrypt --------------------
+// fill key-data length after encrypt --------------------
 #if 0
 				if (KeyDescriptorVer == key_desc_ver1) {
-					// david+2006-01-06, fix the bug of using 0 as group key id
-					//					EapolKeyMsgSend.Octet[2] = 0x81;
+// david+2006-01-06, fix the bug of using 0 as group key id
+//					EapolKeyMsgSend.Octet[2] = 0x81;
 					Message_setKeyDescVer(EapolKeyMsgSend, key_desc_ver1);
 					Message_setKeyDataLength(EapolKeyMsgSend,
-							(sizeof(GTK_KDE_TYPE) + ((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16)));
+						(sizeof(GTK_KDE_TYPE) + ((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16)));
 				}
 				else if (KeyDescriptorVer == key_desc_ver2) {
-					// david+2006-01-06, fix the bug of using 0 as group key id
-					//					EapolKeyMsgSend.Octet[2] = 0x82;
+// david+2006-01-06, fix the bug of using 0 as group key id
+//					EapolKeyMsgSend.Octet[2] = 0x82;
 					Message_setKeyDescVer(EapolKeyMsgSend, key_desc_ver2);
 					Message_setKeyDataLength(EapolKeyMsgSend,
-							(sizeof(GTK_KDE_TYPE) + (8 + ((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16))));
+					    	(sizeof(GTK_KDE_TYPE) + (8 + ((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16))));
 				}
 #endif
-				//------------------------------------- david+2006-04-04
+//------------------------------------- david+2006-04-04
 
 				memcpy(key_data_pos, pGblInfo->GTK[pGblInfo->GN], (pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
 				EncGTK(priv, pstat, pStaInfo->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
-						key_data,
-						sizeof(GTK_KDE_TYPE) + ((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16),
-						KeyData.Octet, &tmpKeyData_Length);
+					(unsigned char *)key_data,
+					sizeof(GTK_KDE_TYPE) + ((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16),
+					KeyData.Octet, &tmpKeyData_Length);
 			}
 			else
 #endif // RTL_WPA2
 			{
-				// fill key-data length after encrypt ---------------------
+// fill key-data length after encrypt ---------------------
 #if 0
 				if (KeyDescriptorVer == key_desc_ver1)
 					Message_setKeyDataLength(EapolKeyMsgSend,
-							((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16));
+						((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16));
 				else
 					Message_setKeyDataLength(EapolKeyMsgSend,
-							(8 + ((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16) ));
+				    	(8 + ((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16) ));
 #endif
-				//------------------------------------- david+2006-04-04
+//------------------------------------- david+2006-04-04
 				EncGTK(priv, pstat, pStaInfo->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
-						pGblInfo->GTK[pGblInfo->GN],
-						(pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16,
-						KeyData.Octet, &tmpKeyData_Length);
+					pGblInfo->GTK[pGblInfo->GN],
+					(pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16,
+					KeyData.Octet, &tmpKeyData_Length);
 			}
 
 			KeyData.Length = (int)tmpKeyData_Length;
 			Message_setKeyData(EapolKeyMsgSend, KeyData);
 
-			//set keyData length after encrypt ------------------
+//set keyData length after encrypt ------------------
 			Message_setKeyDataLength(EapolKeyMsgSend, KeyData.Length);
-			//------------------------------- david+2006-04-04
+//------------------------------- david+2006-04-04
 
-			/* Kenny
-			   global->EapolKeyMsgSend.Length = EAPOLMSG_HDRLEN +
-			   ((global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
-			 */
+/* Kenny
+			global->EapolKeyMsgSend.Length = EAPOLMSG_HDRLEN +
+					((global->RSNVariable.MulticastCipher == DOT11_ENC_TKIP) ? 32:16);
+*/
 			EapolKeyMsgSend.Length = EAPOLMSG_HDRLEN +	KeyData.Length;
 			EAPOLMsgSend.Length = ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN + EapolKeyMsgSend.Length;
 			IfCalcMIC = TRUE;
@@ -2164,7 +2208,7 @@ send_packet:
 
 	eapol = (struct lib1x_eapol *)(EAPOLMsgSend.Octet + ETHER_HDRLEN);
 	eapol->protocol_version = LIB1X_EAPOL_VER;
-	eapol->packet_type =  LIB1X_EAPOL_KEY;
+    eapol->packet_type =  LIB1X_EAPOL_KEY;
 	eapol->packet_body_length = htons(EapolKeyMsgSend.Length);
 
 	if (IfCalcMIC)
@@ -2202,6 +2246,36 @@ send_packet:
 	mod_timer(&pstat->wpa_sta_info->resendTimer, jiffies + RESEND_TIME);
 }
 
+
+#ifdef __ECOS
+int ecos_send_wlan(struct net_device *dev, unsigned char *data, int size)
+{
+	struct rtl8192cd_priv *priv;
+	struct sk_buff *pskb;
+	
+	priv = dev->priv;
+	pskb = rtl_dev_alloc_skb(priv, size, _SKB_TX_, 1);
+	if (pskb == NULL) {
+		DEBUG_ERR("wps: allocate EAP skb failed!\n");
+		return -1;
+	}
+	memcpy(pskb->data, data, size);
+	skb_put(pskb, size);
+
+#ifdef ENABLE_RTL_SKB_STATS
+	rtl_atomic_dec(&priv->rtl_tx_skb_cnt);
+#endif
+
+	//pskb->cb[0] = 7;	// use highest priority to xmit
+	if (rtl8192cd_start_xmit(pskb, priv->dev)){
+		DEBUG_ERR("tx from wps\n");
+		rtl_kfree_skb(priv, pskb, _SKB_TX_);
+	}
+	return 0;
+}
+#endif
+
+
 #ifdef CLIENT_MODE
 void ClientSendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int resend)
 {
@@ -2234,6 +2308,10 @@ void ClientSendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int r
 	{
 		EAPOLMsgSend.Length = pStaInfo->EAPOLMsgSend.Length;
 		EapolKeyMsgSend.Length = pStaInfo->EapolKeyMsgSend.Length;
+		if ( (pStaInfo->EAPOLMsgSend.Length==0) || (pStaInfo->EapolKeyMsgSend.Length==0) ) {
+			DEBUG_ERR("(%s):The length of EAPOLMsg or EapolKeyMsg is error! EAPOLMsg:%d,  EapolKeyMsg:%d\n", __FUNCTION__, pStaInfo->EAPOLMsgSend.Length,  pStaInfo->EapolKeyMsgSend.Length);
+			return;
+		}
 		//---goto send_packet
 	}
 	else
@@ -2327,10 +2405,10 @@ void ClientSendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int r
 				EAPOLMsgSend.Length = ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN + EapolKeyMsgSend.Length;
 
 				LOG_MSG( "Open and authenticated\n");
-				
+
 				pStaInfo->clientMICReportReplayCounter.field.HighPart = 0;
-                pStaInfo->clientMICReportReplayCounter.field.LowPart = 0;
-				//				printk("client mode 4-Way Message 4-4 done\n");
+                		pStaInfo->clientMICReportReplayCounter.field.LowPart = 0;
+//				printk("client mode 4-Way Message 4-4 done\n");
 			}
 		}
 		else
@@ -2411,9 +2489,12 @@ void ClientSendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int r
 			}
 		}
 		pStaInfo->EAPOLMsgSend.Length = EAPOLMsgSend.Length;
-		pStaInfo->EapolKeyMsgSend.Length = EapolKeyMsgSend.Length;						
+		pStaInfo->EapolKeyMsgSend.Length = EapolKeyMsgSend.Length;
 	}
 
+	//add by peteryu, for record EAPOLMSG length
+	pStaInfo->EAPOLMsgSend.Length = EAPOLMsgSend.Length;
+	pStaInfo->EapolKeyMsgSend.Length = EapolKeyMsgSend.Length;
 	//send_packet--------------------------------------------------------------
 
 	eth_hdr = (struct wlan_ethhdr_t *)EAPOLMsgSend.Octet;
@@ -2423,7 +2504,7 @@ void ClientSendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int r
 
 	eapol = (struct lib1x_eapol *)(EAPOLMsgSend.Octet + ETHER_HDRLEN);
 	eapol->protocol_version = LIB1X_EAPOL_VER;
-	eapol->packet_type =  LIB1X_EAPOL_KEY;
+    	eapol->packet_type =  LIB1X_EAPOL_KEY;
 	eapol->packet_body_length = htons(EapolKeyMsgSend.Length);
 
 	if (!resend) {
@@ -2473,7 +2554,7 @@ static void AuthenticationRequest(struct rtl8192cd_priv *priv, struct stat_info 
 
 	memcpy(pstat->wpa_sta_info->PMK, priv->wpa_global_info->PSK, PMK_LEN);
 
-	//#ifdef RTL_WPA2
+//#ifdef RTL_WPA2
 #if 0
 	CalcPMKID(	akm_sm->PMKID,
 			akm_sm->PMK, 	 // PMK
@@ -2533,10 +2614,10 @@ static void UpdateGK(struct rtl8192cd_priv *priv)
 #endif
 
 				if ((priv->pshare->aidarray[i]->station.state & WIFI_ASOC_STATE) &&
-						(priv->pshare->aidarray[i]->station.wpa_sta_info->state == PSK_STATE_PTKINITDONE))
-					pGblInfo->GKeyDoneStations++;
-			}
+					(priv->pshare->aidarray[i]->station.wpa_sta_info->state == PSK_STATE_PTKINITDONE))
+				pGblInfo->GKeyDoneStations++;
 		}
+	}
 	}
 
 	//------------------------------------------------------------
@@ -2556,7 +2637,7 @@ static void UpdateGK(struct rtl8192cd_priv *priv)
 
 		//---- Group key handshake to only one supplicant ----
 		if (pstat->wpa_sta_info->state == PSK_STATE_PTKINITDONE &&
-				(pGblInfo->GkeyReady && pstat->wpa_sta_info->PInitAKeys)) {
+			(pGblInfo->GkeyReady && pstat->wpa_sta_info->PInitAKeys)) {
 			pstat->wpa_sta_info->PInitAKeys = FALSE;
 			pstat->wpa_sta_info->gstate = PSK_GSTATE_REKEYNEGOTIATING; // set proper gstat, david+2006-04-06
 			pstat->wpa_sta_info->resendCnt = 0;
@@ -2565,14 +2646,14 @@ static void UpdateGK(struct rtl8192cd_priv *priv)
 		//---- Updata group key to all supplicant----
 		else if (pstat->wpa_sta_info->state == PSK_STATE_PTKINITDONE &&  //Done 4-way handshake
 				(pGblInfo->GUpdateStationKeys ||                     //When new key is generated
-				 pstat->wpa_sta_info->gstate == PSK_GSTATE_REKEYNEGOTIATING))  { //1st message is not yet sent
+					pstat->wpa_sta_info->gstate == PSK_GSTATE_REKEYNEGOTIATING))  { //1st message is not yet sent
 			pstat->wpa_sta_info->PInitAKeys = FALSE;
 			pstat->wpa_sta_info->gstate = PSK_GSTATE_REKEYNEGOTIATING; // set proper gstat, david+2006-04-06
 			pstat->wpa_sta_info->resendCnt = 0;
 			SendEAPOL(priv, pstat, 0);
-		}
+		 }
 	}
-	pGblInfo->GUpdateStationKeys = FALSE;
+    pGblInfo->GUpdateStationKeys = FALSE;
 };
 
 static void EAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
@@ -2602,7 +2683,7 @@ static void EAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	//----IEEE 802.11-03/156r2. MIC report : (1)MIC bit (2)error bit (3) request bit
 	//----Check if it is MIC failure report. If it is, indicate to driver
 	if (Message_KeyMIC(pStaInfo->EapolKeyMsgRecvd) && Message_Error(pStaInfo->EapolKeyMsgRecvd)
-			&& Message_Request(pStaInfo->EapolKeyMsgRecvd)) {
+				&& Message_Request(pStaInfo->EapolKeyMsgRecvd)) {
 #ifdef DEBUG_PSK
 		printk("PSK: Rx MIC errir report from client\n");
 #endif
@@ -2612,131 +2693,131 @@ static void EAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 
 	if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Pairwise) {
 		switch(pStaInfo->state) {
-			case PSK_STATE_PTKSTART:
-				//---- Receive 2nd message and send third
-				DEBUG_INFO("4-2\n");
+		case PSK_STATE_PTKSTART:
+			//---- Receive 2nd message and send third
+			DEBUG_INFO("4-2\n");
 
-				//check replay counter
-				Message_ReplayCounter_OC2LI(pStaInfo->EapolKeyMsgRecvd, &recievedRC);
-				INCLargeInteger(&recievedRC);
-				if ( !(pStaInfo->CurrentReplayCounter.field.HighPart == recievedRC.field.HighPart
-							&& pStaInfo->CurrentReplayCounter.field.LowPart == recievedRC.field.LowPart)) {
-					DEBUG_ERR("4-2: ERROR_NONEEQUL_REPLAYCOUNTER\n");
-					break;
-				}
+			//check replay counter
+			Message_ReplayCounter_OC2LI(pStaInfo->EapolKeyMsgRecvd, &recievedRC);
+			INCLargeInteger(&recievedRC);
+			if ( !(pStaInfo->CurrentReplayCounter.field.HighPart == recievedRC.field.HighPart
+		             && pStaInfo->CurrentReplayCounter.field.LowPart == recievedRC.field.LowPart)) {
+				DEBUG_ERR("4-2: ERROR_NONEEQUL_REPLAYCOUNTER\n");
+				break;
+			}
 
 check_msg2:
-				// delete resend timer
-				if (timer_pending(&pStaInfo->resendTimer))
-					del_timer_sync(&pStaInfo->resendTimer);
+			// delete resend timer
+			if (timer_pending(&pStaInfo->resendTimer))
+				del_timer_sync(&pStaInfo->resendTimer);
 
-				pStaInfo->SNonce = Message_KeyNonce(pStaInfo->EapolKeyMsgRecvd);
-				CalcPTK(pStaInfo->EAPOLMsgRecvd.Octet, pStaInfo->EAPOLMsgRecvd.Octet + 6,
-						pStaInfo->ANonce.Octet, pStaInfo->SNonce.Octet,
-						pStaInfo->PMK, PMK_LEN, pStaInfo->PTK, PTK_LEN_TKIP);
+			pStaInfo->SNonce = Message_KeyNonce(pStaInfo->EapolKeyMsgRecvd);
+			CalcPTK(pStaInfo->EAPOLMsgRecvd.Octet, pStaInfo->EAPOLMsgRecvd.Octet + 6,
+					pStaInfo->ANonce.Octet, pStaInfo->SNonce.Octet,
+					pStaInfo->PMK, PMK_LEN, pStaInfo->PTK, PTK_LEN_TKIP);
 
 #ifdef DEBUG_PSK
-				debug_out("PSK: Generated PTK=", pStaInfo->PTK, PTK_LEN_TKIP);
+			debug_out("PSK: Generated PTK=", pStaInfo->PTK, PTK_LEN_TKIP);
 #endif
 
-				if (!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC)) {
-					if (priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest[0]) {
-						CalcPTK(pStaInfo->EAPOLMsgRecvd.Octet, pStaInfo->EAPOLMsgRecvd.Octet + 6,
-								pStaInfo->ANonce.Octet, pStaInfo->SNonce.Octet,
-								pGblInfo->PSKGuest, PMK_LEN, pStaInfo->PTK, PTK_LEN_TKIP);
-						if (CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC)) {
-							pStaInfo->isGuest = 1;
-							goto cont_msg;
-						}
+			if (!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC)) {
+				if (priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest[0]) {
+					CalcPTK(pStaInfo->EAPOLMsgRecvd.Octet, pStaInfo->EAPOLMsgRecvd.Octet + 6,
+						pStaInfo->ANonce.Octet, pStaInfo->SNonce.Octet,
+						pGblInfo->PSKGuest, PMK_LEN, pStaInfo->PTK, PTK_LEN_TKIP);
+					if (CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC)) {
+						pStaInfo->isGuest = 1;
+						goto cont_msg;
 					}
+				}
 
-					DEBUG_ERR("4-2: ERROR_MIC_FAIL\n");
+				DEBUG_ERR("4-2: ERROR_MIC_FAIL\n");
 #if 0
-					if (global->RSNVariable.PMKCached ) {
-						printf("\n%s:%d del_pmksa due to 4-2 ERROR_MIC_FAIL\n", (char *)__FUNCTION__, __LINE__);
-						global->RSNVariable.PMKCached = FALSE;
-						del_pmksa_by_spa(global->theAuthenticator->supp_addr);
-					}
+				if (global->RSNVariable.PMKCached ) {
+					printf("\n%s:%d del_pmksa due to 4-2 ERROR_MIC_FAIL\n", (char *)__FUNCTION__, __LINE__);
+					global->RSNVariable.PMKCached = FALSE;
+					del_pmksa_by_spa(global->theAuthenticator->supp_addr);
+				}
 #endif
 
-					LOG_MSG("Authentication failled! (4-2: MIC error)\n");
+				LOG_MSG("Authentication failled! (4-2: MIC error)\n");
 #if defined(CONFIG_RTL8186_KB_N)
-					authRes = 1;//Auth failed
+				authRes = 1;//Auth failed
 #endif
 
 #if defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC)
-					LOG_MSG_NOTICE("Authentication failed;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
-							pstat->hwaddr[0],
-							pstat->hwaddr[1],
-							pstat->hwaddr[2],
-							pstat->hwaddr[3],
-							pstat->hwaddr[4],
-							pstat->hwaddr[5]);
+				LOG_MSG_NOTICE("Authentication failed;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
+					pstat->hwaddr[0],
+					pstat->hwaddr[1],
+					pstat->hwaddr[2],
+					pstat->hwaddr[3],
+					pstat->hwaddr[4],
+					pstat->hwaddr[5]);
 #elif defined(CONFIG_RTL8196B_TLD)
-					LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
-							pstat->hwaddr[0],
-							pstat->hwaddr[1],
-							pstat->hwaddr[2],
-							pstat->hwaddr[3],
-							pstat->hwaddr[4],
-							pstat->hwaddr[5]);
+				LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+					pstat->hwaddr[0],
+					pstat->hwaddr[1],
+					pstat->hwaddr[2],
+					pstat->hwaddr[3],
+					pstat->hwaddr[4],
+					pstat->hwaddr[5]);
 #endif
 
-					ToDrv_DisconnectSTA(priv, pstat, RSN_MIC_failure);
-					pStaInfo->state = PSK_STATE_IDLE;
-					break;
-				}
-cont_msg:
-				pStaInfo->resendCnt = 0;
-				pStaInfo->state = PSK_STATE_PTKINITNEGOTIATING;
-				SendEAPOL(priv, pstat, 0);	// send msg 3
+				ToDrv_DisconnectSTA(priv, pstat, RSN_MIC_failure);
+				pStaInfo->state = PSK_STATE_IDLE;
 				break;
+			}
+cont_msg:
+			pStaInfo->resendCnt = 0;
+			pStaInfo->state = PSK_STATE_PTKINITNEGOTIATING;
+			SendEAPOL(priv, pstat, 0);	// send msg 3
+			break;
 
-			case PSK_STATE_PTKINITNEGOTIATING:
-				//---- Receive 4th message ----
-				DEBUG_INFO("4-4\n");
+		case PSK_STATE_PTKINITNEGOTIATING:
+			//---- Receive 4th message ----
+			DEBUG_INFO("4-4\n");
 
-				// test 2nd or 4th message
-				// check replay counter to determine if msg 2 or 4 received --------------
-				//			if ( Message_KeyDataLength(pStaInfo->EapolKeyMsgRecvd) != 0) {
-				if (Message_EqualReplayCounter(pStaInfo->ReplayCounterStarted, pStaInfo->EapolKeyMsgRecvd)) {
-					//---------------------------------------------------- david+1-12-2007
+			// test 2nd or 4th message
+// check replay counter to determine if msg 2 or 4 received --------------
+//			if ( Message_KeyDataLength(pStaInfo->EapolKeyMsgRecvd) != 0) {
+			if (Message_EqualReplayCounter(pStaInfo->ReplayCounterStarted, pStaInfo->EapolKeyMsgRecvd)) {
+//---------------------------------------------------- david+1-12-2007
 
-					DEBUG_INFO("4-2 in akmsm_PTKINITNEGOTIATING: resend 4-3\n");
+				DEBUG_INFO("4-2 in akmsm_PTKINITNEGOTIATING: resend 4-3\n");
 
 #if 0 // Don't check replay counter during dup 4-2
 #ifdef RTL_WPA2
-					Message_ReplayCounter_OC2LI(global->EapolKeyMsgRecvd, &recievedRC);
-					INCLargeInteger(&recievedRC);
-					if ( !(global->akm_sm->CurrentReplayCounter.field.HighPart == recievedRC.field.HighPart
-								&& global->akm_sm->CurrentReplayCounter.field.LowPart == recievedRC.field.LowPart))
+				Message_ReplayCounter_OC2LI(global->EapolKeyMsgRecvd, &recievedRC);
+				INCLargeInteger(&recievedRC);
+				if ( !(global->akm_sm->CurrentReplayCounter.field.HighPart == recievedRC.field.HighPart
+			             && global->akm_sm->CurrentReplayCounter.field.LowPart == recievedRC.field.LowPart))
 #else
-						if(!Message_EqualReplayCounter(global->akm_sm->CurrentReplayCounter, global->EapolKeyMsgRecvd))
+				if(!Message_EqualReplayCounter(global->akm_sm->CurrentReplayCounter, global->EapolKeyMsgRecvd))
 #endif
-						{
+				{
 #ifdef FOURWAY_DEBUG
-							printf("4-2: ERROR_NONEEQUL_REPLAYCOUNTER\n");
-							printf("global->akm_sm->CurrentReplayCounter.field.LowPart = %d\n", global->akm_sm->CurrentReplayCounter.field.LowPart);
-							printf("recievedRC.field.LowPart = %d\n", recievedRC.field.LowPart);
+					printf("4-2: ERROR_NONEEQUL_REPLAYCOUNTER\n");
+					printf("global->akm_sm->CurrentReplayCounter.field.LowPart = %d\n", global->akm_sm->CurrentReplayCounter.field.LowPart);
+					printf("recievedRC.field.LowPart = %d\n", recievedRC.field.LowPart);
 #endif
-							retVal = ERROR_NONEEQUL_REPLAYCOUNTER;k
-						}else
+					retVal = ERROR_NONEEQUL_REPLAYCOUNTER;k
+				}else
 #endif // Don't check replay counter during dup 4-2
-							//#ifndef RTL_WPA2
+//#ifndef RTL_WPA2
 #if 0
-							// kenny: already increase CurrentReplayCounter after 4-1. Do it at the end of 4-2
-							INCLargeInteger(&global->akm_sm->CurrentReplayCounter);
+					// kenny: already increase CurrentReplayCounter after 4-1. Do it at the end of 4-2
+					INCLargeInteger(&global->akm_sm->CurrentReplayCounter);
 #endif
 
-						goto check_msg2;
-				}
+				goto check_msg2;
+			}
 
-				// delete resend timer
-				if (timer_pending(&pStaInfo->resendTimer))
-					del_timer_sync(&pStaInfo->resendTimer);
+			// delete resend timer
+			if (timer_pending(&pStaInfo->resendTimer))
+				del_timer_sync(&pStaInfo->resendTimer);
 
-				if (!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC)) { // errror
-					DEBUG_ERR("4-4: RSN_MIC_failure\n");
+			if (!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC)) { // errror
+				DEBUG_ERR("4-4: RSN_MIC_failure\n");
 #if 0
 					if (global->RSNVariable.PMKCached ) {
 						printf("\n%s:%d del_pmksa due to 4-4 RSN_MIC_failure\n", (char *)__FUNCTION__, __LINE__);
@@ -2744,945 +2825,954 @@ cont_msg:
 						del_pmksa_by_spa(global->theAuthenticator->supp_addr);
 					}
 #endif
-					LOG_MSG("Authentication failled! (4-4: MIC error)\n");
+				LOG_MSG("Authentication failled! (4-4: MIC error)\n");
+#if defined(CONFIG_RTL8186_KB_N)
+				authRes = 1;//Auth failed
+#endif
+
+#if defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC)
+				LOG_MSG_NOTICE("Authentication failed;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
+					pstat->hwaddr[0],
+					pstat->hwaddr[1],
+					pstat->hwaddr[2],
+					pstat->hwaddr[3],
+					pstat->hwaddr[4],
+					pstat->hwaddr[5]);
+#elif defined(CONFIG_RTL8196B_TLD)
+				LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+					pstat->hwaddr[0],
+					pstat->hwaddr[1],
+					pstat->hwaddr[2],
+					pstat->hwaddr[3],
+					pstat->hwaddr[4],
+					pstat->hwaddr[5]);
+#endif
+
+				ToDrv_DisconnectSTA(priv, pstat, RSN_MIC_failure);
+				pStaInfo->state = PSK_STATE_IDLE;
+				break;
+			}
+
+			LOG_MSG("Open and authenticated\n");
+
+#if defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC)
+			LOG_MSG_NOTICE("Authentication Success;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
+					pstat->hwaddr[0],
+					pstat->hwaddr[1],
+					pstat->hwaddr[2],
+					pstat->hwaddr[3],
+					pstat->hwaddr[4],
+					pstat->hwaddr[5]);
+#elif defined(CONFIG_RTL8196B_TLD)
+			if (!list_empty(&priv->wlan_acl_list)) {
+				LOG_MSG_DEL("[WLAN access allowed] from MAC: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+					pstat->hwaddr[0],
+					pstat->hwaddr[1],
+					pstat->hwaddr[2],
+					pstat->hwaddr[3],
+					pstat->hwaddr[4],
+					pstat->hwaddr[5]);
+			}
+#endif
+
+//#ifdef RTL_WPA2_PREAUTH
+#if 0
+			// update ANonce for next 4-way handshake
+			SetNonce(akm_sm->ANonce, global->auth->Counter);
+#endif
+
+			//MLME-SETKEYS.request
+			INCLargeInteger(&pStaInfo->CurrentReplayCounter);
+			// kenny: n+2
+			INCLargeInteger(&pStaInfo->CurrentReplayCounter);
+
+			ToDrv_SetPTK(priv, pstat);
+			if (pStaInfo->isGuest)
+				ToDrv_SetPort(priv, pstat, DOT11_PortStatus_Guest);
+			else
+			ToDrv_SetPort(priv, pstat, DOT11_PortStatus_Authorized);
+
+// david+2006-04-04, fix the issue of re-generating group key, and need not
+// update group key in WPA2
+//			pGblInfo->GInitAKeys = TRUE;
+#ifdef RTL_WPA2
+			if (!(pStaInfo->RSNEnabled & PSK_WPA2))
+#endif
+				pStaInfo->PInitAKeys = TRUE;
+			pStaInfo->state = PSK_STATE_PTKINITDONE;
+			pStaInfo->gstate = PSK_GSTATE_REKEYNEGOTIATING;
+
+			//lib1x_akmsm_UpdateGK_proc() calls lib1x_akmsm_SendEAPOL_proc for 2-way
+			//if group key sent is needed, send msg 1 of 2-way handshake
+#ifdef RTL_WPA2
+			if (pStaInfo->RSNEnabled & PSK_WPA2) {
+				//------------------------------------------------------
+				// Only when the group state machine is in the state of
+				// (1) The first STA Connected,
+				// (2) UPDATE GK to all station
+				// does the GKeyDoneStations needed to be decreased
+				//------------------------------------------------------
+
+				if(pGblInfo->GKeyDoneStations > 0)
+					pGblInfo->GKeyDoneStations--;
+
+				//Avaya akm_sm->TimeoutCtr = 0;
+				//To Do : set port secure to driver
+//				global->portSecure = TRUE;
+				//akm_sm->state = akmsm_PTKINITDONE;
+
+				pStaInfo->gstate = PSK_GSTATE_REKEYESTABLISHED;
+
+				if (pGblInfo->GKeyDoneStations==0 && !pGblInfo->GkeyReady) {
+					ToDrv_SetGTK(priv);
+					pGblInfo->GkeyReady = TRUE;
+					pGblInfo->GResetCounter = TRUE;
+
+					// start groupkey rekey timer
+					if (priv->pmib->dot1180211AuthEntry.dot11GKRekeyTime)
+						mod_timer(&pGblInfo->GKRekeyTimer, jiffies + RTL_SECONDS_TO_JIFFIES(priv->pmib->dot1180211AuthEntry.dot11GKRekeyTime));
+				}
+#if 0
+				if (global->RSNVariable.PMKCached) {
+					global->RSNVariable.PMKCached = FALSE;  // reset
+				}
+#endif
+				DEBUG_INFO("\nWPA2: 4-way handshake done\n");
+			}
+#endif	// RTL_WPA2
+
+			if (!Message_Secure(pStaInfo->EapolKeyMsgRecvd))
+				UpdateGK(priv); // send 2-1
+			break;
+
+		case PSK_STATE_PTKINITDONE:
+			// delete resend timer
+			if (timer_pending(&pStaInfo->resendTimer))
+				del_timer_sync(&pStaInfo->resendTimer);
+
+#if 0
+			//receive message [with request bit set]
+			if(Message_Request(global->EapolKeyMsgRecvd))
+			//supp request to initiate 4-way handshake
+			{
+
+			}
+#endif
+
+			//------------------------------------------------
+			// Supplicant request to init 4 or 2 way handshake
+			//------------------------------------------------
+			if (Message_Request(pStaInfo->EapolKeyMsgRecvd)) {
+				pStaInfo->state = PSK_STATE_PTKSTART;
+				 if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Pairwise) {
+					if (Message_Error(pStaInfo->EapolKeyMsgRecvd))
+						IntegrityFailure(priv);
+				 	else {
+				 		if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Group) {
+							if (Message_Error(pStaInfo->EapolKeyMsgRecvd)) {
+								//auth change group key, initilate 4-way handshake with supp and execute
+								//the Group key handshake to all Supplicants
+								pGblInfo->GKeyFailure = TRUE;
+								IntegrityFailure(priv);
+							}
+						}
+				 	}
+					//---- Start 4-way handshake ----
+					pStaInfo->resendCnt = 0;
+					SendEAPOL(priv, pstat, 0);
+				}
+//#ifdef RTL_WPA2_PREAUTH
+//				printf("kenny: %s() in akmsm_PTKINITDONE state. Call lib1x_akmsm_UpdateGK_proc()\n", (char *)__FUNCTION__);
+//#endif
+				//---- Execute Group Key state machine for each STA ----
+				UpdateGK(priv);
+			}
+			else
+			{
+			}
+
+			break;
+		default:
+			break;
+
+		}//switch
+
+	}
+	else if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Group) {
+
+		// delete resend timer
+		if (timer_pending(&pStaInfo->resendTimer))
+			del_timer_sync(&pStaInfo->resendTimer);
+
+		//---- Receive 2nd message of 2-way handshake ----
+		DEBUG_INFO("2-2\n");
+		if (!Message_Request(pStaInfo->EapolKeyMsgRecvd)) {//2nd message of 2-way handshake
+			//verify that replay counter maches one it has used in the Group Key handshake
+			if (Message_LargerReplayCounter(pStaInfo->CurrentReplayCounter, pStaInfo->EapolKeyMsgRecvd)) {
+				DEBUG_ERR("ERROR_LARGER_REPLAYCOUNTER\n");
+				return;
+			}
+			if (!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC)) {
+				DEBUG_ERR("ERROR_MIC_FAIL\n");
+
+				LOG_MSG("2-way handshake failled! (2-2: MIC error)\n");
+#if defined(CONFIG_RTL8186_KB_N)
+				authRes = 1;//Auth failed
+#endif
+
+#if defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC)
+				LOG_MSG_NOTICE("Authentication failed;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
+					pstat->hwaddr[0],
+					pstat->hwaddr[1],
+					pstat->hwaddr[2],
+					pstat->hwaddr[3],
+					pstat->hwaddr[4],
+					pstat->hwaddr[5]);
+#elif defined(CONFIG_RTL8196B_TLD)
+				LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+					pstat->hwaddr[0],
+					pstat->hwaddr[1],
+					pstat->hwaddr[2],
+					pstat->hwaddr[3],
+					pstat->hwaddr[4],
+					pstat->hwaddr[5]);
+#endif
+
+				ToDrv_DisconnectSTA(priv, pstat, RSN_MIC_failure);
+				pStaInfo->state = PSK_STATE_IDLE;
+				return;
+			}
+		}
+		else //if(!Message_Request(global->EapolKeyMsgRecvd))
+		//supp request to change group key
+		{
+		}
+
+		//------------------------------------------------------
+		// Only when the group state machine is in the state of
+		// (1) The first STA Connected,
+		// (2) UPDATE GK to all station
+		// does the GKeyDoneStations needed to be decreased
+		//------------------------------------------------------
+
+		if (pGblInfo->GKeyDoneStations > 0)
+				pGblInfo->GKeyDoneStations--;
+
+		//Avaya akm_sm->TimeoutCtr = 0;
+		//To Do : set port secure to driver
+		pStaInfo->gstate = PSK_GSTATE_REKEYESTABLISHED;
+
+		if (pGblInfo->GKeyDoneStations == 0 && !pGblInfo->GkeyReady) {
+   	        ToDrv_SetGTK(priv);
+			DEBUG_INFO("2-way Handshake is finished\n");
+       		pGblInfo->GkeyReady = TRUE;
+			pGblInfo->GResetCounter = TRUE;
+
+			// start groupkey rekey timer
+			if (priv->pmib->dot1180211AuthEntry.dot11GKRekeyTime)
+				mod_timer(&pGblInfo->GKRekeyTimer, jiffies + RTL_SECONDS_TO_JIFFIES(priv->pmib->dot1180211AuthEntry.dot11GKRekeyTime));
+		}
+		else {
+			DEBUG_INFO(" Receive bad group key handshake");
+         }
+	}
+}
+
+#ifdef CLIENT_MODE
+static void ClientEAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
+{
+	WPA_GLOBAL_INFO *pGblInfo = priv->wpa_global_info;
+	WPA_STA_INFO *pStaInfo = pstat->wpa_sta_info;
+	LARGE_INTEGER recievedRC;
+	struct lib1x_eapol *eapol;
+	int toSetKey = 0;
+
+	eapol = ( struct lib1x_eapol * ) ( pstat->wpa_sta_info->EAPOLMsgRecvd.Octet + ETHER_HDRLEN );
+	if (eapol->packet_type != LIB1X_EAPOL_KEY)
+	{
+#ifdef DEBUG_PSK
+		printk("Not Eapol-key pkt (type %d), drop\n", eapol->packet_type);
+#endif
+		return;
+	}
+
+	pStaInfo->EapolKeyMsgRecvd.Octet = pStaInfo->EAPOLMsgRecvd.Octet + ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN;
+
+#ifdef DEBUG_PSK
+	debug_out(NULL, pStaInfo->EAPOLMsgRecvd.Octet, pStaInfo->EAPOLMsgRecvd.Length);
+#endif
+
+	if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Pairwise) {
+
+		if (Message_KeyMIC(pStaInfo->EapolKeyMsgRecvd) == FALSE)
+		{
+			//---- Receive 1st message and send 2nd
+			DEBUG_INFO("client mode 4-1\n");
+
+			if (timer_pending(&pStaInfo->resendTimer))
+				del_timer_sync(&pStaInfo->resendTimer);
+
+
+			if(pStaInfo->clientHndshkDone || pStaInfo->clientHndshkProcessing)
+			{
+				DEBUG_INFO("AP trigger pairwise rekey\n");
+
+				//reset the client info-------------------------------------------------------
+				pStaInfo->CurrentReplayCounter.field.HighPart = 0xffffffff;
+				pStaInfo->CurrentReplayCounter.field.LowPart = 0xffffffff;
+
+				pStaInfo->clientHndshkProcessing = FALSE;
+				pStaInfo->clientHndshkDone = FALSE;
+
+				pGblInfo->GkeyReady = FALSE;
+
+				//-------------------------------------------------------reset the client info
+			}
+
+			//check replay counter
+			if(!Message_DefaultReplayCounter(pStaInfo->CurrentReplayCounter) &&
+				Message_SmallerEqualReplayCounter(pStaInfo->CurrentReplayCounter, pStaInfo->EapolKeyMsgRecvd) )
+			{
+				DEBUG_ERR("client mode 4-1: ERROR_NONEEQUL_REPLAYCOUNTER\n");
+				return;
+			}
+
+
+			//set wpa_sta_info parameter----------------------------------------------------
+			pstat->wpa_sta_info->RSNEnabled = priv->pmib->dot1180211AuthEntry.dot11EnablePSK;
+			if (pstat->wpa_sta_info->RSNEnabled == 1) {
+				if (priv->pmib->dot1180211AuthEntry.dot11WPACipher == 2)
+					pstat->wpa_sta_info->UnicastCipher = 0x2;
+				else if (priv->pmib->dot1180211AuthEntry.dot11WPACipher == 8)
+					pstat->wpa_sta_info->UnicastCipher = 0x4;
+				else
+					printk("unicastcipher in wpa = nothing\n");
+			}
+			else if (pstat->wpa_sta_info->RSNEnabled == 2) {
+				if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher == 2)
+					pstat->wpa_sta_info->UnicastCipher = 0x2;
+				else if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher == 8)
+					pstat->wpa_sta_info->UnicastCipher = 0x4;
+				else
+					printk("unicastcipher in wpa = nothing\n");
+			}
+			//----------------------------------------------------set wpa_sta_info parameter
+
+			INCOctet32_INTEGER(&pGblInfo->Counter);
+			SetNonce(pStaInfo->SNonce, pGblInfo->Counter);
+
+			pStaInfo->ANonce = Message_KeyNonce(pStaInfo->EapolKeyMsgRecvd);
+			CalcPTK(pStaInfo->EAPOLMsgRecvd.Octet, pStaInfo->EAPOLMsgRecvd.Octet + 6,
+					pStaInfo->ANonce.Octet, pStaInfo->SNonce.Octet,
+					pStaInfo->PMK, PMK_LEN, pStaInfo->PTK, PTK_LEN_TKIP);
+
+#ifdef DEBUG_PSK
+			debug_out("PSK: Generated PTK=", pStaInfo->PTK, PTK_LEN_TKIP);
+#endif
+
+			//pStaInfo->clientHndshkProcessing = TRUE;-----------leave it to sendeapol
+			ClientSendEAPOL(priv, pstat, 0);	// send msg 2
+		}
+		else
+		{
+			//---- Receive 3rd message ----
+			DEBUG_INFO("client mode 4-3\n");
+
+			pStaInfo->resendCnt = 0;
+
+			if (!pStaInfo->clientHndshkProcessing)
+			{
+				DEBUG_ERR("client mode 4-3: ERROR_MSG_1_ABSENT\n");
+				return;
+			}
+
+			// delete resend timer
+			if (timer_pending(&pStaInfo->resendTimer))
+				del_timer_sync(&pStaInfo->resendTimer);
+
+			Message_ReplayCounter_OC2LI(pStaInfo->EapolKeyMsgRecvd, &recievedRC);
+			if(!Message_DefaultReplayCounter(pStaInfo->CurrentReplayCounter) &&
+				Message_SmallerEqualReplayCounter(pStaInfo->CurrentReplayCounter, pStaInfo->EapolKeyMsgRecvd) )
+			{
+				DEBUG_ERR("client mode 4-3: ERROR_NONEEQUL_REPLAYCOUNTER\n");
+				return;
+			}
+			else if (!Message_EqualKeyNonce(pStaInfo->EapolKeyMsgRecvd, pStaInfo->ANonce))
+			{
+				DEBUG_ERR("client mode 4-3: ANonce not equal\n");
+				return;
+			}
+			else if(!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC))
+			{
+				DEBUG_ERR("client mode 4-3: PTK MIC ERROR\n");
+				LOG_MSG("Authentication failled! (4-3: MIC error)\n");
+#if defined(CONFIG_RTL8186_KB_N)
+				authRes = 1;//Auth failed
+#endif
+				return;
+			}
+
+			pStaInfo->CurrentReplayCounter.field.HighPart = recievedRC.field.HighPart;
+			pStaInfo->CurrentReplayCounter.field.LowPart = recievedRC.field.LowPart;
+
+			if ((pStaInfo->RSNEnabled & PSK_WPA2) && (Message_DescType(pStaInfo->EapolKeyMsgRecvd) == desc_type_WPA2))
+			{
+				unsigned char decrypted_data[128];
+				unsigned char GTK_KDE_OUI[] = { 0x00, 0x0F, 0xAC, 0x01 };
+				unsigned char WPA_IE_OUI[] = { 0x00, 0x50, 0xF2, 0x01 };
+				unsigned char *pGTK_KDE;
+				unsigned char *pKeyData;
+				unsigned short keyDataLength;
+
+				keyDataLength = Message_KeyDataLength(pStaInfo->EapolKeyMsgRecvd);
+				pKeyData = pStaInfo->EapolKeyMsgRecvd.Octet + KeyDataPos;
+
+				if(!DecWPA2KeyData(pStaInfo, pKeyData, keyDataLength, pStaInfo->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC
+				, decrypted_data))
+				{
+					DEBUG_ERR("client mode 4-3: ERROR_AESKEYWRAP_MIC_FAIL\n");
+					LOG_MSG("Authentication failled! (4-3: ERROR_AESKEYWRAP_MIC_FAIL)\n");
 #if defined(CONFIG_RTL8186_KB_N)
 					authRes = 1;//Auth failed
 #endif
-
-#if defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC)
-					LOG_MSG_NOTICE("Authentication failed;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
-							pstat->hwaddr[0],
-							pstat->hwaddr[1],
-							pstat->hwaddr[2],
-							pstat->hwaddr[3],
-							pstat->hwaddr[4],
-							pstat->hwaddr[5]);
-#elif defined(CONFIG_RTL8196B_TLD)
-					LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
-							pstat->hwaddr[0],
-							pstat->hwaddr[1],
-							pstat->hwaddr[2],
-							pstat->hwaddr[3],
-							pstat->hwaddr[4],
-							pstat->hwaddr[5]);
-#endif
-
-					ToDrv_DisconnectSTA(priv, pstat, RSN_MIC_failure);
-					pStaInfo->state = PSK_STATE_IDLE;
-					break;
+					return;
 				}
 
-				LOG_MSG("Open and authenticated\n");
+				//wpa2_hexdump("4-3 KeyData (Decrypted)",decrypted_data,keyDataLength);
+				if ( decrypted_data[0] == WPA2_ELEMENT_ID)
+				{
+					pGTK_KDE = &decrypted_data[2] + (unsigned char)decrypted_data[1];
+					if ( *pGTK_KDE == WPA2_ELEMENT_ID )
+					{	// The second optional RSNIE is present
+						DEBUG_ERR("client mode 4-3: The second optional RSNIE is present! Cannot handle it yet!\n");
+						return;
+					}
+					else if ( *pGTK_KDE == WPA_ELEMENT_ID )
+					{
+						// if contain RSN IE, skip it
+						if (!memcmp((pGTK_KDE+2), WPA_IE_OUI, sizeof(WPA_IE_OUI)))
+							pGTK_KDE += (unsigned char)*(pGTK_KDE+1) + 2;
+
+						if (!memcmp((pGTK_KDE+2), GTK_KDE_OUI, sizeof(GTK_KDE_OUI)))
+						{
+							// GTK Key Data Encapsulation Format
+							unsigned char gtk_len = (unsigned char)*(pGTK_KDE+1) - 6;
+							unsigned char keyID = (unsigned char)*(pGTK_KDE+6) & 0x03;
+							pGblInfo->GN = keyID;
+							memcpy(pGblInfo->GTK[keyID], (pGTK_KDE+8), gtk_len);
+							toSetKey = 1;
+							pGblInfo->GkeyReady = TRUE;
+						}
+					}
+
+					//check AP's RSNIE and set Group Key Chiper
+					if (decrypted_data[7] == _TKIP_PRIVACY_)
+						pGblInfo->MulticastCipher = _TKIP_PRIVACY_ ;
+					else if (decrypted_data[7] == _CCMP_PRIVACY_)
+						pGblInfo->MulticastCipher = _CCMP_PRIVACY_ ;
+				}
+			}
+			else if ((pStaInfo->RSNEnabled & PSK_WPA) && (Message_DescType(pStaInfo->EapolKeyMsgRecvd) == desc_type_RSN))
+			{
+				unsigned char WPAkeyData[255];
+				unsigned short DataLength;
+				memset(WPAkeyData, 0, 255);
+				DataLength = Message_KeyDataLength(pStaInfo->EapolKeyMsgRecvd);
+				memcpy(WPAkeyData, pStaInfo->EapolKeyMsgRecvd.Octet+KeyDataPos, 255);
+
+				//check AP's RSNIE and set Group Key Chiper
+				if (WPAkeyData[11] == _TKIP_PRIVACY_)
+					pGblInfo->MulticastCipher = _TKIP_PRIVACY_ ;
+				else if (WPAkeyData[11] == _CCMP_PRIVACY_)
+					pGblInfo->MulticastCipher = _CCMP_PRIVACY_ ;
+			}
+
+			ClientSendEAPOL(priv, pstat, 0);	// send msg 4
+
+			if (toSetKey)
+			{
+				ToDrv_SetGTK(priv);
+				toSetKey = 0;
+			}
+			ToDrv_SetPTK(priv, pstat);
+			ToDrv_SetPort(priv, pstat, DOT11_PortStatus_Authorized);
+		}
+	}
+	else if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Group) {
+
+		unsigned char decrypted_data[128];
+		unsigned char GTK_KDE_OUI[] = { 0x00, 0x0F, 0xAC, 0x01 };
+		unsigned char *pGTK_KDE;
+		unsigned char keyID;
+
+		//---- Receive 1st message of 2-way handshake ----
+		DEBUG_INFO("client mode receive 2-1\n");
+
+		pStaInfo->resendCnt = 0;
+
+		Message_ReplayCounter_OC2LI(pStaInfo->EapolKeyMsgRecvd, &recievedRC);
+
+		if(Message_SmallerEqualReplayCounter(pStaInfo->CurrentReplayCounter, pStaInfo->EapolKeyMsgRecvd) )
+		{
+			DEBUG_ERR("client mode 2-1: ERROR_NONEEQUL_REPLAYCOUNTER\n");
+			return;
+		}
+		else if(!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC))
+		{
+			DEBUG_ERR("client mode 2-1: ERROR_MIC_FAIL\n");
+			LOG_MSG("Authentication failled! (4-2: MIC error)\n");
+#if defined(CONFIG_RTL8186_KB_N)
+			authRes = 1;//Auth failed
+#endif
+			return;
+		}
+		else if(!DecGTK(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
+			((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16),
+			pGblInfo->GTK[Message_KeyIndex(pStaInfo->EapolKeyMsgRecvd)]))
+		{
+			DEBUG_ERR("client mode 2-1: ERROR_AESKEYWRAP_MIC_FAIL\n");
+			return;
+		}
+
+		keyID = Message_KeyIndex(pStaInfo->EapolKeyMsgRecvd);
+		if ((pStaInfo->RSNEnabled & PSK_WPA2) && (Message_DescType(pStaInfo->EapolKeyMsgRecvd) == desc_type_WPA2))
+		{
+			memcpy(decrypted_data, pGblInfo->GTK[keyID], Message_KeyDataLength(pStaInfo->EapolKeyMsgRecvd));
+			pGTK_KDE = decrypted_data;
+			if ( *pGTK_KDE == WPA_ELEMENT_ID && !memcmp((pGTK_KDE+2), GTK_KDE_OUI, sizeof(GTK_KDE_OUI)))
+			{
+				// GTK Key Data Encapsulation Format
+				unsigned char gtk_len = (unsigned char)*(pGTK_KDE+1) - 6;
+				keyID = (unsigned char)*(pGTK_KDE+6) & 0x03;
+				pGblInfo->GN = keyID;
+				memcpy(pGblInfo->GTK[keyID], (pGTK_KDE+8), gtk_len);
+			}
+		}
+		else
+		{
+			pGblInfo->GN = keyID;
+		}
+		//MLME_SETKEYS.request() to set Group Key;
+		pGblInfo->GkeyReady = TRUE;
+
+		pStaInfo->CurrentReplayCounter.field.HighPart = recievedRC.field.HighPart;
+		pStaInfo->CurrentReplayCounter.field.LowPart = recievedRC.field.LowPart;
+		pStaInfo->clientGkeyUpdate = 1;
+
+		ToDrv_SetGTK(priv);
+		ClientSendEAPOL(priv, pstat, 0); // send msg 2-1
+	}
+	else
+		printk("Client EAPOL Key Receive ERROR!!\n");
+}
+#endif // CLIENT_MODE
+
+
+void derivePSK(struct rtl8192cd_priv *priv)
+{
+	WPA_GLOBAL_INFO *pGblInfo=priv->wpa_global_info;
+	unsigned long x;
+
+	SAVE_INT_AND_CLI(x);
+
+	if (strlen((char *)priv->pmib->dot1180211AuthEntry.dot11PassPhrase) == 64) // hex
+		get_array_val(pGblInfo->PSK, (char *)priv->pmib->dot1180211AuthEntry.dot11PassPhrase, 64);
+	else
+		PasswordHash((char *)priv->pmib->dot1180211AuthEntry.dot11PassPhrase, SSID, SSID_LEN,
+					pGblInfo->PSK);
+
+	if (priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest[0]) {
+		if (strlen((char *)priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest) == 64)
+			get_array_val(pGblInfo->PSKGuest, (char *)priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest, 64);
+		else
+			PasswordHash((char *)priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest, SSID, SSID_LEN,
+						pGblInfo->PSKGuest);
+	}
+
+	RESTORE_INT(x);
+}
+
+void psk_init(struct rtl8192cd_priv *priv)
+{
+	WPA_GLOBAL_INFO *pGblInfo=priv->wpa_global_info;
+	int i, j, low_cipher=0;
+
+	DEBUG_TRACE;
+
+	memset((char *)pGblInfo, '\0', sizeof(WPA_GLOBAL_INFO));
+
+	//---- Counter is initialized whenever boot time ----
+	GenNonce(pGblInfo->Counter.charData, (unsigned char*)"addr");
+
+	if (OPMODE & WIFI_AP_STATE)
+	{
+		//---- Initialize Goup Key state machine ----
+		pGblInfo->GNonce.Octet = pGblInfo->GNonceBuf;
+		pGblInfo->GNonce.Length = KEY_NONCE_LEN;
+		pGblInfo->GTKAuthenticator = TRUE;
+		pGblInfo->GN = 1;
+		pGblInfo->GM = 2;
+		pGblInfo->GInitAKeys = TRUE; // david+2006-04-04, fix the issue of re-generating group key
+
+#ifdef __KERNEL__
+		init_timer(&pGblInfo->GKRekeyTimer);
+		pGblInfo->GKRekeyTimer.data = (unsigned long)priv;
+		pGblInfo->GKRekeyTimer.function = GKRekeyTimeout;
+#elif defined(__ECOS)
+		init_timer(&pGblInfo->GKRekeyTimer, (unsigned long)priv, GKRekeyTimeout);
+#endif
+	}
+#if 0
+	if (strlen(priv->pmib->dot1180211AuthEntry.dot11PassPhrase) == 64) // hex
+		get_array_val(pGblInfo->PSK, priv->pmib->dot1180211AuthEntry.dot11PassPhrase, 64);
+	else
+		PasswordHash(priv->pmib->dot1180211AuthEntry.dot11PassPhrase, priv->pmib->dot11StationConfigEntry.dot11DesiredSSID,
+					pGblInfo->PSK);
+
+	if (priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest[0]) {
+		if (strlen(priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest) == 64)
+			get_array_val(pGblInfo->PSKGuest, priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest, 64);
+		else
+			PasswordHash(priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest, priv->pmib->dot11StationConfigEntry.dot11DesiredSSID,
+						pGblInfo->PSKGuest);
+	}
+#else
+	derivePSK(priv);
+#endif
+#ifdef DEBUG_PSK
+	debug_out("PSK: PMK=", pGblInfo->PSK, PMK_LEN);
+	if (priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest[0])
+		debug_out("PSK-Guest: PMK=", pGblInfo->PSKGuest, PMK_LEN);
+#endif
+
+	if ((priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA) &&
+			!priv->pmib->dot1180211AuthEntry.dot11WPACipher) {
+		DEBUG_ERR("psk_init failed, WPA cipher did not set!\n");
+		return;
+	}
+
+#ifdef RTL_WPA2
+	if ((priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA2) &&
+			!priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher) {
+		DEBUG_ERR("psk_init failed, WPA2 cipher did not set!\n");
+		return;
+	}
+#endif
+
+	if ((priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA2) &&
+			!(priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA)) {
+		if (priv->pmib->dot1180211AuthEntry.dot11WPACipher)
+			priv->pmib->dot1180211AuthEntry.dot11WPACipher = 0;
+	}
+	if ((priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA) &&
+			!(priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA2)) {
+		if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher)
+			priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher = 0;
+	}
+
+	if (priv->pmib->dot1180211AuthEntry.dot11WPACipher) {
+		for (i=0, j=0; i<_WEP_104_PRIVACY_; i++) {
+			if (priv->pmib->dot1180211AuthEntry.dot11WPACipher & (1<<i)) {
+				pGblInfo->UnicastCipher[j] = i+1;
+				if (low_cipher == 0)
+					low_cipher = pGblInfo->UnicastCipher[j];
+				else {
+					if (low_cipher == _WEP_104_PRIVACY_ &&
+							pGblInfo->UnicastCipher[j] == _WEP_40_PRIVACY_)
+						low_cipher = pGblInfo->UnicastCipher[j];
+					else if (low_cipher == _TKIP_PRIVACY_ &&
+							(pGblInfo->UnicastCipher[j] == _WEP_40_PRIVACY_ ||
+								pGblInfo->UnicastCipher[j] == _WEP_104_PRIVACY_))
+							low_cipher = pGblInfo->UnicastCipher[j];
+					else if (low_cipher == _CCMP_PRIVACY_)
+							low_cipher = pGblInfo->UnicastCipher[j];
+				}
+				if (++j >= MAX_UNICAST_CIPHER)
+					break;
+			}
+		}
+		pGblInfo->NumOfUnicastCipher = j;
+	}
+
+#ifdef CLIENT_MODE
+	if((OPMODE & WIFI_ADHOC_STATE)&&(priv->pmib->dot1180211AuthEntry.dot11EnablePSK & 2)) // if WPA2
+		low_cipher = 0;
+#endif
+
+#ifdef RTL_WPA2
+	if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher) {
+		for (i=0, j=0; i<_WEP_104_PRIVACY_; i++) {
+			if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher & (1<<i)) {
+				pGblInfo->UnicastCipherWPA2[j] = i+1;
+				if (low_cipher == 0)
+					low_cipher = pGblInfo->UnicastCipherWPA2[j];
+				else {
+					if (low_cipher == _WEP_104_PRIVACY_ &&
+							pGblInfo->UnicastCipherWPA2[j] == _WEP_40_PRIVACY_)
+						low_cipher = pGblInfo->UnicastCipherWPA2[j];
+					else if (low_cipher == _TKIP_PRIVACY_ &&
+							(pGblInfo->UnicastCipherWPA2[j] == _WEP_40_PRIVACY_ ||
+								pGblInfo->UnicastCipherWPA2[j] == _WEP_104_PRIVACY_))
+							low_cipher = pGblInfo->UnicastCipherWPA2[j];
+					else if (low_cipher == _CCMP_PRIVACY_)
+							low_cipher = pGblInfo->UnicastCipherWPA2[j];
+				}
+				if (++j >= MAX_UNICAST_CIPHER)
+					break;
+			}
+		}
+		pGblInfo->NumOfUnicastCipherWPA2= j;
+	}
+#endif
+
+	pGblInfo->MulticastCipher = low_cipher;
+
+#ifdef DEBUG_PSK
+	printk("PSK: WPA unicast cipher= ");
+	for (i=0; i<pGblInfo->NumOfUnicastCipher; i++)
+		printk("%x ", pGblInfo->UnicastCipher[i]);
+	printk("\n");
+
+#ifdef RTL_WPA2
+	printk("PSK: WPA2 unicast cipher= ");
+	for (i=0; i<pGblInfo->NumOfUnicastCipherWPA2; i++)
+		printk("%x ", pGblInfo->UnicastCipherWPA2[i]);
+	printk("\n");
+#endif
+
+	printk("PSK: multicast cipher= %x\n", pGblInfo->MulticastCipher);
+#endif
+
+	pGblInfo->AuthInfoElement.Octet = pGblInfo->AuthInfoBuf;
+
+	ConstructIE(priv, pGblInfo->AuthInfoElement.Octet,
+					 &pGblInfo->AuthInfoElement.Length);
+
+	ToDrv_SetIE(priv);
+}
+
+#if defined(WDS) && defined(INCLUDE_WPA_PSK)
+void wds_psk_set(struct rtl8192cd_priv *priv, int idx, unsigned char *key)
+{
+	unsigned char pchar[40];
+
+	if (key == NULL) {
+		if (strlen((char *)priv->pmib->dot11WdsInfo.wdsPskPassPhrase) == 64) // hex
+			get_array_val(priv->pmib->dot11WdsInfo.wdsMapingKey[idx], (char *)priv->pmib->dot11WdsInfo.wdsPskPassPhrase, 64);	
+		else {
+			memset(pchar, 0, sizeof(unsigned char)*40);
+				PasswordHash((char *)priv->pmib->dot11WdsInfo.wdsPskPassPhrase,(unsigned char *)"REALTEK", strlen("REALTEK"), pchar);
+			memcpy(priv->pmib->dot11WdsInfo.wdsMapingKey[idx], pchar, sizeof(unsigned char)*32);
+			}
+		}
+	else
+		memcpy(priv->pmib->dot11WdsInfo.wdsMapingKey[idx], key, sizeof(unsigned char)*32);
+
+	priv->pmib->dot11WdsInfo.wdsMappingKeyLen[idx] = 32;
+	priv->pmib->dot11WdsInfo.wdsMappingKeyLen[idx] |= 0x80000000;  //set bit to protect the key
+}
+
+
+void wds_psk_init(struct rtl8192cd_priv *priv)
+{
+	unsigned char *key;
+	int i;
+
+	if ( !(OPMODE & WIFI_AP_STATE))
+		return;
+
+	for (i = 0; i < priv->pmib->dot11WdsInfo.wdsNum; i++) {
+		if (i==0)
+			key = NULL;
+		else
+			key = priv->pmib->dot11WdsInfo.wdsMapingKey[0];
+
+		wds_psk_set(priv, i, key);
+	}
+}
+#endif
+
+int psk_indicate_evt(struct rtl8192cd_priv *priv, int id, unsigned char *mac, unsigned char *msg, int len)
+{
+	struct stat_info *pstat;
+	static unsigned char tmpbuf[1024];
+	int ret;
+#ifdef RTL_WPA2
+	int isWPA2=0;
+#endif
+
+	if (!priv->pmib->dot1180211AuthEntry.dot11EnablePSK ||
+		!((priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _TKIP_PRIVACY_) ||
+		  (priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _CCMP_PRIVACY_)))
+		return -1;
+
+#ifdef DEBUG_PSK
+	printk("PSK: Got evt:%s[%x], sta: %02x:%02x:%02x:%02x:%02x:%02x, msg_len=%x\n",
+			ID2STR(id), id,
+			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], len);
+#endif
+
+	pstat = get_stainfo(priv, mac);
+// button 2009.05.21
+#if 0
+	if (pstat == NULL) {
+#else
+	if (pstat == NULL && id!=DOT11_EVENT_WPA_MULTICAST_CIPHER && id!=DOT11_EVENT_WPA2_MULTICAST_CIPHER) {
+#endif
+		DEBUG_ERR("Invalid mac address: %02x:%02x:%02x:%02x:%02x:%02x\n",
+			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+		return -1;
+	}
+
+	switch (id) {
+	case DOT11_EVENT_ASSOCIATION_IND:
+	case DOT11_EVENT_REASSOCIATION_IND:
+		reset_sta_info(priv, pstat);
+
+		if (OPMODE & WIFI_AP_STATE) {
+			// check RSNIE
+			if (len > 2 && msg != NULL) {
+#ifdef DEBUG_PSK
+				debug_out("PSK: Rx Assoc-ind, RSNIE", msg, len);
+#endif
+
+#ifdef RTL_WPA2
+				memcpy(tmpbuf, msg, len);
+				len -= 2;
+#else
+				tmpbuf[0] = RSN_ELEMENT_ID;
+				tmpbuf[1] = len;
+				memcpy(tmpbuf+2, msg, len);
+#endif
+
+#ifdef RTL_WPA2
+				isWPA2 = (tmpbuf[0] == WPA2_ELEMENT_ID) ? 1 : 0;
+				if (isWPA2)
+					ret = parseIEWPA2(priv, pstat->wpa_sta_info, tmpbuf, len+2);
+				else
+#endif
+					ret = parseIE(priv, pstat->wpa_sta_info, tmpbuf, len+2);
+				if (ret != 0) {
+					DEBUG_ERR("parse IE error [%x]!\n", ret);
+				}
+
+				// issue assoc-rsp successfully
+				ToDrv_RspAssoc(priv, id, mac, -ret);
+
+				if (ret == 0) {
+#ifdef EVENT_LOG
+					char *pmsg;
+					switch (pstat->wpa_sta_info->UnicastCipher) {
+						case DOT11_ENC_NONE:	pmsg = "none"; 	break;
+						case DOT11_ENC_WEP40:	pmsg = "WEP40"; 	break;
+						case DOT11_ENC_TKIP:	pmsg = "TKIP"; 	break;
+						case DOT11_ENC_WRAP:	pmsg = "AES";	break;
+						case DOT11_ENC_CCMP:	pmsg = "AES";	break;
+						case DOT11_ENC_WEP104:	pmsg = "WEP104";	break;
+						default: pmsg = "invalid algorithm";			break;
+					}
+#ifdef RTL_WPA2
+					LOG_MSG("%s-%s PSK authentication in progress...\n", (isWPA2 ? "WPA2" : "WPA"), pmsg);
+#else
+					LOG_MSG("%s-WPA PSK authentication in progress...\n",  pmsg);
+#endif
+#endif
 
 #if defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC)
-				LOG_MSG_NOTICE("Authentication Success;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
+					LOG_MSG_NOTICE("Authenticating......;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
 						pstat->hwaddr[0],
 						pstat->hwaddr[1],
 						pstat->hwaddr[2],
 						pstat->hwaddr[3],
 						pstat->hwaddr[4],
 						pstat->hwaddr[5]);
-#elif defined(CONFIG_RTL8196B_TLD)
-				if (!list_empty(&priv->wlan_acl_list)) {
-					LOG_MSG_DEL("[WLAN access allowed] from MAC: %02x:%02x:%02x:%02x:%02x:%02x,\n",
-							pstat->hwaddr[0],
-							pstat->hwaddr[1],
-							pstat->hwaddr[2],
-							pstat->hwaddr[3],
-							pstat->hwaddr[4],
-							pstat->hwaddr[5]);
-				}
 #endif
-
-				//#ifdef RTL_WPA2_PREAUTH
-#if 0
-				// update ANonce for next 4-way handshake
-				SetNonce(akm_sm->ANonce, global->auth->Counter);
-#endif
-
-				//MLME-SETKEYS.request
-				INCLargeInteger(&pStaInfo->CurrentReplayCounter);
-				// kenny: n+2
-				INCLargeInteger(&pStaInfo->CurrentReplayCounter);
-
-				ToDrv_SetPTK(priv, pstat);
-				if (pStaInfo->isGuest)
-					ToDrv_SetPort(priv, pstat, DOT11_PortStatus_Guest);
-				else
-					ToDrv_SetPort(priv, pstat, DOT11_PortStatus_Authorized);
-
-				// david+2006-04-04, fix the issue of re-generating group key, and need not
-				// update group key in WPA2
-				//			pGblInfo->GInitAKeys = TRUE;
-#ifdef RTL_WPA2
-				if (!(pStaInfo->RSNEnabled & PSK_WPA2))
-#endif
-					pStaInfo->PInitAKeys = TRUE;
-				pStaInfo->state = PSK_STATE_PTKINITDONE;
-				pStaInfo->gstate = PSK_GSTATE_REKEYNEGOTIATING;
-
-				//lib1x_akmsm_UpdateGK_proc() calls lib1x_akmsm_SendEAPOL_proc for 2-way
-				//if group key sent is needed, send msg 1 of 2-way handshake
-#ifdef RTL_WPA2
-				if (pStaInfo->RSNEnabled & PSK_WPA2) {
-					//------------------------------------------------------
-					// Only when the group state machine is in the state of
-					// (1) The first STA Connected,
-					// (2) UPDATE GK to all station
-					// does the GKeyDoneStations needed to be decreased
-					//------------------------------------------------------
-
-					if(pGblInfo->GKeyDoneStations > 0)
-						pGblInfo->GKeyDoneStations--;
-
-					//Avaya akm_sm->TimeoutCtr = 0;
-					//To Do : set port secure to driver
-					//				global->portSecure = TRUE;
-					//akm_sm->state = akmsm_PTKINITDONE;
-
-					pStaInfo->gstate = PSK_GSTATE_REKEYESTABLISHED;
-
-					if (pGblInfo->GKeyDoneStations==0 && !pGblInfo->GkeyReady) {
-						ToDrv_SetGTK(priv);
-						pGblInfo->GkeyReady = TRUE;
-						pGblInfo->GResetCounter = TRUE;
-
-						// start groupkey rekey timer
-						if (priv->pmib->dot1180211AuthEntry.dot11GKRekeyTime)
-							mod_timer(&pGblInfo->GKRekeyTimer, jiffies + RTL_SECONDS_TO_JIFFIES(priv->pmib->dot1180211AuthEntry.dot11GKRekeyTime));
-					}
-#if 0
-					if (global->RSNVariable.PMKCached) {
-						global->RSNVariable.PMKCached = FALSE;  // reset
-					}
-#endif
-					DEBUG_INFO("\nWPA2: 4-way handshake done\n");
-				}
-#endif	// RTL_WPA2
-
-				if (!Message_Secure(pStaInfo->EapolKeyMsgRecvd))
-					UpdateGK(priv); // send 2-1
-				break;
-
-			case PSK_STATE_PTKINITDONE:
-				// delete resend timer
-				if (timer_pending(&pStaInfo->resendTimer))
-					del_timer_sync(&pStaInfo->resendTimer);
-
-#if 0
-				//receive message [with request bit set]
-				if(Message_Request(global->EapolKeyMsgRecvd))
-					//supp request to initiate 4-way handshake
-				{
-
-				}
-#endif
-
-				//------------------------------------------------
-				// Supplicant request to init 4 or 2 way handshake
-				//------------------------------------------------
-				if (Message_Request(pStaInfo->EapolKeyMsgRecvd)) {
-					pStaInfo->state = PSK_STATE_PTKSTART;
-					if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Pairwise) {
-						if (Message_Error(pStaInfo->EapolKeyMsgRecvd))
-							IntegrityFailure(priv);
-						else {
-							if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Group) {
-								if (Message_Error(pStaInfo->EapolKeyMsgRecvd)) {
-									//auth change group key, initilate 4-way handshake with supp and execute
-									//the Group key handshake to all Supplicants
-									pGblInfo->GKeyFailure = TRUE;
-									IntegrityFailure(priv);
-								}
-							}
-						}
-						//---- Start 4-way handshake ----
-						pStaInfo->resendCnt = 0;
-						SendEAPOL(priv, pstat, 0);
-					}
-					//#ifdef RTL_WPA2_PREAUTH
-					//				printf("kenny: %s() in akmsm_PTKINITDONE state. Call lib1x_akmsm_UpdateGK_proc()\n", (char *)__FUNCTION__);
-					//#endif
-					//---- Execute Group Key state machine for each STA ----
-					UpdateGK(priv);
-				}
-				else
-				{
-				}
-
-				break;
-			default:
-				break;
-
-		}//switch
-
-		}
-		else if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Group) {
-
-			// delete resend timer
-			if (timer_pending(&pStaInfo->resendTimer))
-				del_timer_sync(&pStaInfo->resendTimer);
-
-			//---- Receive 2nd message of 2-way handshake ----
-			DEBUG_INFO("2-2\n");
-			if (!Message_Request(pStaInfo->EapolKeyMsgRecvd)) {//2nd message of 2-way handshake
-				//verify that replay counter maches one it has used in the Group Key handshake
-				if (Message_LargerReplayCounter(pStaInfo->CurrentReplayCounter, pStaInfo->EapolKeyMsgRecvd)) {
-					DEBUG_ERR("ERROR_LARGER_REPLAYCOUNTER\n");
-					return;
-				}
-				if (!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC)) {
-					DEBUG_ERR("ERROR_MIC_FAIL\n");
-
-					LOG_MSG("2-way handshake failled! (2-2: MIC error)\n");
-#if defined(CONFIG_RTL8186_KB_N)
-					authRes = 1;//Auth failed
-#endif
-
-#if defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC)
-					LOG_MSG_NOTICE("Authentication failed;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
-							pstat->hwaddr[0],
-							pstat->hwaddr[1],
-							pstat->hwaddr[2],
-							pstat->hwaddr[3],
-							pstat->hwaddr[4],
-							pstat->hwaddr[5]);
-#elif defined(CONFIG_RTL8196B_TLD)
-					LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
-							pstat->hwaddr[0],
-							pstat->hwaddr[1],
-							pstat->hwaddr[2],
-							pstat->hwaddr[3],
-							pstat->hwaddr[4],
-							pstat->hwaddr[5]);
-#endif
-
-					ToDrv_DisconnectSTA(priv, pstat, RSN_MIC_failure);
-					pStaInfo->state = PSK_STATE_IDLE;
-					return;
+					AuthenticationRequest(priv, pstat); // send 4-1
 				}
 			}
-			else //if(!Message_Request(global->EapolKeyMsgRecvd))
-				//supp request to change group key
-			{
-			}
-
-			//------------------------------------------------------
-			// Only when the group state machine is in the state of
-			// (1) The first STA Connected,
-			// (2) UPDATE GK to all station
-			// does the GKeyDoneStations needed to be decreased
-			//------------------------------------------------------
-
-			if (pGblInfo->GKeyDoneStations > 0)
-				pGblInfo->GKeyDoneStations--;
-
-			//Avaya akm_sm->TimeoutCtr = 0;
-			//To Do : set port secure to driver
-			pStaInfo->gstate = PSK_GSTATE_REKEYESTABLISHED;
-
-			if (pGblInfo->GKeyDoneStations == 0 && !pGblInfo->GkeyReady) {
-				ToDrv_SetGTK(priv);
-				DEBUG_INFO("2-way Handshake is finished\n");
-				pGblInfo->GkeyReady = TRUE;
-				pGblInfo->GResetCounter = TRUE;
-
-				// start groupkey rekey timer
-				if (priv->pmib->dot1180211AuthEntry.dot11GKRekeyTime)
-					mod_timer(&pGblInfo->GKRekeyTimer, jiffies + RTL_SECONDS_TO_JIFFIES(priv->pmib->dot1180211AuthEntry.dot11GKRekeyTime));
-			}
-			else {
-				DEBUG_INFO(" Receive bad group key handshake");
+			else { // RNSIE is null
+				if (priv->pmib->dot1180211AuthEntry.dot11EnablePSK)
+					ToDrv_RspAssoc(priv, id, mac, -ERROR_INVALID_RSNIE);
 			}
 		}
-	}
+#ifdef  CLIENT_MODE
+		else
+			mod_timer(&pstat->wpa_sta_info->resendTimer, jiffies + WAIT_EAP_TIME);
+#endif
+		break;
+
+	case DOT11_EVENT_DISASSOCIATION_IND:
+		reset_sta_info(priv, pstat);
+		break;
+
+	case DOT11_EVENT_EAP_PACKET:
+		if (OPMODE & WIFI_AP_STATE) {
+			if (pstat->wpa_sta_info->state == PSK_STATE_IDLE) {
+				DEBUG_ERR("Rx EAPOL packet but did not get Assoc-Ind yet!\n");
+				break;
+			}
+		}
+
+		if (len > MAX_EAPOLMSG_LEN) {
+			DEBUG_ERR("Rx EAPOL packet which length is too long [%x]!\n", len);
+			break;
+		}
 
 #ifdef CLIENT_MODE
-	static void ClientEAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
-	{
-		WPA_GLOBAL_INFO *pGblInfo = priv->wpa_global_info;
-		WPA_STA_INFO *pStaInfo = pstat->wpa_sta_info;
-		LARGE_INTEGER recievedRC;
-		struct lib1x_eapol *eapol;
-		int toSetKey = 0;
-
-		eapol = ( struct lib1x_eapol * ) ( pstat->wpa_sta_info->EAPOLMsgRecvd.Octet + ETHER_HDRLEN );
-		if (eapol->packet_type != LIB1X_EAPOL_KEY)
-		{
-#ifdef DEBUG_PSK
-			printk("Not Eapol-key pkt (type %d), drop\n", eapol->packet_type);
+		if ((OPMODE & WIFI_STATION_STATE) &&
+				!(pstat->wpa_sta_info->clientHndshkProcessing||pstat->wpa_sta_info->clientHndshkDone)) {
+#ifdef EVENT_LOG
+			char *pmsg;
+			switch (pstat->wpa_sta_info->UnicastCipher) {
+				case DOT11_ENC_NONE:	pmsg = "none"; 	break;
+				case DOT11_ENC_WEP40:	pmsg = "WEP40"; 	break;
+				case DOT11_ENC_TKIP:	pmsg = "TKIP"; 	break;
+				case DOT11_ENC_WRAP:	pmsg = "AES";	break;
+				case DOT11_ENC_CCMP:	pmsg = "AES";	break;
+				case DOT11_ENC_WEP104:	pmsg = "WEP104";	break;
+				default: pmsg = "invalid algorithm";			break;
+			}
+			LOG_MSG("%s-%s PSK authentication in progress...\n", (isWPA2 ? "WPA2" : "WPA"), pmsg);
 #endif
-			return;
+			reset_sta_info(priv, pstat);
 		}
-
-		pStaInfo->EapolKeyMsgRecvd.Octet = pStaInfo->EAPOLMsgRecvd.Octet + ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN;
-
-#ifdef DEBUG_PSK
-		debug_out(NULL, pStaInfo->EAPOLMsgRecvd.Octet, pStaInfo->EAPOLMsgRecvd.Length);
 #endif
-
-		if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Pairwise) {
-
-			if (Message_KeyMIC(pStaInfo->EapolKeyMsgRecvd) == FALSE)
-			{
-				//---- Receive 1st message and send 2nd
-				DEBUG_INFO("client mode 4-1\n");
-
-				if (timer_pending(&pStaInfo->resendTimer))				
-					del_timer_sync(&pStaInfo->resendTimer);			
-
-
-				if(pStaInfo->clientHndshkDone || pStaInfo->clientHndshkProcessing)
-				{
-					DEBUG_INFO("AP trigger pairwise rekey\n");
-
-					//reset the client info-------------------------------------------------------
-					pStaInfo->CurrentReplayCounter.field.HighPart = 0xffffffff;
-					pStaInfo->CurrentReplayCounter.field.LowPart = 0xffffffff;
-
-					pStaInfo->clientHndshkProcessing = FALSE;
-					pStaInfo->clientHndshkDone = FALSE;
-
-					pGblInfo->GkeyReady = FALSE;
-
-					//-------------------------------------------------------reset the client info
-				}
-
-				//check replay counter
-				if(!Message_DefaultReplayCounter(pStaInfo->CurrentReplayCounter) &&
-						Message_SmallerEqualReplayCounter(pStaInfo->CurrentReplayCounter, pStaInfo->EapolKeyMsgRecvd) )
-				{
-					DEBUG_ERR("client mode 4-1: ERROR_NONEEQUL_REPLAYCOUNTER\n");
-					return;
-				}
-
-
-				//set wpa_sta_info parameter----------------------------------------------------
-				pstat->wpa_sta_info->RSNEnabled = priv->pmib->dot1180211AuthEntry.dot11EnablePSK;
-				if (pstat->wpa_sta_info->RSNEnabled == 1) {
-					if (priv->pmib->dot1180211AuthEntry.dot11WPACipher == 2)
-						pstat->wpa_sta_info->UnicastCipher = 0x2;
-					else if (priv->pmib->dot1180211AuthEntry.dot11WPACipher == 8)
-						pstat->wpa_sta_info->UnicastCipher = 0x4;
-					else
-						printk("unicastcipher in wpa = nothing\n");
-				}
-				else if (pstat->wpa_sta_info->RSNEnabled == 2) {
-					if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher == 2)
-						pstat->wpa_sta_info->UnicastCipher = 0x2;
-					else if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher == 8)
-						pstat->wpa_sta_info->UnicastCipher = 0x4;
-					else
-						printk("unicastcipher in wpa = nothing\n");
-				}
-				//----------------------------------------------------set wpa_sta_info parameter
-
-				INCOctet32_INTEGER(&pGblInfo->Counter);
-				SetNonce(pStaInfo->SNonce, pGblInfo->Counter);
-
-				pStaInfo->ANonce = Message_KeyNonce(pStaInfo->EapolKeyMsgRecvd);
-				CalcPTK(pStaInfo->EAPOLMsgRecvd.Octet, pStaInfo->EAPOLMsgRecvd.Octet + 6,
-						pStaInfo->ANonce.Octet, pStaInfo->SNonce.Octet,
-						pStaInfo->PMK, PMK_LEN, pStaInfo->PTK, PTK_LEN_TKIP);
-
-#ifdef DEBUG_PSK
-				debug_out("PSK: Generated PTK=", pStaInfo->PTK, PTK_LEN_TKIP);
-#endif
-
-				//pStaInfo->clientHndshkProcessing = TRUE;-----------leave it to sendeapol
-				ClientSendEAPOL(priv, pstat, 0);	// send msg 2
-			}
-			else
-			{
-				//---- Receive 3rd message ----
-				DEBUG_INFO("client mode 4-3\n");
-
-				pStaInfo->resendCnt = 0; //victoryman
-
-				if (!pStaInfo->clientHndshkProcessing)
-				{
-					DEBUG_ERR("client mode 4-3: ERROR_MSG_1_ABSENT\n");
-					return;
-				}
-
-				// delete resend timer
-				if (timer_pending(&pStaInfo->resendTimer))
-					del_timer_sync(&pStaInfo->resendTimer);
-
-				Message_ReplayCounter_OC2LI(pStaInfo->EapolKeyMsgRecvd, &recievedRC);
-				if(!Message_DefaultReplayCounter(pStaInfo->CurrentReplayCounter) &&
-						Message_SmallerEqualReplayCounter(pStaInfo->CurrentReplayCounter, pStaInfo->EapolKeyMsgRecvd) )
-				{
-					DEBUG_ERR("client mode 4-3: ERROR_NONEEQUL_REPLAYCOUNTER\n");
-					return;
-				}
-				else if (!Message_EqualKeyNonce(pStaInfo->EapolKeyMsgRecvd, pStaInfo->ANonce))
-				{
-					DEBUG_ERR("client mode 4-3: ANonce not equal\n");
-					return;
-				}
-				else if(!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC))
-				{
-					DEBUG_ERR("client mode 4-3: PTK MIC ERROR\n");
-					LOG_MSG("Authentication failled! (4-3: MIC error)\n");
-#if defined(CONFIG_RTL8186_KB_N)
-					authRes = 1;//Auth failed
-#endif
-					return;
-				}
-
-				pStaInfo->CurrentReplayCounter.field.HighPart = recievedRC.field.HighPart;
-				pStaInfo->CurrentReplayCounter.field.LowPart = recievedRC.field.LowPart;
-
-				if ((pStaInfo->RSNEnabled & PSK_WPA2) && (Message_DescType(pStaInfo->EapolKeyMsgRecvd) == desc_type_WPA2))
-				{
-					unsigned char decrypted_data[128];
-					unsigned char GTK_KDE_OUI[] = { 0x00, 0x0F, 0xAC, 0x01 };
-					unsigned char WPA_IE_OUI[] = { 0x00, 0x50, 0xF2, 0x01 };
-					unsigned char *pGTK_KDE;
-					unsigned char *pKeyData;
-					unsigned short keyDataLength;
-
-					keyDataLength = Message_KeyDataLength(pStaInfo->EapolKeyMsgRecvd);
-					pKeyData = pStaInfo->EapolKeyMsgRecvd.Octet + KeyDataPos;
-
-					if(!DecWPA2KeyData(pStaInfo, pKeyData, keyDataLength, pStaInfo->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC
-								, decrypted_data))
-					{
-						DEBUG_ERR("client mode 4-3: ERROR_AESKEYWRAP_MIC_FAIL\n");
-						LOG_MSG("Authentication failled! (4-3: ERROR_AESKEYWRAP_MIC_FAIL)\n");
-#if defined(CONFIG_RTL8186_KB_N)
-						authRes = 1;//Auth failed
-#endif
-						return;
-					}
-
-					//wpa2_hexdump("4-3 KeyData (Decrypted)",decrypted_data,keyDataLength);
-					if ( decrypted_data[0] == WPA2_ELEMENT_ID)
-					{
-						pGTK_KDE = &decrypted_data[2] + (unsigned char)decrypted_data[1];
-						if ( *pGTK_KDE == WPA2_ELEMENT_ID )
-						{	// The second optional RSNIE is present
-							DEBUG_ERR("client mode 4-3: The second optional RSNIE is present! Cannot handle it yet!\n");
-							return;
-						}
-						else if ( *pGTK_KDE == WPA_ELEMENT_ID )
-						{
-							// if contain RSN IE, skip it
-							if (!memcmp((pGTK_KDE+2), WPA_IE_OUI, sizeof(WPA_IE_OUI)))
-								pGTK_KDE += (unsigned char)*(pGTK_KDE+1) + 2;
-
-							if (!memcmp((pGTK_KDE+2), GTK_KDE_OUI, sizeof(GTK_KDE_OUI)))
-							{
-								// GTK Key Data Encapsulation Format
-								unsigned char gtk_len = (unsigned char)*(pGTK_KDE+1) - 6;
-								unsigned char keyID = (unsigned char)*(pGTK_KDE+6) & 0x03;
-								pGblInfo->GN = keyID;
-								memcpy(pGblInfo->GTK[keyID], (pGTK_KDE+8), gtk_len);
-								toSetKey = 1;
-								pGblInfo->GkeyReady = TRUE;
-							}
-						}
-
-						//check AP's RSNIE and set Group Key Chiper
-						if (decrypted_data[7] == _TKIP_PRIVACY_)
-							pGblInfo->MulticastCipher = _TKIP_PRIVACY_ ;
-						else if (decrypted_data[7] == _CCMP_PRIVACY_)
-							pGblInfo->MulticastCipher = _CCMP_PRIVACY_ ;
-					}
-				}
-				else if ((pStaInfo->RSNEnabled & PSK_WPA) && (Message_DescType(pStaInfo->EapolKeyMsgRecvd) == desc_type_RSN))
-				{
-					unsigned char WPAkeyData[255];
-					unsigned short DataLength;
-					memset(WPAkeyData, 0, 255);
-					DataLength = Message_KeyDataLength(pStaInfo->EapolKeyMsgRecvd);
-					memcpy(WPAkeyData, pStaInfo->EapolKeyMsgRecvd.Octet+KeyDataPos, 255);
-
-					//check AP's RSNIE and set Group Key Chiper
-					if (WPAkeyData[11] == _TKIP_PRIVACY_)
-						pGblInfo->MulticastCipher = _TKIP_PRIVACY_ ;
-					else if (WPAkeyData[11] == _CCMP_PRIVACY_)
-						pGblInfo->MulticastCipher = _CCMP_PRIVACY_ ;
-				}
-
-				ClientSendEAPOL(priv, pstat, 0);	// send msg 4
-
-				if (toSetKey)
-				{
-					ToDrv_SetGTK(priv);
-					toSetKey = 0;
-				}
-				ToDrv_SetPTK(priv, pstat);
-				ToDrv_SetPort(priv, pstat, DOT11_PortStatus_Authorized);
-			}
-		}
-		else if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Group) {
-
-			unsigned char decrypted_data[128];
-			unsigned char GTK_KDE_OUI[] = { 0x00, 0x0F, 0xAC, 0x01 };
-			unsigned char *pGTK_KDE;
-			unsigned char keyID;
-
-			//---- Receive 1st message of 2-way handshake ----
-			DEBUG_INFO("client mode receive 2-1\n");
-
-			pStaInfo->resendCnt = 0; //victoryman
-
-			Message_ReplayCounter_OC2LI(pStaInfo->EapolKeyMsgRecvd, &recievedRC);
-
-			if(Message_SmallerEqualReplayCounter(pStaInfo->CurrentReplayCounter, pStaInfo->EapolKeyMsgRecvd) )
-			{
-				DEBUG_ERR("client mode 2-1: ERROR_NONEEQUL_REPLAYCOUNTER\n");
-				return;
-			}
-			else if(!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC))
-			{
-				DEBUG_ERR("client mode 2-1: ERROR_MIC_FAIL\n");
-				LOG_MSG("Authentication failled! (4-2: MIC error)\n");
-#if defined(CONFIG_RTL8186_KB_N)
-				authRes = 1;//Auth failed
-#endif
-				return;
-			}
-			else if(!DecGTK(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
-						((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16),
-						pGblInfo->GTK[Message_KeyIndex(pStaInfo->EapolKeyMsgRecvd)]))
-			{
-				DEBUG_ERR("client mode 2-1: ERROR_AESKEYWRAP_MIC_FAIL\n");
-				return;
-			}
-
-			keyID = Message_KeyIndex(pStaInfo->EapolKeyMsgRecvd);
-			if ((pStaInfo->RSNEnabled & PSK_WPA2) && (Message_DescType(pStaInfo->EapolKeyMsgRecvd) == desc_type_WPA2))
-			{
-				memcpy(decrypted_data, pGblInfo->GTK[keyID], Message_KeyDataLength(pStaInfo->EapolKeyMsgRecvd));
-				pGTK_KDE = decrypted_data;
-				if ( *pGTK_KDE == WPA_ELEMENT_ID && !memcmp((pGTK_KDE+2), GTK_KDE_OUI, sizeof(GTK_KDE_OUI)))
-				{
-					// GTK Key Data Encapsulation Format
-					unsigned char gtk_len = (unsigned char)*(pGTK_KDE+1) - 6;
-					keyID = (unsigned char)*(pGTK_KDE+6) & 0x03;
-					pGblInfo->GN = keyID;
-					memcpy(pGblInfo->GTK[keyID], (pGTK_KDE+8), gtk_len);
-				}
-			}
-			else
-			{
-				pGblInfo->GN = keyID;
-			}
-			//MLME_SETKEYS.request() to set Group Key;
-			pGblInfo->GkeyReady = TRUE;
-
-			pStaInfo->CurrentReplayCounter.field.HighPart = recievedRC.field.HighPart;
-			pStaInfo->CurrentReplayCounter.field.LowPart = recievedRC.field.LowPart;
-			pStaInfo->clientGkeyUpdate = 1;
-
-			ToDrv_SetGTK(priv);
-			ClientSendEAPOL(priv, pstat, 0); // send msg 2-1
-		}
-		else
-			printk("Client EAPOL Key Receive ERROR!!\n");
-	}
-#endif // CLIENT_MODE
-
-
-	void derivePSK(struct rtl8192cd_priv *priv)
-	{
-		WPA_GLOBAL_INFO *pGblInfo=priv->wpa_global_info;
-
-		if (strlen(priv->pmib->dot1180211AuthEntry.dot11PassPhrase) == 64) // hex
-			get_array_val(pGblInfo->PSK, priv->pmib->dot1180211AuthEntry.dot11PassPhrase, 64);
-		else
-			PasswordHash(priv->pmib->dot1180211AuthEntry.dot11PassPhrase, SSID, SSID_LEN,
-					pGblInfo->PSK);
-
-		if (priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest[0]) {
-			if (strlen(priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest) == 64)
-				get_array_val(pGblInfo->PSKGuest, priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest, 64);
-			else
-				PasswordHash(priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest, SSID, SSID_LEN,
-						pGblInfo->PSKGuest);
-		}
-	}
-
-	void psk_init(struct rtl8192cd_priv *priv)
-	{
-		WPA_GLOBAL_INFO *pGblInfo=priv->wpa_global_info;
-		int i, j, low_cipher=0;
-
-		DEBUG_TRACE;
-
-		memset((char *)pGblInfo, '\0', sizeof(WPA_GLOBAL_INFO));
-
-		//---- Counter is initialized whenever boot time ----
-		GenNonce(pGblInfo->Counter.charData, (unsigned char*)"addr");
-
+		memcpy(pstat->wpa_sta_info->EAPOLMsgRecvd.Octet, msg, len);
+		pstat->wpa_sta_info->EAPOLMsgRecvd.Length = len;
 		if (OPMODE & WIFI_AP_STATE)
+			EAPOLKeyRecvd(priv, pstat);
+#ifdef CLIENT_MODE
+		else if (OPMODE & WIFI_STATION_STATE)
+			ClientEAPOLKeyRecvd(priv, pstat);
+#endif
+		break;
+
+	case DOT11_EVENT_MIC_FAILURE:
+#ifdef CLIENT_MODE
+		if (OPMODE & WIFI_STATION_STATE)
+			ClientSendEAPOL(priv, pstat, 0);
+#endif
+		break;
+
+// button 2009.05.21
+	case DOT11_EVENT_WPA_MULTICAST_CIPHER:
+	case DOT11_EVENT_WPA2_MULTICAST_CIPHER:
+#ifdef CLIENT_MODE
+		if (OPMODE & WIFI_STATION_STATE)
 		{
-			//---- Initialize Goup Key state machine ----
-			pGblInfo->GNonce.Octet = pGblInfo->GNonceBuf;
-			pGblInfo->GNonce.Length = KEY_NONCE_LEN;
-			pGblInfo->GTKAuthenticator = TRUE;
-			pGblInfo->GN = 1;
-			pGblInfo->GM = 2;
-			pGblInfo->GInitAKeys = TRUE; // david+2006-04-04, fix the issue of re-generating group key
-
-			init_timer(&pGblInfo->GKRekeyTimer);
-			pGblInfo->GKRekeyTimer.data = (unsigned long)priv;
-			pGblInfo->GKRekeyTimer.function = GKRekeyTimeout;
-		}
-#if 0
-		if (strlen(priv->pmib->dot1180211AuthEntry.dot11PassPhrase) == 64) // hex
-			get_array_val(pGblInfo->PSK, priv->pmib->dot1180211AuthEntry.dot11PassPhrase, 64);
-		else
-			PasswordHash(priv->pmib->dot1180211AuthEntry.dot11PassPhrase, priv->pmib->dot11StationConfigEntry.dot11DesiredSSID,
-					pGblInfo->PSK);
-
-		if (priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest[0]) {
-			if (strlen(priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest) == 64)
-				get_array_val(pGblInfo->PSKGuest, priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest, 64);
-			else
-				PasswordHash(priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest, priv->pmib->dot11StationConfigEntry.dot11DesiredSSID,
-						pGblInfo->PSKGuest);
-		}
-#else
-		derivePSK(priv);
-#endif
-#ifdef DEBUG_PSK
-		debug_out("PSK: PMK=", pGblInfo->PSK, PMK_LEN);
-		if (priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest[0])
-			debug_out("PSK-Guest: PMK=", pGblInfo->PSKGuest, PMK_LEN);
-#endif
-
-		if ((priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA) &&
-				!priv->pmib->dot1180211AuthEntry.dot11WPACipher) {
-			DEBUG_ERR("psk_init failed, WPA cipher did not set!\n");
-			return;
-		}
-
-#ifdef RTL_WPA2
-		if ((priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA2) &&
-				!priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher) {
-			DEBUG_ERR("psk_init failed, WPA2 cipher did not set!\n");
-			return;
+			priv->wpa_global_info->MulticastCipher = *msg;
+			ConstructIE(priv, priv->wpa_global_info->AuthInfoElement.Octet,
+							 &priv->wpa_global_info->AuthInfoElement.Length);
+			memcpy((void *)priv->pmib->dot11RsnIE.rsnie, priv->wpa_global_info->AuthInfoElement.Octet
+					, priv->wpa_global_info->AuthInfoElement.Length);
+			DEBUG_WARN("####### MulticastCipher=%d\n", priv->wpa_global_info->MulticastCipher);
 		}
 #endif
-
-		if ((priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA2) &&
-				!(priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA)) {
-			if (priv->pmib->dot1180211AuthEntry.dot11WPACipher)
-				priv->pmib->dot1180211AuthEntry.dot11WPACipher = 0;
-		}
-		if ((priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA) &&
-				!(priv->pmib->dot1180211AuthEntry.dot11EnablePSK & PSK_WPA2)) {
-			if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher)
-				priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher = 0;
-		}
-
-		if (priv->pmib->dot1180211AuthEntry.dot11WPACipher) {
-			for (i=0, j=0; i<_WEP_104_PRIVACY_; i++) {
-				if (priv->pmib->dot1180211AuthEntry.dot11WPACipher & (1<<i)) {
-					pGblInfo->UnicastCipher[j] = i+1;
-					if (low_cipher == 0)
-						low_cipher = pGblInfo->UnicastCipher[j];
-					else {
-						if (low_cipher == _WEP_104_PRIVACY_ &&
-								pGblInfo->UnicastCipher[j] == _WEP_40_PRIVACY_)
-							low_cipher = pGblInfo->UnicastCipher[j];
-						else if (low_cipher == _TKIP_PRIVACY_ &&
-								(pGblInfo->UnicastCipher[j] == _WEP_40_PRIVACY_ ||
-								 pGblInfo->UnicastCipher[j] == _WEP_104_PRIVACY_))
-							low_cipher = pGblInfo->UnicastCipher[j];
-						else if (low_cipher == _CCMP_PRIVACY_)
-							low_cipher = pGblInfo->UnicastCipher[j];
-					}
-					if (++j >= MAX_UNICAST_CIPHER)
-						break;
-				}
-			}
-			pGblInfo->NumOfUnicastCipher = j;
-		}
-
-#ifdef CLIENT_MODE
-		if((OPMODE & WIFI_ADHOC_STATE)&&(priv->pmib->dot1180211AuthEntry.dot11EnablePSK & 2)) // if WPA2
-			low_cipher = 0;
-#endif
-
-#ifdef RTL_WPA2
-		if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher) {
-			for (i=0, j=0; i<_WEP_104_PRIVACY_; i++) {
-				if (priv->pmib->dot1180211AuthEntry.dot11WPA2Cipher & (1<<i)) {
-					pGblInfo->UnicastCipherWPA2[j] = i+1;
-					if (low_cipher == 0)
-						low_cipher = pGblInfo->UnicastCipherWPA2[j];
-					else {
-						if (low_cipher == _WEP_104_PRIVACY_ &&
-								pGblInfo->UnicastCipherWPA2[j] == _WEP_40_PRIVACY_)
-							low_cipher = pGblInfo->UnicastCipherWPA2[j];
-						else if (low_cipher == _TKIP_PRIVACY_ &&
-								(pGblInfo->UnicastCipherWPA2[j] == _WEP_40_PRIVACY_ ||
-								 pGblInfo->UnicastCipherWPA2[j] == _WEP_104_PRIVACY_))
-							low_cipher = pGblInfo->UnicastCipherWPA2[j];
-						else if (low_cipher == _CCMP_PRIVACY_)
-							low_cipher = pGblInfo->UnicastCipherWPA2[j];
-					}
-					if (++j >= MAX_UNICAST_CIPHER)
-						break;
-				}
-			}
-			pGblInfo->NumOfUnicastCipherWPA2= j;
-		}
-#endif
-
-		pGblInfo->MulticastCipher = low_cipher;
-
-#ifdef DEBUG_PSK
-		printk("PSK: WPA unicast cipher= ");
-		for (i=0; i<pGblInfo->NumOfUnicastCipher; i++)
-			printk("%x ", pGblInfo->UnicastCipher[i]);
-		printk("\n");
-
-#ifdef RTL_WPA2
-		printk("PSK: WPA2 unicast cipher= ");
-		for (i=0; i<pGblInfo->NumOfUnicastCipherWPA2; i++)
-			printk("%x ", pGblInfo->UnicastCipherWPA2[i]);
-		printk("\n");
-#endif
-
-		printk("PSK: multicast cipher= %x\n", pGblInfo->MulticastCipher);
-#endif
-
-		pGblInfo->AuthInfoElement.Octet = pGblInfo->AuthInfoBuf;
-
-		ConstructIE(priv, pGblInfo->AuthInfoElement.Octet,
-				&pGblInfo->AuthInfoElement.Length);
-
-		ToDrv_SetIE(priv);
+		break;
 	}
 
-#if defined(WDS) && defined(INCLUDE_WPA_PSK)
-	void wds_psk_set(struct rtl8192cd_priv *priv, int idx, unsigned char *key)
-	{
-		unsigned char pchar[40];
-
-		if (key == NULL) {
-			if (strlen(priv->pmib->dot11WdsInfo.wdsPskPassPhrase) == 64) // hex
-				get_array_val(priv->pmib->dot11WdsInfo.wdsMapingKey[idx], priv->pmib->dot11WdsInfo.wdsPskPassPhrase, 64);	
-			else {		
-				memset(pchar, 0, sizeof(unsigned char)*40);
-				PasswordHash(priv->pmib->dot11WdsInfo.wdsPskPassPhrase,"REALTEK", strlen("REALTEK"), pchar);
-				memcpy(priv->pmib->dot11WdsInfo.wdsMapingKey[idx], pchar, sizeof(unsigned char)*32);			
-			}
-		}
-		else
-			memcpy(priv->pmib->dot11WdsInfo.wdsMapingKey[idx], key, sizeof(unsigned char)*32);
-
-		priv->pmib->dot11WdsInfo.wdsMappingKeyLen[idx] = 32;
-		priv->pmib->dot11WdsInfo.wdsMappingKeyLen[idx] |= 0x80000000;  //set bit to protect the key	
-	}
-
-
-	void wds_psk_init(struct rtl8192cd_priv *priv)
-	{
-		unsigned char *key;
-		int i;
-
-		if ( !(OPMODE & WIFI_AP_STATE))
-			return;
-
-		for (i = 0; i < priv->pmib->dot11WdsInfo.wdsNum; i++) {
-			if (i==0)
-				key = NULL;
-			else
-				key = priv->pmib->dot11WdsInfo.wdsMapingKey[0];
-
-			wds_psk_set(priv, i, key);
-		}
-	}
-#endif
-
-	int psk_indicate_evt(struct rtl8192cd_priv *priv, int id, unsigned char *mac, unsigned char *msg, int len)
-	{
-		struct stat_info *pstat;
-		unsigned char tmpbuf[1024];
-		int ret;
-#ifdef RTL_WPA2
-		int isWPA2=0;
-#endif
-
-		if (!priv->pmib->dot1180211AuthEntry.dot11EnablePSK ||
-				!((priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _TKIP_PRIVACY_) ||
-					(priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _CCMP_PRIVACY_)))
-			return -1;
-
-#ifdef DEBUG_PSK
-		printk("PSK: Got evt:%s[%x], sta: %02x:%02x:%02x:%02x:%02x:%02x, msg_len=%x\n",
-				ID2STR(id), id,
-				mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], len);
-#endif
-
-		pstat = get_stainfo(priv, mac);
-		// button 2009.05.21
-#if 0
-		if (pstat == NULL) {
-#else
-			if (pstat == NULL && id!=DOT11_EVENT_WPA_MULTICAST_CIPHER && id!=DOT11_EVENT_WPA2_MULTICAST_CIPHER) {
-#endif
-				DEBUG_ERR("Invalid mac address: %02x:%02x:%02x:%02x:%02x:%02x\n",
-						mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-				return -1;
-			}
-
-			switch (id) {
-				case DOT11_EVENT_ASSOCIATION_IND:
-				case DOT11_EVENT_REASSOCIATION_IND:
-					reset_sta_info(priv, pstat);
-
-					if (OPMODE & WIFI_AP_STATE) {
-						// check RSNIE
-						if (len > 2 && msg != NULL) {
-#ifdef DEBUG_PSK
-							debug_out("PSK: Rx Assoc-ind, RSNIE", msg, len);
-#endif
-
-#ifdef RTL_WPA2
-							memcpy(tmpbuf, msg, len);
-							len -= 2;
-#else
-							tmpbuf[0] = RSN_ELEMENT_ID;
-							tmpbuf[1] = len;
-							memcpy(tmpbuf+2, msg, len);
-#endif
-
-#ifdef RTL_WPA2
-							isWPA2 = (tmpbuf[0] == WPA2_ELEMENT_ID) ? 1 : 0;
-							if (isWPA2)
-								ret = parseIEWPA2(priv, pstat->wpa_sta_info, tmpbuf, len+2);
-							else
-#endif
-								ret = parseIE(priv, pstat->wpa_sta_info, tmpbuf, len+2);
-							if (ret != 0) {
-								DEBUG_ERR("parse IE error [%x]!\n", ret);
-							}
-
-							// issue assoc-rsp successfully
-							ToDrv_RspAssoc(priv, id, mac, -ret);
-
-							if (ret == 0) {
-#ifdef EVENT_LOG
-								char *pmsg;
-								switch (pstat->wpa_sta_info->UnicastCipher) {
-									case DOT11_ENC_NONE:	pmsg = "none"; 	break;
-									case DOT11_ENC_WEP40:	pmsg = "WEP40"; 	break;
-									case DOT11_ENC_TKIP:	pmsg = "TKIP"; 	break;
-									case DOT11_ENC_WRAP:	pmsg = "AES";	break;
-									case DOT11_ENC_CCMP:	pmsg = "AES";	break;
-									case DOT11_ENC_WEP104:	pmsg = "WEP104";	break;
-									default: pmsg = "invalid algorithm";			break;
-								}
-#ifdef RTL_WPA2
-								LOG_MSG("%s-%s PSK authentication in progress...\n", (isWPA2 ? "WPA2" : "WPA"), pmsg);
-#else
-								LOG_MSG("%s-WPA PSK authentication in progress...\n",  pmsg);
-#endif
-#endif
-
-#if defined(CONFIG_RTL8196B_TR) || defined(CONFIG_RTL865X_SC) || defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD) || defined(CONFIG_RTL8196C_EC)
-								LOG_MSG_NOTICE("Authenticating......;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
-										pstat->hwaddr[0],
-										pstat->hwaddr[1],
-										pstat->hwaddr[2],
-										pstat->hwaddr[3],
-										pstat->hwaddr[4],
-										pstat->hwaddr[5]);
-#endif
-								AuthenticationRequest(priv, pstat); // send 4-1
-							}
-						}
-						else { // RNSIE is null
-							if (priv->pmib->dot1180211AuthEntry.dot11EnablePSK)
-								ToDrv_RspAssoc(priv, id, mac, -ERROR_INVALID_RSNIE);
-						}
-					}
-#ifdef  CLIENT_MODE		
-					else 			
-						mod_timer(&pstat->wpa_sta_info->resendTimer, jiffies + WAIT_EAP_TIME);		
-#endif				
-					break;
-
-				case DOT11_EVENT_DISASSOCIATION_IND:
-					reset_sta_info(priv, pstat);
-					break;
-
-				case DOT11_EVENT_EAP_PACKET:
-					if (OPMODE & WIFI_AP_STATE) {
-						if (pstat->wpa_sta_info->state == PSK_STATE_IDLE) {
-							DEBUG_ERR("Rx EAPOL packet but did not get Assoc-Ind yet!\n");
-							break;
-						}
-					}
-
-					if (len > MAX_EAPOLMSG_LEN) {
-						DEBUG_ERR("Rx EAPOL packet which length is too long [%x]!\n", len);
-						break;
-					}
-
-#ifdef CLIENT_MODE
-					if ((OPMODE & WIFI_STATION_STATE) &&
-							!(pstat->wpa_sta_info->clientHndshkProcessing||pstat->wpa_sta_info->clientHndshkDone)) {
-#ifdef EVENT_LOG
-						char *pmsg;
-						switch (pstat->wpa_sta_info->UnicastCipher) {
-							case DOT11_ENC_NONE:	pmsg = "none"; 	break;
-							case DOT11_ENC_WEP40:	pmsg = "WEP40"; 	break;
-							case DOT11_ENC_TKIP:	pmsg = "TKIP"; 	break;
-							case DOT11_ENC_WRAP:	pmsg = "AES";	break;
-							case DOT11_ENC_CCMP:	pmsg = "AES";	break;
-							case DOT11_ENC_WEP104:	pmsg = "WEP104";	break;
-							default: pmsg = "invalid algorithm";			break;
-						}
-						LOG_MSG("%s-%s PSK authentication in progress...\n", (isWPA2 ? "WPA2" : "WPA"), pmsg);
-#endif
-						reset_sta_info(priv, pstat);
-					}
-#endif
-					memcpy(pstat->wpa_sta_info->EAPOLMsgRecvd.Octet, msg, len);
-					pstat->wpa_sta_info->EAPOLMsgRecvd.Length = len;
-					if (OPMODE & WIFI_AP_STATE)
-						EAPOLKeyRecvd(priv, pstat);
-#ifdef CLIENT_MODE
-					else if (OPMODE & WIFI_STATION_STATE)
-						ClientEAPOLKeyRecvd(priv, pstat);
-#endif
-					break;
-
-				case DOT11_EVENT_MIC_FAILURE:
-#ifdef CLIENT_MODE
-					if (OPMODE & WIFI_STATION_STATE)
-						ClientSendEAPOL(priv, pstat, 0);
-#endif
-					break;
-
-					// button 2009.05.21
-				case DOT11_EVENT_WPA_MULTICAST_CIPHER:
-				case DOT11_EVENT_WPA2_MULTICAST_CIPHER:
-#ifdef CLIENT_MODE
-					if (OPMODE & WIFI_STATION_STATE)
-					{
-						priv->wpa_global_info->MulticastCipher = *msg;
-						ConstructIE(priv, priv->wpa_global_info->AuthInfoElement.Octet,
-								&priv->wpa_global_info->AuthInfoElement.Length);
-						memcpy((void *)priv->pmib->dot11RsnIE.rsnie, priv->wpa_global_info->AuthInfoElement.Octet
-								, priv->wpa_global_info->AuthInfoElement.Length);
-						DEBUG_WARN("####### MulticastCipher=%d\n", priv->wpa_global_info->MulticastCipher);
-					}
-#endif
-					break;
-			}
-
-			return 0;
-		}
+	return 0;
+}
 
 #endif // INCLUDE_WPA_PSK
 

@@ -63,6 +63,9 @@ static inline void __raw_spin_lock(raw_spinlock_t *lock)
 		"	.set noreorder					\n"
 		"							\n"
 		"	ll	%[ticket], %[ticket_ptr]		\n"
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+		"	nop							\n"
+#endif
 		"1:	addiu	%[my_ticket], %[ticket], 0x4000		\n"
 		"	sc	%[my_ticket], %[ticket_ptr]		\n"
 		"	beqz	%[my_ticket], 3f			\n"
@@ -134,6 +137,9 @@ static inline unsigned int __raw_spin_trylock(raw_spinlock_t *lock)
 		"	.set noreorder					\n"
 		"							\n"
 		"	ll	%[ticket], %[ticket_ptr]		\n"
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+		"	nop							\n"
+#endif
 		"1:	srl	%[my_ticket], %[ticket], 14		\n"
 		"	andi	%[my_ticket], %[my_ticket], 0x1fff	\n"
 		"	andi	%[now_serving], %[ticket], 0x1fff	\n"
@@ -188,6 +194,9 @@ static inline void __raw_read_lock(raw_rwlock_t *rw)
 		__asm__ __volatile__(
 		"	.set	noreorder	# __raw_read_lock	\n"
 		"1:	ll	%1, %2					\n"
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+		"	nop							\n"
+#endif
 		"	bltz	%1, 2f					\n"
 		"	 addu	%1, 1					\n"
 		"	sc	%1, %0					\n"
@@ -195,6 +204,9 @@ static inline void __raw_read_lock(raw_rwlock_t *rw)
 		"	 nop						\n"
 		"	.subsection 2					\n"
 		"2:	ll	%1, %2					\n"
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+		"	nop							\n"
+#endif
 		"	bltz	%1, 2b					\n"
 		"	 addu	%1, 1					\n"
 		"	b	1b					\n"
@@ -220,6 +232,9 @@ static inline void __raw_read_unlock(raw_rwlock_t *rw)
 		__asm__ __volatile__(
 		"	.set	noreorder	# __raw_read_unlock	\n"
 		"1:	ll	%1, %2					\n"
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+		"	nop							\n"
+#endif
 		"	sub	%1, 1					\n"
 		"	sc	%1, %0					\n"
 		"	beqz	%1, 2f					\n"
@@ -241,6 +256,9 @@ static inline void __raw_write_lock(raw_rwlock_t *rw)
 		__asm__ __volatile__(
 		"	.set	noreorder	# __raw_write_lock	\n"
 		"1:	ll	%1, %2					\n"
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+		"	nop							\n"
+#endif
 		"	bnez	%1, 2f					\n"
 		"	 lui	%1, 0x8000				\n"
 		"	sc	%1, %0					\n"
@@ -248,6 +266,9 @@ static inline void __raw_write_lock(raw_rwlock_t *rw)
 		"	 nop						\n"
 		"	.subsection 2					\n"
 		"2:	ll	%1, %2					\n"
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+		"	nop							\n"
+#endif
 		"	bnez	%1, 2b					\n"
 		"	 lui	%1, 0x8000				\n"
 		"	b	1b					\n"
@@ -282,6 +303,9 @@ static inline int __raw_read_trylock(raw_rwlock_t *rw)
 		"	.set	noreorder	# __raw_read_trylock	\n"
 		"	li	%2, 0					\n"
 		"1:	ll	%1, %3					\n"
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+		"	nop							\n"
+#endif
 		"	bltz	%1, 2f					\n"
 		"	 addu	%1, 1					\n"
 		"	sc	%1, %0					\n"
@@ -307,6 +331,9 @@ static inline int __raw_write_trylock(raw_rwlock_t *rw)
 		"	.set	noreorder	# __raw_write_trylock	\n"
 		"	li	%2, 0					\n"
 		"1:	ll	%1, %3					\n"
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+		"	nop							\n"
+#endif
 		"	bnez	%1, 2f					\n"
 		"	lui	%1, 0x8000				\n"
 		"	sc	%1, %0					\n"

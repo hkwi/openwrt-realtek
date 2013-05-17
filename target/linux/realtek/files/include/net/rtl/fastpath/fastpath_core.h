@@ -71,8 +71,8 @@
 /***********************************cary:refine filter.c**********************************/
 #define FASTPATH_FILTER	1
 /***********************************************************************************/
-#define CUSTOM_RSP_PACKET 
-#define DOS_FILTER 
+#define CUSTOM_RSP_PACKET
+#define DOS_FILTER
 #define URL_FILTER
 
 //#define URL_CONTENT_AUTHENTICATION
@@ -89,12 +89,51 @@
 #define NO_ARP_USED	// 2008.01.09, Forrest Lin. Use kernel route cache already.
 #define INVALID_PATH_BY_FIN
 
+#if defined(CONFIG_RTL_FAST_PPPOE)
+#define MAX_PPPOE_ENTRY 16
+struct pppoe_info
+{	
+	char            wan_dev[IFNAMSIZ];          /* Local device to use */ 
+	char            ppp_dev[IFNAMSIZ];          /* Local device to use */ 
+	unsigned char	our_mac[6];
+	unsigned char	peer_mac[6];
+	unsigned int 	our_ip;
+	unsigned int	peer_ip;
+	unsigned short  sid; 
+	unsigned short  valid;
+	unsigned long 	last_rx;
+	unsigned long	last_tx;
+	unsigned char   txHdrCache[22];	
+#if defined (CONFIG_RTL_FAST_PPPOE_DEBUG)	
+	unsigned int 	total_rx;
+	unsigned int	total_tx;
+#endif	
+};
 
-#if defined(FAST_L2TP)
-#if 0
-	#define DEBUGP	printk
-#else
-	#define DEBUGP(fmt, args...) {}
+
+int  __init fast_pppoe_init(void);
+int __exit fast_pppoe_exit(void);
+
+int clear_pppoe_info(char *ppp_dev, char *wan_dev, unsigned short sid,
+								unsigned int our_ip,unsigned int	peer_ip,
+								unsigned char * our_mac, unsigned char *peer_mac);
+
+int set_pppoe_info(char *ppp_dev, char *wan_dev, unsigned short sid,
+							unsigned int our_ip,unsigned int	peer_ip,
+							unsigned char * our_mac, unsigned char *peer_mac);
+
+unsigned long get_pppoe_last_rx_tx(char *ppp_dev, char *wan_dev, unsigned short sid,
+								unsigned int our_ip,unsigned int	peer_ip,
+								unsigned char * our_mac, unsigned char *peer_mac,
+								unsigned long *last_rx, unsigned long *last_tx);
+
+
+int check_and_pull_pppoe_hdr(struct sk_buff *skb);
+
+void check_and_restore_pppoe_hdr(struct sk_buff *skb);
+
+int fast_pppoe_xmit(struct sk_buff *skb);
+
 #endif
 
 #ifdef URL_CONTENT_AUTHENTICATION
@@ -103,7 +142,7 @@
 
 typedef struct _unAuth_skb_s
 {
-	struct list_head list;	
+	struct list_head list;
 	int id; /*skb->iphdr.id*/
 	uint32 saddr;
 	uint32 daddr;
@@ -114,6 +153,13 @@ typedef struct _unAuth_skb_s
 int rtl_urlContent_auth(struct sk_buff *skb);
 #endif
 
+#if defined(FAST_L2TP)
+#if 0
+	#define DEBUGP	printk
+#else
+	#define DEBUGP(fmt, args...) {}
+#endif
+
 
 #define control_message 0x8000
 #define connect_control 0xc
@@ -122,8 +168,8 @@ int rtl_urlContent_auth(struct sk_buff *skb);
 
 struct l2tp_info
 {
-	struct net_device *wan_dev;
-	struct net_device *ppp0_dev;
+	void *wan_dev;
+	void *ppp0_dev;
 	unsigned long last_xmit;
 	__u32 daddr;
 	__u32 saddr;
@@ -131,7 +177,7 @@ struct l2tp_info
 	__u16 cid;                   /* Caller ID */
         unsigned char mac_header[ETH_HLEN];
 	__u16 valid;
-	
+
 
 };
 
@@ -165,7 +211,7 @@ struct l2tp_header
 	__u16 Ns;                    /* Optional next sent */
 	__u16 Nr;                    /* Optional next received */
 };
-extern void (*l2tp_tx_id_hook)(struct sk_buff *skb);
+extern void (*l2tp_tx_id_hook)(void *skb);
 
 #endif
 
@@ -198,6 +244,26 @@ struct pptp_info {
 	unsigned char ppp_hdr[4];
 };
 */
+
+struct pptp_acc_info {
+	unsigned long fast_pptp_lastxmit;
+	int valid;
+	void *wanDev;
+	unsigned char ourMac[ETHER_ADDR_LEN];
+	__u16 ourCallID;
+	__u32 ourIp;
+	unsigned char peerMac[ETHER_ADDR_LEN];
+	__u16 peerCallID;
+	__u32 peerIp;
+	unsigned int tx_seqno;
+	unsigned int rx_seqno;
+	__u16 tx_ipID;
+	__u16 ipID;
+	unsigned int tx_seqno_daemon;
+	unsigned int rx_seqno_daemon;
+	void *pppDev;
+	struct ppp_channel *pppChan;
+};
 
 extern int fast_pptp_fw;
 
@@ -276,32 +342,33 @@ void register_customRspHook(int *_cusRsp401_func,int *_cusRspTCPFinAck_func,int 
 void unregister_customRspHook(void);
 void register_customRspStr(char *_str);
 void unregister_customRspStr(void);
- int  GenerateHTTP401(struct sk_buff *skb);
+ int  GenerateHTTP401(void *skb);
 #endif
 #ifdef DOS_FILTER
-	extern int filter_enter(struct sk_buff *skb);
+	extern int filter_enter(void *skb);
 	extern int __init filter_init(void);
 	extern void __exit filter_exit(void);
 	extern void filter_addconnect(ipaddr_t ipaddr);
 	extern void filter_delconnect(ipaddr_t ipaddr);
+	extern int filter_checkConnect(__u32 ipaddr);
 #endif
 
 #ifdef FAST_PPTP
-	extern void fast_pptp_filter(struct sk_buff *skb);
-	extern void fast_pptp_sync_rx_seq(struct sk_buff *skb);
+	extern void fast_pptp_filter(void *skb);
+	extern void fast_pptp_sync_rx_seq(void *skb);
 	extern int __init fast_pptp_init(void);
 	extern void __exit fast_pptp_exit(void);
-	extern int fast_pptp_to_lan(struct sk_buff **pskb);
-	extern int Check_GRE_rx_net_device(struct sk_buff *skb);
+	extern int fast_pptp_to_lan(void **pskb);
+	extern int Check_GRE_rx_net_device(void *skb);
 	extern int pptp_tcp_finished;
 #endif
 
 #ifdef FAST_L2TP
 	extern int __init fast_l2tp_init(void);
 	extern void __exit fast_l2tp_exit(void);
-	extern int fast_l2tp_to_wan(struct sk_buff *skb);
-	extern void fast_l2tp_rx(struct sk_buff *skb);
-	extern void l2tp_tx_id(struct sk_buff *skb);	
+	extern int fast_l2tp_to_wan(void *skb);
+	extern void fast_l2tp_rx(void *skb);
+	extern void l2tp_tx_id(void *skb);
 	extern int fast_l2tp_fw;
 #endif
 
@@ -320,7 +387,7 @@ void unregister_customRspStr(void);
 #define	ROUTE_TABLE_ENTRY_MAX	64
 
 #if !defined(CONFIG_RTL8186_KB_N)
-#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_92D_SUPPORT)
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_92D_SUPPORT) ||defined(CONFIG_RTL_819XD) ||(defined(CONFIG_RTL_8196E)&&defined(CONFIG_RTL_SDRAM_GE_32M))
 #define	NAPT_TABLE_LIST_MAX	4096
 #define	NAPT_TABLE_ENTRY_MAX	4096
 #define	PATH_TABLE_LIST_MAX	4096
@@ -358,7 +425,7 @@ enum LR_RESULT
 	LR_ERROR_PARAMETER = -2,				/* The given parameter error */
 	LR_EXIST = -3,							/* The entry you want to add has been existed, add failed */
 	LR_NONEXIST = -4,						/* The specified entry is not found */
-	
+
 	LR_NOBUFFER = -1000,					/* Out of Entry Space */
 	LR_INVAPARAM = -1001,					/* Invalid parameters */
 	LR_NOTFOUND = -1002,					/* Entry not found */
@@ -440,8 +507,8 @@ enum LR_RESULT rtk_delSession( uint8* ifname );
 
 enum LR_RESULT rtk_addNaptConnection(rtl_fp_napt_entry *fpNaptEntry,
 #if defined(IMPROVE_QOS)
-									struct sk_buff *pskb, struct nf_conn *ct, 
-#endif								
+									void *pskb, void *ct,
+#endif
 									enum NP_FLAGS flags);
 enum LR_RESULT rtk_delNaptConnection( rtl_fp_napt_entry *fpNaptEntry);
 #if defined(IMPROVE_QOS)
@@ -455,7 +522,7 @@ int32 rtl_br_fdb_time_update(void *br, void *fdb, const unsigned char *addr);
 int32 rtl_fp_dev_queue_xmit_check(struct sk_buff *skb, struct net_device *dev);
 int32 rtl_fp_dev_hard_start_xmit_check(struct sk_buff *skb, struct net_device *dev, struct netdev_queue *txq);
 
-#if defined(IMPROVE_QOS) || defined(CONFIG_RTL_HW_QOS_SUPPORT) 
+#if defined(IMPROVE_QOS) || defined(CONFIG_RTL_HW_QOS_SUPPORT)
 //To query hardware address based on IP through arp table of dev
 int arp_req_get_ha(__be32 queryIP, struct net_device *dev, unsigned char * resHwAddr);
 #endif
@@ -597,8 +664,8 @@ int fastpath_dump_napt_entry_num(char *page, int len);
 			chksum = htons((uint16) accumulate); \
 		} \
 	}while(0)	/* Checksum adjustment */
-	
-	
+
+
 #define FASTPATH_ADJUST_CHKSUM_NAPT(ip_mod, ip_org, port_mod, port_org, chksum) \
 	do { \
 		s32 accumulate = 0; \
@@ -638,27 +705,31 @@ int init_table_napt(int napt_tbl_list_max, int napt_tbl_entry_max);
 #endif
 int init_table_path(int path_tbl_list_max, int path_tbl_entry_max);
 int udp_fragCache_init(int udp_frag_entry_max);
+int negative_fragCache_init(void);
 void fastpath_set_qos_mark(struct sk_buff *skb, unsigned int preRouteMark, unsigned int postRouteMark);
 int fast_path_pre_process_check(struct iphdr *iph, struct tcphdr *tcphupuh, struct sk_buff *skb);
 int fast_path_post_process_xmit_check(struct iphdr *iph, struct tcphdr *tcphupuh, struct sk_buff *skb);
 int fast_path_post_process_return_check(struct iphdr *iph, struct tcphdr *tcphupuh, struct sk_buff *skb);
 int ip_finish_output3(struct sk_buff *skb);
-__IRAM_GEN int enter_fast_path(struct sk_buff *skb);
+#if defined (CONFIG_RTL_FAST_PPPOE)
+int ip_finish_output4(struct sk_buff *skb);
+#endif
+__IRAM_GEN int enter_fast_path(void *skb);
 uint8 *FastPath_Route(ipaddr_t dIp);
 int FastPath_Enter(struct sk_buff **skb);
 extern int Get_fast_pptp_fw(void);
 #ifdef CONFIG_FAST_PATH_MODULE
 extern int (*fast_path_hook)(struct sk_buff **pskb) ;
 extern enum LR_RESULT (*FastPath_hook1)( ipaddr_t ip, ipaddr_t mask );
-extern enum LR_RESULT (*FastPath_hook2)( ipaddr_t ip, ipaddr_t mask, ipaddr_t gateway, uint8* ifname, enum RT_FLAGS flags );                     
+extern enum LR_RESULT (*FastPath_hook2)( ipaddr_t ip, ipaddr_t mask, ipaddr_t gateway, uint8* ifname, enum RT_FLAGS flags );
 extern int (*fast_path_hook)(struct sk_buff **pskb) ;
 extern enum LR_RESULT (*FastPath_hook3)( ipaddr_t ip, ipaddr_t mask, ipaddr_t gateway, uint8* ifname, enum RT_FLAGS flags );
 extern  enum LR_RESULT (*FastPath_hook4)( rtl_fp_napt_entry *fpNaptEntry);
 extern enum LR_RESULT (*FastPath_hook5)( ipaddr_t ip, ether_addr_t* mac, enum ARP_FLAGS flags );
 enum LR_RESULT (*FastPath_hook6)( rtl_fp_napt_entry *fpNaptEntry,
 #if defined(IMPROVE_QOS)
-									struct sk_buff *pskb, struct nf_conn *ct, 
-#endif								
+									struct sk_buff *pskb, struct nf_conn *ct,
+#endif
                                                                enum NP_FLAGS flags);
 extern enum LR_RESULT (*FastPath_hook7)( ipaddr_t ip );
 extern enum LR_RESULT (*FastPath_hook8)( ipaddr_t ip, ether_addr_t* mac, enum ARP_FLAGS flags );
@@ -666,12 +737,12 @@ extern int (*FastPath_hook9)( void );
 extern int (*FastPath_hook10)(struct sk_buff *skb);
 extern enum LR_RESULT (*FastPath_hook11)(rtl_fp_napt_entry *fpNaptEntry, uint32 interval);
 
-extern  int fast_pptp_to_wan(struct sk_buff *skb);
+extern  int fast_pptp_to_wan(void *skb);
 #endif
 
 /* ---------------------------------------------------------------------------------------------------- */
 #if defined(FASTPATH_FILTER)
-#define RTL_FILTER_CONTENT_MAXNUM 40	
+#define RTL_FILTER_CONTENT_MAXNUM 40
 #define RTL_TABLE_FILTER_ENTRY_COUNT 10
 #define IP_RANGE_TABLE 	1
 #define MAC_TABLE		2
@@ -691,7 +762,7 @@ typedef struct _rlt_filter_table_head
 typedef struct _filter_ipRange_fastpath
 {
 	struct list_head list;
-	uint32 addr_start; /*ipaddr start*/	
+	uint32 addr_start; /*ipaddr start*/
 	uint32 addr_end; /*address end*/
 	uint32 flag; /*0 bit: default action[0:block,1:forward];1 bit: src ip or dest ip[0:src, 1:dest];2 bit: refer both direction*/
 			    /*bit 9: valid 1; invalid 0*/
@@ -701,7 +772,7 @@ typedef struct _filter_ipRange_fastpath
 #define RTL_URL_FILTER_CONTENT_MAXNUM_FASTPATH 40
 typedef struct _url_table_head_entry_fastpath
 {
-	struct list_head list;	
+	struct list_head list;
 	uint32 flag;
 	int (*func)(struct sk_buff *skb);
 }url_table_head_entry_fastpath;
@@ -723,7 +794,7 @@ typedef struct _rtl_mac_entry_fastpath
 {
 	struct list_head list;
 	char mac[ETHER_ADDR_LEN];
-	uint8 flag; 
+	uint8 flag;
 }rtl_mac_entry_fastpath;
 
 typedef struct _rtl_sch_entry_fastpath
@@ -745,7 +816,7 @@ typedef struct _filter_table_info
 typedef struct _filter_table_list
 {
 	struct list_head table_list;
-	struct list_head item_list;	
+	struct list_head item_list;
 	uint32 type;	//type
 	uint32 flag;
 	uint32 num;
@@ -754,8 +825,8 @@ typedef struct _filter_table_list
 
 typedef struct _filter_item_entry
 {
-	struct list_head item_list;	
-	struct list_head rule_list;	
+	struct list_head item_list;
+	struct list_head rule_list;
 	uint32 relation_flag;	//bit0: is the first condition? 1;0
 						//bit1: have next condition? 1:0 [next table condition]
 						//bit2: have "and" logic condition?1:0
@@ -764,7 +835,7 @@ typedef struct _filter_item_entry
 						//bit8: all match flag 1: all, 0: not all
 						//bit9: NULL flag, 1:NULL, 0: not NULL
 	uint32 index;
-	uint32 flag;		
+	uint32 flag;
 	char data[RTL_FILTER_CONTENT_MAXNUM];
 }filter_item_entry;
 
@@ -783,8 +854,128 @@ extern filter_table_list table_list_head;
 #define RTL_FASTPATH_PPP0_DEV_NAME	"ppp0"
 
 #if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
-void rtl_fp_mark_invalid(struct nf_conn *ct);
+void rtl_fp_mark_invalid(void *ct);
 #endif
+
+#define FASTPTH_INDEPENDENCE_KERNEL 1
+#if defined(FASTPTH_INDEPENDENCE_KERNEL)
+extern struct dst_entry *dst_tmp;
+extern int ppp_start_xmit(struct sk_buff *skb, struct net_device *dev);
+extern struct sk_buff *ppp_receive_nonmp_frame(struct ppp *ppp, struct sk_buff *skb, int is_fast_fw);
+
+__be16 rtl_get_skb_protocol(struct sk_buff *skb);
+void rtl_set_skb_protocol(struct sk_buff *skb,__be16 protocol);
+
+
+unsigned char rtl_get_skb_type(struct sk_buff *skb);
+
+__wsum rtl_get_skb_csum(struct sk_buff *skb);
+
+unsigned int rtl_get_skb_len(struct sk_buff *skb);
+
+unsigned char *rtl_get_skb_data(struct sk_buff* skb);
+void rtl_set_skb_data(struct sk_buff *skb, int offset, int action);
+
+unsigned char *rtl_skb_mac_header(struct sk_buff * skb);
+void rtl_skb_set_mac_header(struct sk_buff *skb, int offset);
+int rtl_skb_mac_header_was_set(struct sk_buff *skb);
+
+void rtl_set_skb_dmac(struct sk_buff *skb, void *device);
+void rtl_set_skb_smac(struct sk_buff *skb, void *device);
+
+
+unsigned char *rtl_skb_network_header(struct sk_buff * skb);
+void rtl_skb_set_network_header(struct sk_buff * skb,const int offset);
+void rtl_skb_reset_network_header(struct sk_buff *skb);
+void rtl_set_skb_network_header(struct sk_buff * skb, unsigned char *network_header);
+
+unsigned char *rtl_skb_transport_header(struct sk_buff * skb);
+void rtl_skb_set_transport_header(struct sk_buff * skb,const int offset);
+void rtl_skb_reset_transport_header(struct sk_buff *skb);
+void rtl_set_skb_transport_header(struct sk_buff * skb, unsigned char *transport_header);
+
+
+unsigned int rtl_get_skb_pppoe_flag(struct sk_buff * skb);
+void rtl_set_skb_pppoe_flag(struct sk_buff * skb,unsigned int pppoe_flag);
+
+unsigned char *rtl_skb_pull(struct sk_buff *skb, unsigned int len);
+unsigned char *rtl_skb_push(struct sk_buff *skb, unsigned int len);
+
+int rtl_ppp_proto_check(struct sk_buff *skb, unsigned char* ppp_proto);
+unsigned int rtl_ipt_do_table(struct sk_buff * skb, unsigned int hook, void *in, void *out);
+int rtl_ip_route_input(struct sk_buff  *skb, __be32 daddr, __be32 saddr, u8 tos);
+int rtl_skb_dst_check(struct sk_buff *skb);
+void rtl_set_skb_ip_summed(struct sk_buff *skb, int value);
+void rtl_dst_release(struct sk_buff *skb);
+
+__u32 rtl_get_skb_mark(struct sk_buff *skb);
+void rtl_set_skb_mark(struct sk_buff *skb, unsigned int value);
+void rtl_store_skb_dst(struct sk_buff *skb);
+void rtl_set_skb_dst(struct sk_buff *skb);
+int rtl_tcp_get_timeouts(void *ptr);
+int rtl_arp_req_get_ha(__be32 queryIP, void *device, unsigned char * resHwAddr);
+
+
+u_int8_t rtl_get_ct_protonum(void *ct_ptr, enum ip_conntrack_dir dir);
+unsigned long rtl_get_ct_udp_status(void *ct_ptr);
+u_int8_t rtl_get_ct_tcp_state(void *ct_ptr);
+__be32 rtl_get_ct_ip_by_dir(void *ct_ptr, enum ip_conntrack_dir dir, int flag);
+__be16 rtl_get_ct_port_by_dir(void *ct_ptr, enum ip_conntrack_dir dir, int flag);
+void rtl_set_ct_timeout_expires(void *ct_ptr, unsigned long value);
+unsigned long rtl_hold_time(void *br_ptr);
+void rtl_set_fdb_aging(void *fdb_ptr, unsigned long value);
+unsigned long rtl_get_fdb_aging(void *fdb_ptr);
+
+struct ethhdr *rtl_eth_hdr(struct sk_buff *skb);
+struct iphdr *rtl_ip_hdr(struct sk_buff *skb);
+
+
+struct net_device * rtl_get_dev_by_name(char *name);
+
+struct net_device *rtl_get_skb_dev(struct sk_buff* skb);
+void rtl_set_skb_dev(struct sk_buff *skb, struct net_device *dev);
+
+char *rtl_get_skb_dev_name(struct sk_buff *skb);
+
+void rtl_set_skb_inDev(struct sk_buff *skb);
+
+
+
+struct net_device *rtl_get_skb_rx_dev(struct sk_buff* skb);
+void rtl_set_skb_rx_dev(struct sk_buff* skb,struct net_device *dev);
+
+char * rtl_get_ppp_dev_name(struct net_device *ppp_dev);
+void * rtl_get_ppp_dev_priv(struct net_device *ppp_dev);
+
+int rtl_call_skb_ndo_start_xmit(struct sk_buff *skb);
+
+void rtl_inc_ppp_stats(struct ppp *ppp, int act, int len);
+
+void *rtl_set_skb_tail(struct sk_buff *skb, int offset, int action);
+struct sk_buff *rtl_ppp_receive_nonmp_frame(struct ppp *ppp, struct sk_buff *skb, int is_fast_fw);
+int rtl_ppp_start_xmit(struct sk_buff *skb, struct net_device *dev);
+void rtl_set_skb_cb(struct sk_buff *skb, char *value, int len);
+int rtl_ppp_vj_check(struct ppp* ppp);
+void *rtl_get_ppp_xmit_pending(struct ppp* ppp);
+void rtl_set_ppp_xmit_pending(struct ppp* ppp, struct sk_buff* skb);
+void rtl_set_skb_nfct(struct sk_buff *skb, void *value);
+struct neighbour *rtl_neigh_lookup(const void *pkey, struct net_device *dev);
+struct hh_cache *rtl_get_hh_from_neigh(struct neighbour *neigh);
+seqlock_t rtl_get_lock_from_hh(struct hh_cache * hh);
+unsigned short rtl_get_len_from_hh(struct hh_cache * hh);
+unsigned long *rtl_get_data_from_hh(struct hh_cache * hh);
+unsigned int rtl_skb_headroom(struct sk_buff *skb);
+int rtl_skb_cloned(struct sk_buff *skb);
+int rtl_skb_shared(const struct sk_buff *skb);
+#if defined(CONFIG_RTL_DSCP_IPTABLE_CHECK) && defined(IMPROVE_QOS)
+__u8 rtl_get_skb_orig_dscp(struct sk_buff *skb);
+#endif
+void rtl_conntrack_drop_check_hook(struct nf_conn *ct_tmp, uint16 ipprotocol, struct nf_conn *ct);
+int  rtl_Add_Pattern_ACL_For_ContentFilter(void);
+#endif
+
+#define RTL_FSTPATH_TTL_ADJUST 1
+void get_fastpath_module_info(unsigned char *buf);
 
 #endif	/* __FASTPATH_CORE_H__ */
 

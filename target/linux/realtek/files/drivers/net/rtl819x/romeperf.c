@@ -1,16 +1,16 @@
 /*
-* Copyright c                  Realtek Semiconductor Corporation, 2002  
+* Copyright c                  Realtek Semiconductor Corporation, 2002
 * All rights reserved.
-* 
+*
 * Program : Performance Profiling for ROME Driver
-* Abstract : 
-* Author : Yung-Chieh Lo (yjlou@realtek.com.tw)               
+* Abstract :
+* Author : Yung-Chieh Lo (yjlou@realtek.com.tw)
 * $Id: romeperf.c,v 1.1 2007-12-21 10:28:22 davidhsu Exp $
 */
 
 #include "romeperf.h"
 #include <net/rtl/rtl_glue.h>
-#define KERNEL_SYSeALLS 
+#define KERNEL_SYSeALLS
 #include <asm/unistd.h>
 #include <asm/processor.h>
 #include <asm/uaccess.h>
@@ -47,12 +47,12 @@ static uint32 tempVariable32;
 static uint64 currCnt[4];
 
 /* Global variables */
-uint64 cnt1, cnt2;
+//uint64 cnt1, cnt2;
 rtl8651_romeperf_stat_t romePerfStat[ROMEPERF_INDEX_MAX];
 uint32 rtl8651_romeperf_inited = 0;
 uint32 rtl8651_romeperf_enable = TRUE;
 
-__IRAM void CP3_COUNTER0_INIT( void )
+__IRAM static void CP3_COUNTER0_INIT( void )
 {
 __asm__ __volatile__ \
 ("  ;\
@@ -63,7 +63,8 @@ __asm__ __volatile__ \
 ");
 }
 
-__IRAM uint32 CP3_COUNTER0_IS_INITED( void )
+#if 0
+__IRAM static uint32 CP3_COUNTER0_IS_INITED( void )
 {
 __asm__ __volatile__ \
 ("  ;\
@@ -73,8 +74,8 @@ __asm__ __volatile__ \
 ");
 	return tempVariable32;
 }
-
-__IRAM void CP3_COUNTER0_START( void )
+#endif
+__IRAM static void CP3_COUNTER0_START( void )
 {
 #if 1 /* Inst */
 	tempVariable32 = /* Counter0 */((0x10|CP3CNT_CYCLES)<< 0) |
@@ -103,7 +104,7 @@ __asm__ __volatile__ \
 ");
 }
 
-__IRAM void CP3_COUNTER0_STOP( void )
+__IRAM static void CP3_COUNTER0_STOP( void )
 {
 __asm__ __volatile__ \
 ("	;\
@@ -111,7 +112,7 @@ __asm__ __volatile__ \
 ");
 }
 
-__IRAM uint64 CP3_COUNTER0_GET( void )
+__IRAM static uint64 CP3_COUNTER0_GET( void )
 {
 __asm__ __volatile__ \
 ("	;\
@@ -124,7 +125,7 @@ __asm__ __volatile__ \
 	return tempVariable64;
 }
 
-__IRAM void CP3_COUNTER0_GET_ALL( void )
+__IRAM static void CP3_COUNTER0_GET_ALL( void )
 {
 __asm__ __volatile__ \
 ("	;\
@@ -231,7 +232,7 @@ int32 rtl8651_romeperfInit()
 	 romePerfStat[ROMEPERF_INDEX_PCIE_IRQ].desc = "PCIE_IRQ";
 	romePerfStat[ROMEPERF_INDEX_RX_DSR].desc = "RX DSR";
 	romePerfStat[ROMEPERF_INDEX_RX_ISR].desc = "RX ISR";
-	romePerfStat[ROMEPERF_INDEX_validate_mpdu].desc = "validate mpdu";  
+	romePerfStat[ROMEPERF_INDEX_validate_mpdu].desc = "validate mpdu";
 	romePerfStat[ROMEPERF_INDEX_swNic_receive].desc = "swNic_receive";
 	romePerfStat[ROMEPERF_INDEX_rtl_processReceivedInfo].desc = "rtl_processReceivedInfo";
 	romePerfStat[ROMEPERF_INDEX_rtl_decideRxDevice].desc = "rtl_decideRxDevice";
@@ -252,15 +253,15 @@ int32 rtl8651_romeperfInit()
 	romePerfStat[ROMEPERF_INDEX_fastpath_1].desc = "fastpath_1";
 	romePerfStat[ROMEPERF_INDEX_fastpath_2].desc = "fastpath_2";
 	romePerfStat[ROMEPERF_INDEX_fastpath_3].desc = "fastpath_3";
- 
- 
+
+
         return SUCCESS;
 }
 
 int32 rtl8651_romeperfReset()
 {
 	rtl8651_romeperfInit();
-	
+
 	return SUCCESS;
 }
 
@@ -268,7 +269,7 @@ int32 rtl8651_romeperfReset()
 int32 rtl8651_romeperfStart()
 {
 	if ( rtl8651_romeperf_inited == FALSE ) rtl8651_romeperfInit();
-	
+
 	START_AND_GET_CP3_COUNTER0( cnt1 );
 
 	return SUCCESS;
@@ -277,7 +278,7 @@ int32 rtl8651_romeperfStart()
 int32 rtl8651_romeperfStop( uint64 *pDiff )
 {
 	if ( rtl8651_romeperf_inited == FALSE ) rtl8651_romeperfInit();
-	
+
 	STOP_AND_GET_CP3_COUNTER0( cnt2 );
 
 	*pDiff = cnt2 - cnt1;
@@ -295,7 +296,7 @@ int32 rtl8651_romeperfGet( uint64 *pGet )
 	CP3_COUNTER0_STOP();
 	*pGet = CP3_COUNTER0_GET();
 	CP3_COUNTER0_START();
-	
+
 	return SUCCESS;
 }
 
@@ -304,12 +305,12 @@ int32 rtl8651_romeperfPause( void )
 	if ( rtl8651_romeperf_inited == FALSE ) return FAILED;
 
 	rtl8651_romeperf_enable = FALSE;
-	
+
 	/* Louis patch: someone will disable CP3 in somewhere. */
 	CP3_COUNTER0_INIT();
 
 	CP3_COUNTER0_STOP();
-	
+
 	return SUCCESS;
 }
 
@@ -318,12 +319,12 @@ int32 rtl8651_romeperfResume( void )
 	if ( rtl8651_romeperf_inited == FALSE ) return FAILED;
 
 	rtl8651_romeperf_enable = TRUE;
-	
+
 	/* Louis patch: someone will disable CP3 in somewhere. */
 	CP3_COUNTER0_INIT();
- 	
+
 	CP3_COUNTER0_START();
-	
+
 	return SUCCESS;
 }
 
@@ -345,7 +346,7 @@ __IRAM int rtl8651_romeperfEnterPoint( int index )
 	romePerfStat[index].tempCycle[3] = currCnt[3];
 	romePerfStat[index].hasTempCycle = TRUE;
 	CP3_COUNTER0_START();
-	
+
 	return SUCCESS;
 }
 
@@ -360,7 +361,7 @@ __IRAM int rtl8651_romeperfExitPoint(int index )
 
 	/* Louis patch: someone will disable CP3 in somewhere. */
 	CP3_COUNTER0_INIT();
-	
+
 	CP3_COUNTER0_STOP();
 	CP3_COUNTER0_GET_ALL();
 	romePerfStat[index].accCycle[0] += currCnt[0]-romePerfStat[index].tempCycle[0];
@@ -370,7 +371,7 @@ __IRAM int rtl8651_romeperfExitPoint(int index )
 	romePerfStat[index].hasTempCycle = FALSE;
 	romePerfStat[index].executedNum++;
 	CP3_COUNTER0_START();
-	
+
 	return SUCCESS;
 }
 
@@ -389,7 +390,7 @@ int32 rtl8651_romeperfDump( int start, int end )
 		else
 		{
 			int j;
-			rtlglue_printf( "[%3d] %30s ", 
+			rtlglue_printf( "[%3d] %30s ",
 			                i, romePerfStat[i].desc );
 			for( j =0; j < sizeof(romePerfStat[i].accCycle)/sizeof(romePerfStat[i].accCycle[0]);
 			     j++ )
@@ -400,7 +401,7 @@ int32 rtl8651_romeperfDump( int start, int end )
 
 				rtlglue_printf( "%12llu %8u %10u\n",
 				                romePerfStat[i].accCycle[j],
-				                romePerfStat[i].executedNum, 
+				                romePerfStat[i].executedNum,
 				                avrgCycle
 				                );
 				rtlglue_printf( " %3s  %30s ", "", "" );
@@ -408,7 +409,7 @@ int32 rtl8651_romeperfDump( int start, int end )
 			rtlglue_printf( "\r" );
 		}
 	}
-	
+
 	return SUCCESS;
 #else
 	int i;
@@ -450,8 +451,8 @@ int32 rtl8651_romeperfDump( int start, int end )
 				uint32 avrgCycle = /* Hi-word */ (pAccCycle[0]*(0xffffffff/statSnapShot[i].executedNum)) +
 				                   /* Low-word */(pAccCycle[1]/statSnapShot[i].executedNum);
 				rtlglue_printf( "%12llu %8u %10u\n",
-				statSnapShot[i].accCycle[j], 
-				statSnapShot[i].executedNum, 
+				statSnapShot[i].accCycle[j],
+				statSnapShot[i].executedNum,
 				avrgCycle );
 				rtlglue_printf( " %3s  %30s ", "", "" );
 			}
@@ -460,7 +461,7 @@ int32 rtl8651_romeperfDump( int start, int end )
 	}
 
 	rtlglue_free(statSnapShot);
-	
+
 	return SUCCESS;
 #endif
 }
@@ -479,11 +480,31 @@ int rtl865x_perf_proc_read( char *page, char **start, off_t off, int count, int 
 int rtl865x_perf_proc_write(struct file *file, const char *buffer,
               unsigned long count, void *data)
 {
+	char  tmpbuf[32];
+	int start, end, num;
 	unsigned long x;
 	spin_lock_irq(x);
+	if (buffer && !copy_from_user(tmpbuf, buffer, count))
+	{
+		tmpbuf[count] = '\0';
+		if(!memcmp(tmpbuf, "flush", 5)){
+			rtl8651_romeperfReset();
+		}else{
+			num = sscanf(tmpbuf, "%d %d", &start, &end);
+			if (num !=  2) {
+				printk("invalid romeperf parameter!\n");
+				goto OUT;
+			}
 
-	rtl8651_romeperfReset();
+			if((start<0) ||(start>99)||(end<0) ||(end>99) ||(start>end)){
+				printk("Bad index!\n");
+				goto OUT;
+			}
 
-	spin_unlock_irq(x);
+			rtl8651_romeperfDump(start, end);
+		}
+	}
+OUT:
+    spin_unlock_irq(x);
     return count;
 }

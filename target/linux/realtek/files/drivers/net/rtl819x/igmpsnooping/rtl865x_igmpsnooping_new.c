@@ -1,12 +1,14 @@
 /*
-* Copyright c                  Realsil Semiconductor Corporation, 2009
-* All rights reserved.
-* 
 * Program :  igmp snooping function
 * Abstract : 
 * Author :qinjunjie 
 * Email:qinjunjie1980@hotmail.com
 *
+*  Copyright (c) 2011 Realtek Semiconductor Corp.
+*
+*  This program is free software; you can redistribute it and/or modify
+*  it under the terms of the GNU General Public License version 2 as
+*  published by the Free Software Foundation.
 */
 
 #ifdef __linux__
@@ -1106,7 +1108,6 @@ static  void rtl_freeMcastFlowEntry(struct rtl_mcastFlowEntry* mcastFlowEntry)
  *********************************************/
 
 /*       find a group address in a group list    */
-
 struct rtl_groupEntry* rtl_searchGroupEntry(uint32 moduleIndex, uint32 ipVersion,uint32 *multicastAddr)
 {
 	struct rtl_groupEntry* groupPtr = NULL;
@@ -5474,6 +5475,16 @@ int32 rtl_getMulticastDataFwdInfo(uint32 moduleIndex, struct rtl_multicastDataIn
 		return SUCCESS;
 	}
 	#endif
+
+	//added for MDNS packets
+	if ((IS_RESERVE_MULTICAST_MDNS_ADDR_V4(multicastDataInfo->groupAddr[0])&&multicastDataInfo->ipVersion==IP_VERSION4)
+		||(IS_RESERVE_MULTICAST_MDNS_ADDR_V6(multicastDataInfo->groupAddr)&&multicastDataInfo->ipVersion==IP_VERSION6))
+	{
+		multicastFwdInfo->reservedMCast=TRUE;
+		multicastFwdInfo->fwdPortMask=0xFFFFFFFF;
+				
+		return FAILED;
+	}
 	
 	groupEntry=rtl_searchGroupEntry(moduleIndex,multicastDataInfo->ipVersion, multicastDataInfo->groupAddr); 
 
@@ -6190,7 +6201,9 @@ int igmp_show(struct seq_file *s, void *v)
 	int32 flowCnt;
 	struct rtl_mcastFlowEntry *mcastFlowEntry=NULL; 
 	#endif
-
+	#if defined (CONFIG_RTL_MLD_SNOOPING)	
+	int mldVersion;
+	#endif
 	for(moduleIndex=0; moduleIndex<MAX_MCAST_MODULE_NUM ;moduleIndex++)
 	{
 		if(rtl_mCastModuleArray[moduleIndex].enableSnooping==TRUE)
@@ -6321,7 +6334,14 @@ int igmp_show(struct seq_file *s, void *v)
 					clientCnt=0;
 					while (clientEntry!=NULL)
 					{	
-						
+						if(clientEntry->igmpVersion==IGMP_V3)
+						{
+							mldVersion = MLD_V2;
+						}
+						else
+						{
+							mldVersion = MLD_V1;
+						}
 						clientCnt++;
 						seq_printf(s, "        <%d>%x%x%x%x%x%x%x%x-%x%x%x%x%x%x%x%x-%x%x%x%x%x%x%x%x-%x%x%x%x%x%x%x%x\\port %d\\MLDv%d\\",clientCnt,
 							(clientEntry->clientAddr[0])>>28,(clientEntry->clientAddr[0]<<4)>>28, (clientEntry->clientAddr[0]<<8)>>28,(clientEntry->clientAddr[0]<<12)>>28, 
@@ -6332,7 +6352,7 @@ int igmp_show(struct seq_file *s, void *v)
 							(clientEntry->clientAddr[2]<<16)>>28,(clientEntry->clientAddr[2]<<20)>>28,(clientEntry->clientAddr[2]<<24)>>28, (clientEntry->clientAddr[2]<<28)>>28, 
 							(clientEntry->clientAddr[3])>>28,(clientEntry->clientAddr[3]<<4)>>28, (clientEntry->clientAddr[3]<<8)>>28,(clientEntry->clientAddr[3]<<12)>>28, 
 							(clientEntry->clientAddr[3]<<16)>>28,(clientEntry->clientAddr[3]<<20)>>28,(clientEntry->clientAddr[3]<<24)>>28, (clientEntry->clientAddr[3]<<28)>>28, 
-							clientEntry->portNum, clientEntry->igmpVersion);
+							clientEntry->portNum, mldVersion);
 						
 						seq_printf(s, "%s",(clientEntry->groupFilterTimer>rtl_sysUpSeconds)?"EXCLUDE":"INCLUDE");
 						if(clientEntry->groupFilterTimer>rtl_sysUpSeconds)

@@ -139,7 +139,5 @@ void KD_hmac_sha256( unsigned char *key, int keylen,
 void WapiSMS4ForMNKEncrypt(uint8 *key, uint8*IV, uint8*input, uint32 inputLength, uint8 *output, uint8 *outputLength, uint32 CryptFlag);
 void GenerateRandomData(unsigned char * data, unsigned int len);
 int32 init_SMS4_CK_Sbox(void);
-
-void SecSWSMS4Encryption(struct rtl8192cd_priv	*priv, struct tx_insn* txcfg);
 int32 SecSWSMS4Decryption(struct rtl8192cd_priv	*priv, struct stat_info *pstat, struct rx_frinfo* pfrinfo);
 #endif	/*	WAPICRYPTO_H	*/

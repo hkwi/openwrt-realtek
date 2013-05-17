@@ -1,12 +1,15 @@
 /*
-* Copyright c                  Realtek Semiconductor Corporation, 2002  
-* All rights reserved.
-* 
 * Program : Protocol Header rtl8651_proto.h
 * Abstract : 
 * Author : Chih-Hua Huang (chhuang@realtek.com.tw)               
 * $Id: rtl8651_tblDrvProto.h,v 1.1 2007-12-21 10:29:52 davidhsu Exp $
 *
+*  Copyright (c) 2011 Realtek Semiconductor Corp.
+*
+*  This program is free software; you can redistribute it and/or modify
+*  it under the terms of the GNU General Public License version 2 as
+*  published by the Free Software Foundation.
+
 */
 
 #ifndef RTL8651_TBLDRV_PROTO_H

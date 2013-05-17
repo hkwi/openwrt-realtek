@@ -29,9 +29,9 @@ index 33ef469..51cff6b 100644
  
 +EXTRA_CFLAGS += -I$(TOPDIR)/arch/rlx
 +
+ fwext=binfw
  SRCS_TXT = $(addprefix $(src)/data_,$(notdir $(patsubst %.txt,%.c,$(wildcard $(src)/$(RTL_WLAN_DATA_DIR)/*.txt))))
  SRCS_BIN = $(addprefix $(src)/data_,$(notdir $(patsubst %.bin,%.c,$(wildcard $(src)/$(RTL_WLAN_DATA_DIR)/*.bin))))
- SRCS_TXT += $(addprefix $(src)/data_,$(notdir $(patsubst %.txt,%.c,$(wildcard $(src)/$(RTL_WLAN_DATA_DIR_D)/*.txt))))
 diff --git a/drivers/usb/host/Makefile b/drivers/usb/host/Makefile
 index 9e62ed1..19afd87 100644
 --- a/drivers/usb/host/Makefile

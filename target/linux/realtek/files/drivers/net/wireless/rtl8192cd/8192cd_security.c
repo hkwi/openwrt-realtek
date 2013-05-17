@@ -14,11 +14,16 @@
 #ifdef __KERNEL__
 #include <asm/uaccess.h>
 #include <linux/module.h>
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
 #endif
 
 #include "./8192cd_cfg.h"
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && !defined(__ECOS)
 #include "./sys-support.h"
 #endif
 
@@ -57,7 +62,9 @@ return E_DOT1ZX_2LARGE if the item size is large than allocated
 --------------------------------------------------------------------------------*/
 int DOT11_EnQueue(unsigned long task_priv, DOT11_QUEUE *q, unsigned char *item, int itemsize)
 {
+#ifdef __KERNEL__
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+#endif
 	unsigned long flags;
 
 	if(DOT11_IsFullQueue(q))
@@ -82,7 +89,9 @@ int DOT11_EnQueue(unsigned long task_priv, DOT11_QUEUE *q, unsigned char *item, 
 
 int DOT11_DeQueue(unsigned long task_priv, DOT11_QUEUE *q, unsigned char *item, int *itemsize)
 {
+#ifdef __KERNEL__
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
+#endif
 	unsigned long flags;
 
 	if(DOT11_IsEmptyQueue(q))
@@ -280,7 +289,6 @@ static int DOT11_Process_Association_Rsp(struct net_device *dev, struct iw_point
 			{
 				cnt_assoc_num(priv, pstat, DECREASE, (char *)__FUNCTION__);
 				check_sta_characteristic(priv, pstat, DECREASE);
-
 				LOG_MSG("A STA is rejected by 802.1x daemon - %02X:%02X:%02X:%02X:%02X:%02X\n",
 						pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5]);
 			}
@@ -330,6 +338,7 @@ static int DOT11_Process_Disconnect_Req(struct net_device *dev, struct iw_point 
 		{
 			issue_disassoc(priv, BSSID, _RSON_DEAUTH_STA_LEAVING_);					
 			OPMODE &= ~(WIFI_AUTH_SUCCESS | WIFI_ASOC_STATE);
+			start_clnt_lookup(priv, 1);
 			//SME_DEBUG("!!issue disconnect at wlan!!\n");
 		}else{
 			return (-1);
@@ -349,7 +358,6 @@ static int DOT11_Process_Disconnect_Req(struct net_device *dev, struct iw_point 
 		{
 			cnt_assoc_num(priv, pstat, DECREASE, (char *)__FUNCTION__);
 			check_sta_characteristic(priv, pstat, DECREASE);
-
 			LOG_MSG("A STA is rejected by 802.1x daemon - %02X:%02X:%02X:%02X:%02X:%02X\n",
 					pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5]);
 		}
@@ -441,8 +449,6 @@ static __inline__ void set_tkip_key(struct Dot11EncryptKey *pEncryptKey, UINT8 *
 	memcpy(pEncryptKey->dot11TMicKey1.skey, src + 16, pEncryptKey->dot11TMicKeyLen);
 
 	memcpy(pEncryptKey->dot11TMicKey2.skey, src + 24, pEncryptKey->dot11TMicKeyLen);
-
-	pEncryptKey->dot11TXPN48.val48 = 0;
 }
 
 
@@ -558,6 +564,10 @@ int DOT11_Process_Set_Key(struct net_device *dev, struct iw_point *data,
 	if(Set_Key.KeyType == DOT11_KeyType_Group)
 	{
 		int set_gkey_to_cam = 0;
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8188E)
+			set_gkey_to_cam = 1;
+#endif
 
 #ifdef UNIVERSAL_REPEATER
 		if (IS_VXD_INTERFACE(priv))
@@ -928,6 +938,18 @@ static int DOT11_Process_Set_Port(struct net_device *dev, struct iw_point *data)
 	else
 		pstat->ieee8021x_ctrlport = pmib->dot118021xAuthEntry.dot118021xDefaultPort;
 
+#ifdef P2P_SUPPORT
+	if((OPMODE&WIFI_P2P_SUPPORT)&&( P2PMODE ==P2P_CLIENT)){
+
+		/*to indicate web server that data path is connected done(can start issue udhcpc daemon)*/
+		P2P_STATE = P2P_S_CLIENT_CONNECTED_DHCPC;
+		priv->p2pPtr->clientmode_try_connect = 0;
+		P2P_DEBUG("Set_Port Sta[%02X%02X%02X%02X%02X%02X],Status=%X\n\n\n",
+			Set_Port->MACAddr[0],Set_Port->MACAddr[1],Set_Port->MACAddr[2],
+			Set_Port->MACAddr[3],Set_Port->MACAddr[4],Set_Port->MACAddr[5],
+			Set_Port->PortStatus);
+	}
+#endif	
 	return 0;
 }
 
@@ -1141,7 +1163,11 @@ int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
 }
 
 
+#ifdef __KERNEL__
 void DOT11_Process_MIC_Timerup(unsigned long data)
+#elif defined(__ECOS)
+void DOT11_Process_MIC_Timerup(void *data)
+#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)data;
 
@@ -1153,7 +1179,11 @@ void DOT11_Process_MIC_Timerup(unsigned long data)
 }
 
 
+#ifdef __KERNEL__
 void DOT11_Process_Reject_Assoc_Timerup(unsigned long data)
+#elif defined(__ECOS)
+void DOT11_Process_Reject_Assoc_Timerup(void *data)
+#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)data;
 
@@ -1175,18 +1205,18 @@ void DOT11_Indicate_MIC_Failure_Clnt(struct rtl8192cd_priv *priv, unsigned char 
 	DOT11_MIC_FAILURE	Mic_Failure;
 	struct stat_info 	*pstat_del;
 	DOT11_DISASSOCIATION_IND Disassociation_Ind;
-	int	i;
+	//int	i;
 #ifndef WITHOUT_ENQUEUE
 	Mic_Failure.EventId = DOT11_EVENT_MIC_FAILURE;
 	Mic_Failure.IsMoreEvent = 0;
 	memcpy(&Mic_Failure.MACAddr, sa, MACADDRLEN);
 	DOT11_EnQueue((unsigned long)priv, priv->pevent_queue, (UINT8 *)&Mic_Failure, sizeof(DOT11_MIC_FAILURE));
 #endif
+	event_indicate(priv, sa, 5);
 #if defined(CLIENT_MODE) && defined(INCLUDE_WPA_PSK)
 	if (OPMODE & (WIFI_STATION_STATE | WIFI_ASOC_STATE))
 		psk_indicate_evt(priv, DOT11_EVENT_MIC_FAILURE, BSSID, NULL, 0);
 #endif
-	event_indicate(priv, sa, 5);
 #ifdef WIFI_WPAS
 	event_indicate_wpas(priv, sa, WPAS_MIC_FAILURE, NULL);
 #endif
@@ -1248,24 +1278,26 @@ void DOT11_Indicate_MIC_Failure_Clnt(struct rtl8192cd_priv *priv, unsigned char 
 }
 
 
-#if 0
+#ifdef RADIUS_ACCOUNTING
 void DOT11_Process_Acc_SetExpiredTime(struct net_device *dev, struct iw_point *data)
 {
-	struct rtl8180_priv	*priv = (struct rtl8180_priv *) dev->priv;
-	WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
+	//WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
 	DOT11_SET_EXPIREDTIME	*Set_ExpireTime = (DOT11_SET_EXPIREDTIME *)data->pointer;
-	int	sta_tbl_idx;
-
-	Set_ExpireTime->EventId = DOT11_EVENT_ACC_SET_EXPIREDTIME;
-	Set_ExpireTime->IsMoreEvent = 0;
+	struct stat_info *pstat=NULL;
 
 	if( Set_ExpireTime != NULL ){
-		if( wlan_sta_tbl_lookup(wCtx, Set_ExpireTime->MACAddr, &sta_tbl_idx) == TRUE ){
-			wCtx->wlan_sta_tbl[sta_tbl_idx].def_expired_time = Set_ExpireTime->ExpireTime;
-			DEBUG_INFO("%s: Set wlan_sta_tbl[%d].def_expired_time = %ld!\n", (char *)__FUNCTION__, sta_tbl_idx, Set_ExpireTime->ExpireTime);
+		Set_ExpireTime->EventId = DOT11_EVENT_ACC_SET_EXPIREDTIME;
+		Set_ExpireTime->IsMoreEvent = 0;
+		
+		if( (pstat = get_stainfo(priv, Set_ExpireTime->MACAddr)) ){
+			pstat->def_expired_time = Set_ExpireTime->ExpireTime;
+			DEBUG_INFO("%s: Set %02x:%02x:%02x:%02x:%02x:%02x def_expired_time = %ld!\n", (char *)__FUNCTION__,
+				pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5],
+				Set_ExpireTime->ExpireTime);
 		}
 		else{
-			DEBUG_ERR("%s: ERROR wlan_sta_tbl_lookup!\n", (char *)__FUNCTION__);
+			DEBUG_ERR("%s: ERRO, CAN NOT GET STA INFO!\n", (char *)__FUNCTION__);
 		}
 	}
 	else{
@@ -1276,27 +1308,28 @@ void DOT11_Process_Acc_SetExpiredTime(struct net_device *dev, struct iw_point *d
 
 void DOT11_Process_Acc_QueryStats(struct net_device *dev, struct iw_point *data)
 {
-	struct rtl8180_priv	*priv = (struct rtl8180_priv *) dev->priv;
-	WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
+	//WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
+	struct stat_info *pstat=NULL;
 	DOT11_QUERY_STATS	*pStats = (DOT11_QUERY_STATS *)data->pointer;
-	int	sta_tbl_idx;
-
-	pStats->EventId = DOT11_EVENT_ACC_QUERY_STATS;
-	pStats->IsMoreEvent = 0;
 
 	if( pStats != NULL ){
-		if( wlan_sta_tbl_lookup(wCtx, pStats->MACAddr, &sta_tbl_idx) == TRUE ){
-			pStats->tx_packets = wCtx->wlan_sta_tbl[sta_tbl_idx].tx_packets ;
-			pStats->rx_packets = wCtx->wlan_sta_tbl[sta_tbl_idx].rx_packets ;
-			pStats->tx_bytes = wCtx->wlan_sta_tbl[sta_tbl_idx].tx_bytes ;
-			pStats->rx_bytes = wCtx->wlan_sta_tbl[sta_tbl_idx].rx_bytes ;
+		pStats->EventId = DOT11_EVENT_ACC_QUERY_STATS;
+		pStats->IsMoreEvent = 0;
+		
+		if( (pstat = get_stainfo(priv, pStats->MACAddr)) ){
+			pStats->tx_packets = pstat->tx_pkts;
+			pStats->rx_packets = pstat->rx_pkts;
+			pStats->tx_bytes = pstat->tx_bytes;
+			pStats->rx_bytes = pstat->rx_bytes;
 
 			pStats->IsSuccess = TRUE;
-			DEBUG_INFO("%s: Get wlan_sta_tbl[%d].stats!\n", (char *)__FUNCTION__, sta_tbl_idx);
+			DEBUG_INFO("%s: Get %02x:%02x:%02x:%02x:%02x:%02x stats!\n", (char *)__FUNCTION__,
+				pstat->hwaddr[0],pstat->hwaddr[1],pstat->hwaddr[2],pstat->hwaddr[3],pstat->hwaddr[4],pstat->hwaddr[5]);
 		}
 		else{
 			pStats->IsSuccess = FALSE;
-			DEBUG_ERR("%s: ERROR wlan_sta_tbl_lookup!\n", (char *)__FUNCTION__);
+			DEBUG_ERR("%s: ERROR, CAN NOT GET STA INFO!\n", (char *)__FUNCTION__);
 		}
 	}
 	else{
@@ -1310,28 +1343,30 @@ void DOT11_Process_Acc_QueryStats(struct net_device *dev, struct iw_point *data)
 //data->pointer = (unsigned char *)stats;
 void DOT11_Process_Acc_QueryStats_All(struct net_device *dev, struct iw_point *data)
 {
-	struct rtl8180_priv	*priv = (struct rtl8180_priv *) dev->priv;
-	WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
+	struct list_head *phead=NULL, *plist=NULL;
+	struct stat_info *pstat=NULL;
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
+	//WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
 	DOT11_QUERY_STATS	*pStats = (DOT11_QUERY_STATS *)data->pointer;
-	int i;
+	//int i;
 	int cnt = 0;
 
+	phead = &priv->asoc_list;
+
 	if( pStats != NULL ){
+		plist = phead->next;
+		while (plist != phead) {
+			pstat = list_entry(plist, struct stat_info, asoc_list);
+		
+			pStats[cnt].EventId = DOT11_EVENT_ACC_QUERY_STATS_ALL;
+			pStats[cnt].IsMoreEvent = 0;
+			memcpy( pStats[cnt].MACAddr, pstat->hwaddr, MACADDRLEN );
+			pStats[cnt].tx_packets = pstat->tx_pkts;
+			pStats[cnt].rx_packets = pstat->rx_pkts;
+			pStats[cnt].tx_bytes = pstat->tx_bytes;
+			pStats[cnt].rx_bytes = pstat->rx_bytes;
 
-		for( i=1; i<=RTL_AP_MAX_STA_NUM; i++ ){
-			if( ( wCtx->wlan_sta_tbl[i].aid != 0 ) && GstaInfo_assoc( wCtx, i ) ){
-
-				pStats[cnt].EventId = DOT11_EVENT_ACC_QUERY_STATS_ALL;
-				pStats[cnt].IsMoreEvent = 0;
-
-				memcpy( pStats[cnt].MACAddr, wCtx->wlan_sta_tbl[i].addr, 6 );
-				pStats[cnt].tx_packets = wCtx->wlan_sta_tbl[i].tx_packets ;
-				pStats[cnt].rx_packets = wCtx->wlan_sta_tbl[i].rx_packets ;
-				pStats[cnt].tx_bytes = wCtx->wlan_sta_tbl[i].tx_bytes ;
-				pStats[cnt].rx_bytes = wCtx->wlan_sta_tbl[i].rx_bytes ;
-
-				cnt++;
-			}
+			cnt++;
 		}
 	}
 	else{
@@ -1629,12 +1664,12 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 			break;
 
 		case DOT11_EVENT_ACC_SET_EXPIREDTIME:
-			//DOT11_Process_Acc_SetExpiredTime(dev, data);
+			DOT11_Process_Acc_SetExpiredTime(dev, data);
 			DEBUG_INFO("trying to Set ACC Expiredtime\n");
 			break;
 
 		case DOT11_EVENT_ACC_QUERY_STATS:
-			//DOT11_Process_Acc_QueryStats(dev, data);
+			DOT11_Process_Acc_QueryStats(dev, data);
 			DEBUG_INFO("trying to Set ACC Expiredtime\n");
 			break;
 

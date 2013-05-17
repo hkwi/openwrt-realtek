@@ -1,10 +1,10 @@
 /*
-* Copyright c                  Realtek Semiconductor Corporation, 2008  
+* Copyright c                  Realtek Semiconductor Corporation, 2008
 * All rights reserved.
-* 
+*
 * Program : network interface driver header file
-* Abstract : 
-* Author : hyking (hyking_liu@realsil.com.cn)  
+* Abstract :
+* Author : hyking (hyking_liu@realsil.com.cn)
 */
 
 #ifndef RTL865X_NETIF_H
@@ -28,7 +28,7 @@
 #if 1 //def CONFIG_RTL_LAYERED_DRIVER_ACL
 typedef struct _rtl865x_AclRule_s
 {
-	union 
+	union
 	{
 		/* MAC ACL rule */
 		struct {
@@ -36,7 +36,7 @@ typedef struct _rtl865x_AclRule_s
 			ether_addr_t _srcMac, _srcMacMask;
 			uint16 _typeLen, _typeLenMask;
 		} MAC;
-		
+
 		/* IP Group ACL rule */
 		struct
 		{
@@ -50,31 +50,31 @@ typedef struct _rtl865x_AclRule_s
 				{
 					uint8 _proto, _protoMask, _flagMask;// flag & flagMask only last 3-bit is meaning ful
 					uint32 _FOP:1, _FOM:1, _httpFilter:1, _httpFilterM:1, _identSrcDstIp:1, _identSrcDstIpM:1;
-					union 
+					union
 					{
 						uint8 _flag;
-						struct 
+						struct
 						{
 							uint8 pend1:5,
 								 pend2:1,
 								 _DF:1,	//don't fragment flag
 								 _MF:1;	//more fragments flag
 						} s;
-					} un;							
-				} ip; 
-				
+					} un;
+				} ip;
+
 				/* ICMP ACL rule */
-				struct 
+				struct
 				{
 					uint8 _type, _typeMask, _code, _codeMask;
-				} icmp; 
-				
+				} icmp;
+
 				/* IGMP ACL rule */
 				struct
 				{
 					uint8 _type, _typeMask;
-				} igmp; 
-				
+				} igmp;
+
 				/* TCP ACL rule */
 				struct
 				{
@@ -94,20 +94,20 @@ typedef struct _rtl865x_AclRule_s
 								  _syn:1, //sync bit
 								  _fin:1; //fin bit
 						}s;
-					}un;					
+					}un;
 				}tcp;
-				
+
 				/* UDP ACL rule */
-				struct 
+				struct
 				{
 					uint16 _srcPortUpperBound, _srcPortLowerBound;
-					uint16 _dstPortUpperBound, _dstPortLowerBound;										
-				}udp; 
-			}is;			
-		}L3L4; 
+					uint16 _dstPortUpperBound, _dstPortLowerBound;
+				}udp;
+			}is;
+		}L3L4;
 
 		/* Source filter ACL rule */
-		struct 
+		struct
 		{
 			ether_addr_t _srcMac, _srcMacMask;
 			uint16 _srcPort, _srcPortMask;
@@ -117,9 +117,9 @@ typedef struct _rtl865x_AclRule_s
 			uint32 _ignoreL4:1, //L2 rule
 				  	 _ignoreL3L4:1; //L3 rule
 		} SRCFILTER;
-		
+
 		/* Destination filter ACL rule */
-		struct 
+		struct
 		{
 			ether_addr_t _dstMac, _dstMacMask;
 			uint16 _vlanIdx, _vlanIdxMask;
@@ -135,7 +135,7 @@ typedef struct _rtl865x_AclRule_s
 #endif
 	}un_ty;
 
-	
+
 	uint32	ruleType_:5,
 			actionType_:4,
 			pktOpApp_:3,
@@ -145,17 +145,17 @@ typedef struct _rtl865x_AclRule_s
 			upDown_:1,//0: uplink acl rule for hw qos; 1: downlink acl rule for hw qos
 #endif
 			nexthopIdx_:5, /* Index of nexthop table (NOT L2 table) */	/* used as network interface index for 865xC qos system */
-			ratelimtIdx_:4; /* Index of rate limit table */	/* used as outputQueue index for 865xC qos system */		
+			ratelimtIdx_:4; /* Index of rate limit table */	/* used as outputQueue index for 865xC qos system */
 
-	
+
 	uint32	netifIdx_:3, /*for redirect*/
 			pppoeIdx_:3, /*for redirect*/
 			L2Idx_:10, /* Index of L2 table */
 			inv_flag:8, /*mainly for iptables-->acl rule, when iptables rule has invert netif flag, this acl rule is added to other netifs*/
 			aclIdx:7;	/* aisc entry idx */
-	
+
 	struct _rtl865x_AclRule_s *pre,*next;
-	
+
 }rtl865x_AclRule_t;
 
 
@@ -203,7 +203,7 @@ typedef struct _rtl865x_AclRule_s
 
 /* ICMP ACL Rule Definition */
 #define icmpType_				un_ty.L3L4.is.icmp._type
-#define icmpTypeMask_			un_ty.L3L4.is.icmp._typeMask	
+#define icmpTypeMask_			un_ty.L3L4.is.icmp._typeMask
 #define icmpCode_				un_ty.L3L4.is.icmp._code
 #define icmpCodeMask_			un_ty.L3L4.is.icmp._codeMask
 
@@ -323,6 +323,7 @@ typedef struct _rtl865x_AclRule_s
 #define RTL865X_ACLTBL_ALL_TO_CPU		127  // This rule is always "To CPU"
 #define RTL865X_ACLTBL_DROP_ALL		126 //This rule is always "Drop"
 #define RTL865X_ACLTBL_PERMIT_ALL		125     // This rule is always "Permit"
+#define RTL865X_ACLTBL_IPV6_TO_CPU		124
 
 #define MAX_IFNAMESIZE 16
 #define NETIF_NUMBER 8
@@ -346,6 +347,12 @@ typedef struct _rtl865x_AclRule_s
 #define RTL_DRV_LAN_NETIF_NAME "eth0"
 #endif
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+#define RTL_BR1_NAME "br1"
+#define RTL_PS_BR1_DEV_NAME     RTL_BR1_NAME
+#define RTL_PS_ETH_NAME_ETH2	"eth2"
+#endif
+
 #define RTL_DRV_WAN0_NETIF_NAME "eth1"
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
 #define RTL_DRV_WAN1_NETIF_NAME "eth6"
@@ -359,92 +366,132 @@ typedef struct _rtl865x_AclRule_s
 #define RTL_DRV_LAN_P4_NETIF_NAME RTL_DRV_WAN0_NETIF_NAME
 #define RTL_DRV_LAN_P5_NETIF_NAME "eth5"
 
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+#define RTL_DRV_LAN_P7_NETIF_NAME "eth7"
+#endif
+
+
 /************************************
 *	const variable defination
 *************************************/
 #define	RTL_WANVLANID			8
 #define	RTL_LANVLANID			9
+
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
 #define	RTL_WAN_1_VLANID		369
 #endif
+
 #if defined(CONFIG_RTL8196_RTL8366)
-	#define	RTL_WANPORT_MASK		0x1C1
-	#define	RTL_LANPORT_MASK			0x1C1
-	#define	RTL8366RB_GMIIPORT		0x20
-	#define	RTL8366RB_LANPORT		0xCf
-	#define	RTL8366RB_WANPORT		0x10	
+	#define RTL_WANPORT_MASK		0x1C1
+	#define RTL_LANPORT_MASK		0x1C1
+	#define RTL8366RB_GMIIPORT		0x20
+	#define RTL8366RB_LANPORT		0xCf
+	#define RTL8366RB_WANPORT		0x10
+
 #elif defined(CONFIG_RTL_819X) && (defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV))
-#if defined (CONFIG_POCKET_ROUTER_SUPPORT)
-	#define	RTL_WANPORT_MASK		0x10
-	#define	RTL_LANPORT_MASK			0x10
-#elif defined(CONFIG_RTL_PUBLIC_SSID)
-	#define RTL_WANPORT_MASK			0x110     //port 4/port 8
-	#define	RTL_LANPORT_MASK			0x10f
-#elif defined(CONFIG_8198_PORT5_RGMII)
-	#define	RTL_WANPORT_MASK		0x10
-	#define	RTL_LANPORT_MASK			0x12f
-#else	
-        #if defined (CONFIG_RTL_8196C_iNIC)	
-	#define	RTL_WANPORT_MASK		0x01
-	#define	RTL_LANPORT_MASK			0x110 //mark_inic , only port4 connect to MII
-	#elif defined (CONFIG_RTK_INBAND_HOST_HACK)
-		#if defined (CONFIG_8198_PORT5_GMII)
-		#define RTL_WANPORT_MASK                0x120  //port5 ,hack port,eth1
-		#define RTL_LANPORT_MASK                        0x11f // 0~4 port eth0
+	#if defined (CONFIG_POCKET_ROUTER_SUPPORT)
+		#define RTL_WANPORT_MASK		0x10
+		#define RTL_LANPORT_MASK		0x10
+
+	#elif defined(CONFIG_RTL_PUBLIC_SSID)
+		#define RTL_WANPORT_MASK		0x110 //port 4/port 8
+		#define RTL_LANPORT_MASK		0x10f
+
+	#elif defined(CONFIG_8198_PORT5_RGMII)
+		#define RTL_WANPORT_MASK		0x10
+		#define RTL_LANPORT_MASK		0x12f
+	#else
+		#if defined (CONFIG_RTL_8196C_iNIC)
+			#define RTL_WANPORT_MASK		0x01
+			#define RTL_LANPORT_MASK		0x110 //mark_inic, only port4 connect to MII
+		#elif defined (CONFIG_RTK_INBAND_HOST_HACK)
+			#if defined (CONFIG_8198_PORT5_GMII)
+				#define RTL_WANPORT_MASK	0x120 //port5, hack port,eth1
+				#define RTL_LANPORT_MASK	0x11f //0~4 port eth0
+			#else
+				#define RTL_WANPORT_MASK	0x110 //port4(port0 in some board) is eth1
+				#define RTL_LANPORT_MASK	0x12f //0 1 2 3 5  port are eth0
+			#endif
+		#elif defined (CONFIG_8198_PORT5_GMII)
+			#define RTL_WANPORT_MASK		0x10  //port0
+			#define RTL_LANPORT_MASK		0x12f //all port eth0
+		#elif defined (CONFIG_RTL_89xxD)
+			#define RTL_WANPORT_MASK		0x01  //port0
+			#define RTL_LANPORT_MASK		0x11e //all port eth0
+		#elif defined (CONFIG_RTL_8196EU)
+			#define RTL_WANPORT_MASK		0x01f
+			#define RTL_LANPORT_MASK		0x11f
 		#else
-		#define RTL_WANPORT_MASK                0x110  //port4(port0 in some board) is eth1
-		#define RTL_LANPORT_MASK                        0x12f // 0 1 2 3 5  port are eth0
+			// 8196e, 8196c are here?
+			#define RTL_WANPORT_MASK		0x10
+			#define RTL_LANPORT_MASK		0x10f
 		#endif
-	#elif defined (CONFIG_8198_PORT5_GMII)
-        #define RTL_WANPORT_MASK                0x10  //port0
-        #define RTL_LANPORT_MASK                        0x12f //all port eth0
+	#endif
+
+	#if defined(CONFIG_RTL_89xxD)
+		#define RTL_LANPORT_MASK_1		0x2  //port 1
+		#define RTL_LANPORT_MASK_2		0x4  //port 2
+		#define RTL_LANPORT_MASK_3		0x8  //port 3
+		#define RTL_LANPORT_MASK_4		0x10 //port 4
 	#else
-	#define	RTL_WANPORT_MASK		0x10
-	#define	RTL_LANPORT_MASK			0x10f
-        #endif
-#endif
-	#define 	RTL_LANPORT_MASK_1		0x8		//port 0
-	#define	RTL_LANPORT_MASK_2		0x4		//port 1
-	#define 	RTL_LANPORT_MASK_3		0x2		//port 2
-	#define 	RTL_LANPORT_MASK_4		0x1		//port 3
+		#define RTL_LANPORT_MASK_1		0x8 //port 0
+		#define RTL_LANPORT_MASK_2		0x4 //port 1
+		#define RTL_LANPORT_MASK_3		0x2 //port 2
+		#define RTL_LANPORT_MASK_4		0x1 //port 3
+	#endif
+
 	#ifdef CONFIG_8198_PORT5_GMII
-	#define 	RTL_LANPORT_MASK_5		0x20	//port 5
+		#define RTL_LANPORT_MASK_5		0x20 //port 5
 	#endif
+
 #elif defined(CONFIG_RTL_8198_NFBI_BOARD)
-	#define	RTL_WANPORT_MASK		0x1e0  //port 5, port 6,port 7,port 8
-	#define	RTL_LANPORT_MASK			0x1df //port 0~4 , port 6~8  , need port4 ??
+	#define RTL_WANPORT_MASK		0x1e0 //port 5, port 6,port 7,port 8
+	#define RTL_LANPORT_MASK		0x1df //port 0~4 , port 6~8  , need port4 ??
+
 #elif defined(CONFIG_8198_PORT5_GMII)
-	#define	RTL_WANPORT_MASK		0x110
-	#define	RTL_LANPORT_MASK			0x1ef
+	#define RTL_WANPORT_MASK		0x110
+	#define RTL_LANPORT_MASK		0x1ef
+
 #elif defined (CONFIG_POCKET_ROUTER_SUPPORT)
-	#define	RTL_WANPORT_MASK		0x10
-	#define	RTL_LANPORT_MASK			0x10
+	#define RTL_WANPORT_MASK		0x10
+	#define RTL_LANPORT_MASK		0x10
+
 #elif defined(CONFIG_RTL_PUBLIC_SSID)
-	#define RTL_WANPORT_MASK		0x110     //port 4/port 8
-#elif defined(CONFIG_RTL8186_KB_N) || defined(CONFIG_RTL_819X)	/*	defined(CONFIG_RTL8196_RTL8366)	*/
+	#define RTL_WANPORT_MASK		0x110 //port 4/port 8
+
+#elif defined(CONFIG_RTL8186_KB_N) || defined(CONFIG_RTL_819X) /*defined(CONFIG_RTL8196_RTL8366)*/
         #ifdef CONFIG_RTL_8196C_iNIC
-        #define RTL_WANPORT_MASK                0x01
-        #define RTL_LANPORT_MASK                        0x110 //mark_inic , only port4 connect to MII
+		#define RTL_WANPORT_MASK	0x01
+		#define RTL_LANPORT_MASK	0x110 //mark_inic, only port4 connect to MII
 	#else
-	#define	RTL_WANPORT_MASK		0x10
-	#define	RTL_LANPORT_MASK			0x10f
+		#define	RTL_WANPORT_MASK	0x10
+		#define	RTL_LANPORT_MASK	0x10f
 	#endif
+
 #else
 	#define	RTL_WANPORT_MASK		0x01
-	#define	RTL_LANPORT_MASK			0x11e		/* port1/2/3/4/cpu port(port 8) */
+	#define	RTL_LANPORT_MASK		0x11e /* port1/2/3/4/cpu port(port 8) */
 	#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
-	#define 	RTL_LANPORT_MASK_1		0x2		//port 1
-	#define	RTL_LANPORT_MASK_2		0x4		//port 2
-	#define 	RTL_LANPORT_MASK_3		0x8		//port 3
-	#define 	RTL_LANPORT_MASK_4		0x10	//port 4
+		#define RTL_LANPORT_MASK_1	0x2  //port 1
+		#define RTL_LANPORT_MASK_2	0x4  //port 2
+		#define RTL_LANPORT_MASK_3	0x8  //port 3
+		#define RTL_LANPORT_MASK_4	0x10 //port 4
 	#endif
-#endif	/*	defined(CONFIG_RTL8186_KB_N) || defined(CONFIG_RTL_819X)	*/
+#endif /* defined(CONFIG_RTL8186_KB_N) || defined(CONFIG_RTL_819X) */
 
-#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV) 
+#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
 #if defined(CONFIG_8198_PORT5_GMII)
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+	#define ETH_INTF_NUM	7
+#else
+	#define ETH_INTF_NUM	6
+#endif
+#else
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
 	#define ETH_INTF_NUM	6
 #else
 	#define ETH_INTF_NUM	5
+#endif
 #endif
 #else
 #define ETH_INTF_NUM	2
@@ -453,17 +500,17 @@ typedef struct _rtl865x_AclRule_s
 typedef struct rtl865x_netif_s
 {
 	uint16 	vid; /*netif->vid*/
-	uint16 	mtu; /*netif's MTU*/	
-	uint32 	if_type:5; /*interface type, 0:ether,1:pppoe....*/			
+	uint16 	mtu; /*netif's MTU*/
+	uint32 	if_type:5; /*interface type, 0:ether,1:pppoe....*/
 	ether_addr_t macAddr;
 	uint32	is_wan:1, /*wan interface?*/
 			dmz:1,	/*DMZ/routing lan*/
 			is_slave:1; /*is slave interface?*/
-	uint8	name[MAX_IFNAMESIZE];	
+	uint8	name[MAX_IFNAMESIZE];
 	uint16	enableRoute;
-#if defined (CONFIG_RTL_LOCAL_PUBLIC)
+#if defined (CONFIG_RTL_LOCAL_PUBLIC) ||defined(CONFIG_RTL_MULTIPLE_WAN)
 	uint16	forMacBasedMCast;
-#endif		
+#endif
 }rtl865x_netif_t;
 
 /*internal...*/
@@ -492,6 +539,15 @@ int  rtl865x_del_pattern_acl_for_contentFilter(rtl865x_AclRule_t *rule,char *net
 #ifdef RTL_LAYERED_DRIVER_DEBUG
 int32 rtl865x_acl_test(int32 testNo);
 #endif
+
+
+//#define CONFIG_RTL_IPTABLES2ACL_PATCH 1
+#if defined(CONFIG_RTL_IPTABLES2ACL_PATCH)
+int32 rtl865x_add_sw_acl(rtl865x_AclRule_t *rule, char *netifName,int32 priority);
+int32 _rtl865x_synAclwithAsicTbl(void);
+int32 rtl865x_flush_allAcl_sw_fromChain(char *netifName, int32 priority, uint32 flag);
+#endif
+
 
 int32 rtl865x_deReferNetif(char *ifName);
 int32 rtl865x_referNetif(char *ifName);

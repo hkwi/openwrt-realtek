@@ -1,0 +1,324 @@
+--- linux-2.6.30.9/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/Makefile	2013-05-02 01:47:49.297227417 +0300
+@@ -2,7 +2,7 @@
+ PATCHLEVEL = 6
+ SUBLEVEL = 30
+ EXTRAVERSION = .9
+-NAME = Man-Eating Seals of Antiquity
++NAME = ON748BDD
+ 
+ # *DOCUMENTATION*
+ # To see a list of typical targets execute "make help"
+@@ -159,18 +159,6 @@
+ export srctree objtree VPATH TOPDIR
+ 
+ 
+-# SUBARCH tells the usermode build what the underlying arch is.  That is set
+-# first, and if a usermode build is happening, the "ARCH=um" on the command
+-# line overrides the setting of ARCH below.  If a native build is happening,
+-# then ARCH is assigned, getting whatever value it gets normally, and 
+-# SUBARCH is subsequently ignored.
+-
+-SUBARCH := $(shell uname -m | sed -e s/i.86/i386/ -e s/sun4u/sparc64/ \
+-				  -e s/arm.*/arm/ -e s/sa110/arm/ \
+-				  -e s/s390x/s390/ -e s/parisc64/parisc/ \
+-				  -e s/ppc.*/powerpc/ -e s/mips.*/mips/ \
+-				  -e s/sh[234].*/sh/ )
+-
+ # Cross compiling and selecting different set of gcc/bin-utils
+ # ---------------------------------------------------------------------------
+ #
+@@ -189,41 +177,23 @@
+ # Alternatively CROSS_COMPILE can be set in the environment.
+ # Default value for CROSS_COMPILE is not to prefix executables
+ # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
+-export KBUILD_BUILDHOST := $(SUBARCH)
+-ARCH		?= $(SUBARCH)
+-CROSS_COMPILE	?=
+-
+-# Architecture as present in compile.h
+-UTS_MACHINE 	:= $(ARCH)
+-SRCARCH 	:= $(ARCH)
+-
+-# Additional ARCH settings for x86
+-ifeq ($(ARCH),i386)
+-        SRCARCH := x86
+-endif
+-ifeq ($(ARCH),x86_64)
+-        SRCARCH := x86
+-endif
+ 
+-# Additional ARCH settings for sparc
+-ifeq ($(ARCH),sparc64)
+-       SRCARCH := sparc
+-endif
++ARCH		  := rlx
++#ARCH		  := mips
++UTS_MACHINE   := $(ARCH)
++SRCARCH       := $(ARCH)
++SUBARCH       := $(ARCH)
++ARCH_VMLINUX  := arch/$(ARCH)/bsp/vmlinux.lds
++#ARCH_VMLINUX  := arch/$(ARCH)/kernel/vmlinux.lds
+ 
+-# Additional ARCH settings for sh
+-ifeq ($(ARCH),sh64)
+-       SRCARCH := sh
+-endif
++CROSS_COMPILE ?= rsdk-linux-
+ 
+-# Where to locate arch specific headers
+-hdr-arch  := $(SRCARCH)
+-
+-ifeq ($(ARCH),m68knommu)
+-       hdr-arch  := m68k
+-endif
++# Architecture as present in compile.h
+ 
+ KCONFIG_CONFIG	?= .config
+ 
++export KBUILD_BUILDHOST := $(ARCH)
++
+ # SHELL used by kbuild
+ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
+ 	  else if [ -x /bin/bash ]; then echo /bin/bash; \
+@@ -344,7 +314,7 @@
+ # Needed to be compatible with the O= option
+ LINUXINCLUDE    := -Iinclude \
+                    $(if $(KBUILD_SRC),-Iinclude2 -I$(srctree)/include) \
+-                   -I$(srctree)/arch/$(hdr-arch)/include               \
++                   -I$(srctree)/arch/$(ARCH)/include               \
+                    -include include/linux/autoconf.h
+ 
+ KBUILD_CPPFLAGS := -D__KERNEL__
+@@ -479,6 +449,19 @@
+ net-y		:= net/
+ libs-y		:= lib/
+ core-y		:= usr/
++
++include .config
++
++ifeq ($(CONFIG_RTK_VOIP),y)
++drivers-y	+= rtk_voip/
++endif
++ifeq ($(CONFIG_AUDIOCODES_VOIP),y)
++drivers-y	+= acmw_lx/
++endif
++
++ifeq ($(CONFIG_USB_UWIFI_HOST),y)
++UWIFI_INCLUDED = 1
++endif
+ endif # KBUILD_EXTMOD
+ 
+ ifeq ($(dot-config),1)
+@@ -499,6 +482,8 @@
+ # we execute the config step to be sure to catch updated Kconfig files
+ include/config/auto.conf: $(KCONFIG_CONFIG) include/config/auto.conf.cmd
+ 	$(Q)$(MAKE) -f $(srctree)/Makefile silentoldconfig
++
++ictest-$(CONFIG_RTL_ICTEST)		:= ictestbsp/
+ else
+ # external modules needs include/linux/autoconf.h and include/config/auto.conf
+ # but do not care if they are up-to-date. Use auto.conf to trigger the test
+@@ -651,7 +636,7 @@
+ 
+ vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, $(init-y) $(init-m) \
+ 		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
+-		     $(net-y) $(net-m) $(libs-y) $(libs-m)))
++		     $(net-y) $(net-m) $(ictest-y) $(libs-y) $(libs-m)))
+ 
+ vmlinux-alldirs	:= $(sort $(vmlinux-dirs) $(patsubst %/,%,$(filter %/, \
+ 		     $(init-n) $(init-) \
+@@ -662,6 +647,7 @@
+ core-y		:= $(patsubst %/, %/built-in.o, $(core-y))
+ drivers-y	:= $(patsubst %/, %/built-in.o, $(drivers-y))
+ net-y		:= $(patsubst %/, %/built-in.o, $(net-y))
++ictest-y		:= $(patsubst %/, %/built-in.o, $(ictest-y))
+ libs-y1		:= $(patsubst %/, %/lib.a, $(libs-y))
+ libs-y2		:= $(patsubst %/, %/built-in.o, $(libs-y))
+ libs-y		:= $(libs-y1) $(libs-y2)
+@@ -694,9 +680,9 @@
+ # System.map is generated to document addresses of all kernel symbols
+ 
+ vmlinux-init := $(head-y) $(init-y)
+-vmlinux-main := $(core-y) $(libs-y) $(drivers-y) $(net-y)
++vmlinux-main := $(core-y) $(libs-y) $(drivers-y) $(net-y) $(ictest-y)
+ vmlinux-all  := $(vmlinux-init) $(vmlinux-main)
+-vmlinux-lds  := arch/$(SRCARCH)/kernel/vmlinux.lds
++vmlinux-lds  := $(ARCH_VMLINUX) 
+ export KBUILD_VMLINUX_OBJS := $(vmlinux-all)
+ 
+ # Rule to link vmlinux - also used during CONFIG_KALLSYMS
+@@ -976,7 +962,7 @@
+ prepare2: prepare3 outputmakefile
+ 
+ prepare1: prepare2 include/linux/version.h include/linux/utsrelease.h \
+-                   include/asm include/config/auto.conf
++                   include/asm include/config/auto.conf ictestbsp_link
+ 	$(cmd_crmodverdir)
+ 
+ archprepare: prepare1 scripts_basic
+@@ -985,8 +971,27 @@
+ 	$(Q)$(MAKE) $(build)=.
+ 	$(Q)$(MAKE) $(build)=. missing-syscalls
+ 
++prepare_uWiFi:
++	rm -f ./include/linux/pm.h
++	rm -f ./include/linux/device.h
++	rm -f ./include/linux/pm_runtime.h
++	rm -f ./include/linux/usb.h
++ifeq ($(UWIFI_INCLUDED),1)
++	echo "<<<Apply uWiFi USB subsystem>>>"
++	cp -p ./drivers/staging/rtk_uWiFi/rtk_uWiFi_4181.obj ./drivers/staging/rtk_uWiFi/uWiFi.o
++	cp -p ./include/linux/device_uWiFi.h ./include/linux/device.h
++	cp -p ./include/linux/pm_uWiFi.h ./include/linux/pm.h
++	cp -p ./include/linux/pm_runtime_uWiFi.h ./include/linux/pm_runtime.h
++	cp -p ./include/linux/usb_uWiFi.h ./include/linux/usb.h
++else
++	echo "<<<Apply Orig USB subsystem>>>"
++	cp -p ./include/linux/device_sdk_orig.h ./include/linux/device.h
++	cp -p ./include/linux/pm_sdk_orig.h ./include/linux/pm.h
++	cp -p ./include/linux/usb_sdk_orig.h ./include/linux/usb.h
++endif
++
+ # All the preparing..
+-prepare: prepare0
++prepare: prepare_uWiFi prepare0
+ 
+ # Leave this as default for preprocessing vmlinux.lds.S, which is now
+ # done in arch/$(ARCH)/kernel/Makefile
+@@ -1029,6 +1034,18 @@
+ 	$(Q)$(check-symlink)
+ 	$(Q)$(create-symlink)
+ 
++define create-symlink-ictestbsp
++	if [ ! -L ictestbsp ]; then                                      \
++			echo '  SYMLINK ictestbsp -> ../../../ICTest/bsp/'; \
++			ln -fsn ../../../ICTest/bsp/ ictestbsp;    \
++	fi
++endef
++
++ictestbsp_link: FORCE
++ifeq ($(CONFIG_RTL_ICTEST),y)
++	@$(create-symlink-ictestbsp)
++endif
++
+ # Generate some files
+ # ---------------------------------------------------------------------------
+ 
+@@ -1086,11 +1103,11 @@
+ # Find out where the Kbuild file is located to support
+ # arch/$(ARCH)/include/asm
+ hdr-dir = $(strip                                                         \
+-          $(if $(wildcard $(srctree)/arch/$(hdr-arch)/include/asm/Kbuild), \
+-               arch/$(hdr-arch)/include/asm, include/asm-$(hdr-arch)))
++          $(if $(wildcard $(srctree)/arch/$(ARCH)/include/asm/Kbuild), \
++               arch/$(ARCH)/include/asm, include/asm-$(ARCH)))
+ 
+ # If we do an all arch process set dst to asm-$(hdr-arch)
+-hdr-dst = $(if $(KBUILD_HEADERS), dst=include/asm-$(hdr-arch), dst=include/asm)
++hdr-dst = $(if $(KBUILD_HEADERS), dst=include/asm-$(ARCH), dst=include/asm)
+ 
+ PHONY += __headers
+ __headers: include/linux/version.h scripts_basic FORCE
+@@ -1103,7 +1120,7 @@
+ PHONY += headers_install
+ headers_install: __headers
+ 	$(if $(wildcard $(srctree)/$(hdr-dir)/Kbuild),, \
+-	$(error Headers not exportable for the $(SRCARCH) architecture))
++	$(error Headers not exportable for the $(ARCH) architecture))
+ 	$(Q)$(MAKE) $(hdr-inst)=include
+ 	$(Q)$(MAKE) $(hdr-inst)=$(hdr-dir) $(hdr-dst)
+ 
+@@ -1180,11 +1197,8 @@
+ 
+ modules modules_install: FORCE
+ 	@echo
+-	@echo "The present kernel configuration has modules disabled."
+-	@echo "Type 'make config' and enable loadable module support."
+-	@echo "Then build a kernel with module support enabled."
++	@echo "modules disabled in current config, skipping ..."
+ 	@echo
+-	@exit 1
+ 
+ endif # CONFIG_MODULES
+ 
+@@ -1216,7 +1230,7 @@
+ 
+ PHONY += $(clean-dirs) clean archclean
+ $(clean-dirs):
+-	$(Q)$(MAKE) $(clean)=$(patsubst _clean_%,%,$@)
++	- - - $(Q)$(MAKE) $(clean)=$(patsubst _clean_%,%,$@)
+ 
+ clean: archclean $(clean-dirs)
+ 	$(call cmd,rmdirs)
+@@ -1227,6 +1241,8 @@
+ 		-o -name '*.symtypes' -o -name 'modules.order' \
+ 		-o -name 'Module.markers' -o -name '.tmp_*.o.*' \) \
+ 		-type f -print | xargs rm -f
++	rm -f ./arch/rlx/bsp/*.o
++	rm -f ./arch/rlx/bsp/.*.cmd
+ 
+ # mrproper - Delete all generated files, including .config
+ #
+@@ -1269,9 +1285,9 @@
+ # Brief documentation of the typical targets used
+ # ---------------------------------------------------------------------------
+ 
+-boards := $(wildcard $(srctree)/arch/$(SRCARCH)/configs/*_defconfig)
++boards := $(wildcard $(srctree)/arch/$(ARCH)/configs/*_defconfig)
+ boards := $(notdir $(boards))
+-board-dirs := $(dir $(wildcard $(srctree)/arch/$(SRCARCH)/configs/*/*_defconfig))
++board-dirs := $(dir $(wildcard $(srctree)/arch/$(ARCH)/configs/*/*_defconfig))
+ board-dirs := $(sort $(notdir $(board-dirs:/=)))
+ 
+ help:
+@@ -1317,9 +1333,9 @@
+ 	@echo  'Documentation targets:'
+ 	@$(MAKE) -f $(srctree)/Documentation/DocBook/Makefile dochelp
+ 	@echo  ''
+-	@echo  'Architecture specific targets ($(SRCARCH)):'
++	@echo  'Architecture specific targets ($(ARCH)):'
+ 	@$(if $(archhelp),$(archhelp),\
+-		echo '  No architecture specific help defined for $(SRCARCH)')
++		echo '  No architecture specific help defined for $(ARCH)')
+ 	@echo  ''
+ 	@$(if $(boards), \
+ 		$(foreach b, $(boards), \
+@@ -1345,10 +1361,10 @@
+ 
+ help-boards: $(help-board-dirs)
+ 
+-boards-per-dir = $(notdir $(wildcard $(srctree)/arch/$(SRCARCH)/configs/$*/*_defconfig))
++boards-per-dir = $(notdir $(wildcard $(srctree)/arch/$(ARCH)/configs/$*/*_defconfig))
+ 
+ $(help-board-dirs): help-%:
+-	@echo  'Architecture specific targets ($(SRCARCH) $*):'
++	@echo  'Architecture specific targets ($(ARCH) $*):'
+ 	@$(if $(boards-per-dir), \
+ 		$(foreach b, $(boards-per-dir), \
+ 		printf "  %-24s - Build for %s\\n" $*/$(b) $(subst _defconfig,,$(b));) \
+@@ -1419,7 +1435,7 @@
+ 
+ PHONY += $(clean-dirs) clean
+ $(clean-dirs):
+-	$(Q)$(MAKE) $(clean)=$(patsubst _clean_%,%,$@)
++	- - - $(Q)$(MAKE) $(clean)=$(patsubst _clean_%,%,$@)
+ 
+ clean:	rm-dirs := $(MODVERDIR)
+ clean: rm-files := $(KBUILD_EXTMOD)/Module.symvers \
+@@ -1480,15 +1496,7 @@
+ 
+ PHONY += checkstack kernelrelease kernelversion
+ 
+-# UML needs a little special treatment here.  It wants to use the host
+-# toolchain, so needs $(SUBARCH) passed to checkstack.pl.  Everyone
+-# else wants $(ARCH), including people doing cross-builds, which means
+-# that $(SUBARCH) doesn't work here.
+-ifeq ($(ARCH), um)
+-CHECKSTACK_ARCH := $(SUBARCH)
+-else
+ CHECKSTACK_ARCH := $(ARCH)
+-endif
+ checkstack:
+ 	$(OBJDUMP) -d vmlinux $$(find . -name '*.ko') | \
+ 	$(PERL) $(src)/scripts/checkstack.pl $(CHECKSTACK_ARCH)

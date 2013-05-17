@@ -1,0 +1,14 @@
+--- linux-2.6.30.9/arch/rlx/Kconfig.old	2013-05-17 19:37:08.271048287 +0300
++++ linux-2.6.30.9/arch/rlx/Kconfig	2013-05-17 19:24:57.126107469 +0300
+@@ -261,6 +261,11 @@
+ config SYS_HAS_EARLY_PRINTK
+ 	bool
+ 
++config PANIC_PRINTK
++	bool "realtek panic_printk"
++	depends on PRINTK
++	default y
++
+ config NO_IOPORT
+ 	def_bool n
+ 

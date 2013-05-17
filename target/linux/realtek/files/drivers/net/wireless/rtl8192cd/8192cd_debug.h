@@ -51,19 +51,30 @@ enum _module_define_ {
 	_UTIL_ =		0x00000080,
 	_TKIP_ =		0x00000100,
 	_AES_ =			0x00000200,
-	_CAM_ =			0x00000400,
+	_HOST_ =		0x00000400,
 	_BR_EXT_ =		0x00000800,
 	_EEPROM_ =		0x00001000,
 	_PSK_ =			0x00002000,
 	_MP_ =			0x00004000,
-	_MIB_=			0x00008000,
-	_MESH_=			0x00010000,	//plus add 0119
+	_MIB_ =			0x00008000,
+	_LED_ =			0x00010000,
 	_WPS_ =			0x00020000,	
-	_DHW_ = 		0x00040000,
+	_DHW_ =			0x00040000,
+	_HAL_ =			0x00080000,
+	_DM_ =			0x00100000,
+	_88E_HW_ =		0x00200000,
+	_DFS_ =			0x00400000,
+	_MESH_SME_ =	0x02000000,
+	_MESH_SECURITY_ =	0x04000000,
+	_MESH_TX_ =		0x08000000,
+	_MESH_RX_ =		0x10000000,
+	_MESH_UTIL_ =	0x20000000,
+	_MESH_ROUTE_ =	0x40000000,
+	_DM_COM_ =		0x80000000,
 };
 
 #if defined(_8192CD_OSDEP_C_)
-	#define _MODULE_DEFINE	_OSDEP_
+	#define _MODULE_DEFINE _OSDEP_
 	#define _MODULE_NAME	"osdep"
 
 #elif defined(_8192CD_SME_C_)
@@ -73,6 +84,10 @@ enum _module_define_ {
 #elif defined(_8192CD_IOCTL_C_)
 	#define _MODULE_DEFINE _IOCTL_
 	#define _MODULE_NAME	"ioctl"
+
+#elif defined(_8192CD_PROC_C_)
+	#define _MODULE_DEFINE _PROC_
+	#define _MODULE_NAME	"proc"
 
 #elif defined(_8192CD_TX_C_)
 	#define _MODULE_DEFINE _TX_
@@ -106,10 +121,6 @@ enum _module_define_ {
 	#define _MODULE_DEFINE _AES_
 	#define _MODULE_NAME	"aes"
 
-#elif defined(_8190N_CAM_C_)
-	#define _MODULE_DEFINE _CAM_
-	#define _MODULE_NAME	"cam"
-
 #elif defined(_8192CD_BR_EXT_C_)
 	#define _MODULE_DEFINE _BR_EXT_
 	#define _MODULE_NAME	"br_ext"
@@ -130,20 +141,80 @@ enum _module_define_ {
 	#define _MODULE_DEFINE _MIB_
 	#define _MODULE_NAME	"mib"
 
-#elif defined(_MESH_MOD_)	//plus add 0119
-	#define _MODULE_DEFINE _MESH_
-	#define _MODULE_NAME	"mesh"
+#elif defined(_8192CD_DMEM_C_)
+	//not yet
+
+#elif defined(_HAL8192CDM_C_)
+	#define _MODULE_DEFINE _HAL_
+	#define _MODULE_NAME	"hal"
 
 #elif defined(_8192CD_A4_STA_C_)
-	#define _MODULE_DEFINE _MIB_
+	#define _MODULE_DEFINE _A4STA_
 	#define _MODULE_NAME	"a4_sta"
 
 #elif defined(_8192CD_WSCD_C_)
 	#define _MODULE_DEFINE _WPS_
 	#define _MODULE_NAME	"wps"
 
+#elif defined(_MESH_SME_C_)
+	#define _MODULE_DEFINE _MESH_SME_
+	#define _MODULE_NAME	"mesh_sme"
+
+#elif defined(_MESH_TX_C_)
+	#define _MODULE_DEFINE _MESH_TX_
+	#define _MODULE_NAME	"mesh_tx"
+	
+#elif defined(_MESH_RX_C_)
+	#define _MODULE_DEFINE _MESH_RX_
+	#define _MODULE_NAME	"mehs_rx"
+
+#elif defined(_MESH_SECURITY_C_)
+	#define _MODULE_DEFINE _MESH_SECURITY_
+	#define _MODULE_NAME	"mesh_secutiry"
+
+#elif defined(_MESH_UTILS_C_)
+	#define _MODULE_DEFINE _MESH_UTIL_
+	#define _MODULE_NAME	"mesh_util"
+
+#elif defined(_MESH_ROUTE_C_)
+	#define _MODULE_DEFINE _MESH_ROUTE_
+	#define _MODULE_NAME	"mesh_route"
+
+#elif defined(_MESH_PROC_C_)
+	#define _MODULE_DEFINE _MESH_PROC_
+	#define _MODULE_NAME	"mesh_proc"
+
+#elif defined(_MESH_11KV_C_)
+	//not yet
+	
+#elif defined(_HAL8192CDM_C_)
+	#define _MODULE_DEFINE _DM_
+	#define _MODULE_NAME    "DM"
+
+#elif defined(_8188E_HW_C_)
+	#define _MODULE_DEFINE _88E_HW_
+	#define _MODULE_NAME    "88E_hw"
+
+#elif defined(_HALDM_COMMON_C_)
+	#define _MODULE_DEFINE _DM_COM_
+	#define _MODULE_NAME	"DM_COM"
+
+#elif defined(_8192CD_HOST_C_)
+	#define _MODULE_DEFINE _HOST_
+	#define _MODULE_NAME	"host"
+
+#elif defined(_8192CD_LED_C_)
+	#define _MODULE_DEFINE _LED_
+	#define _MODULE_NAME	"led"
+
+#elif defined(_8192CD_DFS_C_)
+	#define _MODULE_DEFINE _DFS_
+	#define _MODULE_NAME	"dfs"
+
 #else
+#ifndef USE_OUT_SRC
 	#error "error, no debug module is specified!\n"
+#endif	
 #endif
 
 /* Macro for DEBUG_ERR(), DEBUG_TRACE(), DEBUG_WARN(), DEBUG_INFO() */

@@ -45,11 +45,17 @@
   #endif
 #elif defined(CONFIG_SERIAL_SC16IS7X0)
 #define I2C_RATING_FACTOR	1
+#elif defined(CONFIG_SND_RTL8197D_SOC_ALC5628)
+#define I2C_RATING_FACTOR	10
 #endif
 
 #ifdef __kernel_used__		// pkshih: If we use udelay, factor 1 should be work, doesn't it? 
 #undef I2C_RATING_FACTOR
+ #ifdef CONFIG_SND_RTL8197D_SOC_ALC5628
+    #define I2C_RATING_FACTOR	10
+  #else
 #define I2C_RATING_FACTOR	1
+  #endif
 #endif
 
 /************************* I2C read/write function ************************/
@@ -285,7 +291,9 @@ void i2c_init_SCL_SDA(i2c_dev_t* pI2C_Dev)
 	__i2c_setGpioDataBit( pI2C_Dev->sclk, 1 );
 	__i2c_initGpioPin(pI2C_Dev->sdio, GPIO_DIR_OUT, GPIO_INT_DISABLE);
 	__i2c_setGpioDataBit( pI2C_Dev->sdio, 1 );
+#if !defined(CONFIG_SND_RTL8197D_SOC_ALC5628)
 	__i2c_setGpioDataBit( pI2C_Dev->reset, 1);
+#endif
 }
 
 void i2c_enable_irq(i2c_dev_t* pI2C_Dev)

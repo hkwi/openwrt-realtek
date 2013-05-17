@@ -8,6 +8,12 @@
  * - Supports PCI devices through PCIE-to-PCI bridges
  * - If no PCI devices are connected to RC. Timeout monitor shall be 
  *   enabled to prevent bus hanging.
+ *
+ *  Copyright (c) 2011 Realtek Semiconductor Corp.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
  */
 #include <linux/kernel.h>
 #include <linux/init.h>

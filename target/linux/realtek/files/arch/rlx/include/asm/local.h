@@ -26,13 +26,11 @@ typedef struct
  */
 static __inline__ long local_add_return(long i, local_t * l)
 {
-	unsigned long result;
-
 #ifdef CONFIG_CPU_HAS_LLSC
-		unsigned long temp;
+	unsigned long result;
+	unsigned long temp;
 
-		__asm__ __volatile__(
-		"	.set	mips3					\n"
+	__asm__ __volatile__(
 		"1: ll      %1, %2		# local_add_return	\n"
 #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
                 "       nop                                             \n"
@@ -41,18 +39,18 @@ static __inline__ long local_add_return(long i, local_t * l)
 		"	sc      %0, %2					\n"
 		"	beqz	%0, 1b					\n"
 		"	addu	%0, %1, %3				\n"
-		"	.set	mips0					\n"
 		: "=&r" (result), "=&r" (temp), "=m" (l->a.counter)
 		: "Ir" (i), "m" (l->a.counter)
 		: "memory");
 #else
-		unsigned long flags;
+	unsigned long result;
+	unsigned long flags;
 
-		local_irq_save(flags);
-		result = l->a.counter;
-		result += i;
-		l->a.counter = result;
-		local_irq_restore(flags);
+	local_irq_save(flags);
+	result = l->a.counter;
+	result += i;
+	l->a.counter = result;
+	local_irq_restore(flags);
 #endif
 
 	return result;
@@ -60,13 +58,11 @@ static __inline__ long local_add_return(long i, local_t * l)
 
 static __inline__ long local_sub_return(long i, local_t * l)
 {
-	unsigned long result;
-
 #ifdef CONFIG_CPU_HAS_LLSC
-		unsigned long temp;
+	unsigned long result;
+	unsigned long temp;
 
-		__asm__ __volatile__(
-		"	.set	mips3					\n"
+	__asm__ __volatile__(
 		"1: ll      %1, %2		# local_sub_return	\n"
 #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
                 "       nop                                             \n"
@@ -75,18 +71,18 @@ static __inline__ long local_sub_return(long i, local_t * l)
 		"	sc      %0, %2					\n"
 		"	beqz	%0, 1b					\n"
 		"	subu	%0, %1, %3				\n"
-		"	.set	mips0					\n"
 		: "=&r" (result), "=&r" (temp), "=m" (l->a.counter)
 		: "Ir" (i), "m" (l->a.counter)
 		: "memory");
 #else
-		unsigned long flags;
+	unsigned long result;
+	unsigned long flags;
 
-		local_irq_save(flags);
-		result = l->a.counter;
-		result -= i;
-		l->a.counter = result;
-		local_irq_restore(flags);
+	local_irq_save(flags);
+	result = l->a.counter;
+	result -= i;
+	l->a.counter = result;
+	local_irq_restore(flags);
 #endif
 
 	return result;

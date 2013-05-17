@@ -69,6 +69,13 @@ typedef enum	{ type_Group = 0, type_Pairwise = 1 } KeyType;
 typedef enum	{ key_desc_ver1 = 1, key_desc_ver2 = 2 } KeyDescVer;
 enum { PSK_WPA=1, PSK_WPA2=2};
 
+#ifdef TLN_STATS
+enum { STATS_AUTH_OPEN=0, STATS_AUTH_SHARE=1,
+		STATS_PSK_WPA=2, STATS_PSK_WPA2=3,
+		STATS_ETP_WPA=4, STATS_ETP_WPA2=5
+	};
+#endif
+
 enum {
 	PSK_STATE_IDLE,
 	PSK_STATE_PTKSTART,
@@ -248,7 +255,7 @@ typedef struct _wpa_sta_info {
 } WPA_STA_INFO;
 #endif
 
-#if defined(PACK_STRUCTURE)
+#if defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack(1)
 #endif
 
@@ -275,7 +282,7 @@ __PACK struct lib1x_eapol
  	unsigned short		packet_body_length;
 }__WLAN_ATTRIB_PACK__;
 
-#if defined(PACK_STRUCTURE)
+#if defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack()
 #endif
 

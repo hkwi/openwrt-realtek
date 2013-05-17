@@ -174,7 +174,7 @@ extern int8						*pVirtualSWTable;
 #define HSA_BASE			REAL_HSA_BASE
 #endif
 
-#ifdef CONFIG_RTL_8198
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define PIN_MUX_SEL_2                           (SYSTEM_BASE + 0x0044)
 #endif
 
@@ -504,6 +504,11 @@ link partner ability registers field definitions
 #define CPUTPDCR1					(0x024 + CPU_IFACE_BASE)		/* Tx pkthdr descriptor control High */
 #define CPUTPDCR(idx)				(CPUTPDCR0 + (idx << 2))		/* Tx pkthdr descriptor control with index */
 
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#define CPUTPDCR2					(0x060 + CPU_IFACE_BASE)    /* Tx Pkthdr Descriptor 2 Control Register */
+#define CPUTPDCR3					(0x064 + CPU_IFACE_BASE)    /* Tx Pkthdr Descriptor 3 Control Register */
+#endif
+
 #define CPUIIMR						(0x028 + CPU_IFACE_BASE)		/* Interrupt mask control */
 #define CPUIISR						(0x02c + CPU_IFACE_BASE)		/* Interrupt status control */
 #define CPUQDM0						(0x030 + CPU_IFACE_BASE)		/* Queue ID 0 and Descriptor Ring Mapping Register */
@@ -622,8 +627,8 @@ link partner ability registers field definitions
 #define PKTHDR_DESC_RUNOUT_IP_ALL	(0x3f << 17)			/* Run out anyone pkthdr descriptor interrupt pending */
 #define PKTHDR_DESC_RUNOUT_IP(idx)		(1 << (17+(idx)))		/* Run out pkthdr descriptor [IDX] interrupt pending */
 
-#define MBUF_DESC_RUNOUT_IP_ALL		(1 << 11)			/* Run out anyone mbuf interrupt pending */
-#define MBUF_DESC_RUNOUT_IP0			(1 << 11)			/* Run out mbuf descriptor 0 interrupt pending */
+#define MBUF_DESC_RUNOUT_IP_ALL		(1 << 16)			/* Run out anyone mbuf interrupt pending */
+#define MBUF_DESC_RUNOUT_IP0			(1 << 16)			/* Run out mbuf descriptor 0 interrupt pending */
 
 #define TX_DONE_IP0						(1 << 9)				/* Tx one packet done interrupt for descriptor 0 pending */
 #define TX_DONE_IP1						(1 << 10)			/* Tx one packet done interrupt for descriptor 1 pending */
@@ -760,7 +765,7 @@ link partner ability registers field definitions
 #define USEDDSC_MASK				(0x3ff<<16)				/* Total Used Descriptor */
 #define SharedBufFCON_Flag			(1<<14)					/* SharedBufFCON threshold triggerred flag */
 #define MaxUsedDsc_OFFSET			0						/* Max Used Descriptor Count History */
-#define MaxUsedDsc_MASK			(0x3ff<<0)				/* Max Used Descriptor Count History */
+#define MaxUsedDsc_MASK			(0x3fff<<0)				/* Max Used Descriptor Count History */
 
 /* PCSR0 - Port Congestion Status Register 0 */
 #define P3OQCgst_OFFSET			(24)
@@ -1011,6 +1016,10 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define CCR                                 (0x048+SWMACCR_BASE)     /* Checksum Control Register */
 #define EPOCR					(0x04C+SWMACCR_BASE)	/* Embedded PHY Operation Control Register */
 #define EPIDR					(0x050+SWMACCR_BASE)	/* Embedded PHY ID Register */
+#define MACCR1					(0x058+SWMACCR_BASE)	/* Embedded PHY ID Register */
+
+/* MACCR1 - MAC control register 1 field definitions */
+#define PORT0_ROUTER_MODE                      (1 << 0)                /* 1: enable Port0 as router mode,  0: normal mode */
 
 /* MACCR - MAC control register field definitions */
 #define NORMAL_BACKOFF                      (1 << 28)                /* Normal back off slot timer */
@@ -1028,6 +1037,8 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define SELIPG_11                    		(2<<18)     			/* 11, unit: byte-time */
 #define SELIPG_12                    		(3<<18)     			/* 12, unit: byte-time */
 #define SPDUP_100       	                    (1 << 16)                /* 10000 times speed up aging timer */
+#define CF_SYSCLK_SEL_MASK					(0x3 << 12)
+#define CF_SYSCLK_SEL_OFFSET				(12)
 #define CF_FCDSC_OFFSET                    (4)                     	/* Flow control DSC tolerance, default: 24 pages ( also minimum value ) */
 #define CF_FCDSC_MASK                       (0x7f << 4)                /* Flow control DSC tolerance, default: 24 pages ( also minimum value ) */
 #define CF_RXIPG_MASK                       (0xf << 0)                /* Min. IPG limitation for RX receiving packetMinimum value is 6. Maximum value is 12. */
@@ -1107,7 +1118,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 /* CSCR, CCR - Checksum Control Register */
 #define EnL4ChkCal                          (1<<5)                   /* Enable L4 Checksum Re-calculation */
 #define EnL3ChkCal                          (1<<4)                   /* Enable L3 Checksum Re-calculation */
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define AcceptL2Err                          (1<<3)                   /* CPU port L2 CRC Error Allow; 0: Not Allowed, 1: Allowed (default) */
 #endif
 #define L4ChkSErrAllow                      (1<<2)                   /* L4 Checksum Error Allow */
@@ -1154,7 +1165,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define Port0_TypeCfg_UTP                   (0<< 0)
 #define Port0_TypeCfg_GMII_MII_RGMII        (1<< 0)
 
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 
 #define GIGA_P5_PHYID	0x16
 /* 0xBB804104 ~ 0xBB804124 */
@@ -1312,6 +1323,8 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #endif
 
 /* PSRP0,PSRP1,PSRP2,PSRP3,PSRP4,PSRP5,PSRP6,PSRP7,PSRP8 - Port Status Register Port 0~8 */
+#define PortEEEStatus_MASK					(3<<12)
+#define PortEEEStatus_OFFSET				12
 #define LinkDownEventFlag                   (1<<8)      /* Port Link Down Event detecting monitor flag */
 #define PortStatusNWayEnable                (1<<7)      /* N-Way Enable */
 #define PortStatusRXPAUSE                   (1<<6)      /* Rx PAUSE */
@@ -1326,6 +1339,8 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define PortStatusLinkSpeedReserved		(3<<0)	/* Reserved Speed */
 
 /* P0GMIICR Port-0 / Port-5 GMII Configuration Register */
+#define CFG_TX_CPUC_TAG                      (1<<26)                  /* Enable Tx CPU tag */
+#define CFG_CPUC_TAG                      	(1<<25)                  /* Enable CPU tag */
 #define CFG_GMAC_MASK                       (3<<23)                  /* The register default reflect the HW power on strapping value of H/W pin. */
 #define CFG_GMAC_RGMII                      (0<<23)                  /* RGMII mode */
 #define CFG_GMAC_GMII_MII_MAC               (1<<23)                  /* GMII/MII MAC mode */
@@ -1386,7 +1401,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define CVIDR                               (0x00+SWMISC_BASE)     /* Chip Version ID Register */
 #define SSIR						        (0x04+SWMISC_BASE)     /* System Initial and Reset Registe*/
 
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define CRMR                                (0x08+SWMISC_BASE)     /* Chip Revision Management Register */
 #define BISTCR                              (0x0C+SWMISC_BASE)     /* BIST control */
 #define BISTTSDR0                           (0x38+SWMISC_BASE)     /* BIST Test Status Diagnostic Register 0 */
@@ -1418,6 +1433,10 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define CRMR                                (0x3C+SWMISC_BASE)     /* Chip Revision Management Register */
 #endif
 #define SIRR						        (SSIR)                 /* Alias Name */
+
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#define MEMCR                              (0x34+SWMISC_BASE)     /* MEM CTRL Register */
+#endif
 
 /* 	SIRR, SSIR - System Initial and Reset Register*/
 #define SwitchFullRst                       (1 << 2)   /* Reset all tables & queues */
@@ -1701,6 +1720,10 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define QPKTFCRP5G0                         (0x0B8+SBFCTR)        /* Queue-Packet-Based Flow Control Register for Port 5 Group 0 */
 #define QPKTFCRP5G1                         (0x0BC+SBFCTR)        /* Queue-Packet-Based Flow Control Register for Port 5 Group 1 */
 #define QPKTFCRP5G2                         (0x0C0+SBFCTR)        /* Queue-Packet-Based Flow Control Register for Port 5 Group 2 */
+#define QPKTFCRP6G0							(0x0C4+SBFCTR)		  /* Queue-Packet-Based Flow Control Register for Port 6 Group 0 */
+#define QPKTFCRP6G1							(0x0C8+SBFCTR)		  /* Queue-Packet-Based Flow Control Register for Port 6 Group 1 */
+#define QPKTFCRP6G2							(0x0CC+SBFCTR)		  /* Queue-Packet-Based Flow Control Register for Port 6 Group 2 */
+
 #define FCCR0                               (0x0d0+SBFCTR)        /* Flow Control Configuration Register 0 */
 #define FCCR1                               (0x0d4+SBFCTR)        /* Flow Control Configuration Register 1 */
 #define PQPLGR                              (0x0d8+SBFCTR)        /* Per Queue Physical Length Gap Register */
@@ -3090,6 +3113,7 @@ enum FDB_FLAGS
 	#define PIN_MUX_SEL     (SYSTEM_BASE+0x30)      /* 0xB8000030 - 0xB8000033 */
 #else
 	#define PIN_MUX_SEL 0xb8000040
+	#define PIN_MUX_SEL2 	0xb8000044
 #endif
 
 /* Shared Pin Register field definitions */
@@ -3493,9 +3517,21 @@ void rtl865x_wireCompBlinkAmber(void);
 #define BSP_REVR		0xB8000000
 #define BSP_RTL8198_REVISION_A	0xC0000000
 #define BSP_RTL8198_REVISION_B	0xC0000001   
-#define SYS_CLK_MAG 0xb8000010
+
+#define SYS_CLK_MAG			(SYSTEM_BASE+0x0010)
 #define SYS_SW_CLK_ENABLE  0x200
 #define SYS_SW_RESET 0x800
+#define CM_ACTIVE_SWCORE			(1<<11)
+#define CM_PROTECT					(1<<27)
+
+#define 	HW_STRAP		(SYSTEM_BASE+0x0008)
+#define 	BOND_OPTION	(SYSTEM_BASE+0x000C)
+
+#define 	BOND_ID_MASK	(0xF)
+#define 	BOND_8196E		(0xF)
+#define 	BOND_8196EU	(0xC)
+#define 	BOND_8196ES	(0xD)
+
 #endif   /* _ASICREGS_H */
 
 

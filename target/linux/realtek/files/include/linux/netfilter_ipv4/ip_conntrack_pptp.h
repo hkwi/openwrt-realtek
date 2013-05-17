@@ -333,26 +333,6 @@ extern void
 (*ip_nat_pptp_hook_expectfn)(struct ip_conntrack *ct,
 			     struct ip_conntrack_expect *exp);
 
-#define	ETH_ALEN	6
-struct pptp_acc_info {
-	unsigned long fast_pptp_lastxmit;
-	int valid;
-	struct net_device *wanDev;
-	unsigned char ourMac[ETH_ALEN];
-	__u16 ourCallID;
-	__u32 ourIp;
-	unsigned char peerMac[ETH_ALEN];
-	__u16 peerCallID;
-	__u32 peerIp;
-	unsigned int tx_seqno;
-	unsigned int rx_seqno;
-	__u16 tx_ipID;
-	__u16 ipID;
-	unsigned int tx_seqno_daemon;
-	unsigned int rx_seqno_daemon;
-	struct net_device *pppDev;
-	struct ppp_channel *pppChan;
-};
 
 #endif /* __KERNEL__ */
 #endif /* _CONNTRACK_PPTP_H */

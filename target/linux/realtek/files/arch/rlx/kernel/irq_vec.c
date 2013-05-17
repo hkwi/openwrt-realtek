@@ -33,7 +33,7 @@ static void mask_rlx_vec_irq(unsigned int irq)
 }
 
 static struct irq_chip rlx_vec_irq_controller = {
-	.typename	= "RLX LOPI",
+	.name		= "RLX LOPI",
 	.ack		= mask_rlx_vec_irq,
 	.mask		= mask_rlx_vec_irq,
 	.mask_ack	= mask_rlx_vec_irq,
@@ -47,6 +47,9 @@ void __init rlx_vec_irq_init(int irq_base)
 {
 	int i;
 	extern char rlx_vec_dispatch;
+	#ifdef CONFIG_RTL_8198_NFBI_BOARD
+	extern void setup_reboot_addr(unsigned long addr);
+	#endif
 
 	/* Mask interrupts. */
 	clear_lxc0_estatus(EST0_IM);
@@ -67,12 +70,19 @@ void __init rlx_vec_irq_init(int irq_base)
 	REG32(BSP_GIMR)	|= BSP_UART1_IE;
 	#endif
 	
-	#if defined(CONFIG_RTL8192CD)
-	#if (defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8196CT) || defined(CONFIG_RTL_8196CS) || !defined(CONFIG_RTL_92D_DMDP))
+	#if defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192E)
+	#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	REG32(BSP_GIMR) |= (BSP_PCIE_IE);
+	#if defined(CONFIG_RTL_8197D) || defined(CONFIG_RTL_8197DL)
+	REG32(BSP_GIMR) |= (BSP_PCIE2_IE);
+	#endif
+	#else // !CONFIG_RTL_819XD
+	#if (defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8196CT) || defined(CONFIG_RTL_8196CS) || !defined(CONFIG_RTL_92D_DMDP))|| defined(CONFIG_RTK_VOIP_BOARD)
 	REG32(BSP_GIMR) |= (BSP_PCIE_IE);
 	#endif
-	#if defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D) || (defined(CONFIG_RTL_8198)&&defined(CONFIG_RTL_92D_SUPPORT))
+	#if defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D) || (defined(CONFIG_RTL_8198)&&defined(CONFIG_RTL_92D_SUPPORT))&&!defined(CONFIG_RTK_VOIP_BOARD)
 	REG32(BSP_GIMR) |= (BSP_PCIE2_IE);
+	#endif
 	#endif
 	#endif
 	

@@ -308,7 +308,7 @@ typedef struct rtl865x_tblDrv_mCast_s {
 	unsigned char	flag;
 	unsigned char	inAsic;	
 	unsigned char	unKnownMCast;
-#if  defined(CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) 
+#if  defined(CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	unsigned short liveTime;
 #endif 
 	TAILQ_ENTRY(rtl865x_tblDrv_mCast_s) nextMCast;

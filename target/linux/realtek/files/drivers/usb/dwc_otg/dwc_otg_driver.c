@@ -944,7 +944,7 @@ static struct lm_driver dwc_otg_driver =
 
 void dwc_otg_phy_write(unsigned char reg, unsigned char val)
 {
-	#define USB2_PHY_DELAY __delay(200) 
+	#define USB2_PHY_DELAY __delay(1000) 
 
 	if((reg < 0xE0) || (reg > 0xF6) || ((reg>0xE7)&&(reg<0xF0))) {
 		printk("DWC_OTG: Wrong register address: 0x%02x\n", reg);
@@ -961,7 +961,7 @@ void dwc_otg_phy_write(unsigned char reg, unsigned char val)
 	REG32(0xb8000090) = (val << 11) | tmp; USB2_PHY_DELAY;
 
 #endif	
-	REG32(0xb8003314) = (val << 16) | tmp; USB2_PHY_DELAY;
+	//REG32(0xb8003314) = (val << 16) | tmp; USB2_PHY_DELAY;
 	REG32(0xb8030034) = ((reg & 0x0F) << 16) | 0x00004002; USB2_PHY_DELAY;
 	REG32(0xb8030034) = ((reg & 0x0F) << 16) | 0x00004000; USB2_PHY_DELAY;
 	REG32(0xb8030034) = ((reg & 0x0F) << 16) | 0x00004002; USB2_PHY_DELAY;
@@ -1090,12 +1090,24 @@ unsigned int Get_IDDIG_Level()
 Enable_AutoDetectionCircuit(int en)
 {
 	#define SYS_OTG_CONTROL 0xb8000098 
+	#define SYS_PIN_MUX 0xb8000040 
 	if(en==1)	
-	{	REG32(SYS_OTG_CONTROL) |=  (1<<0);  //active_otgctrl=1, enable elvis auto-det circuit	
+	{	
+		unsigned int r;
+		REG32(SYS_PIN_MUX) &= ~(0x7);   //bit [2:0]=0
+
+		REG32(SYS_OTG_CONTROL) |=  (1<<0);  //active_otgctrl=1, enable elvis auto-det circuit	
+	
+		r=REG32(SYS_OTG_CONTROL);
+		r = r  &~((0xf<<6)|(0xf<<10)|(0x7<<14));  //clear
+		REG32(SYS_OTG_CONTROL) = r| (10<<6)|(10<<10)|(4<<14);     //setting
+		
+		REG32(SYS_OTG_CONTROL) |=  (1<<5);  //OTGCMP_EN=1
 		REG32(SYS_OTG_CONTROL) |=  (1<<1);  //start
 	}
 	else
 	{	REG32(SYS_OTG_CONTROL) &= ~(1<<1);  //stop	
+		REG32(SYS_OTG_CONTROL) &= ~(1<<5);  //OTGCMP_EN=0
 		REG32(SYS_OTG_CONTROL) &= ~(1<<0);  //active_otgctrl=0 , disable elvis auto-det circuit		
 	}
 }
@@ -1154,6 +1166,8 @@ int otg_reset_procedure(int mode)
 	gHostMode=mode;
 	if(gHostMode==1)	Set_IDDIG_Level(1,0);	 // 1:device 0:host
 	else					Set_IDDIG_Level(1,1);	 // 1:device 0:host
+#elif defined(CONFIG_RTL_ULINKER)
+	gHostMode=1-Get_IDDIG_Level();
 #else	//auto-det ckt decide iddig
     #if 0  //1: internal enable auto-det,
 	Enable_AutoDetectionCircuit(1);
@@ -1162,7 +1176,7 @@ int otg_reset_procedure(int mode)
 	gHostMode=1-Get_IDDIG_Level();
 #endif
 //----------------------------------------
-#if 0  //
+#if 1 //
 	Set_SelUSBPort(2);  // pass 1: is one port, other value is 2port
 #else  //dynamic get
 	if(Get_SelUSBPort()==1)
@@ -1181,8 +1195,25 @@ int otg_reset_procedure(int mode)
 #endif
 
 #if 1
+
 	//USBPhyReset(0);  //1: in reset, 0: working	
 	//PHYPatch();  //wei add	
+	dwc_otg_phy_write(0xe0,0x99);  //disconnect, work
+	dwc_otg_phy_write(0xe1,0xac);  //disconnect, work
+	dwc_otg_phy_write(0xe2,0x98);  //disconnect, work
+	dwc_otg_phy_write(0xe3,0xc1);  //disconnect, work
+	dwc_otg_phy_write(0xe4,0x1);  //disconnect, work
+	dwc_otg_phy_write(0xe5,0x89);  //disconnect, work
+	dwc_otg_phy_write(0xe6,0x98);  //disconnect, worki
+	dwc_otg_phy_write(0xe7,0x1d);  //disconnect, work
+	dwc_otg_phy_write(0xf0,0xfc);  //disconnect, work
+	dwc_otg_phy_write(0xf1,0x8c);  //disconnect, work
+	dwc_otg_phy_write(0xf2,0x0);  //disconnect, work
+	dwc_otg_phy_write(0xf3,0x11);  //disconnect, work
+	dwc_otg_phy_write(0xf4,0xfb);  //disconnect, work
+	dwc_otg_phy_write(0xf5,0xd2);  //disconnect, 
+	dwc_otg_phy_write(0xf6,0x0);  //disconnect, work
+	
 	dwc_otg_phy_write(0xe6,0xb8);  //disconnect, work
 	int i;
 	for(i=0xe0;i<=0xe7; i++)
@@ -1223,7 +1254,12 @@ int  dwc_otg_driver_init(void)
 #if 1  //for 8196D
 	printk("-------8196D OTG init \n");
 //	otg_proc_init();	
+
+#if defined(CONFIG_RTL_ULINKER)
 	int rc=otg_reset_procedure(0);
+#else
+	int rc=otg_reset_procedure(1);
+#endif
 	if(rc)
 	{	printk("OTG: reset procedure init fail \n");
 		return rc;
@@ -1279,7 +1315,7 @@ int  dwc_otg_driver_init(void)
 	else {
 		printk("PHY IS normal\n");
 		tmp = tmp & 0xFF00FF00;
-		REG32(0xb8003314) = tmp|0x00000038; USB2_PHY_DELAY;	//write usb port0's phy reg 0xE7 to change vbusvalid threshold down to 3.3V
+//		REG32(0xb8003314) = tmp|0x00000038; USB2_PHY_DELAY;	//write usb port0's phy reg 0xE7 to change vbusvalid threshold down to 3.3V
 		REG32(0xb80210A4) = 0x00370000; USB2_PHY_DELAY;	
 		REG32(0xb80210A4) = 0x00270000; USB2_PHY_DELAY;	
 		REG32(0xb80210A4) = 0x00370000; USB2_PHY_DELAY;	
@@ -1322,6 +1358,9 @@ int  dwc_otg_driver_init(void)
 		printf("PHY reg F1=%x\n", dwc_otg_phy_read(0xF1));		
 		printf("PHY reg F2=%x\n", dwc_otg_phy_read(0xF2));		
 #endif
+	//Enhance USB 3.0 IOT issues 
+	dwc_otg_phy_write(0xE2, 0x99);
+	dwc_otg_phy_write(0xE6, 0xc8);
 
 #if DRIVER_USING_LM
 //cathy, allocate a lmdev device for driver
@@ -1335,8 +1374,10 @@ int  dwc_otg_driver_init(void)
 	lmdev->resource.start = OTG_BASE;		//base of OTG, 0xb8030000
 	lmdev->resource.end = lmdev->resource.start + 0x0003ffff;	
 	lmdev->resource.flags = IORESOURCE_MEM;
-#define USB_D_IRQ             11   //wei add ,11	
-	lmdev->irq = USB_D_IRQ;	//irq of usb device
+//#define USB_D_IRQ             11   //wei add ,11	
+//	lmdev->irq = USB_D_IRQ;	//irq of usb device
+	lmdev->irq = BSP_OTG_IRQ;	//irq of usb device
+	
 	lmdev->id = 0;
 
 	lm_device_register(lmdev);
@@ -1391,7 +1432,7 @@ int  dwc_otg_driver_init(void)
   return retval;
 
 }
-#ifndef CONFIG_RTL_OTGCTRL
+#if !defined(CONFIG_RTL_OTGCTRL) && !defined(CONFIG_RTL_ULINKER)
 module_init(dwc_otg_driver_init);
 #endif
 
@@ -1429,7 +1470,7 @@ void  dwc_otg_driver_cleanup(void)
 
 	clear_bit(OTG_DRIVER_LOADED, &otg_driver_loaded);
 }
-#ifndef CONFIG_RTL_OTGCTRL
+#if !defined(CONFIG_RTL_OTGCTRL) && !defined(CONFIG_RTL_ULINKER)
 module_exit(dwc_otg_driver_cleanup);
 #endif
 

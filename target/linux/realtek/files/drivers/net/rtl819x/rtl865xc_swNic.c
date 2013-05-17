@@ -1,48 +1,18 @@
 /*
 * ----------------------------------------------------------------
-* Copyright c                  Realtek Semiconductor Corporation, 2002  
-* All rights reserved.
-* 
 * $Header: /home/cvsroot/linux-2.6.19/linux-2.6.x/drivers/net/re865x/rtl865xc_swNic.c,v 1.11 2008/04/11 10:49:14 bo_zhao Exp $
 *
 * Abstract: Switch core polling mode NIC driver source code.
 *
 * $Author: bo_zhao $
 *
-* $Log: rtl865xc_swNic.c,v $
-* Revision 1.11  2008/04/11 10:49:14  bo_zhao
-* * restore the original cache flush
+*  Copyright (c) 2011 Realtek Semiconductor Corp.
 *
-* Revision 1.10  2008/04/11 10:12:38  bo_zhao
-* *: swap nic drive to 8186 style
-*
-* Revision 1.6  2008/02/22 05:31:52  joeylin
-* set one VLAN group for Bridge/WISP mode, and fix the issue:
-* WAN port PC can not ping br0 (192.168.1.254) in Bridge/WISP mode
-*
-* Revision 1.5  2008/02/15 09:52:46  forrest
-* 1. Add hardware accelerated PPTP processing. 2. Fine tune some hardware NAT to be compatible to hardware accelerated PPTP.
-*
-* Revision 1.4  2007/12/08 08:24:26  davidhsu
-* Adjust tx desc size. Hide error message
-*
-* Revision 1.3  2007/12/04 12:00:18  joeylin
-* add hardware NAT feature
-*
-* Revision 1.2  2007/11/11 02:51:24  davidhsu
-* Fix the bug that do not fre rx skb in rx descriptor when driver is shutdown
-*
-* Revision 1.1.1.1  2007/08/06 10:04:52  root
-* Initial import source to CVS
-*
-* Revision 1.11  2007/03/27 12:51:07  michaelhuang
-* +: add function swNic_send_portmbr for FT2
-*
-*
-*
+*  This program is free software; you can redistribute it and/or modify
+*  it under the terms of the GNU General Public License version 2 as
+*  published by the Free Software Foundation.
 * ---------------------------------------------------------------
 */
-
 #include <linux/skbuff.h>
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_glue.h>
@@ -56,14 +26,20 @@
 #ifdef	CONFIG_RTL865X_ROMEPERF
 #include "romeperf.h"
 #endif
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+#include <linux/if_ether.h>
+#endif
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+#include <linux/if_ether.h>
+#endif
 
 extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
 
 /* RX Ring */
 static uint32*  rxPkthdrRing[RTL865X_SWNIC_RXRING_HW_PKTDESC];                 /* Point to the starting address of RX pkt Hdr Ring */
 __DRAM_FWD static uint32   rxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC];              /* Total pkt count for each Rx descriptor Ring */
-#if	defined(DELAY_REFILL_ETH_RX_BUF)	
+#if	defined(DELAY_REFILL_ETH_RX_BUF)
 __DRAM_FWD static uint32   rxPkthdrRefillThreshold[RTL865X_SWNIC_RXRING_HW_PKTDESC];              /* Ether refill threshold for each Rx descriptor Ring */
 #endif
 
@@ -106,17 +82,40 @@ __DRAM_FWD static uint8 extPortMaskToPortNum[_RTL865XB_EXTPORTMASKS+1] =
 	5, 6, 7, 5, 8, 5, 5, 5
 };
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+int set_portmask_tag;
+int32 swNic_setVlanPortTag(int portmask){
+        set_portmask_tag = portmask &0x3f;
+        return 0;
+}
+#endif
+
+#if defined(CONFIG_RTL_PROC_DEBUG)
+unsigned int rx_noBuffer_cnt=0;
+unsigned int tx_ringFull_cnt=0;
+#endif
+
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+int32 auto_set_tag_portmask;
+int32 swNic_setVlanPortTag(int portmask)
+{
+        auto_set_tag_portmask = portmask &0x3f;
+        return 0;
+}
+#endif
+
+
 /*************************************************************************
-*   FUNCTION                                                              
-*       swNic_intHandler                                         
-*                                                                         
-*   DESCRIPTION                                                           
+*   FUNCTION
+*       swNic_intHandler
+*
+*   DESCRIPTION
 *       This function is the handler of NIC interrupts
-*                                                                         
-*   INPUTS                                                                
+*
+*   INPUTS
 *       intPending      Pending interrupt sources.
-*                                                                         
-*   OUTPUTS                                                               
+*
+*   OUTPUTS
 *       None
 *************************************************************************/
 void swNic_intHandler(uint32 intPending) {return;}
@@ -126,11 +125,14 @@ inline int32 rtl8651_rxPktPreprocess(void *pkt, unsigned int *vid)
 {
 	struct rtl_pktHdr *m_pkthdr = (struct rtl_pktHdr *)pkt;
 	uint32 srcPortNum;
-       srcPortNum = m_pkthdr->ph_portlist;
-
+	
+	srcPortNum = m_pkthdr->ph_portlist;
+	*vid = m_pkthdr->ph_vlanId;
+   
+	
 	#if 0
 	if (srcPortNum >= RTL8651_CPU_PORT)
-	{        
+	{
 		if (m_pkthdr->ph_extPortList == 0)
 		{
 			/* No any destination ( extension port or CPU) : ASIC's BUG */
@@ -159,13 +161,14 @@ inline int32 rtl8651_rxPktPreprocess(void *pkt, unsigned int *vid)
 			#else
 			*vid = m_pkthdr->ph_vlanId;
 			#endif
-		}        
+		}
 	}
        else
 	#else
 	if (srcPortNum < RTL8651_CPU_PORT)
 	#endif
 	{
+		#if 0
 		/* otherwise, pkt is rcvd from PHY */
 		m_pkthdr->ph_srcExtPortNum = 0;
 		*vid = m_pkthdr->ph_vlanId;
@@ -188,6 +191,7 @@ inline int32 rtl8651_rxPktPreprocess(void *pkt, unsigned int *vid)
 				#endif
 			}
 		}
+		#endif
 	}		else {
 		return FAILED;
 	}
@@ -203,9 +207,9 @@ inline int return_to_rxing_check(int ringIdx)
 	//local_irq_save(flags);
 	ret = ((rxDescReadyForHwIndex[ringIdx]!=currRxPkthdrDescIndex[ringIdx]) && (rxPkthdrRingCnt[ringIdx]!=0))? 1:0;
 	//local_irq_restore(flags);
-	return ret;	
+	return ret;
 }
-static inline int buffer_reuse(int ringIdx) 
+static inline int buffer_reuse(int ringIdx)
 {
 	int index1,index2,gap;
 	unsigned long flags;
@@ -213,7 +217,7 @@ static inline int buffer_reuse(int ringIdx)
 	index1 = rxDescReadyForHwIndex[ringIdx];
 	index2 = currRxPkthdrDescIndex[ringIdx]+1;
 	gap = (index2 > index1) ? (index2 - index1) : (index2 + rxPkthdrRingCnt[ringIdx] - index1);
-	
+
 	if ((rxPkthdrRingCnt[ringIdx] - gap) < (rxPkthdrRefillThreshold[ringIdx]))
 	{
 		local_irq_restore(flags);
@@ -229,7 +233,7 @@ static inline int buffer_reuse(int ringIdx)
 static inline void set_RxPkthdrRing_OwnBit(uint32 rxRingIdx)
 {
 	rxPkthdrRing[rxRingIdx][rxDescReadyForHwIndex[rxRingIdx]] |= DESC_SWCORE_OWNED;
-	
+
 	if ( ++rxDescReadyForHwIndex[rxRingIdx] == rxPkthdrRingCnt[rxRingIdx] ) {
 		rxDescReadyForHwIndex[rxRingIdx] = 0;
 		#if	defined(DELAY_REFILL_ETH_RX_BUF)
@@ -248,11 +252,11 @@ static void release_pkthdr(struct sk_buff  *skb, int idx)
 
 	_dma_cache_wback_inv((unsigned long)skb->head, skb->truesize);
 	//local_irq_save(flags);
-	pReadyForHw = (struct rtl_pktHdr *)(rxPkthdrRing[idx][rxDescReadyForHwIndex[idx]] & 
+	pReadyForHw = (struct rtl_pktHdr *)(rxPkthdrRing[idx][rxDescReadyForHwIndex[idx]] &
 						~(DESC_OWNED_BIT | DESC_WRAP));
 	mbufIndex = ((uint32)(pReadyForHw->ph_mbuf) - (rxMbufRing[0] & ~(DESC_OWNED_BIT | DESC_WRAP))) /
 					(sizeof(struct rtl_mBuf));
-	
+
 	pReadyForHw->ph_mbuf->m_data = skb->data;
 	pReadyForHw->ph_mbuf->m_extbuf = skb->data;
 	pReadyForHw->ph_mbuf->skb = skb;
@@ -301,11 +305,11 @@ int check_and_return_to_rx_pkthdr_ring(void *skb, int idx)
 /*
 	return value: 1 ==> success, returned to rx pkt hdr desc
 	return value: 0 ==> failed, no return ==> release to priv skb buf pool
- */	
+ */
 extern struct sk_buff *dev_alloc_8190_skb(unsigned char *data, int size);
 
 __IRAM_FWD
-int return_to_rx_pkthdr_ring(unsigned char *head) 
+int return_to_rx_pkthdr_ring(unsigned char *head)
 {
 	struct sk_buff *skb;
 	int ret, i;
@@ -346,10 +350,10 @@ static void increase_rx_idx_release_pkthdr(struct sk_buff  *skb, int idx)
 	local_irq_save(flags);
 
 #if	defined(DELAY_REFILL_ETH_RX_BUF)
-	pReadyForHw = (struct rtl_pktHdr *)(rxPkthdrRing[idx][rxDescReadyForHwIndex[idx]] & 
+	pReadyForHw = (struct rtl_pktHdr *)(rxPkthdrRing[idx][rxDescReadyForHwIndex[idx]] &
 						~(DESC_OWNED_BIT | DESC_WRAP));
 #else
-	pReadyForHw = (struct rtl_pktHdr *)(rxPkthdrRing[idx][currRxPkthdrDescIndex[idx]] & 
+	pReadyForHw = (struct rtl_pktHdr *)(rxPkthdrRing[idx][currRxPkthdrDescIndex[idx]] &
 						~(DESC_OWNED_BIT | DESC_WRAP));
 
 	rxPkthdrRing[idx][currRxPkthdrDescIndex[idx]] |= DESC_SWCORE_OWNED;
@@ -364,17 +368,17 @@ static void increase_rx_idx_release_pkthdr(struct sk_buff  *skb, int idx)
 
 	mbufIndex = ((uint32)(pReadyForHw->ph_mbuf) - (rxMbufRing[0] & ~(DESC_OWNED_BIT | DESC_WRAP))) /
 					(sizeof(struct rtl_mBuf));
-	
+
 	pReadyForHw->ph_mbuf->m_data = skb->data;
 	pReadyForHw->ph_mbuf->m_extbuf = skb->data;
 	pReadyForHw->ph_mbuf->skb = skb;
 
 	rxMbufRing[mbufIndex] |= DESC_SWCORE_OWNED;
-	
+
 #if	defined(DELAY_REFILL_ETH_RX_BUF)
 	set_RxPkthdrRing_OwnBit(idx);
 #endif
-	
+
 	local_irq_restore(flags);
 }
 
@@ -382,14 +386,14 @@ __IRAM_FWD
 static int __swNic_geRxRingIdx(uint32 rxRingIdx, uint32 *currRxPktDescIdx)
 {
 	unsigned long flags;
-	
+
 	if(rxPkthdrRingCnt[rxRingIdx] == 0) {
 		return FAILED;
 	}
 
 	local_irq_save(flags);
 	#if	defined(DELAY_REFILL_ETH_RX_BUF)
-	if ( (rxDescCrossBoundFlag[rxRingIdx]==0&&(currRxPkthdrDescIndex[rxRingIdx]>=rxDescReadyForHwIndex[rxRingIdx])) 
+	if ( (rxDescCrossBoundFlag[rxRingIdx]==0&&(currRxPkthdrDescIndex[rxRingIdx]>=rxDescReadyForHwIndex[rxRingIdx]))
 		|| (rxDescCrossBoundFlag[rxRingIdx]==1&&(currRxPkthdrDescIndex[rxRingIdx]<rxDescReadyForHwIndex[rxRingIdx])) )
 	#endif
 	{
@@ -406,7 +410,7 @@ static int __swNic_geRxRingIdx(uint32 rxRingIdx, uint32 *currRxPktDescIdx)
 }
 
 #if defined(RTL_MULTIPLE_RX_TX_RING)
-/*	It's the caller's responsibility to make sure "rxRingIdx" and 
+/*	It's the caller's responsibility to make sure "rxRingIdx" and
 *	"currRxPktDescIdx" NOT NULL, since the callee never check
 *	sanity of the parameters, in order to speed up.
 */
@@ -419,10 +423,10 @@ static inline int32 swNic_getRxringIdx(uint32 *rxRingIdx, uint32 *currRxPktDescI
 {
 	int32	i;
 	int32	priority;
-	
+
 
 	priority = policy;
-	
+
 	for(i = RTL865X_SWNIC_RXRING_MAX_PKTDESC -1; i >= priority; i--)
 	{
 		if (__swNic_geRxRingIdx(i, currRxPktDescIdx)==SUCCESS) {
@@ -463,14 +467,14 @@ int get_nic_txRing_buf(void)
 	int txCnt = 0;
 	int i,j;
 	struct rtl_pktHdr *pPkthdr;
-	for(i = RTL865X_SWNIC_TXRING_MAX_PKTDESC -1; i >= 0; i--)
+	for(i = RTL865X_SWNIC_TXRING_HW_PKTDESC -1; i >= 0; i--)
 	{
 		if(txPkthdrRingCnt[i] == 0)
 			continue;
 
 		for(j = 0; j <txPkthdrRingCnt[i]; j++)
 		{
-			
+
 			pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[i][j]& ~(DESC_OWNED_BIT | DESC_WRAP));
 
 			if(pPkthdr->ph_mbuf->skb)
@@ -478,9 +482,9 @@ int get_nic_txRing_buf(void)
 				if(is_rtl865x_eth_priv_buf(((struct sk_buff *)pPkthdr->ph_mbuf->skb)->head))
 					txCnt++;
 			}
-		}		
+		}
 	}
-	
+
 	return txCnt;
 }
 
@@ -489,7 +493,7 @@ int get_nic_rxRing_buf(void)
 	int rxCnt = 0;
 	int i,j;
 	struct rtl_pktHdr *pPkthdr;
-	for(i = RTL865X_SWNIC_RXRING_MAX_PKTDESC -1; i >= 0; i--)
+	for(i = RTL865X_SWNIC_RXRING_HW_PKTDESC -1; i >= 0; i--)
 	{
 		if(rxPkthdrRingCnt[i] == 0)
 			continue;
@@ -526,7 +530,7 @@ int32 swNic_flushRxRingByPriority(int priority)
 	{
 		if(rxPkthdrRingCnt[i] == 0)
 			continue;
-		
+
 		while((rxPkthdrRing[i][currRxPkthdrDescIndex[i]] & DESC_OWNED_BIT) == DESC_RISC_OWNED)
 		{
 			pPkthdr = (struct rtl_pktHdr *) (rxPkthdrRing[i][currRxPkthdrDescIndex[i]] & ~(DESC_OWNED_BIT | DESC_WRAP));
@@ -541,19 +545,19 @@ int32 swNic_flushRxRingByPriority(int priority)
 
 
 /*************************************************************************
-*   FUNCTION                                                              
-*       swNic_receive                                         
-*                                                                         
-*   DESCRIPTION                                                           
-*       This function reads one packet from rx descriptors, and return the 
-*       previous read one to the switch core. This mechanism is based on 
-*       the assumption that packets are read only when the handling 
+*   FUNCTION
+*       swNic_receive
+*
+*   DESCRIPTION
+*       This function reads one packet from rx descriptors, and return the
+*       previous read one to the switch core. This mechanism is based on
+*       the assumption that packets are read only when the handling
 *       previous read one is done.
-*                                                                         
-*   INPUTS                                                                
+*
+*   INPUTS
 *       None
-*                                                                         
-*   OUTPUTS                                                               
+*
+*   OUTPUTS
 *       None
 *************************************************************************/
 #define	RTL_NIC_RX_RETRY_MAX		(256)
@@ -580,8 +584,8 @@ int32 swNic_receive(rtl_nicRx_info *info, int retryCount)
 	#if defined(CONFIG_RTL_HARDWARE_NAT)
 	uint32	vid;
 	#endif
-		
-get_next:	
+
+get_next:
 	 /* Check OWN bit of descriptors */
 	#if defined(RTL_MULTIPLE_RX_TX_RING)
 	if (swNic_getRxringIdx(&rxRingIdx,&currRxPktDescIdx,info->priority) == SUCCESS )
@@ -591,7 +595,7 @@ get_next:
 	#endif
 	{
 		/* Fetch pkthdr */
-		pPkthdr = (struct rtl_pktHdr *) (rxPkthdrRing[rxRingIdx][currRxPktDescIdx] & ~(DESC_OWNED_BIT | DESC_WRAP));    
+		pPkthdr = (struct rtl_pktHdr *) (rxPkthdrRing[rxRingIdx][currRxPktDescIdx] & ~(DESC_OWNED_BIT | DESC_WRAP));
 
 		/* Increment counter */
 		//rxPktCounter++;
@@ -602,7 +606,7 @@ get_next:
 			RTL_ETH_NIC_DROP_RX_PKT_RESTART;
 			goto get_next;
 		}
-		
+
 #if defined(CONFIG_RTL_HARDWARE_NAT)
 		if (rtl8651_rxPktPreprocess(pPkthdr, &vid) != 0) {
 			RTL_ETH_NIC_DROP_RX_PKT_RESTART;
@@ -613,17 +617,17 @@ get_next:
 		info->vid = vid;
 #else
 		/*
-		 * vid is assigned in rtl8651_rxPktPreprocess() 
+		 * vid is assigned in rtl8651_rxPktPreprocess()
 		 * do not update it when CONFIG_RTL_HARDWARE_NAT is defined
 		 */
 		info->vid=pPkthdr->ph_vlanId;
 		buf = alloc_rx_buf(&skb, size_of_cluster);
 #endif
 		info->pid=pPkthdr->ph_portlist;
-		if (buf) 
+		if (buf)
 		{
 			info->input = pPkthdr->ph_mbuf->skb;
-			info->len = pPkthdr->ph_len - 4;	
+			info->len = pPkthdr->ph_len - 4;
 //			#if	defined(DELAY_REFILL_ETH_RX_BUF)
 			/* Increment index */
 			increase_rx_idx_release_pkthdr(skb, rxRingIdx);
@@ -636,7 +640,7 @@ get_next:
 #if	defined(DELAY_REFILL_ETH_RX_BUF)
 		else if (!buffer_reuse(rxRingIdx)) {
 			info->input = pPkthdr->ph_mbuf->skb;
-			info->len = pPkthdr->ph_len - 4;	
+			info->len = pPkthdr->ph_len - 4;
 			//printk("====CPU is pending====\n");
 			#if defined(CONFIG_RTL_ETH_PRIV_SKB_DEBUG)
 			mbuf_pending_times ++;
@@ -645,12 +649,19 @@ get_next:
 			/* Increment index */
 			swNic_increaseRxIdx(rxRingIdx);
 		} else {
+			#if defined(CONFIG_RTL_PROC_DEBUG)
+				rx_noBuffer_cnt++;
+			#endif
+			#if 0
 			if (retryCount>RTL_NIC_RX_RETRY_MAX) {
 				/* drop pkt */
 				increase_rx_idx_release_pkthdr((void*)pPkthdr->ph_mbuf->skb, rxRingIdx);
 			}
 			return RTL_NICRX_REPEAT;
-		}		
+			#else
+			return RTL_NICRX_NULL;
+			#endif
+		}
 #endif
 
 		#if defined(RTL_MULTIPLE_RX_TX_RING)
@@ -665,17 +676,17 @@ get_next:
 #undef	RTL_ETH_NIC_DROP_RX_PKT_RESTART
 
 /*************************************************************************
-*   FUNCTION                                                              
-*       swNic_send                                         
-*                                                                         
-*   DESCRIPTION                                                           
-*       This function writes one packet to tx descriptors, and waits until 
+*   FUNCTION
+*       swNic_send
+*
+*   DESCRIPTION
+*       This function writes one packet to tx descriptors, and waits until
 *       the packet is successfully sent.
-*                                                                         
-*   INPUTS                                                                
+*
+*   INPUTS
 *       None
-*                                                                         
-*   OUTPUTS                                                               
+*
+*   OUTPUTS
 *       None
 *************************************************************************/
 __MIPS16
@@ -688,14 +699,14 @@ __IRAM_FWD  inline int32 _swNic_send(void *skb, void * output, uint32 len,rtl_ni
 		next_index = 0;
 	else
 		next_index = currTxPkthdrDescIndex[nicTx->txIdx]+1;
-	
+
 	if (next_index == txPktDoneDescIndex[nicTx->txIdx])	{
 		/*	TX ring full	*/
 			return -1;
 	}
-	
+
 	/* Fetch packet header from Tx ring */
-	pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[nicTx->txIdx][currTxPkthdrDescIndex[nicTx->txIdx]] 
+	pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[nicTx->txIdx][currTxPkthdrDescIndex[nicTx->txIdx]]
                                                 & ~(DESC_OWNED_BIT | DESC_WRAP));
 
 	/* Pad small packets and add CRC */
@@ -703,28 +714,46 @@ __IRAM_FWD  inline int32 _swNic_send(void *skb, void * output, uint32 len,rtl_ni
 		len = 64;
 	else
 		len += 4;
-		
+
 	pPkthdr->ph_mbuf->m_len  = len;
 	pPkthdr->ph_mbuf->m_extsize = len;
 	pPkthdr->ph_mbuf->skb = skb;
 	pPkthdr->ph_len = len;
-	
+
 	pPkthdr->ph_vlanId = nicTx->vid;
-	#if defined(CONFIG_8198_PORT5_GMII) || defined(CONFIG_8198_PORT5_RGMII)	
+	#if defined(CONFIG_8198_PORT5_GMII) || defined(CONFIG_8198_PORT5_RGMII)
 	pPkthdr->ph_portlist = nicTx->portlist&0x3f;
 	#else
 	pPkthdr->ph_portlist = nicTx->portlist&0x1f;
 	#endif
 	pPkthdr->ph_srcExtPortNum = nicTx->srcExtPort;
 	pPkthdr->ph_flags = nicTx->flags;
-#if	defined(CONFIG_RTL_HW_QOS_SUPPORT)
+#if	defined(CONFIG_RTL_HW_QOS_SUPPORT) || defined(CONFIG_RTK_VOIP_QOS)
 	pPkthdr->ph_txPriority = nicTx->priority;
 #endif
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+if (*((unsigned short *)((unsigned char*)output+ETH_ALEN*2)) != __constant_htons(ETH_P_8021Q))
+	pPkthdr->ph_txCVlanTagAutoAdd = set_portmask_tag;
+else
+	pPkthdr->ph_txCVlanTagAutoAdd = 0;
+#endif
+
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+	if (*((unsigned short *)((unsigned char*)output+ETH_ALEN*2)) != __constant_htons(ETH_P_8021Q))
+			pPkthdr->ph_txCVlanTagAutoAdd = auto_set_tag_portmask;
+	else
+			pPkthdr->ph_txCVlanTagAutoAdd = 0;
+#endif
+
 
 	/* Set cluster pointer to buffer */
 	pPkthdr->ph_mbuf->m_data    = (output);
 	pPkthdr->ph_mbuf->m_extbuf = (output);
-	
+
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	pPkthdr->ph_ptpPkt = 0;
+#endif
+
 	ret = currTxPkthdrDescIndex[nicTx->txIdx];
 	currTxPkthdrDescIndex[nicTx->txIdx] = next_index;
 	/* Give descriptor to switch core */
@@ -733,8 +762,8 @@ __IRAM_FWD  inline int32 _swNic_send(void *skb, void * output, uint32 len,rtl_ni
 #if 0
 	memDump((void*)output, 64, "TX");
 	printk("index %d address 0x%p, 0x%x 0x%p.\n", ret, &txPkthdrRing[nicTx->txIdx][ret], (*(volatile uint32 *)&txPkthdrRing[nicTx->txIdx][ret]), pPkthdr);
-	printk("Flags 0x%x proto 0x%x portlist 0x%x vid %d extPort %d srcExtPort %d len %d.\n", 
-		pPkthdr->ph_flags, pPkthdr->ph_proto, pPkthdr->ph_portlist, pPkthdr->ph_vlanId, 
+	printk("Flags 0x%x proto 0x%x portlist 0x%x vid %d extPort %d srcExtPort %d len %d.\n",
+		pPkthdr->ph_flags, pPkthdr->ph_proto, pPkthdr->ph_portlist, pPkthdr->ph_vlanId,
 		pPkthdr->ph_extPortList, pPkthdr->ph_srcExtPortNum, pPkthdr->ph_len);
 #endif
 
@@ -752,7 +781,7 @@ int32 swNic_send(void *skb, void * output, uint32 len,rtl_nicTx_info *nicTx)
 
 	local_irq_save(flags);
 	ret = _swNic_send(skb, output, len, nicTx);
-	local_irq_restore(flags);	
+	local_irq_restore(flags);
 	return ret;
 }
 
@@ -766,8 +795,8 @@ int32 swNic_txDone(int idx)
 	local_irq_save(flags);
 	//free_num = 0;
 	{
-		while (txPktDoneDescIndex[idx] != currTxPkthdrDescIndex[idx]) {		
-		if ( (*(volatile uint32 *)&txPkthdrRing[idx][txPktDoneDescIndex[idx]] 
+		while (txPktDoneDescIndex[idx] != currTxPkthdrDescIndex[idx]) {
+		if ( (*(volatile uint32 *)&txPkthdrRing[idx][txPktDoneDescIndex[idx]]
 			& DESC_OWNED_BIT) == DESC_RISC_OWNED )
 		{
 			#ifdef CONFIG_RTL8196C_REVISION_B
@@ -775,7 +804,7 @@ int32 swNic_txDone(int idx)
 				txPkthdrRing[idx][txPktDoneDescIndex[idx]] =txPkthdrRing_backup[idx][txPktDoneDescIndex[idx]] ;
 			#endif
 
-			pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[idx][txPktDoneDescIndex[idx]] 
+			pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[idx][txPktDoneDescIndex[idx]]
 				& ~(DESC_OWNED_BIT | DESC_WRAP));
 
 			if (pPkthdr->ph_mbuf->skb)
@@ -790,7 +819,7 @@ int32 swNic_txDone(int idx)
 				pPkthdr->ph_mbuf->skb = NULL;
 			}
 
-			
+
 			if (++txPktDoneDescIndex[idx] == txPkthdrRingCnt[idx])
 				txPktDoneDescIndex[idx] = 0;
 
@@ -802,7 +831,7 @@ int32 swNic_txDone(int idx)
 	}
 
 	local_irq_restore(flags);
-	return 0; //free_num;	
+	return 0; //free_num;
 }
 
 #ifdef  CONFIG_RTL865X_MODEL_TEST_FT2
@@ -818,7 +847,7 @@ int32 swNic_send_portmbr(void * output, uint32 len, uint32 portmbr)
     ASSERT_CSP( ((int32) txPkthdrRing[0][currTxPkthdrDescIndex] & DESC_OWNED_BIT) == DESC_RISC_OWNED );
 
     /* Fetch packet header from Tx ring */
-    pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[0][currTxPkthdrDescIndex] 
+    pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[0][currTxPkthdrDescIndex]
                                                 & ~(DESC_OWNED_BIT | DESC_WRAP));
 
     /* Pad small packets and add CRC */
@@ -842,14 +871,14 @@ int32 swNic_send_portmbr(void * output, uint32 len, uint32 portmbr)
 
     /* Set TXFD bit to start send */
     REG32(CPUICR) |= TXFD;
-    
+
     /* Wait until packet is successfully sent */
-#if 1    
-    while ( (*(volatile uint32 *)&txPkthdrRing[0][currTxPkthdrDescIndex] 
+#if 1
+    while ( (*(volatile uint32 *)&txPkthdrRing[0][currTxPkthdrDescIndex]
                     & DESC_OWNED_BIT) == DESC_SWCORE_OWNED );
-#endif    
+#endif
     //txPktCounter++;
-    
+
     if ( ++currTxPkthdrDescIndex == txPkthdrRingCnt[0] )
         currTxPkthdrDescIndex = 0;
 
@@ -860,8 +889,9 @@ int32 swNic_send_portmbr(void * output, uint32 len, uint32 portmbr)
 
 void swNic_freeRxBuf(void)
 {
-	int idx, i;
-	struct rtl_pktHdr * pPkthdr;
+	int i;
+	//int idx;
+	//struct rtl_pktHdr * pPkthdr;
 
 	/* Initialize index of Tx pkthdr descriptor */
 	for (i=0;i<RTL865X_SWNIC_TXRING_HW_PKTDESC;i++)
@@ -870,7 +900,7 @@ void swNic_freeRxBuf(void)
 		txPktDoneDescIndex[i]=0;
 	}
 
-	for(i=RTL865X_SWNIC_RXRING_MAX_PKTDESC-1; i >= 0 ; i--)
+	for(i=RTL865X_SWNIC_RXRING_HW_PKTDESC-1; i >= 0 ; i--)
 	{
 		/* Initialize index of current Rx pkthdr descriptor */
 		currRxPkthdrDescIndex[i] = 0;
@@ -880,12 +910,12 @@ void swNic_freeRxBuf(void)
 		rxDescReadyForHwIndex[i] = 0;
 		rxDescCrossBoundFlag[i] = 0;
 		#endif
-		
+#if 0		
 		for (idx=0; idx<rxPkthdrRingCnt[i]; idx++)
 		{
 			if (!((rxPkthdrRing[i][idx] & DESC_OWNED_BIT) == DESC_RISC_OWNED)) {
-				pPkthdr = (struct rtl_pktHdr *) (rxPkthdrRing[i][idx] & 
-					~(DESC_OWNED_BIT | DESC_WRAP));    
+				pPkthdr = (struct rtl_pktHdr *) (rxPkthdrRing[i][idx] &
+					~(DESC_OWNED_BIT | DESC_WRAP));
 
 				/*if(pPkthdr == NULL || pPkthdr->ph_mbuf == NULL)
 				*	continue;
@@ -898,6 +928,21 @@ void swNic_freeRxBuf(void)
 
 				pPkthdr->ph_mbuf->m_data = NULL;
 				pPkthdr->ph_mbuf->m_extbuf = NULL;
+		    	}
+	    	}
+#endif
+	}
+	if (rxMbufRing) {
+		struct rtl_mBuf *pMbuf;
+
+		for (i=0;i<rxMbufRingCnt;i++)
+		{
+			pMbuf = (struct rtl_mBuf *)(rxMbufRing[i] & ~(DESC_OWNED_BIT | DESC_WRAP));
+
+			if (pMbuf->skb)
+			{
+				free_rx_buf(pMbuf->skb);
+				pMbuf->skb = NULL;
 		    	}
 	    	}
 	}
@@ -920,16 +965,16 @@ int swNic_refillRxRing(void)
 			skb=NULL;
 			buf = alloc_rx_buf(&skb, size_of_cluster);
 
-			if ((buf == NULL) ||(skb==NULL) ) { 
+			if ((buf == NULL) ||(skb==NULL) ) {
 				local_irq_restore(flags);
 				return -1;
 			}
-		
+
 			release_pkthdr(skb, i);
 		}
 		REG32(CPUIISR) = (MBUF_DESC_RUNOUT_IP_ALL|PKTHDR_DESC_RUNOUT_IP_ALL);
 	}
-	
+
 	local_irq_restore(flags);
 	return 0;
 }
@@ -947,14 +992,14 @@ void swNic_freeTxRing(void)
 	/* Initialize index of Tx pkthdr descriptor */
 	for (idx=0;idx<RTL865X_SWNIC_TXRING_HW_PKTDESC;idx++)
 	{
-			while (txPktDoneDescIndex[idx] != currTxPkthdrDescIndex[idx]) {		
-		
+			while (txPktDoneDescIndex[idx] != currTxPkthdrDescIndex[idx]) {
+
 			#ifdef CONFIG_RTL8196C_REVISION_B
 			if (rtl_chip_version == RTL8196C_REVISION_A)
 				txPkthdrRing[idx][txPktDoneDescIndex[idx]] =txPkthdrRing_backup[idx][txPktDoneDescIndex[idx]] ;
 			#endif
 
-			pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[idx][txPktDoneDescIndex[idx]] 
+			pPkthdr = (struct rtl_pktHdr *) ((int32) txPkthdrRing[idx][txPktDoneDescIndex[idx]]
 				& ~(DESC_OWNED_BIT | DESC_WRAP));
 
 			if (pPkthdr->ph_mbuf->skb)
@@ -965,23 +1010,23 @@ void swNic_freeTxRing(void)
 				#else
 				dev_kfree_skb_any((struct sk_buff *)pPkthdr->ph_mbuf->skb);
 				#endif
-				
+
 				pPkthdr->ph_mbuf->skb = NULL;
 			}
-			
+
 			txPkthdrRing[idx][txPktDoneDescIndex[idx]] &= ~DESC_SWCORE_OWNED;
-			
+
 			if (++txPktDoneDescIndex[idx] == txPkthdrRingCnt[idx])
 				txPktDoneDescIndex[idx] = 0;
-		
+
 		}
 
-	
+
 	}
 
-	
+
 	local_irq_restore(flags);
-	return ; //free_num;	
+	return ; //free_num;
 }
 
 int32 swNic_reConfigRxTxRing(void)
@@ -989,7 +1034,7 @@ int32 swNic_reConfigRxTxRing(void)
 	uint32 i,j,k;
 	//struct rtl_pktHdr	*pPkthdr;
 	unsigned long flags;
-	
+
 	local_irq_save(flags);
 
 	k = 0;
@@ -1022,7 +1067,7 @@ int32 swNic_reConfigRxTxRing(void)
 
 	rxMbufRing[rxMbufRingCnt - 1] |= DESC_WRAP;
 
-	
+
 	for (i=0;i<RTL865X_SWNIC_TXRING_HW_PKTDESC;i++)
 	{
 		currTxPkthdrDescIndex[i] = 0;
@@ -1032,8 +1077,13 @@ int32 swNic_reConfigRxTxRing(void)
 	/* Fill Tx packet header FDP */
 	REG32(CPUTPDCR0) = (uint32) txPkthdrRing[0];
 	REG32(CPUTPDCR1) = (uint32) txPkthdrRing[1];
-
 	
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	REG32(CPUTPDCR2) = (uint32) txPkthdrRing[2];
+	REG32(CPUTPDCR3) = (uint32) txPkthdrRing[3];
+#endif
+
+
 	/* Fill Rx packet header FDP */
 	REG32(CPURPDCR0) = (uint32) rxPkthdrRing[0];
 	REG32(CPURPDCR1) = (uint32) rxPkthdrRing[1];
@@ -1043,9 +1093,9 @@ int32 swNic_reConfigRxTxRing(void)
 	REG32(CPURPDCR5) = (uint32) rxPkthdrRing[5];
 
 	REG32(CPURMDCR0) = (uint32) rxMbufRing;
-	
+
 	local_irq_restore(flags);
-	
+
 	return 0;
 }
 int32 swNic_reInit(void)
@@ -1061,13 +1111,13 @@ int32 swNic_reInit(void)
 #endif
 //#pragma ghs section text=default
 /*************************************************************************
-*   FUNCTION                                                              
-*       swNic_init                                         
-*                                                                         
-*   DESCRIPTION                                                           
+*   FUNCTION
+*       swNic_init
+*
+*   DESCRIPTION
 *       This function initializes descriptors and data structures.
-*                                                                         
-*   INPUTS                                                                
+*
+*   INPUTS
 *       userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC] :
 *          Number of Rx pkthdr descriptors of each ring.
 *       userNeedRxMbufRingCnt :
@@ -1076,8 +1126,8 @@ int32 swNic_reInit(void)
 *          Number of Tx pkthdr descriptors of each ring.
 *       clusterSize :
 *          Size of cluster.
-*                                                                         
-*   OUTPUTS                                                               
+*
+*   OUTPUTS
 *       Status.
 *************************************************************************/
 
@@ -1089,7 +1139,7 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 	uint32 i, j, k;
 	static uint32 totalRxPkthdrRingCnt = 0, totalTxPkthdrRingCnt = 0;
 	static struct rtl_pktHdr *pPkthdrList_start;
-	static struct rtl_mBuf *pMbufList_start;		
+	static struct rtl_mBuf *pMbufList_start;
 	struct rtl_pktHdr *pPkthdrList;
 	struct rtl_mBuf *pMbufList;
 	struct rtl_pktHdr * pPkthdr;
@@ -1106,8 +1156,8 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 	extPortMaskToPortNum[5] = 5;
 	extPortMaskToPortNum[6] = 5;
 	extPortMaskToPortNum[7] = 5;
-	
-#if	defined(DELAY_REFILL_ETH_RX_BUF)	
+
+#if	defined(DELAY_REFILL_ETH_RX_BUF)
 	rxPkthdrRefillThreshold[0] = ETH_REFILL_THRESHOLD;
 	rxPkthdrRefillThreshold[1] = ETH_REFILL_THRESHOLD1;
 	rxPkthdrRefillThreshold[2] = ETH_REFILL_THRESHOLD2;
@@ -1123,11 +1173,11 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 	ret = SUCCESS;
 	local_irq_save(flags);
 	if (rxMbufRing == NULL)
-	{ 
+	{
 		size_of_cluster = clusterSize;
 
 		/* Allocate Rx descriptors of rings */
-		for (i = 0; i < RTL865X_SWNIC_RXRING_HW_PKTDESC; i++) {   
+		for (i = 0; i < RTL865X_SWNIC_RXRING_HW_PKTDESC; i++) {
 			rxPkthdrRingCnt[i] = userNeedRxPkthdrRingCnt[i];
 			if (rxPkthdrRingCnt[i] == 0)
 			{
@@ -1147,7 +1197,7 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 		}
 
 		/* Allocate Tx descriptors of rings */
-		for (i = 0; i < RTL865X_SWNIC_TXRING_HW_PKTDESC; i++) {    
+		for (i = 0; i < RTL865X_SWNIC_TXRING_HW_PKTDESC; i++) {
 			txPkthdrRingCnt[i] = userNeedTxPkthdrRingCnt[i];
 
 			if (txPkthdrRingCnt[i] == 0)
@@ -1180,7 +1230,7 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 			goto out;
 		}
 
-		rxMbufRing = (uint32 *) UNCACHED_MALLOC(rxMbufRingCnt * sizeof(uint32*));
+		rxMbufRing = (uint32 *) UNCACHED_MALLOC((rxMbufRingCnt+RESERVERD_MBUF_RING_NUM) * sizeof(uint32*));
 		ASSERT_CSP( (uint32) rxMbufRing & 0x0fffffff );
 
 		/* Allocate pkthdr */
@@ -1190,7 +1240,7 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 
 		/* Allocate mbufs */
 		pMbufList_start = (struct rtl_mBuf *) UNCACHED_MALLOC(
-		(rxMbufRingCnt + totalTxPkthdrRingCnt) * sizeof(struct rtl_mBuf));
+		(rxMbufRingCnt+RESERVERD_MBUF_RING_NUM+ totalTxPkthdrRingCnt) * sizeof(struct rtl_mBuf));
 		ASSERT_CSP( (uint32) pMbufList_start & 0x0fffffff );
 
 	}
@@ -1256,6 +1306,11 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 	REG32(CPUTPDCR0) = (uint32) txPkthdrRing[0];
 	REG32(CPUTPDCR1) = (uint32) txPkthdrRing[1];
 
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	REG32(CPUTPDCR2) = (uint32) txPkthdrRing[2];
+	REG32(CPUTPDCR3) = (uint32) txPkthdrRing[3];
+#endif
+
 	/* Initialize Rx packet header descriptors */
 	k = 0;
 
@@ -1281,7 +1336,7 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 			pMbuf->m_len = 0;
 			pMbuf->m_flags = MBUF_USED | MBUF_EXT | MBUF_PKTHDR | MBUF_EOR;
 			pMbuf->m_extsize = size_of_cluster;
-			pMbuf->m_data = pMbuf->m_extbuf = alloc_rx_buf(&pPkthdr->ph_mbuf->skb, size_of_cluster);			
+			pMbuf->m_data = pMbuf->m_extbuf = alloc_rx_buf(&pPkthdr->ph_mbuf->skb, size_of_cluster);
 
 			/* Setup descriptors */
 			rxPkthdrRing[i][j] = (int32) pPkthdr | DESC_SWCORE_OWNED;
@@ -1305,7 +1360,19 @@ int32 swNic_init(uint32 userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_HW_PKTDESC]
 	}
 
 	rxMbufRing[rxMbufRingCnt - 1] |= DESC_WRAP;
-
+	#if 0
+	for (i = 0; i < RESERVERD_MBUF_RING_NUM; i++)
+	{
+		pMbuf = pMbufList++;
+		bzero((void *) pMbuf, sizeof(struct rtl_mBuf));
+		pMbuf->m_next = NULL;
+		pMbuf->m_len = 0;
+		pMbuf->m_flags = MBUF_USED | MBUF_EXT | MBUF_PKTHDR | MBUF_EOR;
+		pMbuf->m_extsize = size_of_cluster;
+		pMbuf->m_data = pMbuf->m_extbuf = alloc_rx_buf(&pMbuf->skb, size_of_cluster);
+		rxMbufRing[rxMbufRingCnt+i] = (int32) pMbuf | DESC_SWCORE_OWNED|DESC_WRAP;
+	}
+	#endif
 	/* Fill Rx packet header FDP */
 	REG32(CPURPDCR0) = (uint32) rxPkthdrRing[0];
 	REG32(CPURPDCR1) = (uint32) rxPkthdrRing[1];
@@ -1324,16 +1391,16 @@ out:
 
 #ifdef FAT_CODE
 /*************************************************************************
-*   FUNCTION                                                              
-*       swNic_resetDescriptors                                         
-*                                                                         
-*   DESCRIPTION                                                           
+*   FUNCTION
+*       swNic_resetDescriptors
+*
+*   DESCRIPTION
 *       This function resets descriptors.
-*                                                                         
-*   INPUTS                                                                
+*
+*   INPUTS
 *       None.
-*                                                                         
-*   OUTPUTS                                                               
+*
+*   OUTPUTS
 *       None.
 *************************************************************************/
 void swNic_resetDescriptors(void)
@@ -1368,16 +1435,16 @@ int32	rtl_dumpRxRing(void)
 		for(cnt=0;cnt<rxPkthdrRingCnt[idx];cnt++)
 		{
 			pPkthdr = (struct rtl_pktHdr *) (rxPkthdrRing[idx][cnt] & ~(DESC_OWNED_BIT | DESC_WRAP));
-			
+
 #if	defined(DELAY_REFILL_ETH_RX_BUF)
 			printk("  idx[%03d]: 0x%p-->mbuf[0x%p],skb[0x%p]%s%s%s%s\n",  cnt, pPkthdr, pPkthdr->ph_mbuf, pPkthdr->ph_mbuf->skb,
-				(rxPkthdrRing[idx][cnt]&DESC_OWNED_BIT)==DESC_RISC_OWNED?" :CPU":" :SWCORE", 
+				(rxPkthdrRing[idx][cnt]&DESC_OWNED_BIT)==DESC_RISC_OWNED?" :CPU":" :SWCORE",
 				(rxPkthdrRing[idx][cnt]&DESC_WRAP)!=0?" :WRAP":"",
 				cnt==currRxPkthdrDescIndex[idx]?"  <===currIdx":"",
 				cnt ==rxDescReadyForHwIndex[idx]?" <===readyForHw":"");
 #else
 			printk("  idx[%03d]: 0x%p-->mbuf[0x%p],skb[0x%p]%s%s%s\n",  cnt, pPkthdr, pPkthdr->ph_mbuf, pPkthdr->ph_mbuf->skb,
-				(rxPkthdrRing[idx][cnt]&DESC_OWNED_BIT)==DESC_RISC_OWNED?" :CPU":" :SWCORE", 
+				(rxPkthdrRing[idx][cnt]&DESC_OWNED_BIT)==DESC_RISC_OWNED?" :CPU":" :SWCORE",
 				(rxPkthdrRing[idx][cnt]&DESC_WRAP)!=0?" :WRAP":"",
 				cnt==currRxPkthdrDescIndex[idx]?"  <===currIdx":"");
 #endif
@@ -1411,10 +1478,10 @@ int32	rtl_dumpTxRing(void)
 #endif
 			pPkthdr = (struct rtl_pktHdr *) (txPkthdrRing[idx][cnt] & ~(DESC_OWNED_BIT | DESC_WRAP));
 
-			printk("  idx[%03d]: 0x%p-->mbuf[0x%p],skb[0x%p]%s%s%s%s\n",  cnt, pPkthdr, pPkthdr->ph_mbuf, pPkthdr->ph_mbuf->skb, 
-				(txPkthdrRing[idx][cnt]&DESC_OWNED_BIT)==DESC_RISC_OWNED?" :CPU":" :SWCORE", 
+			printk("  idx[%03d]: 0x%p-->mbuf[0x%p],skb[0x%p]%s%s%s%s\n",  cnt, pPkthdr, pPkthdr->ph_mbuf, pPkthdr->ph_mbuf->skb,
+				(txPkthdrRing[idx][cnt]&DESC_OWNED_BIT)==DESC_RISC_OWNED?" :CPU":" :SWCORE",
 				(txPkthdrRing[idx][cnt]&DESC_WRAP)!=0?" :WRAP":"",
-				cnt==currTxPkthdrDescIndex[idx]?"  <===currIdx":"", 
+				cnt==currTxPkthdrDescIndex[idx]?"  <===currIdx":"",
 				cnt==txPktDoneDescIndex[idx]?"  <===txDoneIdx":"");
 		}
 	}
@@ -1432,9 +1499,9 @@ int32	rtl_dumpMbufRing(void)
 	while(1)
 	{
 		mbuf = (struct rtl_mBuf *)(rxMbufRing[idx] & ~(DESC_OWNED_BIT | DESC_WRAP));
-		printk("mbuf[%03d]: 0x%p: ==> pkthdr[0x%p] ==> skb[0x%p]%s%s%s\n", idx, mbuf, mbuf->m_pkthdr, 
-				mbuf->skb, 
-				(rxMbufRing[idx]&DESC_OWNED_BIT)==DESC_RISC_OWNED?" :CPU":" :SWCORE", 
+		printk("mbuf[%03d]: 0x%p: ==> pkthdr[0x%p] ==> skb[0x%p]%s%s%s\n", idx, mbuf, mbuf->m_pkthdr,
+				mbuf->skb,
+				(rxMbufRing[idx]&DESC_OWNED_BIT)==DESC_RISC_OWNED?" :CPU":" :SWCORE",
 				(rxMbufRing[idx]&DESC_WRAP)==DESC_ENG_OWNED?" :WRAP":"",
 				idx==currRxMbufDescIndex?"  <===currIdx":"");
 			if ((rxMbufRing[idx]&DESC_WRAP)!=0)
@@ -1452,19 +1519,19 @@ int32 rtl_dumpIndexs(void)
 	printk("Dump RX infos:\n");
 #if	defined(DELAY_REFILL_ETH_RX_BUF)
 	for(i=0;i<RTL865X_SWNIC_RXRING_HW_PKTDESC;i++) {
-		printk("	TotalCnt: %d, currPkthdrIdx: %d currMbufIdx: %d readyForHwIdx: %d crossBoundFlag: %d.\n", 
+		printk("	TotalCnt: %d, currPkthdrIdx: %d currMbufIdx: %d readyForHwIdx: %d crossBoundFlag: %d.\n",
 			rxPkthdrRingCnt[i], currRxPkthdrDescIndex[i], currRxMbufDescIndex, rxDescReadyForHwIndex[i], rxDescCrossBoundFlag[i]);
 	}
 #else
 	for(i=0;i<RTL865X_SWNIC_RXRING_HW_PKTDESC;i++) {
-		printk("	TotalCnt: %d, currPkthdrIdx: %d currMbufIdx: %d\n", 
+		printk("	TotalCnt: %d, currPkthdrIdx: %d currMbufIdx: %d\n",
 			rxPkthdrRingCnt[i], currRxPkthdrDescIndex[i], currRxMbufDescIndex);
 	}
 #endif
 
 	printk("\nDump TX infos:\n");
 	for(i=0;i<RTL865X_SWNIC_TXRING_HW_PKTDESC;i++) {
-		printk("	TotalCnt: %d, currPkthdrIdx: %d pktDoneIdx: %d.\n", 
+		printk("	TotalCnt: %d, currPkthdrIdx: %d pktDoneIdx: %d.\n",
 			txPkthdrRingCnt[i], currTxPkthdrDescIndex[i], txPktDoneDescIndex[i]);
 	}
 

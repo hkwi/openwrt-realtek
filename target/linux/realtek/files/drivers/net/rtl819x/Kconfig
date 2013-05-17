@@ -31,6 +31,7 @@ config RTL_IGMP_PROXY
 config RTL_IGMP_SNOOPING
 	bool
 	default y
+	depends on BRIDGE
 
 config RTL_MLD_SNOOPING
 	bool 
@@ -38,6 +39,10 @@ config RTL_MLD_SNOOPING
 	depends on RTL_IGMP_SNOOPING
 
 config RTL_LINKCHG_PROCESS
+	bool
+	default y
+
+config RTL_DEBUG_TOOL
 	bool
 	default y
 
@@ -138,7 +143,7 @@ menu "Config for Layered Driver Features"
 		bool
                 default n
 		depends on RTL_LAYERED_DRIVER
-		depends on RTL_8196CT || RTL_8198T || RTL_8198
+		depends on RTL_8196CT || RTL_8198T || RTL_8198 || RTL_819XDT
 
 	config RTL_LAYERED_DRIVER_L3
 		bool
@@ -173,7 +178,7 @@ menu "Config for Layered Driver Features"
 
 	config RTL_HW_NAPT
 		bool "Enable RTL Hardware NAPT"
-		depends on RTL_8198 || RTL_8196CT || RTL_8198T 
+		depends on RTL_8198 || RTL_8196CT || RTL_8198T || RTL_819XDT
 		select RTL_LAYERED_ASIC_DRIVER
 		select RTL_LAYERED_ASIC_DRIVER_L3
 		select RTL_LAYERED_ASIC_DRIVER_L4
@@ -213,7 +218,7 @@ menu "Config for Layered Driver Features"
                 bool "Enable multiple wan in hw nat mode"
                 default n
                 depends on RTL_NETIF_MAPPING && RTL_HARDWARE_NAT
-		depends on RTL_8198T || RTL_8196CT 
+		depends on RTL_8198T || RTL_8196CT || RTL_819XDT
 
 	config RTL865X_LANPORT_RESTRICTION
                 bool "Rtl865x lan port restriction"
@@ -307,7 +312,7 @@ config RTL_HW_QOS_SUPPORT
 	default n
 	depends on RTL_LAYERED_DRIVER
 	depends on RTL_HARDWARE_NAT
-	depends on RTL_8196CT || RTL_8198T || RTL_8198
+	depends on RTL_8196CT || RTL_8198T || RTL_8198 || RTL_819XDT
 
 config RTL_QOS_PATCH
 	bool "HW QoS patch"
@@ -346,6 +351,10 @@ config RTL_PROC_DEBUG
 	default n
 	depends on RTL_819X
 
+config RTL_LOG_DEBUG
+	bool "Enable log print system for debug"
+	default n
+
 config RTL865X_ROMEPERF
 	bool "Enable rome perf"
 	default n
@@ -356,11 +365,27 @@ config RTK_VLAN_SUPPORT
 	default y
 	depends on RTL_819X
 
+config RTK_VLAN_WAN_TAG_SUPPORT
+	bool "Support rtk vlan wan tag feature"
+	default n
+	depends on RTK_VLAN_SUPPORT`
+	depends on RTL_819X
+
 config RTK_VLAN_FOR_CABLE_MODEM
 	bool "rtk vlan for cable modem"
 	default n
 	depends on RTK_VLAN_SUPPORT
 
+config RTK_VLAN_NEW_FEATURE
+        bool "add rtk vlan bridge feature"
+        default n
+        depends on RTK_VLAN_SUPPORT
+
+config RTL_HW_VLAN_SUPPORT
+        bool "Support rtl hw vlan feature"
+        default n
+        depends on RTK_VLAN_SUPPORT
+	depends on RTL_8196CT || RTL_8198T
 #config NMS
 #	bool "Enable NMS"
 #	default n
@@ -399,7 +424,11 @@ config RTL_EEE_DISABLED
 config RTL_REINIT_SWITCH_CORE
 	bool
 	default y
-	depends on RTL_8196C
+	depends on RTL_8196C || RTL_819XD || RTL_8196E
+
+config RTL_SOCK_DEBUG
+	bool
+	default n
 endif #RTL_819X_SWCORE
 #endmenu
 #============================= End of Kconfig ===============================#

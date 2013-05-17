@@ -6,27 +6,11 @@
  *
  *  Author: jimmylin@realtek.com.tw
  *
- * Copyright 2005 Realtek Semiconductor Corp.
+ *  Copyright (c) 2011 Realtek Semiconductor Corp.
  *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
- *  option) any later version.
- *
- *  THIS  SOFTWARE  IS PROVIDED   ``AS  IS'' AND   ANY  EXPRESS OR IMPLIED
- *  WARRANTIES,   INCLUDING, BUT NOT  LIMITED  TO, THE IMPLIED WARRANTIES OF
- *  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN
- *  NO  EVENT  SHALL   THE AUTHOR  BE	LIABLE FOR ANY   DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- *  NOT LIMITED   TO, PROCUREMENT OF  SUBSTITUTE GOODS  OR SERVICES; LOSS OF
- *  USE, DATA,  OR PROFITS; OR  BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- *  ANY THEORY OF LIABILITY, WHETHER IN  CONTRACT, STRICT LIABILITY, OR TORT
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- *  You should have received a copy of the  GNU General Public License along
- *  with this program; if not, write  to the Free Software Foundation, Inc.,
- *  675 Mass Ave, Cambridge, MA 02139, USA.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
  */
 
 //#define CONFIG_USING_JTAG 1
@@ -49,27 +33,45 @@
 #include <linux/reboot.h>
 #include <linux/kmod.h>
 #include <linux/proc_fs.h>
-//#include  "bspchip.h"
+#include  "bspchip.h"
 #define AUTO_CONFIG
+
+#if defined (CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E)
+extern unsigned int get_8192cd_gpio0_7();
+#endif
 
 // 2009-0414
 //#define	DET_WPS_SPEC
 #ifndef CONFIG_RTK_VOIP_DRIVERS_ATA_DECT //DECT SPI use GPIO E interrupt, need refine code to share irq.
 #ifndef CONFIG_SERIAL_SC16IS7X0 //SC16IS7x0 use GPIO E interrupt, too.  
-#define USE_INTERRUPT_GPIO
+//#define USE_INTERRUPT_GPIO	//undefine USE_INTERRUPT_GPIO
 #endif
 #endif
 
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)
-#ifndef CONFIG_RTK_VOIP
+/*
+enabled immediate mode pbc ; must enabled "USE_INTERRUPT_GPIO" and "IMMEDIATE_PBC"
+gpio will rx pbc event and trigger wscd by signal method
+note:also need enabled IMMEDIATE_PBC at wsc.h (sdk/users/wsc/src/)
+*/
+//#define USE_INTERRUPT_GPIO	//undefine USE_INTERRUPT_GPIO
+//#define IMMEDIATE_PBC 
+
+
+#ifdef IMMEDIATE_PBC
+int	wscd_pid = 0;
+struct pid *wscd_pid_Ptr=NULL;
+#endif
+
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#ifndef CONFIG_RTK_VOIP_BOARD
 	#define READ_RF_SWITCH_GPIO
 #endif
 #endif
 
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	#include "drivers/net/rtl819x/AsicDriver/rtl865xc_asicregs.h"
 /*define the GPIO physical address to customer_gpio.h*/
-#ifdef CONFIG_RTK_VOIP
+#ifdef CONFIG_RTK_VOIP_BOARD
 	#if defined (CONFIG_RTK_VOIP_GPIO_8954C_V100) || \
 		defined (CONFIG_RTK_VOIP_GPIO_8964C_QA)
 	
@@ -129,6 +131,81 @@
 		#define AUTOCFG_PIN_NO 11 				//pin number of the EFGH
 		#define AUTOCFG_PIN_IMR PEF_IMR
 		#define RTL_GPIO_MUX_DATA 0x00000300 	//MUX for GPIO
+
+	#elif defined(CONFIG_RTK_VOIP_GPIO_8954C_SOUNDWIN_XVN1420)
+		// GPIO F4 DEFAULT_Button
+		#define RESET_PIN_IOBASE PEFGH_CNR 		//RTL_GPIO_PEFGH_CNR
+		#define RESET_PIN_DIRBASE PEFGH_DIR		//RTL_GPIO_PEFGH_DIR 
+		#define RESET_PIN_DATABASE PEFGH_DAT 	//RTL_GPIO_PEFGH_DATA
+		#define RESET_PIN_NO 12 				//pin number of the EFGH
+		
+		// No SYS LED
+		
+		// No WPS LED
+		
+		// GPIO D1 WPS Button
+		#define AUTOCFG_PIN_IOBASE PABCD_CNR 	//RTL_GPIO_PEFGH_CNR
+		#define AUTOCFG_PIN_DIRBASE PABCD_DIR	//RTL_GPIO_PEFGH_DIR 
+		#define AUTOCFG_PIN_DATABASE PABCD_DAT  //RTL_GPIO_PEFGH_DATA
+		#define AUTOCFG_PIN_NO 25 				//pin number of the EFGH
+		#define AUTOCFG_PIN_IMR PCD_IMR
+		#define RTL_GPIO_MUX_DATA 0x00000300 	//MUX for GPIO
+
+	#elif defined(CONFIG_RTK_VOIP_GPIO_8954C_PMC)
+
+                // GPIO A3 DEFAULT_Button
+                #define RESET_PIN_IOBASE PABCD_CNR              //RTL_GPIO_PABCD_CNR
+                #define RESET_PIN_DIRBASE PABCD_DIR             //RTL_GPIO_PABCD_DIR
+                #define RESET_PIN_DATABASE PABCD_DAT    //RTL_GPIO_PABCD_DATA
+                #define RESET_PIN_NO 3                                 //pin number of the ABCD
+
+                // GPIO C1 SYS LED
+                #define RESET_LED_IOBASE PABCD_CNR              //RTL_GPIO_PABCD_CNR
+                #define RESET_LED_DIRBASE PABCD_DIR             //RTL_GPIO_PABCD_DIR
+                #define RESET_LED_DATABASE PABCD_DAT    //RTL_GPIO_PABCD_DATA
+                #define RESET_LED_NO 16                                  //number of the ABCD
+
+                // GPIO A1 WPS LED
+                #define AUTOCFG_LED_IOBASE PABCD_CNR    //RTL_GPIO_PABCD_CNR
+                #define AUTOCFG_LED_DIRBASE PABCD_DIR   //RTL_GPIO_PABCD_DIR
+                #define AUTOCFG_LED_DATABASE PABCD_DAT  //RTL_GPIO_PABCD_DATA
+                #define AUTOCFG_LED_NO 1                                //pin number of the ABCD
+
+                // GPIO A2 WPS Button
+                #define AUTOCFG_PIN_IOBASE PABCD_CNR    //RTL_GPIO_PABCD_CNR
+                #define AUTOCFG_PIN_DIRBASE PABCD_DIR   //RTL_GPIO_PABCD_DIR
+                #define AUTOCFG_PIN_DATABASE PABCD_DAT  //RTL_GPIO_PABCD_DATA
+                #define AUTOCFG_PIN_NO 2                               //pin number of the ABCD
+                #define AUTOCFG_PIN_IMR PEF_IMR
+                #define RTL_GPIO_MUX_DATA 0x00000018    //MUX for GPIO
+		#define RTL_GPIO_MUX2_DATA 0x00038000
+	#elif defined(CONFIG_RTK_VOIP_GPIO_8972D_V100)
+		// GPIO G2 DEFAULT_Button
+		#define RESET_PIN_IOBASE PEFGH_CNR 		//RTL_GPIO_PEFGH_CNR
+		#define RESET_PIN_DIRBASE PEFGH_DIR		//RTL_GPIO_PEFGH_DIR 
+		#define RESET_PIN_DATABASE PEFGH_DAT 	//RTL_GPIO_PEFGH_DATA
+		#define RESET_PIN_NO 18 				//pin number of the EFGH
+
+		// GPIO G3 SYS LED
+		#define RESET_LED_IOBASE PEFGH_CNR 		//RTL_GPIO_PEFGH_CNR
+		#define RESET_LED_DIRBASE PEFGH_DIR		//RTL_GPIO_PEFGH_DIR 
+		#define RESET_LED_DATABASE PEFGH_DAT 	//RTL_GPIO_PEFGH_DATA
+		#define RESET_LED_NO 19 					//number of the EFGH
+		
+		// GPIO G4 WPS LED
+		#define AUTOCFG_LED_IOBASE PEFGH_CNR 	//RTL_GPIO_PEFGH_CNR
+		#define AUTOCFG_LED_DIRBASE PEFGH_DIR	//RTL_GPIO_PEFGH_DIR 
+		#define AUTOCFG_LED_DATABASE PEFGH_DAT  //RTL_GPIO_PEFGH_DATA
+		#define AUTOCFG_LED_NO 20 				//pin number of the EFGH
+
+		// GPIO G1 WPS Button
+		#define AUTOCFG_PIN_IOBASE PEFGH_CNR 	//RTL_GPIO_PEFGH_CNR
+		#define AUTOCFG_PIN_DIRBASE PEFGH_DIR	//RTL_GPIO_PEFGH_DIR 
+		#define AUTOCFG_PIN_DATABASE PEFGH_DAT  //RTL_GPIO_PEFGH_DATA
+		#define AUTOCFG_PIN_NO 17 				//pin number of the EFGH
+		#define AUTOCFG_PIN_IMR PEF_IMR
+  
+    		#define RTL_GPIO_MUX_DATA 0x00000C00 	//MUX for GPIO
     #endif
 	
 	#define RTL_GPIO_MUX 0xB8000040
@@ -244,7 +321,7 @@
 #endif
 
 	
-#elif defined(CONFIG_RTL_8198)
+#elif defined(CONFIG_RTL_8198)// || defined(CONFIG_RTL_819XD) //LZQ
 	// GPIO H1
 	#define RESET_PIN_IOBASE PEFGH_CNR 	//RTL_GPIO_PABCD_CNR
 	#define RESET_PIN_DIRBASE PEFGH_DIR	//RTL_GPIO_PABCD_DIR 
@@ -269,7 +346,38 @@
 	#define AUTOCFG_PIN_DATABASE PEFGH_DAT //RTL_GPIO_PABCD_DATA
 	#define AUTOCFG_PIN_NO 1 /*number of the ABCD)*/
 	#define AUTOCFG_PIN_IMR PGH_IMR
+
 	
+#elif defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)	//LZQ
+	//V201 demo board 
+	#define RESET_PIN_IOBASE 	PABCD_CNR	//RTL_GPIO_PABCD_CNR
+	#define RESET_PIN_DIRBASE 	PABCD_DIR //RTL_GPIO_PABCD_DIR 
+	#define RESET_PIN_DATABASE 	PABCD_DAT //RTL_GPIO_PABCD_DATA
+	#define RESET_PIN_NO 25 /*number of the ABCD*/
+
+	#define RESET_LED_IOBASE 	PABCD_CNR	//RTL_GPIO_PABCD_CNR
+	#define RESET_LED_DIRBASE 	PABCD_DIR //RTL_GPIO_PABCD_DIR 
+	#define RESET_LED_DATABASE 	PABCD_DAT //RTL_GPIO_PABCD_DATA
+	#define RESET_LED_NO 27 /*number of the ABCD*/
+
+	#define AUTOCFG_LED_IOBASE 	PABCD_CNR	//RTL_GPIO_PABCD_CNR
+	#define AUTOCFG_LED_DIRBASE PABCD_DIR	//RTL_GPIO_PABCD_DIR 
+	#define AUTOCFG_LED_DATABASE PABCD_DAT //RTL_GPIO_PABCD_DATA
+	#define AUTOCFG_LED_NO 20 /*number of the ABCD*/
+
+	#define AUTOCFG_PIN_IOBASE 	PABCD_CNR	//RTL_GPIO_PABCD_CNR
+	#define AUTOCFG_PIN_DIRBASE PABCD_DIR	//RTL_GPIO_PABCD_DIR 
+	#define AUTOCFG_PIN_DATABASE PABCD_DAT 	//RTL_GPIO_PABCD_DATA
+	#define AUTOCFG_PIN_NO 1 					/*number of the ABCD)*/
+	#define AUTOCFG_PIN_IMR 	PAB_IMR
+	
+	#if defined (CONFIG_RTL_8197D)
+		#define USB_MODE_DETECT_PIN_NO			1
+		#define USB_MODE_DETECT_PIN_IOBASE		PABCD_DAT
+	#elif defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E)
+		#define USB_MODE_DETECT_PIN_NO			4
+		//#define USB_MODE_DETECT_PIN_IOBASE		PABCD_DAT
+	#endif
 #endif
 	// GPIO C3
 	#define WIFI_ONOFF_PIN_IOBASE PABCD_CNR 	//RTL_GPIO_PABCD_CNR
@@ -311,11 +419,92 @@
 	 #define RESET_BTN_PIN           5
 	#endif
 	
-#elif defined(CONFIG_RTL_8198)
+#elif defined(CONFIG_RTL_8198) //|| defined(CONFIG_RTL_819XD) LZQ
 	 #define AUTOCFG_BTN_PIN         24
 	 #define AUTOCFG_LED_PIN         26
 	 #define RESET_LED_PIN           27
 	 #define RESET_BTN_PIN           25
+
+#elif defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+
+	#define RTL_GPIO_MUX_GPIOA2_6 (6<<0)
+	#define RTL_GPIO_MUX_GPIOA0_1 (3<<12)
+	#define RTL_GPIO_MUX_2_GPIOB7 (4<<15)	
+	#define RTL_GPIO_MUX_2_GPIOC0 (4<<18)
+	
+	#define RTL_GPIO_CNR_GPIOA1 (1<<1)
+	#define RTL_GPIO_CNR_GPIOA2 (1<<2)
+	#define RTL_GPIO_CNR_GPIOA3 (1<<3)
+	#define RTL_GPIO_CNR_GPIOA4 (1<<4)
+	#define RTL_GPIO_CNR_GPIOA5 (1<<5)
+	#define RTL_GPIO_CNR_GPIOA6 (1<<6)
+	#define RTL_GPIO_CNR_GPIOB7 (1<<15) 
+	#define RTL_GPIO_CNR_GPIOC0 (1<<16)
+
+	#define RTL_GPIO_DIR_GPIOA1 (1<<1) /* &- */
+	#define RTL_GPIO_DIR_GPIOA2 (1<<2) /* |*/
+	#define RTL_GPIO_DIR_GPIOA3 (1<<3) /* &-*/	
+	#define RTL_GPIO_DIR_GPIOA4 (1<<4) /* &- */
+	#define RTL_GPIO_DIR_GPIOA5 (1<<5) /* &- */
+	#define RTL_GPIO_DIR_GPIOA6 (1<<6) /* | */
+	#define RTL_GPIO_DIR_GPIOB7 (1<<15) /* &-*/	
+	#define RTL_GPIO_DIR_GPIOC0 (1<<16) /* &- */
+
+	#define RTL_GPIO_DAT_GPIOA1 (1<<1) 
+	#define RTL_GPIO_DAT_GPIOA2 (1<<2) 
+	#define RTL_GPIO_DAT_GPIOA3 (1<<3) 	
+	#define RTL_GPIO_DAT_GPIOA4 (1<<4) 
+	#define RTL_GPIO_DAT_GPIOA5 (1<<5) 
+	#define RTL_GPIO_DAT_GPIOA6 (1<<6) 
+	#define RTL_GPIO_DAT_GPIOB7 (1<<15) 	
+	#define RTL_GPIO_DAT_GPIOC0 (1<<16) 
+
+	#if defined(CONFIG_RTL_8197D)
+		#define RTL_GPIO_MUX_POCKETAP_DATA		(RTL_GPIO_MUX_GPIOA0_1 | RTL_GPIO_MUX_GPIOA2_6)
+		#define RTL_GPIO_MUX_2_POCKETAP_DATA	(RTL_GPIO_MUX_2_GPIOB7 | RTL_GPIO_MUX_2_GPIOC0)
+		#define RTL_GPIO_CNR_POCKETAP_DATA		(RTL_GPIO_CNR_GPIOA1 | \
+												 RTL_GPIO_CNR_GPIOA2 | \
+												 RTL_GPIO_CNR_GPIOA3 | \
+												 RTL_GPIO_CNR_GPIOA4 | \
+												 RTL_GPIO_CNR_GPIOA5 | \
+												 RTL_GPIO_CNR_GPIOA6 | \
+												 RTL_GPIO_CNR_GPIOB7 | \
+												 RTL_GPIO_CNR_GPIOC0)
+
+	
+		#define AUTOCFG_LED_PIN 			6
+		#define AUTOCFG_BTN_PIN         	3
+		#define RESET_LED_PIN           	6//reset led will be turn off by timer function
+		#define RESET_BTN_PIN           	5
+	#elif defined(CONFIG_RTL_8197DL)
+		#define RTL_GPIO_MUX_POCKETAP_DATA		(RTL_GPIO_MUX_GPIOA2_6)
+		#define RTL_GPIO_CNR_POCKETAP_DATA		(RTL_GPIO_CNR_GPIOA2 | \
+								 RTL_GPIO_CNR_GPIOA3 | \
+								 RTL_GPIO_CNR_GPIOA4 | \
+								 RTL_GPIO_CNR_GPIOA5 | \
+								 RTL_GPIO_CNR_GPIOA6)
+
+	
+		#define AUTOCFG_LED_PIN 		6
+		#define AUTOCFG_BTN_PIN         	3
+		#define RESET_LED_PIN           	6//reset led will be turn off by timer function
+		#define RESET_BTN_PIN           	5
+	#elif defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E)
+
+		#define RTL_GPIO_MUX_POCKETAP_DATA	(RTL_GPIO_MUX_GPIOA2_6)
+		#define RTL_GPIO_CNR_POCKETAP_DATA	(RTL_GPIO_CNR_GPIOA2 | \
+											 RTL_GPIO_CNR_GPIOA4 | \
+											 RTL_GPIO_CNR_GPIOA5 | \
+											 RTL_GPIO_CNR_GPIOA6)
+
+	
+		#define AUTOCFG_LED_PIN 			6
+		#define AUTOCFG_BTN_PIN         	2
+		#define RESET_LED_PIN           	6
+		#define RESET_BTN_PIN           	5		
+		
+	
+	#endif
 #endif	 
 
 #endif // CONFIG_RTK_VOIP
@@ -361,7 +550,13 @@ int Reboot_Wait=0;
 
 static int get_dc_pwr_plugged_state();
 
-
+#if defined(USE_INTERRUPT_GPIO)
+struct gpio_wps_device
+{
+	unsigned int name;
+};
+struct gpio_wps_device priv_gpio_wps_device;
+#endif
 
 //#ifdef CONFIG_RTL865X_AC
 
@@ -369,10 +564,54 @@ static int get_dc_pwr_plugged_state();
 static struct timer_list pocket_ap_timer;
 #endif
 
-#ifdef	USE_INTERRUPT_GPIO
+#ifdef CONFIG_RTL_ULINKER
+static struct timer_list ulinker_timer;
+static struct timer_list ulinker_ap_cl_timer;
+#endif
+
+//#ifdef	USE_INTERRUPT_GPIO
 static int wps_button_push = 0;
+//#endif
+
+#if defined(CONFIG_RTL_8196E)	//mark_es
+extern  void RTLWIFINIC_GPIO_write(unsigned int gpio_num, unsigned int value);
+extern int RTLWIFINIC_GPIO_read(unsigned int gpio_num);
+#define 	BOND_ID_MASK	(0xF)
+#define 	BOND_OPTION	(SYSTEM_BASE+0x000C)
+#define 	BOND_8196ES	(0xD)
+static int rtk_sys_bonding_type=0;
+int sys_bonding_type()
+{
+  static int init_type =0 ;
+
+  if(init_type ==0 )  //read register only once !!
+  {
+	  rtk_sys_bonding_type = REG32(BOND_OPTION) & BOND_ID_MASK;
+	  init_type=1;
+  }	  	
+
+  return rtk_sys_bonding_type;
+}
 
 #endif
+
+int reset_button_pressed(void)
+{
+#if defined(CONFIG_RTL_8196E)	
+	if(sys_bonding_type() == BOND_8196ES ) 
+	{
+		if(RTLWIFINIC_GPIO_read(0) == 1 ) //pin0
+		   return 1;
+		else
+		  return 0;	
+	}
+#endif		
+	if ((RTL_R32(RESET_PIN_DATABASE) & (1 << RESET_BTN_PIN)))	
+		return 0;
+	else
+		return 1;
+}
+
 #if defined(CONFIG_RTL_8196CS)
 void update_pcie_status(void)
 {
@@ -410,16 +649,20 @@ void autoconfig_gpio_init(void)
 	//printk("LINE: %x d:%x *  %x****R:%x\n",__LINE__,RTL_R32(0xb8b00728),RTL_R32(PCIE_PIN_MUX),RTL_R32(RESET_PIN_DATABASE));
 #else
 	RTL_W32(AUTOCFG_PIN_IOBASE,(RTL_R32(AUTOCFG_PIN_IOBASE)&(~(1 << AUTOCFG_BTN_PIN))));
+#ifdef AUTOCFG_LED_NO
 	RTL_W32(AUTOCFG_LED_IOBASE,(RTL_R32(AUTOCFG_LED_IOBASE)&(~(1 << AUTOCFG_LED_PIN))));
+   #endif
 
 	// Set GPIOA pin 1 as input pin for auto config button
 	RTL_W32(AUTOCFG_PIN_DIRBASE, (RTL_R32(AUTOCFG_PIN_DIRBASE) & (~(1 << AUTOCFG_BTN_PIN))));
 
+#ifdef AUTOCFG_LED_NO
 	// Set GPIOA ping 3 as output pin for auto config led
 	RTL_W32(AUTOCFG_LED_DIRBASE, (RTL_R32(AUTOCFG_LED_DIRBASE) | (1 << AUTOCFG_LED_PIN)));
 
 	// turn off auto config led in the beginning
 	RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) | (1 << AUTOCFG_LED_PIN)));
+#endif
 #endif
 }
 #ifdef CONFIG_RTL_8196C_GW_MP
@@ -491,26 +734,23 @@ void autoconfig_gpio_blink(void)
 
 }
 
-
-
-#else
+#elif defined(CONFIG_RTL_ULINKER)
+extern void RTLWIFINIC_GPIO_write(unsigned int gpio_num, unsigned int value);
 void autoconfig_gpio_off(void)
 {
-	RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) | (1 << AUTOCFG_LED_PIN)));
+	RTLWIFINIC_GPIO_write(4, 0);
 	AutoCfg_LED_Blink = 0;
 }
-
 
 void autoconfig_gpio_on(void)
 {
-	RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) & (~(1 << AUTOCFG_LED_PIN))));
+	RTLWIFINIC_GPIO_write(4, 1);
 	AutoCfg_LED_Blink = 0;
 }
 
-
 void autoconfig_gpio_blink(void)
 {
-	RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) & (~(1 << AUTOCFG_LED_PIN))));
+	RTLWIFINIC_GPIO_write(4, 1);
 
 	AutoCfg_LED_Blink = 1;
 	AutoCfg_LED_Toggle = 1;
@@ -520,8 +760,70 @@ void autoconfig_gpio_blink(void)
 
 void autoconfig_gpio_slow_blink(void)
 {
+	RTLWIFINIC_GPIO_write(4, 1);
+
+	AutoCfg_LED_Blink = 1;
+	AutoCfg_LED_Toggle = 1;
+	AutoCfg_LED_Slow_Blink = 1;
+	AutoCfg_LED_Slow_Toggle = 1;
+
+}
+#else
+
+void autoconfig_gpio_off(void)
+{
+   #ifdef AUTOCFG_LED_NO
+   	#if defined(CONFIG_RTL_8196E)	
+	if(sys_bonding_type() == BOND_8196ES ) 
+    	     RTLWIFINIC_GPIO_write(4, 0); //off
+	else
+	#endif
+	RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) | (1 << AUTOCFG_LED_PIN)));
+   #endif
+	AutoCfg_LED_Blink = 0;
+}
+
+
+void autoconfig_gpio_on(void)
+{
+   #ifdef AUTOCFG_LED_NO
+  	 #if defined(CONFIG_RTL_8196E)	
+	if(sys_bonding_type() == BOND_8196ES ) 
+    	     RTLWIFINIC_GPIO_write(4, 1); //on
+	else
+	#endif	
 	RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) & (~(1 << AUTOCFG_LED_PIN))));
-	
+   #endif
+	AutoCfg_LED_Blink = 0;
+}
+
+
+void autoconfig_gpio_blink(void)
+{
+   #ifdef AUTOCFG_LED_NO
+       #if defined(CONFIG_RTL_8196E)	
+	if(sys_bonding_type() == BOND_8196ES ) 
+    	     RTLWIFINIC_GPIO_write(4, 1); //on
+	else
+	#endif	
+	RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) & (~(1 << AUTOCFG_LED_PIN))));
+   #endif
+	AutoCfg_LED_Blink = 1;
+	AutoCfg_LED_Toggle = 1;
+	AutoCfg_LED_Slow_Blink = 0;
+
+}
+
+void autoconfig_gpio_slow_blink(void)
+{
+   #ifdef AUTOCFG_LED_NO
+       #if defined(CONFIG_RTL_8196E)	
+	if(sys_bonding_type()  == BOND_8196ES ) 
+    	     RTLWIFINIC_GPIO_write(4, 1); //on
+	else
+	#endif	
+	RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) & (~(1 << AUTOCFG_LED_PIN))));
+   #endif	
 	AutoCfg_LED_Blink = 1;
 	AutoCfg_LED_Toggle = 1;
 	AutoCfg_LED_Slow_Blink = 1;
@@ -546,17 +848,19 @@ static void rtl_gpio_timer(unsigned long data)
 #if defined(CONFIG_RTL_8196CS)
 	update_pcie_status();
 #endif
-#if  defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)
+#if  defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 
-	if ((RTL_R32(RESET_PIN_DATABASE) & (1 << RESET_BTN_PIN)))
-
+	if(reset_button_pressed() == 0) //mark_es
 #endif
 	{
 		pressed = 0;
-
+		#if !defined(CONFIG_RTL_819XD) && !defined(CONFIG_RTL_8196E) || defined(CONFIG_RTK_VOIP_BOARD)
 		//turn off LED0
+                #ifdef RESET_LED_NO
 		#ifndef CONFIG_RTL_8196C_GW_MP
 		RTL_W32(RESET_LED_DATABASE, (RTL_R32(RESET_LED_DATABASE) | ((1 << RESET_LED_PIN))));
+		#endif
+		#endif
 		#endif
 	}
 	else
@@ -565,9 +869,13 @@ static void rtl_gpio_timer(unsigned long data)
 	}
 
 	if (RTL_R32(AUTOCFG_PIN_DATABASE) & (1 << AUTOCFG_BTN_PIN)){
+#ifdef USE_INTERRUPT_GPIO
 		wps_button_push = 0;
+#endif
 	}else{
+#ifdef USE_INTERRUPT_GPIO
 		wps_button_push++;
+#endif
 	}
 
 	if (probe_state == PROBE_NULL)
@@ -590,17 +898,51 @@ static void rtl_gpio_timer(unsigned long data)
 			{
 				DPRINTK("2-5 turn on led\n");
 				//turn on LED0
-				RTL_W32(RESET_LED_DATABASE, (RTL_R32(RESET_LED_DATABASE) & (~(1 << RESET_LED_PIN))));
+			#ifdef RESET_LED_NO
+			  #if defined(CONFIG_RTL_ULINKER)
+			  	RTLWIFINIC_GPIO_write(4, 1);
+			  #else
+			#if defined(CONFIG_RTL_8196E)	
+				if(sys_bonding_type() == BOND_8196ES ) 	
+				  RTLWIFINIC_GPIO_write(4, 1); 
+				else
+			#endif				  
+				  RTL_W32(RESET_LED_DATABASE, (RTL_R32(RESET_LED_DATABASE) & (~(1 << RESET_LED_PIN))));
+			  #endif
+            #endif
 			}
 			else if (probe_counter >= PROBE_TIME)
 			{
 				// sparkling LED0
 				DPRINTK(">5 \n");
 
-				if (probe_counter & 1)
-					RTL_W32(RESET_LED_DATABASE, (RTL_R32(RESET_LED_DATABASE) | ((1 << RESET_LED_PIN))));
+            #ifdef RESET_LED_NO
+			  #if defined(CONFIG_RTL_ULINKER)
+			  	if (probe_counter & 1)
+					RTLWIFINIC_GPIO_write(4, 0);
 				else
+					RTLWIFINIC_GPIO_write(4, 1);
+			  #else
+				if (probe_counter & 1)
+				{
+			#if defined(CONFIG_RTL_8196E)	
+				if(sys_bonding_type() == BOND_8196ES ) 	
+				  RTLWIFINIC_GPIO_write(4, 0); 
+				else
+			#endif  				
+					RTL_W32(RESET_LED_DATABASE, (RTL_R32(RESET_LED_DATABASE) | ((1 << RESET_LED_PIN))));
+				}	
+				else
+				{
+			#if defined(CONFIG_RTL_8196E)	
+				if(sys_bonding_type() == BOND_8196ES ) 	
+				  RTLWIFINIC_GPIO_write(4, 1); 
+				else
+			#endif  								
 					RTL_W32(RESET_LED_DATABASE, (RTL_R32(RESET_LED_DATABASE) & (~(1 << RESET_LED_PIN))));
+				}	
+			  #endif
+            #endif
 			}
 		}
 		else
@@ -649,19 +991,37 @@ static void rtl_gpio_timer(unsigned long data)
 	if (AutoCfg_LED_Blink==1)
 	{
 		if (AutoCfg_LED_Toggle) {
+               #ifdef AUTOCFG_LED_NO
 		#if defined(CONFIG_RTL_8196CS)
 			RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) | ((1 << AUTOCFG_LED_PIN)<<OUT_MASK1)));
+		#elif defined(CONFIG_RTL_ULINKER)
+			RTLWIFINIC_GPIO_write(4, 0);
 		#else
+			#if defined(CONFIG_RTL_8196E)	
+			if(sys_bonding_type() == BOND_8196ES ) 
+    	     			RTLWIFINIC_GPIO_write(4, 0); 
+			else
+			#endif						
 			RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) | (1 << AUTOCFG_LED_PIN)));
 		#endif
+               #endif
 		}
 		else {
+                #ifdef AUTOCFG_LED_NO
 			#if defined(CONFIG_RTL_8196CS)
 			RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) & (~((1 << AUTOCFG_LED_PIN)<<OUT_MASK1))));
+			#elif defined(CONFIG_RTL_ULINKER)
+			RTLWIFINIC_GPIO_write(4, 1);
 			#else
+			#if defined(CONFIG_RTL_8196E)	
+			if(sys_bonding_type() == BOND_8196ES ) 
+    	     			RTLWIFINIC_GPIO_write(4, 1); 
+			else
+			#endif				
 			 RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) & (~(1 << AUTOCFG_LED_PIN))));
 			#endif
 			
+             #endif
 		}
 				
 		if(AutoCfg_LED_Slow_Blink)
@@ -686,7 +1046,7 @@ static void rtl_gpio_timer(unsigned long data)
 
 #ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
 
-#define SYSTEM_CONTRL_DUMMY_REG 0xb8000068
+#define SYSTEM_CONTRL_DUMMY_REG 0xb8003504
 
 int is_bank2_root()
 {
@@ -721,11 +1081,35 @@ static int read_bootbank_proc(char *page, char **start, off_t off,
 #if defined(USE_INTERRUPT_GPIO)
 static irqreturn_t gpio_interrupt_isr(int irq, void *dev_instance, struct pt_regs *regs)
 {
-	wps_button_push = 1;   	  	
+
+	printk("%s %d\n",__FUNCTION__ , __LINE__);
+	unsigned int status;
+
+	status = REG32(PABCD_ISR);
+
+	if((status & BIT(3)) != 0)
+	{
+		wps_button_push = 1; 		
+		RTL_W32(PABCD_ISR, BIT(3)); 	
+#ifdef IMMEDIATE_PBC
+	if(wscd_pid>0)
+	{
+		rcu_read_lock();
+		wscd_pid_Ptr = get_pid(find_vpid(wscd_pid));
+		rcu_read_unlock();	
+
+		if(wscd_pid_Ptr){
+			printk("(%s %d);signal wscd ;pid=%d\n",__FUNCTION__ , __LINE__,wscd_pid);			
+			kill_pid(wscd_pid_Ptr, SIGUSR2, 1);
+			
+		}
+
+	}
+#endif
+	}
 #ifdef CONFIG_RTK_VOIP
+	wps_button_push = 1; 
 	RTL_W32(PEFGH_ISR, RTL_R32(PEFGH_ISR)); 	
-#else
-  	RTL_W32(PABCD_ISR, RTL_R32(PABCD_ISR)); 	
 #endif
 	return IRQ_HANDLED;
 }
@@ -754,14 +1138,21 @@ static int read_proc(char *page, char **start, off_t off,
 	}
 // 2009-0414		
 #else
-
 	if (RTL_R32(AUTOCFG_PIN_DATABASE) & (1 << AUTOCFG_BTN_PIN))
 		flag = '0';
 	else {
 		flag = '1';
 	}
 #endif // CONFIG_RTL865X_KLD		
-		
+#if defined(CONFIG_RTL_8196E)
+	if(sys_bonding_type()== BOND_8196ES ) 
+	{
+		if(RTLWIFINIC_GPIO_read(7) == 1 ) 
+		   flag = '1';
+		else
+		   flag = '0';
+	}
+#endif				
 	len = sprintf(page, "%c\n", flag);
 
 
@@ -774,6 +1165,43 @@ static int read_proc(char *page, char **start, off_t off,
 }
 
 
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+static int usb_mode_detect_read_proc(char *page, char **start, off_t off,
+				int count, int *eof, void *data)
+{
+	int len;
+	char flag;
+	#if !defined(CONFIG_RTK_VOIP_BOARD)
+	#if defined(CONFIG_RTL_8197D)
+	if(RTL_R32(USB_MODE_DETECT_PIN_IOBASE) & (1 << (USB_MODE_DETECT_PIN_NO)))
+	{
+		flag = '1';
+	}
+	else
+	{
+		flag = '0';
+	}	
+	#elif (defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E)) && (defined(CONFIG_RTL8192CD)||defined(CONFIG_RTL8192E))
+	if(get_8192cd_gpio0_7()& (1 << (USB_MODE_DETECT_PIN_NO)))
+	{
+		flag = '1';
+	}
+	else
+	{
+		flag = '0';
+	}	
+	#endif
+	#endif
+	len = sprintf(page, "%c\n", flag);
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len > count) len = count;
+	if (len < 0) len = 0;
+	return len;
+}
+#endif
 
 #ifdef CONFIG_RTL_KERNEL_MIPS16_CHAR
 __NOMIPS16
@@ -861,6 +1289,56 @@ static int write_proc(struct file *file, const char *buffer,
 	else
 		return -EFAULT;
 }
+#ifdef IMMEDIATE_PBC
+static unsigned long atoi_dec(char *s)
+{
+	unsigned long k = 0;
+
+	k = 0;
+	while (*s != '\0' && *s >= '0' && *s <= '9') {
+		k = 10 * k + (*s - '0');
+		s++;
+	}
+	return k;
+}
+static int read_gpio_wscd_pid(char *page, char **start, off_t off,
+				int count, int *eof, void *data)
+{
+	int len;
+	char flag;
+
+	DPRINTK("wscd_pid=%d\n",wscd_pid);	
+	
+	len = sprintf(page, "%d\n", wscd_pid);
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len > count) len = count;
+	if (len < 0) len = 0;
+	return len;
+}
+static int write_gpio_wscd_pid(struct file *file, const char *buffer,
+				unsigned long count, void *data)
+{
+	char flag[20];
+	char start_count[10], wait[10];
+	if (count < 2)
+		return -EFAULT;
+
+	DPRINTK("file: %08x, buffer: %s, count: %lu, data: %08x\n",
+		(unsigned int)file, buffer, count, (unsigned int)data);
+
+	if (buffer && !copy_from_user(&flag, buffer, 1)) {
+
+		wscd_pid = atoi_dec(buffer);
+		DPRINTK("wscd_pid=%d\n",wscd_pid);	
+		return count;
+	}
+	else{
+		return -EFAULT;
+	}
+}
+#endif
 #endif // AUTO_CONFIG
 
 static int default_read_proc(char *page, char **start, off_t off,
@@ -1178,11 +1656,643 @@ static void pocket_ap_timer_func(unsigned long data)
 	mod_timer(&pocket_ap_timer, jiffies + HZ/2);
 }
 #endif
+
+
+
+#if defined(CONFIG_RTL_ULINKER)
+static int pre_status = -1;
+static int nxt_status = -1;
+static int cur_status = -1;
+static int switched   = 0;
+static int running    = 0;
+
+//static char ulinker_ap_cl_flag = '0'; /* 0: client, 1: router */
+static char ulinker_ap_cl_flag = '1'; /* 0: client, 1: router */
+
+static int read_ulinker_ap_cl_switching(char *page, char **start, off_t off,
+				int count, int *eof, void *data)
+{
+	int len;
+
+	len = sprintf(page, "%d\n", running);
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len > count) len = count;
+	if (len < 0) len = 0;
+
+	return len;
+}
+
+static int write_ulinker_ap_cl_switching(struct file *file, const char *buffer,
+				unsigned long count, void *data)
+{
+	char tmp = '0';
+
+	if (count != 2)
+		return -EFAULT;
+	if (buffer && !copy_from_user(&tmp, buffer, 1)) {
+		if (tmp == '0') {
+			running = 0;
+		}
+	}
+	return -EFAULT;
+}
+
+int rndis_reset = 0;
+static int read_ulinker_rndis_reset(char *page, char **start, off_t off,
+				int count, int *eof, void *data)
+{
+	int len;
+	len = sprintf(page, "%d\n", rndis_reset);
+	return len;
+}
+
+static int write_ulinker_rndis_reset(struct file *file, const char *buffer,
+				unsigned long count, void *data)
+{
+	char tmp[16];
+
+	if (count < 2)
+		return -EFAULT;
+
+	if (buffer && !copy_from_user(tmp, buffer, 8)) {
+		if (tmp[0] == '0'){
+			rndis_reset = 0;
+		}
+
+		return count;
+	}
+	return -EFAULT;
+}
+
+static int read_ulinker_ap_cl(char *page, char **start, off_t off,
+				int count, int *eof, void *data)
+{
+	int len;
+
+	len = sprintf(page, "%c\n", ulinker_ap_cl_flag);
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len > count) len = count;
+	if (len < 0) len = 0;
+
+	return len;
+}
+
+#if defined(CONFIG_RTL_ULINKER_WLAN_DELAY_INIT)
+static struct proc_dir_entry *res_wlan=NULL;
+int wlan_init_proc_write(struct file *file, const char *buf, unsigned long count, void *data)
+{
+	unsigned char tmp[20];
+
+	if (count < 2 || count > 20)
+	return -EFAULT;
+
+	memset(tmp, '\0', 20);
+	if (buf && !copy_from_user(tmp, buf, count))
+	{
+		tmp[count-1]=0;
+
+		if(!strcmp(tmp, "wlan 1"))
+		{
+			extern int rtl8192cd_init(void);
+			rtl8192cd_init();
+		}
+	#if 0 //our wlan driver can't unreg...
+		else if (!strcmp(tmp, "wlan 0"))
+		{
+			extern void rtl8192cd_exit (void);
+			printk("wlan drv unreg !\n");
+			rtl8192cd_exit();
+		}
+	#endif
+	}
+
+	return count;
+}
+#endif
+
+static void ulinker_timer_func(unsigned long data)
+{
+	//panic_printk("rtl_gpio: cur_status[%d], ulinker_ap_cl_flag[%c]\n", cur_status, ulinker_ap_cl_flag);
+	if (running == 0)
+	{
+		cur_status = (RTL_R32(RESET_PIN_DATABASE) & (RTL_GPIO_DAT_GPIOA6));
+		//panic_printk("rtl_gpio: cur_status[%d]\n", cur_status);
+
+		if (pre_status == -1) {
+			pre_status = cur_status;
+
+			if (cur_status == 0)
+				ulinker_ap_cl_flag = '1'; /* router */
+			else
+				ulinker_ap_cl_flag = '0'; /* client */
+		}
+		else if (pre_status != cur_status || switched) {
+			if (switched == 0) {
+				switched =1;
+				nxt_status = cur_status;
+			}
+			else {
+				if (cur_status == nxt_status)
+					switched++;
+				else {
+					//panic_printk("rtl_gpio: clean\n");
+					switched = 0;
+				}
+
+				if (switched > 2) {
+					//panic_printk("rtl_gpio: change mode [%d->%d]\n", pre_status, cur_status);
+					running  = 1;
+					switched = 0;
+					pre_status = cur_status;
+					nxt_status = -1;
+
+					if (cur_status == 0)
+						ulinker_ap_cl_flag = '1'; /* router */
+					else
+						ulinker_ap_cl_flag = '0'; /* client */
+				}
+			}
+		}
+		else {
+			pre_status = cur_status;
+		}
+	}
+
+	mod_timer(&ulinker_timer, jiffies + HZ/2);
+}
+
+enum {
+	RTL_GADGET_FSG,
+	RTL_GADGET_ETH,
+};
+
+int rtl_otg_gadget = RTL_GADGET_FSG;
+
+int otg_proc_read_gadget(char *buf, char **start, off_t offset, int count, int *eof, void *data)
+{
+	int len = 0;
+	len += sprintf(buf,"%d", rtl_otg_gadget);
+	return len;
+}
+
+int otg_proc_read_wall_mount(char *buf, char **start, off_t offset, int count, int *eof, void *data)
+{
+	extern int wall_mount;
+	int len = 0;
+	len += sprintf(buf,"%d", wall_mount);
+	return len;
+}
+
+int otg_proc_read_cdc_rndis_status(char *buf, char **start, off_t offset, int count, int *eof, void *data)
+{
+	extern int wall_mount;
+	int len = 0;
+	int cdc_rndis_status;
+
+	if (wall_mount == 1)
+		cdc_rndis_status = 0;
+	else
+		cdc_rndis_status = 1;
+
+	len += sprintf(buf,"%d", cdc_rndis_status);
+	return len;
+}
+
+int otg_proc_read_ether_state(char *buf, char **start, off_t offset, int count, int *eof, void *data)
+{
+	extern int ether_state;
+	int len = 0;
+	len += sprintf(buf,"%d", ether_state);
+	return len;
+}
+
+int otg_proc_read_fsg_state(char *buf, char **start, off_t offset, int count, int *eof, void *data)
+{
+	extern unsigned long fsg_jiffies;
+	extern unsigned long rst_jiffies;
+
+	int len = 0;
+	if (rst_jiffies==0)
+		len += sprintf(buf,"%d", 0);
+	else
+		len += sprintf(buf,"%d", (rst_jiffies-fsg_jiffies)/HZ);
+	return len;
+}
+
+int otg_proc_write_gadget(struct file *file, const char *buf, unsigned long count, void *data)
+{
+	extern void dwc_otg_driver_cleanup(void);
+	extern int dwc_otg_driver_init(void);
+
+	unsigned char tmp[20];
+
+	if (count < 2 || count > 20)
+		return -EFAULT;
+
+	memset(tmp, '\0', 20);
+	if (buf && !copy_from_user(tmp, buf, count))
+	{
+		tmp[count-1]=0;
+
+		//if (rtl_otg_gadget == RTL_GADGET_ETH)
+			//return count;
+	#if 1
+		if(!strcmp(tmp, "gadget fsg"))
+		{
+			dwc_otg_driver_cleanup();
+			rtl_otg_gadget = RTL_GADGET_FSG;
+			dwc_otg_driver_init();
+		}
+		else
+	#endif
+		if (!strcmp(tmp, "gadget eth"))
+		{
+			dwc_otg_driver_cleanup();
+			rtl_otg_gadget = RTL_GADGET_ETH;
+			dwc_otg_driver_init();
+		}
+	}
+
+	return count;
+}
+
+
+char ulinker_rndis_mac[20];
+static int read_ulinker_rndis_mac(char *page, char **start, off_t off,
+				int count, int *eof, void *data)
+{
+	int len;
+
+	len = sprintf(page, "%s\n", ulinker_rndis_mac);
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len > count) len = count;
+	if (len < 0) len = 0;
+
+	return len;
+}
+static int write_ulinker_rndis_mac(struct file *file, const char *buffer,
+				unsigned long count, void *data)
+{
+	if (count < 12)
+		return -EFAULT;
+	if (buffer && !copy_from_user(&ulinker_rndis_mac, buffer, 12)) {
+		//panic_printk("[%s:%d] ulinker_rndis_mac[%s]\n", __FUNCTION__, __LINE__, ulinker_rndis_mac);
+	}
+	return -EFAULT;
+}
+
+extern int PCIE_reset_procedure(int portnum, int Use_External_PCIE_CLK, int mdio_reset);
+int PCIE_Host_Init(int argc, char* argv[])
+{
+	int portnum=0;
+	if(argc >= 1) 
+	{	portnum= simple_strtoul((const char*)(argv[0]), (char **)NULL, 16);	
+	}
+
+#define PCIE0_RC_CFG_BASE (0xb8b00000)
+#define PCIE0_RC_EXT_BASE (PCIE0_RC_CFG_BASE + 0x1000)
+#define PCIE0_EP_CFG_BASE (0xb8b10000)
+
+#define PCIE1_RC_CFG_BASE (0xb8b20000)
+#define PCIE1_RC_EXT_BASE (PCIE1_RC_CFG_BASE + 0x1000)
+#define PCIE1_EP_CFG_BASE (0xb8b30000)
+
+#define PCIE0_MAP_IO_BASE  (0xb8c00000)
+#define PCIE0_MAP_MEM_BASE (0xb9000000)
+
+#define PCIE1_MAP_IO_BASE  (0xb8e00000)
+#define PCIE1_MAP_MEM_BASE (0xba000000)
+
+#define MAX_READ_REQSIZE_128B    0x00
+#define MAX_READ_REQSIZE_256B    0x10
+#define MAX_READ_REQSIZE_512B    0x20
+#define MAX_READ_REQSIZE_1KB     0x30
+#define MAX_READ_REQSIZE_2KB     0x40
+#define MAX_READ_REQSIZE_4KB     0x50
+
+#define MAX_PAYLOAD_SIZE_128B    0x00
+#define MAX_PAYLOAD_SIZE_256B    0x20
+#define MAX_PAYLOAD_SIZE_512B    0x40
+#define MAX_PAYLOAD_SIZE_1KB     0x60
+#define MAX_PAYLOAD_SIZE_2KB     0x80
+#define MAX_PAYLOAD_SIZE_4KB     0xA0
+
+	int rc_cfg, cfgaddr;
+	int iomapaddr;
+	int memmapaddr;
+
+	if(portnum==0)
+	{	rc_cfg=PCIE0_RC_CFG_BASE;
+		cfgaddr=PCIE0_EP_CFG_BASE;
+		iomapaddr=PCIE0_MAP_IO_BASE;
+		memmapaddr=PCIE0_MAP_MEM_BASE;
+	}
+	else if(portnum==1)
+	{	rc_cfg=PCIE1_RC_CFG_BASE;
+		cfgaddr=PCIE1_EP_CFG_BASE;
+		iomapaddr=PCIE1_MAP_IO_BASE;
+		memmapaddr=PCIE1_MAP_MEM_BASE;	
+	}
+	else 
+	{	return 0;
+	}
+	
+	int t=REG32(rc_cfg);
+	unsigned int vid=t&0x0000ffff;   //0x819810EC
+	unsigned int pid=(t&0xffff0000) >>16;
+	
+	if( (vid!= 0x10ec) || (pid!=0x8196))
+	{	//DBG_PRINT("VID=%x, PID=%x \n", vid, pid );
+		//DBG_PRINT(" !!!  Read VID PID fail !!! \n");
+		//at_errcnt++;
+		return;
+	}
+
+	//STATUS
+	//bit 4: capabilties List
+
+	//CMD
+	//bit 2: Enable Bys master, 
+	//bit 1: enable memmap, 
+	//bit 0: enable iomap
+
+	REG32(rc_cfg + 0x04)= 0x00100007;   
+
+	//Device Control Register 
+	//bit [7-5]  payload size
+	REG32(rc_cfg + 0x78)= (REG32(rc_cfg + 0x78 ) & (~0xE0)) | MAX_PAYLOAD_SIZE_128B;  // Set MAX_PAYLOAD_SIZE to 128B,default
+	  
+      REG32(cfgaddr + 0x04)= 0x00100007;    //0x00180007
+
+	//bit 0: 0:memory, 1 io indicate
+      REG32(cfgaddr + 0x10)= (iomapaddr | 0x00000001) & 0x1FFFFFFF;  // Set BAR0
+
+	//bit 3: prefetch
+	//bit [2:1] 00:32bit, 01:reserved, 10:64bit 11:reserved
+      REG32(cfgaddr + 0x18)= (memmapaddr | 0x00000004) & 0x1FFFFFFF;  // Set BAR1  
+
+
+	//offset 0x78 [7:5]
+      REG32(cfgaddr + 0x78) = (REG32(cfgaddr + 0x78) & (~0xE0)) | (MAX_PAYLOAD_SIZE_128B);  // Set MAX_PAYLOAD_SIZE to 128B
+
+	//offset 0x79: [6:4] 
+      REG32(cfgaddr + 0x78) = (REG32(cfgaddr + 0x78) & (~0x7000)) | (MAX_READ_REQSIZE_256B<<8);  // Set MAX_REQ_SIZE to 256B,default
+
+	  
+	//check
+//      if(REG32(cfgaddr + 0x10) != ((iomapaddr | 0x00000001) & 0x1FFFFFFF))
+      {	//at_errcnt++;
+      		//DBG_PRINT("Read Bar0=%x \n", REG32(cfgaddr + 0x10)); //for test
+      	}
+	  
+
+//	if(REG32(cfgaddr + 0x18)!=((memmapaddr| 0x00000004) & 0x1FFFFFFF))
+	{	//at_errcnt++;
+      		//DBG_PRINT("Read Bar1=%x \n", REG32(cfgaddr + 0x18));      //for test
+	}
+	//DBG_PRINT("Set BAR finish \n");
+
+
+	//io and mem limit, setting to no litmit
+	REG32(rc_cfg+ 0x1c) = (2<<4) | (0<<12);   //  [7:4]=base  [15:12]=limit
+	REG32(rc_cfg+ 0x20) = (2<<4) | (0<<20);   //  [15:4]=base  [31:20]=limit	
+	REG32(rc_cfg+ 0x24) = (2<<4) | (0<<20);   //  [15:4]=base  [31:20]=limit		
+
+
+#undef PCIE0_RC_EXT_BASE
+#undef PCIE0_EP_CFG_BASE
+
+#undef PCIE1_RC_CFG_BASE
+#undef PCIE1_RC_EXT_BASE
+#undef PCIE1_EP_CFG_BASE
+
+#undef PCIE0_MAP_IO_BASE
+#undef PCIE0_MAP_MEM_BASE
+
+#undef PCIE1_MAP_IO_BASE
+#undef PCIE1_MAP_MEM_BASE
+
+#undef MAX_READ_REQSIZE_128B
+#undef MAX_READ_REQSIZE_256B
+#undef MAX_READ_REQSIZE_512B
+#undef MAX_READ_REQSIZE_1KB
+#undef MAX_READ_REQSIZE_2KB
+#undef MAX_READ_REQSIZE_4KB
+
+#undef MAX_PAYLOAD_SIZE_128B
+#undef MAX_PAYLOAD_SIZE_256B
+#undef MAX_PAYLOAD_SIZE_512B
+#undef MAX_PAYLOAD_SIZE_1KB
+#undef MAX_PAYLOAD_SIZE_2KB
+#undef MAX_PAYLOAD_SIZE_4KB
+}
+
+spinlock_t sysled_lock = SPIN_LOCK_UNLOCKED;
+static int sysled_toggle = 1;
+static struct timer_list sysled_timer;
+extern void renable_sw_LED(void);
+
+void system_led_control(unsigned long data)
+{
+#define PCIE0_EP_CFG_BASE (0xb8b10000)
+#define GPIO_PIN_CTRL     0x044
+
+	static int on = 0;
+	unsigned int reg;
+
+	if (sysled_toggle == 1) {
+		reg = ((REG32(PCIE0_EP_CFG_BASE + 0x18) & 0xffff0000) | 0xb0000000) + GPIO_PIN_CTRL;
+		if (on == 1) {
+			RTL_W32(reg, RTL_R32(reg) & ~BIT(12));
+			on = 0;
+		}
+		else {
+			RTL_W32(reg, RTL_R32(reg) | BIT(12));
+			on = 1;
+		}
+
+		mod_timer(&sysled_timer, jiffies + HZ/2);
+	}
+
+#undef PCIE0_EP_CFG_BASE
+#undef GPIO_PIN_CTRL
+}
+
+void system_led_init()
+{
+#define PCIE0_EP_CFG_BASE (0xb8b10000)
+
+	char *arg_v[] = {"hinit", "0"};
+	unsigned int reg;
+	static int init = 0;
+
+	if (init == 0) {
+		spin_lock_init(&sysled_lock);
+
+		PCIE_reset_procedure(0, 0, 1);
+		PCIE_Host_Init(2, arg_v);
+		reg = (REG32(PCIE0_EP_CFG_BASE + 0x18) & 0xffff0000) | 0xb0000000;	
+		(*(volatile u32 *)(reg + 0x44)) = 0x30300000;
+
+		init_timer(&sysled_timer);
+		sysled_timer.data = (unsigned long)NULL;
+		sysled_timer.function = &system_led_control;
+		mod_timer(&sysled_timer, jiffies + HZ/2);
+	}
+#undef PCIE0_EP_CFG_BASE
+}
+
+
+static int write_ulinker_led(struct file *file, const char *buffer,
+				unsigned long count, void *data)
+{
+	char tmp[16];
+
+	if (count < 2)
+		return -EFAULT;
+
+	if (buffer && !copy_from_user(tmp, buffer, 8)) {
+		if (tmp[0] == '0'){
+			sysled_toggle = 0;
+			RTLWIFINIC_GPIO_write(4, 0);
+			renable_sw_LED();
+		}
+		else if (tmp[0] == '1'){
+			sysled_toggle = 1;
+			mod_timer(&sysled_timer, jiffies + HZ/2);
+		}
+
+		return count;
+	}
+	return -EFAULT;
+}
+#endif /* #if defined(CONFIG_RTL_ULINKER) */
+
+static int write_watchdog_reboot(struct file *file, const char *buffer,
+				unsigned long count, void *data)
+{
+	char tmp[16];
+
+	if (count < 2)
+		return -EFAULT;
+
+	if (buffer && !copy_from_user(tmp, buffer, 8)) {	
+		if (tmp[0] == '1') {
+			local_irq_disable();	
+			panic_printk("reboot...\n");
+			*(volatile unsigned long *)(0xB800311c)=0; /*this is to enable 865xc watch dog reset*/
+			for(;;);
+		}
+
+		return count;
+	}
+	return -EFAULT;
+}
+
 int __init rtl_gpio_init(void)
 {
 	struct proc_dir_entry *res=NULL;
 
+#if defined(CONFIG_RTL_ULINKER)
+	system_led_init();
+#endif
+
 	printk("Realtek GPIO Driver for Flash Reload Default\n");
+
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+
+	#if defined(CONFIG_RTK_VOIP_BOARD)
+		RTL_W32(RTL_GPIO_MUX, (RTL_R32(RTL_GPIO_MUX) | (RTL_GPIO_MUX_DATA))); 
+		#ifdef RESET_LED_NO
+		RTL_W32(RESET_LED_IOBASE, (RTL_R32(RESET_LED_IOBASE) | (((1 << RESET_LED_PIN)))));
+		RTL_W32(RESET_LED_DIRBASE, (RTL_R32(RESET_LED_DIRBASE) | ((1 << RESET_LED_PIN))));
+		#endif
+		RTL_W32(RESET_PIN_IOBASE,  (RTL_R32(RESET_PIN_IOBASE)  & (~(1 << RESET_BTN_PIN))));
+		RTL_W32(RESET_PIN_DIRBASE, (RTL_R32(RESET_PIN_DIRBASE) & (~(1 << RESET_BTN_PIN))));
+	#elif defined(CONFIG_RTL_8197D)
+		//reg_iocfg_jtag config as gpio mode,gpioA[0~1], gpioA[2~6]
+		#ifdef CONFIG_USING_JTAG
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | RTL_GPIO_MUX_GPIOA0_1));
+		#else
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | RTL_GPIO_MUX_POCKETAP_DATA));
+		#endif
+		//reg_iocfg_led_p1, reg_iocfg_led_p2, config as gpio mode,GPIOB[7], GPIOC[0]
+		RTL_W32(PIN_MUX_SEL_2, (RTL_R32(PIN_MUX_SEL_2) | RTL_GPIO_MUX_2_POCKETAP_DATA));  	
+		//set gpioA[1~6],gpioB[7],gpioC[0] as GPIO PIN
+		RTL_W32(PABCD_CNR, (RTL_R32(PABCD_CNR) & ~(RTL_GPIO_CNR_POCKETAP_DATA)));	
+		//set direction, GPIOA[1,3,4,5] INPUT, GPIOA[2,6] OUTPUT
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA1))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA3))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA4))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA5))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOA2))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOA6))));
+		//set direction, GPIOB[7] INPUT, GPIOC[0] OUTPUT
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOB7))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOC0))));
+	#elif defined(CONFIG_RTL_8197DL)
+		//reg_iocfg_jtag config as gpio mode,gpioA[0~1], gpioA[2~6]
+		#ifdef CONFIG_USING_JTAG
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | RTL_GPIO_MUX_GPIOA0_1));
+		#else
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | RTL_GPIO_MUX_POCKETAP_DATA));
+		#endif
+		//set gpioA[2~6] as GPIO PIN
+		RTL_W32(PABCD_CNR, (RTL_R32(PABCD_CNR) & ~(RTL_GPIO_CNR_POCKETAP_DATA)));	
+		//set direction, GPIOA[3,4,5] INPUT, GPIOA[2,6] OUTPUT
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA3))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA4))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA5))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOA2))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOA6))));
+	#elif defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E)
+		//reg_iocfg_jtag config as gpio mode,gpioA[2~6]
+		#ifndef CONFIG_USING_JTAG
+		RTL_W32(PIN_MUX_SEL, (RTL_R32(RTL_GPIO_MUX) | RTL_GPIO_MUX_POCKETAP_DATA));
+		#endif
+		//set gpioA[2,4,5,6]as GPIO PIN
+		RTL_W32(PABCD_CNR, (RTL_R32(PABCD_CNR) & ~(RTL_GPIO_CNR_POCKETAP_DATA)));	
+		//set direction, GPIOA[2,4,5] INPUT, GPIOA[6] OUTPUT
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA2))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA4))));
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA5))));
+	#if defined(CONFIG_RTL_ULINKER)
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA6))));
+	#else
+		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOA6))));
+	#endif
+
+	#endif
+	res = create_proc_entry("gpio", 0, NULL);
+	if (res) {
+		res->read_proc = read_proc;
+		res->write_proc = write_proc;
+	}
+	else {
+		printk("Realtek GPIO Driver, create proc failed!\n");
+	}
+
+	res = create_proc_entry("usb_mode_detect", 0, NULL);
+	if (res) {
+		res->read_proc = usb_mode_detect_read_proc;
+		res->write_proc = NULL;
+	}
+	else
+	{
+		printk("<%s>LZQ: after create_proc_entry, res is NULL\n", __FUNCTION__);
+	}
+
+	//return;
+#else //defined CONFIG_RTL_819XD
 
 	// Set GPIOA pin 10(8181)/0(8186) as input pin for reset button
 
@@ -1258,12 +2368,14 @@ extern int PCIE_reset_procedure(int PCIE_Port0and1_8196B_208pin, int Use_Externa
 
 #endif // #if defined(READ_RF_SWITCH_GPIO)
 #endif // #if defined(CONFIG_RTL865X)
+#ifdef RESET_LED_NO
 #if  defined(CONFIG_RTL_8196CS)
 	RTL_W32(RESET_LED_IOBASE, (RTL_R32(RESET_LED_IOBASE) | (((1 << RESET_LED_PIN)))));
 	RTL_W32(RESET_LED_DIRBASE, (RTL_R32(RESET_LED_DIRBASE) | ((1 << RESET_LED_PIN))));
 #else
 	// Set GPIOA ping 2 as output pin for reset led
 	RTL_W32(RESET_LED_DIRBASE, (RTL_R32(RESET_LED_DIRBASE) | ((1 << RESET_LED_PIN))));
+#endif
 #endif
 #ifdef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE	
 	res = create_proc_entry("bootbank", 0, NULL);
@@ -1285,6 +2397,23 @@ extern int PCIE_reset_procedure(int PCIE_Port0and1_8196B_208pin, int Use_Externa
 		printk("Realtek GPIO Driver, create proc failed!\n");
 	}
 
+
+#ifdef	USE_INTERRUPT_GPIO
+#ifdef  IMMEDIATE_PBC
+	res = create_proc_entry("gpio_wscd_pid", 0, NULL);
+	if (res)
+	{
+		res->read_proc = read_gpio_wscd_pid;
+		res->write_proc = write_gpio_wscd_pid;
+		DPRINTK("create gpio_wscd_pid OK!!!\n\n");
+	}
+	else{
+		printk("create gpio_wscd_pid failed!\n\n");
+	}
+#endif	
+#endif
+
+
 // 2009-0414		
 #if defined(USE_INTERRUPT_GPIO)
 #if defined(CONFIG_RTL_8198) && !defined(CONFIG_RTK_VOIP)
@@ -1292,12 +2421,14 @@ extern int PCIE_reset_procedure(int PCIE_Port0and1_8196B_208pin, int Use_Externa
 #else
 	RTL_R32(AUTOCFG_PIN_IMR) |= (0x01 << AUTOCFG_BTN_PIN*2); // enable interrupt in falling-edge	
 #endif
-	if (request_irq(GPIO_IRQ_NUM, gpio_interrupt_isr, IRQF_DISABLED, "rtl_gpio", NULL)) {
-		//panic_printk("gpio request_irq(%d) error!\n", GPIO_IRQ_NUM);		
+	if (request_irq(BSP_GPIO_ABCD_IRQ, gpio_interrupt_isr, IRQF_SHARED, "rtl_gpio", (void *)&priv_gpio_wps_device)) {
+		printk("gpio request_irq(%d) error!\n", GPIO_IRQ_NUM);		
    	}
 #endif
 // 2009-0414		
 #endif
+
+#endif//defined CONFIG_RTL_819XD
 
 	res = create_proc_entry("load_default", 0, NULL);
 	if (res) {
@@ -1358,6 +2489,134 @@ extern int PCIE_reset_procedure(int PCIE_Port0and1_8196B_208pin, int Use_Externa
 	mod_timer(&pocket_ap_timer, jiffies + HZ);
 #endif
 
+#if defined(CONFIG_RTL_ULINKER)
+	res = create_proc_entry("rndis_reset", 0, NULL);
+	if (res)
+	{
+		res->read_proc = read_ulinker_rndis_reset;
+		res->write_proc = write_ulinker_rndis_reset;
+	}
+	else
+		printk("create rndis_reset failed!\n");
+
+	res = create_proc_entry("ulinker_ap_cl", 0, NULL);
+	if (res)
+	{
+		res->read_proc = read_ulinker_ap_cl;
+	}
+	else
+		printk("create ulinker_ap_cl_proc failed!\n");
+
+	res = create_proc_entry("ulinker_ap_cl_switching", 0, NULL);
+	if (res)
+	{
+		res->read_proc = read_ulinker_ap_cl_switching;
+		res->write_proc = write_ulinker_ap_cl_switching;
+	}
+	else
+		printk("create ulinker_ap_cl_proc failed!\n");
+
+#if defined(CONFIG_RTL_ULINKER_WLAN_DELAY_INIT)
+	res_wlan=create_proc_entry("wlan_init",0,NULL);
+	if (res_wlan) {
+		res_wlan->write_proc=wlan_init_proc_write;
+	}
+	else
+		printk("create wlan_init failed!\n");
+#endif
+
+#if 1//OTG_MODE_SWITCH
+	res = create_proc_entry("otg_gadget", 0, NULL);
+	if (res)
+	{
+		res->read_proc  = otg_proc_read_gadget;
+		res->write_proc = otg_proc_write_gadget;
+	}
+	else
+		printk("create otg_gadget failed!\n");
+
+	res = create_proc_entry("wall_mount", 0, NULL);
+	if (res)
+	{
+		res->read_proc  = otg_proc_read_wall_mount;
+	}
+	else
+		printk("create wall_mount failed!\n");
+
+	res = create_proc_entry("ulinker_cdc_rndis_status", 0, NULL);
+	if (res)
+	{
+		res->read_proc  = otg_proc_read_cdc_rndis_status;
+	}
+	else
+		printk("create ulinker_cdc_rndis_status failed!\n");
+
+	res = create_proc_entry("ether_state", 0, NULL);
+	if (res)
+	{
+		res->read_proc	= otg_proc_read_ether_state;
+	}
+	else
+		printk("create ether_state failed!\n");
+
+	res = create_proc_entry("fsg_state", 0, NULL);
+	if (res)
+	{
+		res->read_proc	= otg_proc_read_fsg_state;
+	}
+	else
+		printk("create fsg_state failed!\n");
+#endif
+
+	/* otg eth mac */
+	res = create_proc_entry("ulinker_rndis_mac", 0, NULL);
+	if (res)
+	{
+		res->read_proc  = read_ulinker_rndis_mac;
+		res->write_proc = write_ulinker_rndis_mac;
+	}
+	else
+		printk("create ulinker_rndis_mac failed!\n");
+
+#if 0//defined(CONFIG_RTL_ULINKER_BRSC)
+	res = create_proc_entry("brsc", 0, NULL);
+	if (res)
+	{
+		res->read_proc	= read_ulinker_brsc_en;
+		res->write_proc = write_ulinker_brsc_en;
+	}
+	else
+		printk("create brsc failed!\n");
+#endif
+
+#if defined(CONFIG_RTL_ULINKER)
+		res = create_proc_entry("uled", 0, NULL);
+		if (res)
+		{
+			res->write_proc = write_ulinker_led;			
+		}
+		else
+			printk("create uled failed!\n");
+#endif
+
+
+			
+	#if 0 /* dip switch has been removed */
+	init_timer(&ulinker_timer);
+	ulinker_timer.data = (unsigned long)NULL;
+	ulinker_timer.function = &ulinker_timer_func;
+	mod_timer(&ulinker_timer, jiffies + HZ);
+	#endif
+#endif
+
+
+	res = create_proc_entry("watchdog_reboot", 0, NULL);
+	if (res) {
+		res->write_proc = write_watchdog_reboot;
+	}
+	else
+		printk("create watchdog_reboot failed!\n");
+			
 	init_timer(&probe_timer);
 	probe_counter = 0;
 	probe_state = PROBE_NULL;
@@ -1365,7 +2624,7 @@ extern int PCIE_reset_procedure(int PCIE_Port0and1_8196B_208pin, int Use_Externa
 	probe_timer.data = (unsigned long)NULL;
 	probe_timer.function = &rtl_gpio_timer;
 	mod_timer(&probe_timer, jiffies + HZ);
-
+	autoconfig_gpio_init(); //always init wps gpio
 #ifdef CONFIG_RTL865X_CMO
 	extra_led_gpio_init();
 #endif

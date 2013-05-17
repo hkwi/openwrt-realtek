@@ -3,6 +3,7 @@
 
 #include <linux/netfilter_ipv4.h>
 #include <linux/netfilter/nf_conntrack_common.h>
+
 #include <linux/netfilter/nf_conntrack_tcp.h>
 
 #include <net/rtl/rtl_types.h>
@@ -60,8 +61,10 @@ int32 rtl_netif_receive_skb_hooks(struct sk_buff **pskb);
 int32 rtl_br_dev_queue_push_xmit_before_xmit_hooks(struct sk_buff *skb);
 
 #ifdef CONFIG_NET_SCHED
+
 extern int gQosEnabled; 
 #endif
+
 int32 rtl_neigh_forced_gc_hooks(struct neigh_table *tbl, struct neighbour *n);
 int32 rtl_neigh_flush_dev_hooks(struct neigh_table *tbl, struct net_device *dev, struct neighbour *n);
 int32 rtl_neigh_destroy_hooks(struct neighbour *n);
@@ -79,6 +82,7 @@ int32 rtl_neigh_init_hooks(void);
 int32 rtl___br_fdb_get_timeout_hooks(struct net_bridge *br, struct net_bridge_fdb_entry *fdb, const unsigned char *addr);
 #endif
 int32 rtl_translate_table_hooks(const char *name,
+
 		unsigned int valid_hooks,
 		struct xt_table_info *newinfo,
 		void *entry0,
@@ -134,11 +138,17 @@ int32 __drop_one_conntrack_process_hooks2(struct nf_conn* ct, int dropPrioIdx, i
 int32 rtl_nf_conn_GC_init_hooks(void);
 #endif
 
+
 #if defined(CONFIG_BRIDGE)
+int32 rtl_fdb_create_hooks(struct net_bridge_fdb_entry *fdb,const unsigned char *addr);
+int32 rtl865x_addAuthFDBEntry_hooks(const unsigned char *addr);
 int32 rtl_fdb_delete_hooks(struct net_bridge_fdb_entry *f);
-int32 rtl_br_fdb_cleanup_hooks(struct net_bridge *br, struct net_bridge_fdb_entry *f);
-#endif
+int32 rtl_br_fdb_cleanup_hooks(struct net_bridge *br, struct net_bridge_fdb_entry *f, unsigned long delay);
 
 #endif
+
+
+#endif
+
 
 

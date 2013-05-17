@@ -1,0 +1,476 @@
+--- a/drivers/net/rtl819x/common/rtl865x_netif.c	2013-02-04 03:15:32.715232735 +0200
++++ b/drivers/net/rtl819x/common/rtl865x_netif.c	2013-02-06 01:24:44.420810894 +0200
+@@ -31,11 +31,11 @@
+ #include "rtl865x_vlan.h" /*reference vlan*/
+ #include "rtl865x_eventMgr.h" /*call back function....*/
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include "AsicDriver/rtl865x_asicBasic.h"
+-#include "AsicDriver/rtl865x_asicCom.h"
+-#include "AsicDriver/rtl865x_asicL2.h"
++#include "../AsicDriver/rtl865x_asicBasic.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL2.h"
+ #else
+-#include "AsicDriver/rtl865xC_tblAsicDrv.h"
++#include "../AsicDriver/rtl865xC_tblAsicDrv.h"
+ #endif
+ 
+ #if defined (CONFIG_RTL_LOCAL_PUBLIC)
+--- a/drivers/net/rtl819x/common/rtl_utils.c	2013-02-04 03:15:32.717232666 +0200
++++ b/drivers/net/rtl819x/common/rtl_utils.c	2013-02-06 01:36:11.409200045 +0200
+@@ -12,7 +12,7 @@
+ #include <net/rtl/rtl_glue.h>
+ #include "rtl_utils.h"
+ #if defined(CONFIG_RTL_819X)
+-#include "AsicDriver/asicRegs.h"
++#include "../AsicDriver/asicRegs.h"
+ #endif
+ 
+ #ifdef __linux__
+--- a/drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_glue.c	2013-02-04 03:15:32.718232632 +0200
++++ b/drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_glue.c	2013-02-06 01:26:49.404515392 +0200
+@@ -13,7 +13,7 @@
+ #include <net/rtl/rtl_types.h>
+ #include <net/rtl/rtl_glue.h>
+ #include <net/rtl/rtl865x_igmpsnooping_glue.h>
+-#include "AsicDriver/rtl865xc_asicregs.h"
++#include "../AsicDriver/rtl865xc_asicregs.h"
+ 
+ #ifdef __linux__
+ #include <linux/mm.h>
+--- a/drivers/net/rtl819x/l2Driver/rtl865x_fdb.c	2013-02-04 03:15:32.722232495 +0200
++++ b/drivers/net/rtl819x/l2Driver/rtl865x_fdb.c	2013-02-06 01:45:58.499022411 +0200
+@@ -15,23 +15,23 @@
+ #include <net/rtl/rtl_types.h>
+ #include <net/rtl/rtl_glue.h>
+ #include <net/rtl/rtl865x_fdb_api.h>
+-#include "AsicDriver/asicRegs.h"
++#include "../AsicDriver/asicRegs.h"
+ //#include <common/rtl8651_aclLocal.h>
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+ //#include <net/rtl/rtl_queue.h>
+-#include "AsicDriver/rtl865x_asicCom.h"
+-#include "AsicDriver/rtl865x_asicL2.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL2.h"
+ #else
+-#include <AsicDriver/rtl865xC_tblAsicDrv.h>
+-#include <AsicDriver/rtl8651_tblAsicDrv.h>
++#include "../AsicDriver/rtl865xC_tblAsicDrv.h"
++#include "../AsicDriver/rtl8651_tblAsicDrv.h"
+ #include "rtl8651_tblDrvPatch.h"
+ #endif
+ 
+ #include <net/rtl/rtl865x_netif.h>
+-#include "common/rtl865x_eventMgr.h"
+-#include "common/mbuf.h"
++#include "../common/rtl865x_eventMgr.h"
++#include "../common/mbuf.h"
+ #include "rtl865x_fdb.h"
+-#include "common/rtl_errno.h"
++#include "../common/rtl_errno.h"
+ 
+ 
+ 
+--- a/drivers/net/rtl819x/l2Driver/rtl865x_hw_qos_config.c	2013-02-04 03:14:13.514945188 +0200
++++ b/drivers/net/rtl819x/l2Driver/rtl865x_hw_qos_config.c	2013-02-06 01:43:12.613723721 +0200
+@@ -39,13 +39,13 @@
+ #include <net/rtl/rtl_nic.h>
+ 
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include <AsicDriver/asicRegs.h>
+-#include <AsicDriver/rtl865x_asicCom.h>
+-#include <AsicDriver/rtl865x_asicL2.h>
+-#else
+-#include <AsicDriver/asicRegs.h>
+-#include <AsicDriver/rtl8651_tblAsicDrv.h>
+-#endif
++#include "../AsicDriver/asicRegs.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL2.h"
++#else
++#include "../AsicDriver/asicRegs.h"
++#include "../AsicDriver/rtl8651_tblAsicDrv.h"
++#endif
+ 
+ 
+ struct sock *hw_qos_sk = NULL;
+--- a/drivers/net/rtl819x/l2Driver/rtl865x_outputQueue.c	2013-02-04 03:15:32.723232461 +0200
++++ b/drivers/net/rtl819x/l2Driver/rtl865x_outputQueue.c	2013-02-06 01:44:50.236368531 +0200
+@@ -10,26 +10,26 @@
+ #include <linux/config.h>
+ #include <net/rtl/rtl_types.h>
+ #include <net/rtl/rtl_glue.h>
+-#include <common/rtl8651_tblDrvProto.h>
+-#include <common/rtl865x_eventMgr.h>
+-#include <common/rtl865x_vlan.h>
++#include "../common/rtl8651_tblDrvProto.h"
++#include "../common/rtl865x_eventMgr.h"
++#include "../common/rtl865x_vlan.h"
+ #include <net/rtl/rtl865x_netif.h>
+-#include <common/rtl865x_netif_local.h>
++#include "../common/rtl865x_netif_local.h"
+ #include <net/rtl/rtl865x_outputQueue.h>
+ //#include "assert.h"
+ //#include "rtl_utils.h"
+-#include <common/rtl_errno.h>
++#include "../common/rtl_errno.h"
+ #if defined (CONFIG_RTL_LOCAL_PUBLIC)
+-#include <l3Driver/rtl865x_localPublic.h>
++#include "../l3Driver/rtl865x_localPublic.h"
+ #endif
+ 
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include <AsicDriver/asicRegs.h>
+-#include <AsicDriver/rtl865x_asicCom.h>
+-#include <AsicDriver/rtl865x_asicL2.h>
++#include "../AsicDriver/asicRegs.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL2.h"
+ #else
+-#include <AsicDriver/asicRegs.h>
+-#include <AsicDriver/rtl8651_tblAsicDrv.h>
++#include "../AsicDriver/asicRegs.h"
++#include "../AsicDriver/rtl8651_tblAsicDrv.h"
+ #endif
+ 
+ #if	defined(CONFIG_RTL_HW_QOS_SUPPORT)
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_arp.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_arp.c	2013-02-06 01:31:39.042560939 +0200
+@@ -15,30 +15,30 @@
+ */
+ 
+ #include <net/rtl/rtl_types.h>
+-#include "common/rtl_errno.h"
++#include "../common/rtl_errno.h"
+ 
+-#include "common/mbuf.h"
++#include "../common/mbuf.h"
+ //#include "assert.h"
+ 
+ //#include "rtl865xc_swNic.h"
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include "AsicDriver/rtl865x_asicCom.h"
+-#include "AsicDriver/rtl865x_asicL2.h"
+-#include "AsicDriver/rtl865x_asicL3.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL2.h"
++#include "../AsicDriver/rtl865x_asicL3.h"
+ #else
+ #include "rtl865xC_tblAsicDrv.h"
+-#include "common/rtl8651_aclLocal.h"
++#include "../common/rtl8651_aclLocal.h"
+ #endif
+ 
+-#include "AsicDriver/rtl865x_hwPatch.h"		/* define for chip related spec */
++#include "../AsicDriver/rtl865x_hwPatch.h"		/* define for chip related spec */
+ 
+-#include "common/rtl865x_eventMgr.h"
++#include "../common/rtl865x_eventMgr.h"
+ 
+-#include "common/rtl865x_vlan.h"
++#include "../common/rtl865x_vlan.h"
+ #include <net/rtl/rtl865x_netif.h>
+-#include "common/rtl865x_netif_local.h"
++#include "../common/rtl865x_netif_local.h"
+ 
+-#include "l2Driver/rtl865x_fdb.h"
++#include "../l2Driver/rtl865x_fdb.h"
+ 
+ #include "rtl865x_ppp_local.h"
+ #include "rtl865x_route.h"
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_ip.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_ip.c	2013-02-06 01:31:05.277721391 +0200
+@@ -23,20 +23,20 @@
+ */
+ #include <net/rtl/rtl_types.h>
+ #include <net/rtl/rtl_glue.h>
+-#include "common/rtl_errno.h"
++#include "../common/rtl_errno.h"
+ //#include "rtl_utils.h"
+ //#include <net/rtl/rtl865x_ip_api.h>
+ #include "rtl865x_ip.h"
+ #if defined (CONFIG_RTL_LOCAL_PUBLIC)
+ #include <net/rtl/rtl865x_localPublic.h>
+ #endif
+-#include "common/rtl865x_eventMgr.h" /*call back function....*/
++#include "../common/rtl865x_eventMgr.h" /*call back function....*/
+ 
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include "AsicDriver/rtl865x_asicCom.h"
+-#include "AsicDriver/rtl865x_asicL3.h"	
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL3.h"	
+ #else
+-#include "AsicDriver/rtl865xC_tblAsicDrv.h"
++#include "../AsicDriver/rtl865xC_tblAsicDrv.h"
+ #endif
+ 
+ static rtl865x_ip_entry_t *rtl865x_ipTable;
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_nexthop.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_nexthop.c	2013-02-06 01:30:11.677563555 +0200
+@@ -24,8 +24,8 @@
+ #include <net/rtl/rtl_types.h>
+ #include <net/rtl/rtl_glue.h>
+ #include <net/rtl/rtl865x_netif.h>
+-#include "common/rtl_errno.h"
+-#include "common/rtl865x_netif_local.h" 
++#include "../common/rtl_errno.h"
++#include "../common/rtl865x_netif_local.h" 
+ #include "rtl865x_ip.h"
+ #include "rtl865x_nexthop.h"
+ //#include "rtl865x_ppp.h"
+@@ -33,17 +33,17 @@
+ #include "rtl865x_route.h"
+ #include "rtl865x_arp.h"
+ 
+-#include "common/rtl865x_vlan.h"
+-#include "common/rtl865x_eventMgr.h" /*call back function....*/
++#include "../common/rtl865x_vlan.h"
++#include "../common/rtl865x_eventMgr.h" /*call back function....*/
+ 
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include "AsicDriver/rtl865x_asicCom.h"
+-#include "AsicDriver/rtl865x_asicL2.h"
+-#include "AsicDriver/rtl865x_asicL3.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL2.h"
++#include "../AsicDriver/rtl865x_asicL3.h"
+ #else
+-#include "AsicDriver/rtl865xC_tblAsicDrv.h"
++#include "../AsicDriver/rtl865xC_tblAsicDrv.h"
+ #endif
+-#include "l2Driver/rtl865x_fdb.h"
++#include "../l2Driver/rtl865x_fdb.h"
+ #include <net/rtl/rtl865x_fdb_api.h>
+ 
+ static rtl865x_nextHopEntry_t *rtl865x_nxtHopTable;
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_ppp.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_ppp.c	2013-02-06 01:49:21.474048342 +0200
+@@ -27,22 +27,22 @@
+ #include <net/rtl/rtl865x_netif.h>
+ #include <net/rtl/rtl865x_fdb_api.h>
+ 
+-#include "common/rtl_errno.h"
+-#include "common/rtl865x_netif_local.h"
++#include "../common/rtl_errno.h"
++#include "../common/rtl865x_netif_local.h"
+ #include "rtl865x_ppp_local.h"
+ 
+-#include "common/rtl865x_eventMgr.h" /*call back function....*/
++#include "../common/rtl865x_eventMgr.h" /*call back function....*/
+ 
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include "AsicDriver/rtl865x_asicCom.h"
+-#include "AsicDriver/rtl865x_asicL2.h"
+-#include "AsicDriver/rtl865x_asicL3.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL2.h"
++#include "../AsicDriver/rtl865x_asicL3.h"
+ #else
+-#include "AsicDriver/rtl865xC_tblAsicDrv.h"
++#include "../AsicDriver/rtl865xC_tblAsicDrv.h"
+ #endif
+ 
+-#include "common/rtl865x_vlan.h"
+-#include "l2Driver/rtl865x_fdb.h"
++#include "../common/rtl865x_vlan.h"
++#include "../l2Driver/rtl865x_fdb.h"
+ 
+ static rtl865x_ppp_t *rtl865x_pppTable;
+ 
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_route.c	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_route.c	2013-02-06 01:49:39.084444456 +0200
+@@ -24,9 +24,9 @@
+ #include <net/rtl/rtl_glue.h>
+ //#include <net/rtl/rtl865x_ppp.h>
+ #include <net/rtl/rtl865x_netif.h>
+-#include "common/rtl_errno.h"
++#include "../common/rtl_errno.h"
+ //#include "rtl_utils.h"
+-#include "common/rtl865x_netif_local.h"
++#include "../common/rtl865x_netif_local.h"
+ #include "rtl865x_ppp_local.h"
+ #include "rtl865x_route.h"
+ #include "rtl865x_ip.h"
+@@ -34,17 +34,17 @@
+ #include "rtl865x_arp.h"
+ 
+ //#include "common/rtl_glue.h"
+-#include "common/rtl865x_eventMgr.h" /*call back function....*/
+-#include "common/rtl865x_vlan.h"
++#include "../common/rtl865x_eventMgr.h" /*call back function....*/
++#include "../common/rtl865x_vlan.h"
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include "AsicDriver/rtl865x_asicCom.h"
+-#include "AsicDriver/rtl865x_asicL2.h"
+-#include "AsicDriver/rtl865x_asicL3.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL2.h"
++#include "../AsicDriver/rtl865x_asicL3.h"
+ #else
+-#include "AsicDriver/rtl865xC_tblAsicDrv.h"
++#include "../AsicDriver/rtl865xC_tblAsicDrv.h"
+ #endif
+-#include "l2Driver/rtl865x_fdb.h"
+-#include "AsicDriver/rtl865xc_asicregs.h"
++#include "../l2Driver/rtl865x_fdb.h"
++#include "../AsicDriver/rtl865xc_asicregs.h"
+ #include <net/rtl/rtl865x_fdb_api.h>
+ 
+ static rtl865x_route_t *rtl865x_route_freeHead;
+--- a/drivers/net/rtl819x/l4Driver/rtl865x_nat.c	2013-02-04 03:15:32.726232358 +0200
++++ b/drivers/net/rtl819x/l4Driver/rtl865x_nat.c	2013-02-06 01:35:19.058999258 +0200
+@@ -13,37 +13,37 @@
+ #include <net/rtl/rtl_types.h>
+ #include <net/rtl/rtl_glue.h>
+ #include <net/rtl/rtl865x_netif.h>
+-#include "common/mbuf.h"
++#include "../common/mbuf.h"
+ //#include "assert.h"
+ 
+ //#include "rtl865xc_swNic.h"
+ //#include <common/types.h>
+-#include "AsicDriver/rtl865x_hwPatch.h"		/* define for chip related spec */
++#include "../AsicDriver/rtl865x_hwPatch.h"		/* define for chip related spec */
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+ 
+-#include "AsicDriver/rtl865x_asicL4.h"
++#include "../AsicDriver/rtl865x_asicL4.h"
+ #else
+-#include "common/rtl8651_aclLocal.h"
++#include "../common/rtl8651_aclLocal.h"
+ #include "rtl865xC_tblAsicDrv.h"
+ #endif
+ 
+-#include "common/rtl_errno.h"
++#include "../common/rtl_errno.h"
+ //#include <net/rtl/rtl_queue.h>
+-#include "AsicDriver/rtl865xc_asicregs.h"
+-#include "common/rtl865x_eventMgr.h"
+-#include "l3Driver/rtl865x_ip.h"
++#include "../AsicDriver/rtl865xc_asicregs.h"
++#include "../common/rtl865x_eventMgr.h"
++#include "../l3Driver/rtl865x_ip.h"
+ 
+ #include <net/rtl/rtl865x_nat.h>
+ #include "rtl865x_nat_local.h"
+ 
+ //#include "rtl865x_ppp.h"
+-#include "common/rtl865x_netif_local.h"
+-#include "l3Driver/rtl865x_ppp_local.h"
++#include "../common/rtl865x_netif_local.h"
++#include "../l3Driver/rtl865x_ppp_local.h"
+ //#include "l3Driver/rtl865x_route.h"
+ #include <net/rtl/rtl865x_outputQueue.h>
+ #if	defined(CONFIG_RTL_HW_QOS_SUPPORT)
+ #include <net/rtl/rtl865x_arp_api.h>
+-#include "l3Driver/rtl865x_route.h"
++#include "../l3Driver/rtl865x_route.h"
+ #endif
+ 
+ #ifdef CONFIG_RTL_PROC_DEBUG
+--- a/drivers/usb/host/usb-rtl8652.h	2012-12-03 00:13:21.000000000 +0200
++++ b/drivers/usb/host/usb-rtl8652.h	2013-02-06 02:05:03.071754444 +0200
+@@ -15,7 +15,7 @@
+  * with this program; if not, write  to the Free Software Foundation, Inc.,
+  * 675 Mass Ave, Cambridge, MA 02139, USA.
+  */
+-#include <bsp/bspchip.h>
++#include "../../../arch/rlx/bsp/bspchip.h"
+ #ifndef _USB_RTL8652_H
+ #define _USB_RTL8652_H
+ #define PADDR(addr)  ((addr) & 0x1FFFFFFF)
+--- a/net/rtl/fastpath/fastpath_common.c	2013-02-04 03:15:32.875227255 +0200
++++ b/net/rtl/fastpath/fastpath_common.c	2013-02-06 02:09:07.638365005 +0200
+@@ -6,7 +6,7 @@
+ #include <net/netfilter/nf_conntrack_core.h>
+ 
+ #ifdef CONFIG_BRIDGE
+-#include <bridge/br_private.h>
++#include "../../bridge/br_private.h"
+ #endif
+ 
+ #if defined (FAST_PPTP) || defined(FAST_L2TP)
+--- a/net/rtl/features/rtl_ps_hooks.c	2013-02-04 03:15:32.880227084 +0200
++++ b/net/rtl/features/rtl_ps_hooks.c	2013-02-06 02:11:03.978373958 +0200
+@@ -19,7 +19,7 @@
+ #include <linux/ip_vs.h>
+ 
+ #ifdef CONFIG_BRIDGE
+-#include <bridge/br_private.h>
++#include "../../bridge/br_private.h"
+ #endif
+ 
+ #include <net/rtl/rtl_types.h>
+--- a/drivers/net/rtl819x/common/rtl865x_vlan.c	2013-05-16 15:31:34.980234505 +0300
++++ b/drivers/net/rtl819x/common/rtl865x_vlan.c	2013-05-10 23:08:00.000000000 +0300
+@@ -13,9 +13,9 @@
+ //#include "rtl_glue.h"
+ #include "rtl865x_vlan.h"
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include "AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
+ #else
+-#include "AsicDriver/rtl865xC_tblAsicDrv.h"
++#include "../AsicDriver/rtl865xC_tblAsicDrv.h"
+ #endif
+ #include "rtl865x_eventMgr.h"
+ 
+--- a/drivers/net/rtl819x/l2Driver/rtl865x_stp.c	2013-05-10 23:08:00.000000000 +0300
++++ b/drivers/net/rtl819x/l2Driver/rtl865x_stp.c	2013-05-16 15:34:36.570219806 +0300
+@@ -11,13 +11,13 @@
+ //#include "rtl_utils.h"
+ #include <net/rtl/rtl_types.h>
+ #include <net/rtl/rtl_glue.h>
+-#include "AsicDriver/asicRegs.h"
++#include "../AsicDriver/asicRegs.h"
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include "AsicDriver/rtl865x_asicCom.h"
+-#include "AsicDriver/rtl865x_asicL2.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL2.h"
+ #else
+-#include <common/rtl8651_aclLocal.h>
+-#include <AsicDriver/rtl865xC_tblAsicDrv.h>
++#include <../common/rtl8651_aclLocal.h>
++#include <../AsicDriver/rtl865xC_tblAsicDrv.h>
+ #endif
+ 
+ #include <net/rtl/rtk_stp.h>
+--- a/drivers/net/rtl819x/l3Driver/rtl865x_multicast.c	2013-05-10 23:08:00.000000000 +0300
++++ b/drivers/net/rtl819x/l3Driver/rtl865x_multicast.c	2013-05-16 15:35:45.873214197 +0300
+@@ -22,23 +22,23 @@
+ //#include "common/assert.h"
+ 
+ #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER
+-#include "AsicDriver/rtl865x_asicCom.h"
+-#include "AsicDriver/rtl865x_asicL3.h"
++#include "../AsicDriver/rtl865x_asicCom.h"
++#include "../AsicDriver/rtl865x_asicL3.h"
+ #else
+-#include "AsicDriver/rtl865xC_tblAsicDrv.h" 
+-#include "common/rtl865x_tblDrvPatch.h"
++#include "../AsicDriver/rtl865xC_tblAsicDrv.h" 
++#include "../common/rtl865x_tblDrvPatch.h"
+ #endif
+ 
+-#include "AsicDriver/asicRegs.h"
+-#include "AsicDriver/asicTabs.h"
++#include "../AsicDriver/asicRegs.h"
++#include "../AsicDriver/asicTabs.h"
+ 
+-#include "common/rtl8651_tblDrvProto.h"
++#include "../common/rtl8651_tblDrvProto.h"
+ 
+-#include "common/rtl865x_eventMgr.h"
+-#include "common/rtl865x_vlan.h"
++#include "../common/rtl865x_eventMgr.h"
++#include "../common/rtl865x_vlan.h"
+ #include <net/rtl/rtl865x_netif.h>
+ 
+-#include "l3Driver/rtl865x_ip.h"
++#include "../l3Driver/rtl865x_ip.h"
+ 
+ #ifdef RTL865X_TEST
+ #include <string.h>

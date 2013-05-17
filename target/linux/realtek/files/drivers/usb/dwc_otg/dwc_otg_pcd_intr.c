@@ -37,6 +37,10 @@
 #include "dwc_otg_pcd.h"
 #include <linux/usb/cdc.h>
 
+#if 1//defined(CONFIG_RTL_ULINKER_BRSC)
+#include "linux/ulinker_brsc.h"
+#endif
+
 #define DEBUG_EP0
 
 /* request functions defined in "dwc_otg_pcd.c" */
@@ -753,7 +757,13 @@ int32_t dwc_otg_pcd_handle_usb_reset_intr( dwc_otg_pcd_t * _pcd)
 	dctl_data_t dctl = {.d32=0};
 	int i = 0;
 	gintsts_data_t gintsts;
-						
+	
+#if defined(CONFIG_RTL_ULINKER)
+	extern unsigned long rst_jiffies;
+	rst_jiffies = jiffies;
+	BDBG_GADGET_MODE_SWITCH("[%s:%d] rst_jiffies[%lu]\n", __FUNCTION__, __LINE__, rst_jiffies);
+#endif
+
 	DWC_PRINT("USB RESET\n");
 
 	/* reset the HNP settings */
@@ -1808,12 +1818,14 @@ static void complete_ep( dwc_otg_pcd_ep_t *_ep )
 		if (deptsiz.b.xfersize == 0 && deptsiz.b.pktcnt == 0 &&
 				_ep->dwc_ep.xfer_count == _ep->dwc_ep.xfer_len) 
 		{
+		#if !defined(CONFIG_RTL_ULINKER)
 			//only support zlp on endpoint 1 (bulk in)
 			if((_ep->dwc_ep.num == 1) && !_ep->dwc_ep.sent_zlp && !(_ep->dwc_ep.xfer_len & (_ep->dwc_ep.maxpacket-1))){
 				_ep->dwc_ep.sent_zlp = 1;
 				is_last = ep_in_zlp(_ep);
 			}
 			else
+		#endif
 			is_last = 1;
 
 		} 
@@ -2311,7 +2323,7 @@ do { \
 						ep1xferincomplete--;
 					}
 					else {	//cathy, ep3, to fix ep3 wrong fifo pointer problem
-						dwc_otg_flush_tx_fifo(core_if, 1);
+						//dwc_otg_flush_tx_fifo(core_if, 1);
 					}
 					complete_ep( ep );
 				}
@@ -2664,6 +2676,12 @@ int32_t dwc_otg_pcd_handle_out_nak_effective( dwc_otg_pcd_t *_pcd )
  * All interrupt registers are processed from LSB to MSB.
  * 
  */
+#if defined(CONFIG_RTL_ULINKER)
+int fsg_init_once = 0;
+#endif
+#if ULINKER_BRSC_RECOVER_TX_REQ
+dwc_otg_pcd_t *my_pcd = NULL;
+#endif
 int32_t dwc_otg_pcd_handle_intr( dwc_otg_pcd_t *_pcd )
 {
 	dwc_otg_core_if_t *core_if = GET_CORE_IF(_pcd);
@@ -2674,6 +2692,13 @@ int32_t dwc_otg_pcd_handle_intr( dwc_otg_pcd_t *_pcd )
 	gintsts_data_t gintr_status;
 	int32_t retval = 0;
 
+#if ULINKER_BRSC_RECOVER_TX_REQ
+	if (my_pcd == NULL)
+		my_pcd = _pcd;
+	else if (my_pcd != _pcd) {
+		printk("\n\t\t[%s:%d] my_pcd != _pcd\n\n", __FUNCTION__, __LINE__);
+	}
+#endif
 
 #ifdef VERBOSE
 	DWC_DEBUGPL(DBG_ANY, "%s() gintsts=%08x	 gintmsk=%08x\n", 
@@ -2695,6 +2720,7 @@ int32_t dwc_otg_pcd_handle_intr( dwc_otg_pcd_t *_pcd )
 		gintr_status.d32 = dwc_otg_read_core_intr(core_if);
 		if (!gintr_status.d32) 
 		{
+			SPIN_UNLOCK(&_pcd->lock);
 			return 0;
 		}
 		//printk("---2-------------------------\n");
@@ -2773,5 +2799,45 @@ int32_t dwc_otg_pcd_handle_intr( dwc_otg_pcd_t *_pcd )
 	}
 	return retval;
 }
+
+#if ULINKER_BRSC_RECOVER_TX_REQ
+int early_tx_complete (void)
+{
+	int32_t retval = 0;
+	int inepint = 0;
+
+	gintsts_data_t gintr_status;
+	dwc_otg_core_global_regs_t *global_regs = 
+		my_pcd->otg_dev->core_if->core_global_regs;
+
+	gintr_status.d32 = dwc_read_reg32( &global_regs->gintsts) &
+				dwc_read_reg32( &global_regs->gintmsk);
+
+	if (!gintr_status.d32) 
+	{
+		BRSC_COUNTER_UPDATE(otg_status_fail);
+		return 0;
+	}
+
+	if (gintr_status.b.inepint) 
+	{
+		BRSC_COUNTER_UPDATE(otg_inepint);
+		inepint = 1;
+		retval |= dwc_otg_pcd_handle_in_ep_intr( my_pcd );
+	}
+	if (gintr_status.b.outepintr) 
+	{
+		BRSC_COUNTER_UPDATE(otg_outepintr);
+		retval |= dwc_otg_pcd_handle_out_ep_intr( my_pcd );
+	}
+
+	if (inepint)
+		retval = 11;
+
+	return retval;
+}
+#endif /* #if ULINKER_BRSC_RECOVER_TX_REQ  */
+
+
 
 #endif /* DWC_HOST_ONLY */

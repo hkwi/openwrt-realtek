@@ -379,6 +379,43 @@ static int32 rtl865x_getArpFid(ipaddr_t ip, uint16 *fid)
 	*fid = vlan->fid;
 	return SUCCESS;
 }
+
+#if 1//#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
+int32 rtl865x_isEthArp(ipaddr_t ip)
+{
+	uint32 hash;
+	
+	//memset(mac, 0, sizeof(ether_addr_t));
+	
+	if(rtl865x_arp_hash(ip, &hash)!=SUCCESS)
+	{
+		return FALSE;
+	}
+
+	if(arpTables.mappings[hash].ip!=ip)
+	{
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+int32 rtl865x_isEthPortMask(uint32 portMask)
+{
+	int i;
+	for(i=0; i <=RTL8651_PHY_NUMBER; i++)
+	{
+		
+		if((1<<i) & portMask)
+		{
+			return TRUE;
+		}
+	}
+	
+	return FALSE;
+}
+#endif
+
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
 int32 rtl_set_callback_for_ps_arp(int (*call_back_fn)(u32 ip,rtl865x_arpMapping_entry_t *entry))
 {
@@ -475,6 +512,14 @@ int32 rtl865x_addArp(ipaddr_t ip, ether_addr_t * mac)
 		{	
 			continue;
 		}
+
+		#if 1//#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
+		if(rtl865x_isEthPortMask(fdbEntry.memberPortMask)==FALSE)
+		{
+			continue;
+		}
+		#endif
+
 		
 		/*indicate new arp mapping*/
 		if((oldArpMapping.ip!=ip) ||(memcmp(&(oldArpMapping.mac),mac, 6)!=0))

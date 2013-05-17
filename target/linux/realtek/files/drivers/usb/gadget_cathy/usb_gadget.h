@@ -22,6 +22,10 @@
 #include "usb_ch9.h"
 //#include "../otg/lm.h"
 
+#if 1//defined(CONFIG_RTL_ULINKER)
+#include "usb_ulinker.h"
+#endif
+
 //struct usb_ep;
 /**
  * struct usb_ep - device side representation of USB endpoint
@@ -892,9 +896,9 @@ int usb_gadget_config_buf(const struct usb_config_descriptor *config,
 /* utility wrapping a simple endpoint selection policy */
 #if 0
 extern struct usb_ep *usb_ep_autoconfig (struct usb_gadget *,
-			struct usb_endpoint_descriptor *) __devinit;
+			struct usb_endpoint_descriptor *) ULINKER_DEVINIT;
 
-extern void usb_ep_autoconfig_reset (struct usb_gadget *) __devinit;
+extern void usb_ep_autoconfig_reset (struct usb_gadget *) ULINKER_DEVINIT;
 #endif
 //#endif  /* __KERNEL__ */
 

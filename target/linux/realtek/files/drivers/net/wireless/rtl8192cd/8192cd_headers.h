@@ -21,7 +21,36 @@
 #include <linux/wireless.h>
 #endif
 
+#ifdef __ECOS
+#include <pkgconf/system.h>
+#include <pkgconf/devs_eth_rltk_819x_wrapper.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wireless.h>
+#endif
+
 #include "./8192cd_tx.h"
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+#include "HalPwrSeqCmd.h"
+#endif
+
+
+
+#ifdef P2P_DEBUGMSG
+#define P2P_DEBUG(fmt, args...) printk("(%s %d):"fmt,__FUNCTION__ , __LINE__ , ## args)
+#define P2P_TAG_PRINT(fmt, args...) printk("Tag:"fmt, ## args)
+#define P2P_PRINT(fmt, args...) printk(""fmt,## args)
+#define MAC_PRINT(fmt) printk("%02X%02X%02X:%02X%02X%02X\n",\
+		 fmt[0],fmt[1],fmt[2],fmt[3],fmt[4],fmt[5])
+	
+#else
+#define P2P_TAG_PRINT(fmt, args...)
+#define P2P_DEBUG(fmt, args...)
+#define P2P_PRINT(fmt, args...)
+#define MAC_PRINT(fmt) 
+
+#endif
+
+
 
 
 /*-----------------------------------------------------------------------------
@@ -45,7 +74,9 @@ EXTERN struct stat_info *alloc_stainfo(struct rtl8192cd_priv *priv, unsigned cha
 EXTERN void free_sta_tx_skb(struct rtl8192cd_priv *priv, struct stat_info *pstat);
 EXTERN void free_sta_skb(struct rtl8192cd_priv *priv, struct stat_info *pstat);
 EXTERN int free_stainfo(struct rtl8192cd_priv *priv, struct	stat_info *pstat);
-EXTERN __MIPS16 __IRAM_IN_865X struct stat_info *get_stainfo (struct rtl8192cd_priv *priv, unsigned char *hwaddr);
+__MIPS16
+__IRAM_IN_865X
+EXTERN struct stat_info *get_stainfo (struct rtl8192cd_priv *priv, unsigned char *hwaddr);
 EXTERN struct stat_info *get_aidinfo (struct rtl8192cd_priv *priv, unsigned int aid);
 EXTERN int IS_BSSID(struct rtl8192cd_priv *priv, unsigned char *da);
 EXTERN int IS_MCAST(unsigned char *da);
@@ -55,7 +86,9 @@ EXTERN int skb_p80211_to_ether(struct net_device *dev, int wep_mode, struct rx_f
 EXTERN int strip_amsdu_llc(struct rtl8192cd_priv *priv, struct sk_buff *skb, struct stat_info *pstat);
 EXTERN unsigned char *get_da(unsigned char *pframe);
 EXTERN unsigned char *get_bssid_mp(unsigned char *pframe);
-EXTERN __MIPS16 __IRAM_IN_865X unsigned char get_hdrlen(struct rtl8192cd_priv *priv, UINT8 *pframe);
+__MIPS16
+__IRAM_IN_865X
+EXTERN unsigned char get_hdrlen(struct rtl8192cd_priv *priv, UINT8 *pframe);
 EXTERN unsigned int get_mcast_privacy(struct rtl8192cd_priv *priv, unsigned int *iv, unsigned int *icv,
 				unsigned int *mic);
 EXTERN unsigned int	get_privacy(struct rtl8192cd_priv *priv, struct stat_info *pstat,
@@ -114,25 +147,24 @@ EXTERN void enable_vxd_ap(struct rtl8192cd_priv *priv);
 #endif
 
 #ifdef GBWC
+#ifdef __KERNEL__
 EXTERN void rtl8192cd_GBWC_timer(unsigned long task_priv);
+#elif defined(__ECOS)
+EXTERN void rtl8192cd_GBWC_timer(void *task_priv);
 #endif
-EXTERN void add_update_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+#endif
 
 #ifdef STA_EXT
 EXTERN void release_remapAid(struct rtl8192cd_priv *priv, struct stat_info *pstat);
 #endif
 
-EXTERN void add_update_rssi(struct rtl8192cd_priv * priv, struct stat_info * pstat);
-
 // to avoid add RAtid fail
-EXTERN void add_RATid_timer(unsigned long task_priv);
-EXTERN void add_rssi_timer(unsigned long task_priv);
 EXTERN unsigned int is_h2c_buf_occupy(struct rtl8192cd_priv *priv);
 EXTERN short signin_h2c_cmd(struct rtl8192cd_priv *priv, unsigned int content, unsigned short ext_content);
+#ifdef __KERNEL__
 EXTERN void add_ps_timer(unsigned long task_priv);
-
-#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_NOISE_CONTROL)
-EXTERN void dnc_timer(unsigned long task_priv);
+#elif defined(__ECOS)
+EXTERN void add_ps_timer(void *task_priv);
 #endif
 
 #ifdef SMART_CONCURRENT_92D
@@ -140,6 +172,7 @@ EXTERN void smcc_prb_timer(unsigned long task_priv);
 #endif
 
 EXTERN void add_update_ps(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+EXTERN void send_h2c_cmd_detect_wps_gpio(struct rtl8192cd_priv *priv, unsigned int gpio_num, unsigned int enable, unsigned int high_active);
 
 EXTERN void refill_skb_queue(struct rtl8192cd_priv *priv);
 EXTERN void free_skb_queue(struct rtl8192cd_priv *priv, struct sk_buff_head *skb_que);
@@ -161,13 +194,16 @@ EXTERN int is_rtl8190_priv_buf(unsigned char *head);
 EXTERN void free_rtl8190_priv_buf(unsigned char *head);
 #endif
 
-EXTERN void choose_IOT_main_sta(struct rtl8192cd_priv *priv, struct stat_info *pstat);
-EXTERN void rxBB_dm(struct rtl8192cd_priv *priv);
-EXTERN void IOT_engine(struct rtl8192cd_priv *priv);
+
 
 #ifdef STA_EXT
 EXTERN unsigned char fw_was_full(struct rtl8192cd_priv *priv);
 EXTERN int realloc_RATid(struct rtl8192cd_priv * priv);
+#endif
+
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+EXTERN void update_40m_staMap(struct rtl8192cd_priv *priv, struct stat_info *pstat, int release);
+EXTERN void checkBandwidth(struct rtl8192cd_priv *priv);
 #endif
 
 // global variables
@@ -178,7 +214,7 @@ EXTERN UINT8 dot11_rate_table[];
 EXTERN unsigned int set_fw_reg(struct rtl8192cd_priv *priv, unsigned int cmd, unsigned int val, unsigned int with_val);
 EXTERN void set_fw_A2_entry(struct rtl8192cd_priv * priv, unsigned int cmd, unsigned char * addr);
 */
-EXTERN void set_RATid_cmd(struct rtl8192cd_priv * priv, unsigned int macid, unsigned int rateid, unsigned int ratemask);
+
 
 #ifdef CONFIG_RTK_MESH
 #ifdef _11s_TEST_MODE_
@@ -220,21 +256,26 @@ EXTERN void free_sta_mgt_que(struct rtl8192cd_priv *priv, struct dz_mgmt_queue *
 EXTERN int string_to_hex(char *string, unsigned char *key, int len);
 #endif
 
-#ifdef TXREPORT
+#if defined(TXREPORT) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 EXTERN void requestTxReport(struct rtl8192cd_priv *priv);
 EXTERN void C2H_isr(struct rtl8192cd_priv *priv);
-EXTERN void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, struct stat_info *pstat );
-EXTERN void RetryLimitRecovery(unsigned long task_priv);
-EXTERN void LeavingSTA_RLCheck(struct rtl8192cd_priv *priv);
 #endif
 
-#ifdef SW_ANT_SWITCH
+#if defined(SW_ANT_SWITCH) || defined(USE_OUT_SRC)
 EXTERN struct stat_info* findNextSTA(struct rtl8192cd_priv *priv, int *idx);
 #endif
 
 #if defined(DUALBAND_ONLY) && defined(CONFIG_RTL8190_PRIV_SKB)
 void merge_pool(struct rtl8192cd_priv *priv);
 void split_pool(struct rtl8192cd_priv *priv);
+#endif
+
+#ifdef STA_EXT
+EXTERN unsigned int find_reampped_aid(struct rtl8192cd_priv *priv, unsigned int rateid);
+#endif
+#ifdef TLN_STATS
+EXTERN void stats_conn_rson_counts(struct rtl8192cd_priv * priv, unsigned int reason);
+EXTERN void stats_conn_status_counts(struct rtl8192cd_priv * priv, unsigned int status);
 #endif
 
 #undef EXTERN
@@ -260,15 +301,23 @@ EXTERN __MIPS16 __IRAM_IN_865X void assign_wlanseq(struct rtl8192cd_hw *phw, uns
 EXTERN void signin_txdesc(struct rtl8190_priv *priv, struct tx_insn* txcfg);
 #endif
 EXTERN int rtl8192cd_start_xmit(struct sk_buff *skb, struct net_device *dev);
+#ifdef SUPPORT_TX_MCAST2UNI
+EXTERN int rtl8192cd_start_xmit_noM2U(struct sk_buff *skb, struct net_device *dev);
+#else
+#define		rtl8192cd_start_xmit_noM2U		rtl8192cd_start_xmit
+#endif
 EXTERN int rtl8192cd_wlantx(struct rtl8192cd_priv *priv, struct tx_insn *txcfg);
 EXTERN void rtl8192cd_tx_dsr(unsigned long task_priv);
 EXTERN int rtl8192cd_firetx(struct rtl8192cd_priv *priv, struct tx_insn *txcfg);
+#ifdef CONFIG_RTK_MESH
+EXTERN int rtl8192cd_signin_txdesc(struct rtl8192cd_priv *priv, struct tx_insn* txcfg, struct wlan_ethhdr_t *pethdhr);
+#else
 EXTERN int rtl8192cd_signin_txdesc(struct rtl8192cd_priv *priv, struct tx_insn* txcfg);
-
+#endif
 
 #ifdef TX_SHORTCUT
 //EXTERN void signin_txdesc_shortcut(struct rtl8190_priv *priv, struct tx_insn *txcfg);
-EXTERN __MIPS16 __IRAM_IN_865X int rtl8192cd_signin_txdesc_shortcut(struct rtl8192cd_priv *priv, struct tx_insn *txcfg, int idx);
+EXTERN __MIPS16 int rtl8192cd_signin_txdesc_shortcut(struct rtl8192cd_priv *priv, struct tx_insn *txcfg, int idx);
 #endif
 EXTERN int SetupOneCmdPacket(struct rtl8192cd_priv *priv, unsigned char *dat_content,
 				unsigned short txLength, unsigned char LastPkt);
@@ -302,9 +351,14 @@ EXTERN unsigned int get_lowest_tx_rate(struct rtl8192cd_priv *priv, struct stat_
 #define EXTERN
 #endif
 
-EXTERN void	rtl8192cd_frag_timer(unsigned long task_priv);
 EXTERN void rtl8192cd_expire_timer(unsigned long task_priv);
+#ifdef __KERNEL__
+EXTERN void	rtl8192cd_frag_timer(unsigned long task_priv);
 EXTERN void rtl8192cd_1sec_timer(unsigned long task_priv);
+#elif defined(__ECOS)
+EXTERN void rtl8192cd_frag_timer(void *task_priv);
+EXTERN void rtl8192cd_1sec_timer(void *task_priv);
+#endif
 EXTERN void mgt_handler(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
 EXTERN void pwr_state(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
 EXTERN void update_beacon(struct rtl8192cd_priv *priv);
@@ -312,7 +366,11 @@ EXTERN void init_beacon(struct rtl8192cd_priv *priv);
 EXTERN void signin_beacon_desc(struct rtl8192cd_priv * priv,unsigned int * beaconbuf,unsigned int frlen);
 EXTERN void issue_deauth(struct rtl8192cd_priv *priv,	unsigned char *da, int reason);
 EXTERN void start_clnt_ss(struct rtl8192cd_priv *priv);
+#ifdef __KERNEL__
 EXTERN void rtl8192cd_ss_timer(unsigned long task_priv);
+#elif defined(__ECOS)
+EXTERN void rtl8192cd_ss_timer(void *task_priv);
+#endif
 EXTERN void process_dzqueue(struct rtl8192cd_priv *priv);
 EXTERN void issue_asocrsp(struct rtl8192cd_priv *priv,	unsigned short status, struct stat_info *pstat, int pkt_type);
 EXTERN void issue_disassoc(struct rtl8192cd_priv *priv, unsigned char *da, int reason);
@@ -324,20 +382,121 @@ EXTERN void assign_tx_rate(struct rtl8192cd_priv *priv, struct stat_info *pstat,
 EXTERN void assign_aggre_mthod(struct rtl8192cd_priv *priv, struct stat_info *pstat);
 EXTERN void assign_aggre_size(struct rtl8192cd_priv *priv, struct stat_info *pstat);
 EXTERN int isErpSta(struct stat_info *pstat);
-EXTERN void enable_sw_LED(struct rtl8192cd_priv *priv, int init);
-EXTERN void disable_sw_LED(struct rtl8192cd_priv *priv);
-EXTERN void calculate_sw_LED_interval(struct rtl8192cd_priv *priv);
 EXTERN int chklink_wkstaQ(struct rtl8192cd_priv *priv);
-EXTERN void check_txrate_by_reg(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+
 #ifdef CLIENT_MODE
 EXTERN void start_clnt_join(struct rtl8192cd_priv *priv);
 EXTERN void start_clnt_lookup(struct rtl8192cd_priv *priv, int rescan);
+#ifdef __KERNEL__
 EXTERN void rtl8192cd_reauth_timer(unsigned long task_priv);
 EXTERN void rtl8192cd_reassoc_timer(unsigned long task_priv);
 EXTERN void rtl8192cd_idle_timer(unsigned long task_priv);
 #ifdef DFS
 EXTERN void rtl8192cd_dfs_cntdwn_timer(unsigned long task_priv);
 #endif
+#elif defined(__ECOS)
+EXTERN void rtl8192cd_reauth_timer(void *task_priv);
+EXTERN void rtl8192cd_reassoc_timer(void *task_priv);
+EXTERN void rtl8192cd_idle_timer(void *task_priv);
+#ifdef DFS
+EXTERN void rtl8192cd_dfs_cntdwn_timer(void *task_priv);
+#endif
+#endif
+EXTERN void issue_PsPoll(struct rtl8192cd_priv *priv);
+#endif
+
+#ifdef WIFI_WMM
+EXTERN void init_WMM_Para_Element(struct rtl8192cd_priv *priv, unsigned char *temp);
+EXTERN void issue_ADDBAreq(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned char TID);
+#endif
+
+EXTERN void process_mcast_dzqueue(struct rtl8192cd_priv *priv);
+EXTERN void construct_ht_ie(struct rtl8192cd_priv *priv, int use_40m, int offset);
+
+#ifdef CHECK_HANGUP
+EXTERN int check_hangup(struct rtl8192cd_priv *priv);
+#endif
+
+#ifndef USE_WEP_DEFAULT_KEY
+EXTERN void set_keymapping_wep(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+#endif
+
+#ifdef USB_PKT_RATE_CTRL_SUPPORT
+EXTERN void register_usb_pkt_cnt_f(void *usbPktFunc);
+EXTERN void usbPkt_timer_handler(struct rtl8192cd_priv *priv);
+#endif
+
+#ifdef RTK_WOW
+EXTERN void issue_rtk_wow(struct rtl8192cd_priv * priv, unsigned char * da);
+#endif
+
+#ifdef CONFIG_RTK_MESH
+EXTERN unsigned char WMM_IE[];
+EXTERN unsigned char WMM_PARA_IE[];
+EXTERN int check_basic_rate(struct rtl8192cd_priv *priv, unsigned char *pRate, int pLen);
+EXTERN int collect_bss_info(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
+EXTERN unsigned char *construct_ht_ie_old_form(struct rtl8192cd_priv *priv, unsigned char *pbuf, unsigned int *frlen);
+EXTERN void get_matched_rate(struct rtl8192cd_priv *priv, unsigned char *pRate, int *pLen, int which);
+EXTERN unsigned char *get_ie(unsigned char *pbuf, int index, int *len, int limit);
+EXTERN void issue_auth(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned short status);
+EXTERN void issue_deauth_MP(struct rtl8192cd_priv *priv,	unsigned char *da, int reason, UINT8 is_11s);
+EXTERN void issue_probersp_MP(struct rtl8192cd_priv *priv, unsigned char *da, UINT8 *ssid, int ssid_len, int set_privacy, UINT8 is_11s, UINT8 11b_sta);
+EXTERN unsigned char *set_fixed_ie(unsigned char *pbuf, unsigned int len, unsigned char *source, unsigned int *frlen);
+EXTERN unsigned char *set_ie(unsigned char *pbuf, int index, unsigned int len, unsigned char *source, unsigned int *frlen);
+EXTERN void update_support_rate(struct	stat_info *pstat, unsigned char* buf, int len);
+EXTERN void proxy_table_chkcln(struct rtl8192cd_priv* priv, struct sk_buff *pskb);
+EXTERN int fire_data_frame(struct sk_buff *skb, struct net_device *dev, struct tx_insn* txinsn);
+
+#endif
+
+EXTERN void default_WMM_para(struct rtl8192cd_priv *priv);
+EXTERN unsigned char *search_wsc_tag(unsigned char *data, unsigned short id, int len, int *out_len);
+#ifdef CONFIG_RTL_92D_DMDP
+EXTERN void reset_dmdp_peer(struct rtl8192cd_priv *from);
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+int clnt_ss_check_band(struct rtl8192cd_priv *priv, unsigned int channel);
+#endif
+
+#ifdef SMART_REPEATER_MODE
+#ifdef __KERNEL__
+void check_vxd_ap_timer(unsigned long task_priv);
+#elif defined(__ECOS)
+EXTERN void check_vxd_ap_timer(void *task_priv);
+#endif
+#endif 
+
+#undef EXTERN
+
+
+
+
+/*-----------------------------------------------------------------------------
+								8192cd_led.c
+------------------------------------------------------------------------------*/
+#ifndef _8192CD_LED_C_
+#define EXTERN	extern
+#else
+#define EXTERN
+#endif
+
+EXTERN void enable_sw_LED(struct rtl8192cd_priv *priv, int init);
+EXTERN void disable_sw_LED(struct rtl8192cd_priv *priv);
+EXTERN void calculate_sw_LED_interval(struct rtl8192cd_priv *priv);
+EXTERN void control_wireless_led(struct rtl8192cd_priv *priv, int enable);
+
+#undef EXTERN
+
+
+
+
+/*-----------------------------------------------------------------------------
+								8192cd_dfs.c
+------------------------------------------------------------------------------*/
+#ifndef _8192CD_DFS_C_
+#define EXTERN	extern
+#else
+#define EXTERN
 #endif
 
 #ifdef DFS
@@ -366,59 +525,8 @@ EXTERN void DFS_SwitchChannel(struct rtl8192cd_priv *priv);
 EXTERN void DFS_SetReg(struct rtl8192cd_priv *priv);
 #endif
 
-#ifdef WIFI_WMM
-EXTERN void init_WMM_Para_Element(struct rtl8192cd_priv *priv, unsigned char *temp);
-EXTERN void issue_ADDBAreq(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned char TID);
-#endif
-
-EXTERN void process_mcast_dzqueue(struct rtl8192cd_priv *priv);
-EXTERN void construct_ht_ie(struct rtl8192cd_priv *priv, int use_40m, int offset);
-
-#ifdef CHECK_HANGUP
-EXTERN int check_hangup(struct rtl8192cd_priv *priv);
-#endif
-
-#ifndef USE_WEP_DEFAULT_KEY
-EXTERN void set_keymapping_wep(struct rtl8192cd_priv *priv, struct stat_info *pstat);
-#endif
-
-#ifdef USB_PKT_RATE_CTRL_SUPPORT
-EXTERN void register_usb_pkt_cnt_f(void *usbPktFunc);
-EXTERN void usbPkt_timer_handler(struct rtl8192cd_priv *priv);
-#endif
-
-#ifdef RTK_WOW
-EXTERN void issue_rtk_wow(struct rtl8192cd_priv * priv, unsigned char * da);
-#endif
-
-EXTERN void control_wireless_led(struct rtl8192cd_priv *priv, int enable);
-
-#ifdef CONFIG_RTK_MESH
-EXTERN unsigned char WMM_IE[];
-EXTERN unsigned char WMM_PARA_IE[];
-EXTERN int check_basic_rate(struct rtl8192cd_priv *priv, unsigned char *pRate, int pLen);
-EXTERN int collect_bss_info(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
-EXTERN unsigned char *construct_ht_ie_old_form(struct rtl8192cd_priv *priv, unsigned char *pbuf, unsigned int *frlen);
-EXTERN void get_matched_rate(struct rtl8192cd_priv *priv, unsigned char *pRate, int *pLen, int which);
-EXTERN unsigned char *get_ie(unsigned char *pbuf, int index, int *len, int limit);
-EXTERN void issue_auth(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned short status);
-EXTERN void issue_deauth_MP(struct rtl8192cd_priv *priv,	unsigned char *da, int reason, UINT8 is_11s);
-EXTERN void issue_probersp_MP(struct rtl8192cd_priv *priv, unsigned char *da, UINT8 *ssid, int ssid_len, int set_privacy, UINT8 is_11s);
-EXTERN unsigned char *set_fixed_ie(unsigned char *pbuf, unsigned int len, unsigned char *source, unsigned int *frlen);
-EXTERN unsigned char *set_ie(unsigned char *pbuf, int index, unsigned int len, unsigned char *source, unsigned int *frlen);
-EXTERN void update_support_rate(struct	stat_info *pstat, unsigned char* buf, int len);
-EXTERN void proxy_table_chkcln(struct rtl8192cd_priv* priv, struct sk_buff *pskb);
-EXTERN int fire_data_frame(struct sk_buff *skb, struct net_device *dev, struct tx_insn* txinsn);
-
-#endif
-EXTERN void reset_1r_sta_RA(struct rtl8192cd_priv *priv, unsigned int sg_rate);
-
-EXTERN void default_WMM_para(struct rtl8192cd_priv *priv);
-
-#ifdef CONFIG_RTL_92D_DMDP
-EXTERN void reset_dmdp_peer(struct rtl8192cd_priv *from);
-#endif
 #undef EXTERN
+
 
 
 
@@ -431,17 +539,26 @@ EXTERN void reset_dmdp_peer(struct rtl8192cd_priv *from);
 #define EXTERN
 #endif
 
-#ifdef RX_TASKLET
+#if defined(RX_TASKLET) || defined(__ECOS)
 EXTERN void rtl8192cd_rx_tkl_isr(unsigned long task_priv);
 #endif
-EXTERN void rtl8192cd_rx_isr(struct rtl8192cd_priv *priv);
+#if !defined(__LINUX_2_6__) && !defined(__ECOS)
+__MIPS16
+#endif
+EXTERN  void rtl8192cd_rx_isr(struct rtl8192cd_priv *priv);
 EXTERN void rtl8192cd_rx_dsr(unsigned long task_priv);
 EXTERN __MIPS16 __IRAM_IN_865X void rtl_netif_rx(struct rtl8192cd_priv *priv, struct sk_buff *pskb, struct stat_info *pstat);
 //EXTERN void rtl8190_rxcmd_isr(struct rtl8190_priv *priv);
+#if defined(__ECOS)
+EXTERN void reorder_ctrl_timeout(void *task_priv);
+#else
 EXTERN void reorder_ctrl_timeout(unsigned long task_priv);
+#endif
 
 #ifdef CONFIG_RTK_MESH
 EXTERN void rtl8192cd_rx_mgntframe(struct rtl8192cd_priv*, struct list_head *,struct rx_frinfo*);
+__MIPS16
+__IRAM_IN_865X
 EXTERN void rtl8192cd_rx_dataframe(struct rtl8192cd_priv*, struct list_head *,struct rx_frinfo*);
 #endif
 
@@ -452,6 +569,10 @@ EXTERN unsigned int get_free_memory(void);
 #ifdef RX_BUFFER_GATHER
 EXTERN void flush_rx_list(struct rtl8192cd_priv *priv);
 #endif
+#if !(defined(RTL8190_ISR_RX) && defined(RTL8190_DIRECT_RX))
+EXTERN void flush_rx_queue(struct rtl8192cd_priv *priv);
+#endif
+
 
 #undef EXTERN
 
@@ -482,7 +603,11 @@ EXTERN int ReadAdapterInfo8192CE(struct rtl8192cd_priv *priv);
 
 #ifdef PCIE_POWER_SAVING
 EXTERN void PCIE_reset_procedure3(struct rtl8192cd_priv *priv);
+#ifdef __KERNEL__
 EXTERN void PCIe_power_save_timer(unsigned long task_priv);
+#elif defined(__ECOS)
+EXTERN void PCIe_power_save_timer(void *task_priv);
+#endif
 EXTERN void PCIe_power_save_tasklet(unsigned long task_priv);
 EXTERN void init_pcie_power_saving(struct rtl8192cd_priv *priv);
 EXTERN void switch_to_1x1(struct rtl8192cd_priv *priv, int mode) ;
@@ -500,7 +625,7 @@ EXTERN void set_slot_time(struct rtl8192cd_priv *priv, int use_short);
 EXTERN void SetTxPowerLevel(struct rtl8192cd_priv *priv);
 EXTERN void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset);
 EXTERN void enable_hw_LED(struct rtl8192cd_priv *priv, unsigned int led_type);
-EXTERN void init_EDCA_para(struct rtl8192cd_priv *priv, int mode);
+
 EXTERN unsigned int PHY_QueryRFReg(struct rtl8192cd_priv *priv, RF92CD_RADIO_PATH_E eRFPath,
 				unsigned int RegAddr, unsigned int BitMask, unsigned int dbg_avoid);
 EXTERN unsigned int PHY_QueryBBReg(struct rtl8192cd_priv *priv, unsigned int RegAddr, unsigned int BitMask);
@@ -510,87 +635,49 @@ EXTERN void PHY_SetRFReg(struct rtl8192cd_priv *priv, RF92CD_RADIO_PATH_E eRFPat
 EXTERN int phy_RF8256_Config_ParaFile(struct rtl8192cd_priv *priv);
 //EXTERN int PHY_ConfigMACWithParaFile(struct rtl8192cd_priv *priv);
 EXTERN void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset);
-EXTERN void check_EDCCA(struct rtl8192cd_priv * priv, short rssi);
+
 EXTERN void setup_timer1(struct rtl8192cd_priv *priv, int timeout);
 EXTERN void cancel_timer1(struct rtl8192cd_priv *priv);
 EXTERN void setup_timer2(struct rtl8192cd_priv *priv, unsigned int timeout);
 EXTERN void cancel_timer2(struct rtl8192cd_priv *priv);
-EXTERN void set_DIG_state(struct rtl8192cd_priv *priv, int state);
-EXTERN void DIG_process(struct rtl8192cd_priv *priv);
-EXTERN void check_DIG_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength);
-EXTERN void DIG_for_site_survey(struct rtl8192cd_priv *priv, int do_ss);
-EXTERN void CCK_txpower_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength);
+
+
+//EXTERN void CCK_txpower_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength);
 EXTERN void reload_txpwr_pg(struct rtl8192cd_priv *priv);
 EXTERN int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv);
 EXTERN int rtl8192cd_stop_hw(struct rtl8192cd_priv *priv);
-EXTERN int CheckNoResetHwExceptionCase(struct rtl8192cd_priv *priv);
+EXTERN int check_MAC_IO_Enable(struct rtl8192cd_priv *priv);
 
 #ifdef CONFIG_RTL_92D_SUPPORT
-EXTERN int get_CCK_swing_index(struct rtl8192cd_priv *priv);
-EXTERN void set_CCK_swing_index(struct rtl8192cd_priv * priv,short CCK_index);
 
-EXTERN void PHY_IQCalibrate(struct rtl8192cd_priv * priv);
 EXTERN unsigned int get_mean_of_2_close_value(unsigned int *val_array);
-EXTERN unsigned int PHY_QueryBBReg(struct rtl8192cd_priv *priv, unsigned int RegAddr, unsigned int BitMask);
-EXTERN void PHY_SetBBReg(struct rtl8192cd_priv * priv,unsigned int RegAddr,unsigned int BitMask,unsigned int Data);
-EXTERN unsigned int PHY_QueryRFReg(struct rtl8192cd_priv * priv,RF92CD_RADIO_PATH_E eRFPath,unsigned int RegAddr,unsigned int BitMask,unsigned int dbg_avoid);
-EXTERN void PHY_SetRFReg(struct rtl8192cd_priv * priv,RF92CD_RADIO_PATH_E eRFPath,unsigned int RegAddr,unsigned int BitMask,unsigned int Data);
 EXTERN int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file);
+#ifdef _TRACKING_TABLE_FILE
+EXTERN int PHY_ConfigTXPwrTrackingWithParaFile(struct rtl8192cd_priv * priv);
+#endif
+
+#endif
+
 #ifdef TXPWR_LMT
 EXTERN int PHY_ConfigTXLmtWithParaFile(struct rtl8192cd_priv * priv);
 #endif
 
-#ifdef CONFIG_RTL_92D_DMDP
-void Sw_PCIE_Func(int func);
-#endif
-#endif
 
-EXTERN void HostPCIe_Close(void);
-#ifdef WIFI_WMM
-EXTERN void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable);
-#endif
+
 //EXTERN void tx_path_by_rssi(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned char enable);
 //EXTERN void rx_path_by_rssi(struct rtl8192cd_priv *priv, struct stat_info *pstat, int enable);
-EXTERN void rx_path_by_rssi_cck_v2(struct rtl8192cd_priv *priv, struct stat_info *pstat);
-#ifdef HIGH_POWER_EXT_PA
-EXTERN void tx_power_control(struct rtl8192cd_priv *priv);
-#endif
-EXTERN void tx_power_tracking(struct rtl8192cd_priv *priv);
+//EXTERN void rx_path_by_rssi_cck_v2(struct rtl8192cd_priv *priv, struct stat_info *pstat);
 //EXTERN void rtl8192cd_tpt_timer(unsigned long task_priv);
 
-#ifdef SW_ANT_SWITCH
-EXTERN void dm_SW_AntennaSwitchCallback(unsigned long task_priv) ;
-EXTERN void dm_SWAW_RSSI_Check(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
-EXTERN void dm_SW_AntennaSwitchInit(struct rtl8192cd_priv *priv);
-EXTERN void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step);
-#endif
 
-#if defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)
-EXTERN int diversity_antenna_select(struct rtl8192cd_priv *priv, unsigned char *data);
-#endif
-#if defined(HW_ANT_SWITCH)
-EXTERN void dm_HW_AntennaSwitchInit(struct rtl8192cd_priv *priv);
-EXTERN void setRxIdleAnt(struct rtl8192cd_priv *priv, char nextAnt) ;
-EXTERN void dm_STA_Ant_Select(struct rtl8192cd_priv *priv, struct stat_info *pstat);
-EXTERN void dm_HW_IdleAntennaSelect(struct rtl8192cd_priv *priv);
-
-#endif
 
 //EXTERN void SwitchExtAnt(struct rtl8192cd_priv *priv, unsigned char EXT_ANT_PATH);
 //EXTERN void rtl8192cd_ePhyInit(struct rtl8192cd_priv * priv);
 //EXTERN void Switch_1SS_Antenna(struct rtl8192cd_priv *priv, unsigned int antPath );
 //EXTERN void Switch_OFDM_Antenna(struct rtl8192cd_priv *priv, unsigned int antPath );
-EXTERN void FA_statistic(struct rtl8192cd_priv * priv);
 
-#ifdef CONFIG_RTL_NEW_AUTOCH
-EXTERN void _FA_statistic(struct rtl8192cd_priv* priv);
-EXTERN void reset_FA_reg(struct rtl8192cd_priv* priv);
-EXTERN void hold_CCA_FA_counter(struct rtl8192cd_priv* priv);
-EXTERN void release_CCA_FA_counter(struct rtl8192cd_priv* priv);
-#endif
 
-EXTERN void CCK_CCA_dynamic_enhance(struct rtl8192cd_priv * priv, unsigned char rssi_strength);
-EXTERN void check_NAV_prot_len(struct rtl8192cd_priv * priv, struct stat_info * pstat, unsigned int disassoc);
+
 
 // CAM related functions
 EXTERN int CamAddOneEntry(struct rtl8192cd_priv *priv, unsigned char *pucMacAddr,
@@ -608,13 +695,14 @@ EXTERN unsigned char *get_line(unsigned char **line);
 EXTERN void find_pwr_limit(struct rtl8192cd_priv *priv);
 #endif
 
+#ifdef _DEBUG_RTL8192CD_	
 //_TXPWR_REDEFINE
 EXTERN void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number, 
 				char *MCSTxAgcOffset_A, char *MCSTxAgcOffset_B, char *OFDMTxAgcOffset_A,
 				char *OFDMTxAgcOffset_B, char *CCKTxAgc_A, char *CCKTxAgc_B);
+#endif
 
 
-#ifdef MERGE_FW
 #ifdef CONFIG_RTL_92D_SUPPORT
 	EXTERN unsigned char *data_MACPHY_REG_start, *data_MACPHY_REG_end;
   	EXTERN unsigned char *data_PHY_REG_n_start, *data_PHY_REG_n_end;
@@ -627,6 +715,10 @@ EXTERN void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_nu
 	EXTERN unsigned char *data_TXPWR_LMT_FCC_start, *data_TXPWR_LMT_FCC_end;
 	EXTERN unsigned char *data_TXPWR_LMT_CE_start, *data_TXPWR_LMT_CE_end;
 #endif
+#ifdef _TRACKING_TABLE_FILE
+	EXTERN unsigned char *data_REG_TXPWR_TRK_n_92d_start, *data_REG_TXPWR_TRK_n_92d_end;
+	EXTERN unsigned char *data_REG_TXPWR_TRK_n_92d_hp_start, *data_REG_TXPWR_TRK_n_92d_hp_end;
+#endif
 	EXTERN unsigned char *data_AGC_TAB_n_start, *data_AGC_TAB_n_end;
 	EXTERN unsigned char *data_AGC_TAB_2G_n_start, *data_AGC_TAB_2G_n_end;
 	EXTERN unsigned char *data_AGC_TAB_5G_n_start, *data_AGC_TAB_5G_n_end;
@@ -634,16 +726,36 @@ EXTERN void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_nu
 	EXTERN unsigned char *data_radio_b_n_start, *data_radio_b_n_end;
 #ifdef RTL8192D_INT_PA
 #ifdef USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)
+	EXTERN unsigned char *data_radio_a_intPA_GM_new_start, *data_radio_a_intPA_GM_new_end;
+	EXTERN unsigned char *data_radio_b_intPA_GM_new_start, *data_radio_b_intPA_GM_new_end;
+#elif defined (RTL8192D_INT_PA_GAIN_TABLE_NEW1)
+	EXTERN unsigned char *data_radio_a_intPA_GM_new1_start, *data_radio_a_intPA_GM_new1_end;
+	EXTERN unsigned char *data_radio_b_intPA_GM_new1_start, *data_radio_b_intPA_GM_new1_end;
+#else
 	EXTERN unsigned char *data_radio_a_intPA_GM_start, *data_radio_a_intPA_GM_end;
 	EXTERN unsigned char *data_radio_b_intPA_GM_start, *data_radio_b_intPA_GM_end;
+#endif
+
+#else // USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)
+	EXTERN unsigned char *data_radio_a_intPA_new_start, *data_radio_a_intPA_new_end;
+	EXTERN unsigned char *data_radio_b_intPA_new_start, *data_radio_b_intPA_new_end;
 #else
 	EXTERN unsigned char *data_radio_a_intPA_start, *data_radio_a_intPA_end;
 	EXTERN unsigned char *data_radio_b_intPA_start, *data_radio_b_intPA_end;
 #endif
-#endif
+
+#endif // USB_POWER_SUPPORT
+#endif // RTL8192D_INT_PA
 
 //_TXPWR_REDEFINE
 #ifdef HIGH_POWER_EXT_PA
+	EXTERN unsigned char *data_AGC_TAB_n_92d_hp_start, *data_AGC_TAB_n_92d_hp_end;
+	EXTERN unsigned char *data_PHY_REG_PG_92d_hp_start, *data_PHY_REG_PG_92d_hp_end;
+	EXTERN unsigned char *data_PHY_REG_n_92d_hp_start, *data_PHY_REG_n_92d_hp_end;
 	EXTERN unsigned char *data_radio_a_n_92d_hp_start, *data_radio_a_n_92d_hp_end;
 	EXTERN unsigned char *data_radio_b_n_92d_hp_start, *data_radio_b_n_92d_hp_end;
 #endif
@@ -687,10 +799,56 @@ EXTERN unsigned char *data_radio_b_2T_n_lna_start, *data_radio_b_2T_n_lna_end;
 	EXTERN unsigned char *data_PHY_REG_PG_hp_start, *data_PHY_REG_PG_hp_end;
 #endif
 
-#endif //CONFIG_RTL_92C_SUPPORT
-#endif //MERGE_FW
+#ifdef _TRACKING_TABLE_FILE
+	EXTERN unsigned char *data_REG_TXPWR_TRK_start, *data_REG_TXPWR_TRK_end;
+	EXTERN unsigned char *data_REG_TXPWR_TRK_hp_start, *data_REG_TXPWR_TRK_hp_end;
+#endif
 
+#ifdef TXPWR_LMT 
+	EXTERN unsigned char *data_TXPWR_LMT_92c_start, *data_TXPWR_LMT_92c_end;
+	EXTERN unsigned char *data_TXPWR_LMT_92c_FCC_start, *data_TXPWR_LMT_92c_FCC_end;
+	EXTERN unsigned char *data_TXPWR_LMT_92c_CE_start, *data_TXPWR_LMT_92c_CE_end;
+#endif
+
+#endif // CONFIG_RTL_92C_SUPPORT
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+#ifndef USE_OUT_SRC
+//For 8188E IQK
+EXTERN unsigned char *data_AGC_TAB_1T_88E_start, *data_AGC_TAB_1T_88E_end;
+EXTERN unsigned char *data_MAC_REG_88E_start, *data_MAC_REG_88E_end;
+EXTERN unsigned char *data_PHY_REG_1T_88E_start, *data_PHY_REG_1T_88E_end;
+EXTERN unsigned char *data_PHY_REG_MP_88E_start, *data_PHY_REG_MP_88E_end;
+EXTERN unsigned char *data_PHY_REG_PG_88E_start, *data_PHY_REG_PG_88E_end;
+EXTERN unsigned char *data_radio_a_1T_88E_start, *data_radio_a_1T_88E_end;
+#ifdef SUPPORT_RTL8188E_TC
+EXTERN unsigned char *data_MAC_REG_88E_TC_start, *data_MAC_REG_88E_TC_end;
+EXTERN unsigned char *data_PHY_REG_1T_88E_TC_start, *data_PHY_REG_1T_88E_TC_end;
+EXTERN unsigned char *data_radio_a_1T_88E_TC_start, *data_radio_a_1T_88E_TC_end;
+#endif
+#endif
+#endif // CONFIG_RTL_88E_SUPPORT
+
+
+EXTERN void PHY_IQCalibrate(struct rtl8192cd_priv *priv);
+
+#ifdef TX_EARLY_MODE
+EXTERN void enable_em(struct rtl8192cd_priv *priv);
+EXTERN void disable_em(struct rtl8192cd_priv *priv);
+#endif
+
+#ifdef RTLWIFINIC_GPIO_CONTROL
+EXTERN void RTLWIFINIC_GPIO_init_priv(struct rtl8192cd_priv *priv);
+EXTERN void RTLWIFINIC_GPIO_config(unsigned int gpio_num, unsigned int direction);
+EXTERN void RTLWIFINIC_GPIO_write(unsigned int gpio_num, unsigned int value);
+EXTERN int RTLWIFINIC_GPIO_read(unsigned int gpio_num);
+#endif
+
+EXTERN void PHY_RF6052SetCCKTxPower(struct rtl8192cd_priv *priv, unsigned int channel);
+EXTERN void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel);
 #undef EXTERN
+
+
 
 
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -726,18 +884,12 @@ EXTERN void smcc_signin_MAC_info(struct rtl8192cd_priv * priv,struct SMCC_MAC_In
 #endif
 
 #endif
-#ifdef SW_LCK_92D
-EXTERN void PHY_LCCalibrate_92D(struct rtl8192cd_priv *priv);
-EXTERN void phy_ReloadLCKSetting(struct rtl8192cd_priv *priv);
-#endif
+
 EXTERN int Load_92D_Firmware(struct rtl8192cd_priv *priv);
 EXTERN void UpdateBBRFVal8192DE(struct rtl8192cd_priv *priv);
-EXTERN void tx_power_tracking_92D(struct rtl8192cd_priv * priv);
 EXTERN void Update92DRFbyChannel(struct rtl8192cd_priv * priv,unsigned char channel);
 
-#ifdef CONFIG_RTL_92D_DMDP
-EXTERN void IQK_92D_2G_phy1(struct rtl8192cd_priv * priv);
-#endif
+
 EXTERN void SetSYN_para(struct rtl8192cd_priv *priv, unsigned char channel);
 EXTERN void SetIMR_n(struct rtl8192cd_priv * priv, unsigned char channel);
 EXTERN void IQK_92D_2G(struct rtl8192cd_priv * priv);
@@ -745,6 +897,12 @@ EXTERN void IQK_92D_5G_n(struct rtl8192cd_priv * priv);
 #ifdef CONFIG_RTL_92D_DMDP
 EXTERN void IQK_92D_5G_phy0_n(struct rtl8192cd_priv * priv);
 #endif
+
+#ifdef DPK_92D
+EXTERN void rtl8192cd_DPK_timer(unsigned long task_priv);
+EXTERN void PHY_DPCalibrate(struct rtl8192cd_priv *priv);
+#endif
+
 #undef EXTERN
 
 #endif //CONFIG_RTL_92D_SUPPORT
@@ -801,7 +959,7 @@ EXTERN int rtl8192cd_ss_req(struct rtl8192cd_priv *priv, unsigned char *data, in
 EXTERN void delay_us(unsigned int t);
 EXTERN void delay_ms(unsigned int t);
 
-#if defined(CLIENT_MODE)&&defined(WIFI_WPAS)
+#ifdef WIFI_WPAS
 EXTERN int check_bss_encrypt(struct rtl8192cd_priv *priv);
 #endif
 
@@ -847,8 +1005,13 @@ EXTERN void CAM_read_entry(struct rtl8190_priv *priv, unsigned char index, unsig
 
 EXTERN int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat);
 EXTERN void DOT11_Indicate_MIC_Failure_Clnt(struct rtl8192cd_priv *priv, unsigned char *sa);
+#ifdef __KERNEL__
 EXTERN void DOT11_Process_MIC_Timerup(unsigned long data);
 EXTERN void DOT11_Process_Reject_Assoc_Timerup(unsigned long data);
+#elif defined(__ECOS)
+EXTERN void DOT11_Process_MIC_Timerup(void *data);
+EXTERN void DOT11_Process_Reject_Assoc_Timerup(void *data);
+#endif
 EXTERN int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data);
 EXTERN int DOT11_Process_Set_Key(struct net_device *dev, struct iw_point *data,
 				DOT11_SET_KEY *pSetKey, unsigned char *pKey);
@@ -954,7 +1117,11 @@ EXTERN int nat25_db_handle(struct rtl8192cd_priv *priv,	struct sk_buff *skb, int
 EXTERN int nat25_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb);
 EXTERN int mac_clone_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb);
 EXTERN void dhcp_flag_bcast(struct rtl8192cd_priv *priv, struct sk_buff *skb);
+EXTERN void dhcp_dst_bcast(struct rtl8192cd_priv * priv,struct sk_buff * skb);
 EXTERN void *scdb_findEntry(struct rtl8192cd_priv *priv, unsigned char *macAddr, unsigned char *ipAddr);
+#ifdef __ECOS
+EXTERN void nat25_db_init(void);
+#endif
 #endif
 
 #undef EXTERN
@@ -1007,6 +1174,23 @@ EXTERN struct stat_info *add_wds_entry(struct rtl8192cd_priv *priv, int idx, uns
 
 
 /*-----------------------------------------------------------------------------
+								8192cd_host.c
+------------------------------------------------------------------------------*/
+#ifndef _8192CD_HOST_C_
+#define EXTERN  extern
+#else
+#define EXTERN
+#endif
+
+EXTERN int PCIE_reset_procedure(int portnum, int ext_clk, int mdio_reset, unsigned long conf_addr);
+EXTERN void HostPCIe_Close(void);
+
+#undef EXTERN
+
+
+
+
+/*-----------------------------------------------------------------------------
 								8192cd_psk.c
 ------------------------------------------------------------------------------*/
 #if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
@@ -1047,6 +1231,7 @@ EXTERN void ClientSendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat
 #define EXTERN
 #endif
 
+EXTERN char *get_value_by_token(char *data, char *token);
 EXTERN void mp_start_test(struct rtl8192cd_priv *priv);
 EXTERN void mp_stop_test(struct rtl8192cd_priv *priv);
 EXTERN void mp_set_datarate(struct rtl8192cd_priv *priv, unsigned char *data);
@@ -1058,6 +1243,9 @@ EXTERN int mp_query_stats(struct rtl8192cd_priv *priv, unsigned char *data);
 EXTERN void mp_txpower_tracking(struct rtl8192cd_priv *priv, unsigned char *data);
 EXTERN int mp_query_tssi(struct rtl8192cd_priv *priv, unsigned char *data);
 EXTERN int mp_query_ther(struct rtl8192cd_priv *priv, unsigned char *data);
+#ifdef MP_PSD_SUPPORT
+EXTERN int mp_query_psd(struct rtl8192cd_priv *priv, unsigned char * data);
+#endif
 EXTERN int mp_tx(struct rtl8192cd_priv *priv, unsigned char *data);
 EXTERN void mp_validate_rx_packet(struct rtl8192cd_priv *priv, unsigned char *data, int len);
 EXTERN int mp_brx(struct rtl8192cd_priv *priv, unsigned char *data);
@@ -1073,6 +1261,7 @@ EXTERN void mp_set_phyBand(struct rtl8192cd_priv * priv, unsigned char * data);
 
 EXTERN void mp_reset_stats(struct rtl8192cd_priv * priv);
 EXTERN int mp_get_txpwr(struct rtl8192cd_priv *priv, unsigned char *data);
+EXTERN void mp_dig(struct rtl8192cd_priv *priv, unsigned char *data);
 
 #undef EXTERN
 
@@ -1093,9 +1282,11 @@ EXTERN int mp_get_txpwr(struct rtl8192cd_priv *priv, unsigned char *data);
 EXTERN int mib_get(struct rtl8192cd_priv *priv, char *oid, unsigned char *data, int *pLen);
 EXTERN void mib_init(struct rtl8192cd_priv *priv);
 
+#undef EXTERN
+
 #endif // SUPPORT_SNMP_MIB
 
-#undef EXTERN
+
 
 
 /*-----------------------------------------------------------------------------
@@ -1149,19 +1340,6 @@ EXTERN int CfgFileRead(struct net_device *dev, char *buf);
 #undef EXTERN
 
 
-#ifdef CONFIG_RTL865X
-
-#define EXTERN extern
-
-/* 865x platform utilities */
-EXTERN int GetChipVersion(char *name, unsigned int size, int *rev);
-EXTERN long rtlglue_extPortRecv(void *id, unsigned char *data,  unsigned long len, unsigned short myvid, unsigned long myportmask, unsigned long linkID);
-EXTERN long devglue_regExtDevice(unsigned char *devName, unsigned short vid, unsigned char extPortNum, unsigned long *linkId);
-EXTERN long devglue_unregExtDevice(unsigned long linkId);
-
-#undef EXTERN
-
-#endif
 
 
 /*-----------------------------------------------------------------------------
@@ -1185,6 +1363,9 @@ EXTERN void rsn_init(struct rtl8192cd_priv *priv);
 
 #endif
 
+
+
+
 #define EXTERN extern
 #if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
 /*-----------------------------------------------------------------------------
@@ -1207,6 +1388,8 @@ EXTERN int rtl_wpas_custom(struct net_device *dev, struct iw_request_info *info,
 #endif
 
 
+
+
 #ifdef CONFIG_RTK_MESH
 /*-----------------------------------------------------------------------------
 								mesh_ext/mesh_proc.c
@@ -1218,37 +1401,37 @@ EXTERN int rtl_wpas_custom(struct net_device *dev, struct iw_request_info *info,
 #endif
 
 EXTERN int dump_mesh_one_mpflow_sta(int num, struct stat_info *pstat, char *buf, char **start, off_t offset, int length, int *eof, void *data);
-EXTERN int rtk8190_proc_flow_stats(char *buf, char **start, off_t offset, int length, int *eof, void *data);
-EXTERN int rtk8190_proc_flow_stats_write(struct file *file, const char *buffer, unsigned long count, void *data);
-EXTERN int rtl8190_mesh_assoc_mpinfo(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_proc_flow_stats(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_proc_flow_stats_write(struct file *file, const char *buffer, unsigned long count, void *data);
+EXTERN int mesh_assoc_mpinfo(char *buf, char **start, off_t offset, int length, int *eof, void *data);
 
 #ifdef MESH_BOOTSEQ_AUTH
-EXTERN int rtl8190_mesh_auth_mpinfo(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_auth_mpinfo(char *buf, char **start, off_t offset, int length, int *eof, void *data);
 #endif
 
-EXTERN int rtl8190_mesh_unEstablish_mpinfo(char *buf, char **start, off_t offset, int length, int *eof, void *data);
-EXTERN int rtl8190_pathsel_routetable_info(char *buf, char **start, off_t offset, int length, int *eof, void *data);
-EXTERN int rtl8190_portal_table_info(char *buf, char **start, off_t offset, int length, int *eof, void *data);
-EXTERN int rtl8190_proc_mesh_stats(char *buf, char **start, off_t offset, int length, int *eof, void *data);
-EXTERN int rtl8190_proxy_table_info(char *buf, char **start, off_t offset, int length, int *eof, void *data);
-EXTERN int rtl8190_root_info(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_unEstablish_mpinfo(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_pathsel_routetable_info(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_portal_table_info(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_stats(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_proxy_table_info(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_root_info(char *buf, char **start, off_t offset, int length, int *eof, void *data);
 #ifdef MESH_USE_METRICOP
-EXTERN int rtl8190_mesh_metric_w (struct file *file, const char *buffer, unsigned long count, void *data);
-EXTERN int rtl8190_mesh_metric_r(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_metric_w (struct file *file, const char *buffer, unsigned long count, void *data);
+EXTERN int mesh_metric_r(char *buf, char **start, off_t offset, int length, int *eof, void *data);
 #endif
 #if DBG_NCTU_MESH
-EXTERN int rtl8190_setMeshDebugLevel (struct file *file, const char *buffer, unsigned long count, void *data);
-EXTERN int hasMeshDebugLevel (int lv);
-EXTERN int clearMeshDebugLevel (int lv);
-EXTERN int showAllSkbs(char *buf, char **start, off_t offset, int length, int *eof, void *data);
-EXTERN int decMySkb(struct sk_buff *);
-EXTERN int tagMySkb(struct sk_buff *, UINT8);
-EXTERN int isMySkb(struct sk_buff *);
-EXTERN int showSpecificSkbs(UINT8 type);
+EXTERN int mesh_setDebugLevel (struct file *file, const char *buffer, unsigned long count, void *data);
+EXTERN int mesh_hasDebugLevel (int lv);
+EXTERN int mesh_clearDebugLevel (int lv);
+EXTERN int mesh_showAllSkbs(char *buf, char **start, off_t offset, int length, int *eof, void *data);
+EXTERN int mesh_decMySkb(struct sk_buff *);
+EXTERN int mesh_tagMySkb(struct sk_buff *, UINT8);
+EXTERN int mesh_isMySkb(struct sk_buff *);
+EXTERN int mesh_showSpecificSkbs(UINT8 type);
 #endif
 
-
 #undef EXTERN
+
 
 
 
@@ -1294,7 +1477,8 @@ EXTERN unsigned char* getMeshHeader(struct rtl8192cd_priv *priv, int wep_mode, u
 #endif
 
 EXTERN int process_11s_datafrme(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo, struct stat_info *pstat);
-EXTERN int rtl8190_rx_dispatch_mesh(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
+EXTERN int rx_dispatch_mesh(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
+
 #undef EXTERN
 
 
@@ -1317,7 +1501,7 @@ EXTERN int mesh_txsc_decision(struct tx_insn* cfgNew, struct tx_insn* cfgOld);
 EXTERN int dot11s_datapath_decision(struct sk_buff *skb, /*struct net_device *dev,*/ struct tx_insn* ptxinsn, int isUpdateProxyTable);
 EXTERN int issue_11s_mesh_action(struct sk_buff *skb, struct net_device *dev);
 EXTERN int notify_path_found(unsigned char *destaddr, struct rtl8192cd_priv *priv);
-EXTERN int rtl8190_start_relay_11s_dataframe(struct sk_buff *skb, /*struct net_device *dev,*/ int privacy, struct rx_frinfo *pfrinfo);
+EXTERN int relay_11s_dataframe(struct sk_buff *skb, /*struct net_device *dev,*/ int privacy, struct rx_frinfo *pfrinfo);
 EXTERN void toAllPortal(struct sk_buff *pskb,struct rtl8192cd_priv *priv);
 
 #ifdef	_11s_TEST_MODE_
@@ -1340,6 +1524,7 @@ EXTERN void signin_txdesc_galileo(struct rtl8192cd_priv *priv, struct tx_insn* t
 #define EXTERN
 #endif
 
+EXTERN int init_mesh(struct rtl8192cd_priv *priv);
 EXTERN unsigned int acl_query(struct rtl8192cd_priv *priv, unsigned char *sa);
 EXTERN int close_MeshPeerLink(struct rtl8192cd_priv *priv, UINT8 *da);
 EXTERN int is_11s_mgt_frame(int num, struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
@@ -1377,6 +1562,7 @@ EXTERN void OnProxyUpdateConfirm_MP(struct rtl8192cd_priv *priv, struct rx_frinf
 //#ifdef	_11s_TEST_MODE_
 EXTERN void mac12_to_6(unsigned char *in, unsigned char *out);
 //#endif
+
 #undef EXTERN
 
 
@@ -1400,6 +1586,9 @@ EXTERN void mac12_to_6(unsigned char*, unsigned char*);
 
 #undef EXTERN
 
+
+
+
 /*-----------------------------------------------------------------------------
 								mesh_ext/mesh_security.c
 ------------------------------------------------------------------------------*/
@@ -1410,13 +1599,16 @@ EXTERN void mac12_to_6(unsigned char*, unsigned char*);
 #endif
 
 EXTERN int DOT11_EnQueue2(unsigned long task_priv, DOT11_QUEUE2 *q, unsigned char *item, int itemsize);
-
 EXTERN int DOT11_DeQueue2(unsigned long task_priv, DOT11_QUEUE2 *q, unsigned char *item, int *itemsize);
 EXTERN void DOT11_InitQueue2(DOT11_QUEUE2 * q, int szMaxItem, int szMaxData);
 
 #undef EXTERN
 
 #endif // CONFIG_RTK_MESH
+
+
+
+
 /*-----------------------------------------------------------------------------
 								8192cd_a4_sta.c
 ------------------------------------------------------------------------------*/
@@ -1435,5 +1627,343 @@ EXTERN struct stat_info *a4_sta_lookup(struct rtl8192cd_priv *priv, unsigned cha
 #undef EXTERN
 
 #endif
+
+
+
+
+/*-----------------------------------------------------------------------------
+								HALDM_OUTSRC.c
+------------------------------------------------------------------------------*/
+#ifndef _HALDM_COMMON_C_
+#define EXTERN  extern
+#else
+#define EXTERN
+#endif
+
+// Rate Adaptive
+EXTERN void check_RA_by_rssi(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+EXTERN void add_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+
+EXTERN int getIGIFor1RCCA(int value_IGI);
+EXTERN void PHY_LCCalibrate(struct rtl8192cd_priv *priv);
+EXTERN int get_CCK_swing_index(struct rtl8192cd_priv *priv);
+EXTERN void set_CCK_swing_index(struct rtl8192cd_priv * priv,short CCK_index);
+EXTERN void set_DIG_state(struct rtl8192cd_priv *priv, int state);
+EXTERN void check_DIG_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength);
+EXTERN void DIG_for_site_survey(struct rtl8192cd_priv *priv, int do_ss);
+EXTERN void check_EDCCA(struct rtl8192cd_priv * priv, short rssi);
+EXTERN void Dynamic_EDCCA(struct rtl8192cd_priv *priv, unsigned char IGI);
+
+#ifndef CALIBRATE_BY_ODM
+EXTERN void _PHY_SaveADDARegisters(struct rtl8192cd_priv *priv, unsigned int *ADDAReg,	unsigned int *ADDABackup, unsigned int RegisterNum);
+EXTERN void _PHY_SetADDARegisters(struct rtl8192cd_priv *priv, unsigned int* ADDAReg,	unsigned int* ADDASettings, unsigned int RegisterNum);
+EXTERN void _PHY_SaveMACRegisters(struct rtl8192cd_priv *priv, unsigned int *MACReg, unsigned int *MACBackup);
+EXTERN void _PHY_ReloadADDARegisters(struct rtl8192cd_priv *priv, unsigned int *ADDAReg, unsigned int *ADDABackup, unsigned int RegiesterNum);
+EXTERN void _PHY_ReloadMACRegisters(struct rtl8192cd_priv *priv,unsigned int *MACReg, unsigned int *MACBackup);
+EXTERN void _PHY_MACSettingCalibration(struct rtl8192cd_priv *priv, unsigned int* MACReg, unsigned int* MACBackup);
+EXTERN void _PHY_PathADDAOn(struct rtl8192cd_priv *priv, unsigned int* ADDAReg, char isPathAOn, char is2T);
+#endif
+
+// FA
+EXTERN void FA_statistic(struct rtl8192cd_priv * priv);
+#ifdef CONFIG_RTL_NEW_AUTOCH
+EXTERN void _FA_statistic(struct rtl8192cd_priv* priv);
+EXTERN void reset_FA_reg(struct rtl8192cd_priv* priv);
+EXTERN void hold_CCA_FA_counter(struct rtl8192cd_priv* priv);
+EXTERN void release_CCA_FA_counter(struct rtl8192cd_priv* priv);
+#endif
+
+#ifdef WIFI_WMM
+EXTERN void check_NAV_prot_len(struct rtl8192cd_priv * priv, struct stat_info * pstat, unsigned int disassoc);
+#endif
+
+#undef EXTERN
+
+
+
+
+/*-----------------------------------------------------------------------------
+								HAL_8192CDMl.c
+------------------------------------------------------------------------------*/
+#ifndef _HAL8192CDM_C_
+#define EXTERN  extern
+#else
+#define EXTERN
+#endif
+
+// DIG
+EXTERN void DIG_process(struct rtl8192cd_priv *priv);
+EXTERN void MP_DIG_process(struct rtl8192cd_priv *priv);
+#ifdef INTERFERENCE_CONTROL
+EXTERN void check_NBI_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength);
+#endif
+
+// Tx Power
+#ifdef HIGH_POWER_EXT_PA
+EXTERN void tx_power_control(struct rtl8192cd_priv *priv);
+#endif
+EXTERN void tx_power_tracking(struct rtl8192cd_priv *priv);
+
+#ifdef CONFIG_RTL_92D_SUPPORT
+EXTERN void tx_power_tracking_92D(struct rtl8192cd_priv * priv);
+#endif
+
+#ifdef CONFIG_RTL_88E_SUPPORT //for 88e tx power tracking
+
+#ifndef CALIBRATE_BY_ODM
+EXTERN void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv * priv);
+#endif
+#endif
+
+// EDCA
+#ifdef USE_OUT_SRC
+EXTERN void odm_EdcaParaInit(PDM_ODM_T	pDM_Odm);
+#else
+EXTERN void init_EDCA_para(struct rtl8192cd_priv *priv, int mode);
+EXTERN void choose_IOT_main_sta(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+EXTERN void rxBB_dm(struct rtl8192cd_priv *priv);
+EXTERN void IOT_engine(struct rtl8192cd_priv *priv);
+#endif
+
+#ifdef SW_TX_QUEUE
+EXTERN void adjust_swq_setting(struct rtl8192cd_priv *priv, struct stat_info *pstat, int i, int mode);
+#endif
+#ifdef WIFI_WMM
+EXTERN void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable);
+#endif
+
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
+EXTERN void check_txrate_by_reg(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+EXTERN void set_RATid_cmd(struct rtl8192cd_priv * priv, unsigned int macid, unsigned int rateid, unsigned int ratemask);
+EXTERN void add_update_RATid(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+EXTERN void add_update_rssi(struct rtl8192cd_priv * priv, struct stat_info * pstat);
+#ifdef __KERNEL__
+EXTERN void add_RATid_timer(unsigned long task_priv);
+EXTERN void add_rssi_timer(unsigned long task_priv);
+#elif defined(__ECOS)
+EXTERN void add_RATid_timer(void *task_priv);
+EXTERN void add_rssi_timer(void *task_priv);
+#endif
+#endif
+
+
+// Antenna diversity
+#ifdef SW_ANT_SWITCH
+EXTERN void dm_SW_AntennaSwitchCallback(unsigned long task_priv) ;
+EXTERN void dm_SWAW_RSSI_Check(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
+EXTERN void dm_SW_AntennaSwitchInit(struct rtl8192cd_priv *priv);
+EXTERN void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step);
+#endif
+#if defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)
+EXTERN int diversity_antenna_select(struct rtl8192cd_priv *priv, unsigned char *data);
+#endif
+#if defined(HW_ANT_SWITCH)
+EXTERN void dm_HW_AntennaSwitchInit(struct rtl8192cd_priv *priv);
+EXTERN void setRxIdleAnt(struct rtl8192cd_priv *priv, char nextAnt) ;
+EXTERN void dm_STA_Ant_Select(struct rtl8192cd_priv *priv, struct stat_info *pstat);
+EXTERN void dm_HW_IdleAntennaSelect(struct rtl8192cd_priv *priv);
+#endif
+
+// Dynamic Noise Control
+#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_NOISE_CONTROL)
+EXTERN void dnc_timer(unsigned long task_priv);
+#endif
+
+// Leaving STA check
+#if defined(TXREPORT) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
+EXTERN void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, struct stat_info *pstat );
+#ifdef __KERNEL__
+EXTERN void RetryLimitRecovery(unsigned long task_priv);
+#elif defined(__ECOS)
+EXTERN void RetryLimitRecovery(void *task_priv);
+#endif
+EXTERN void LeavingSTA_RLCheck(struct rtl8192cd_priv *priv);
+#endif
+
+
+#ifdef CONFIG_RTL_92C_SUPPORT
+EXTERN void APK_MAIN(struct rtl8192cd_priv *priv, unsigned int is2T);
+EXTERN void PHY_IQCalibrate_92C(struct rtl8192cd_priv *priv);
+#endif
+
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef SW_LCK_92D
+EXTERN void PHY_LCCalibrate_92D(struct rtl8192cd_priv *priv);
+EXTERN void phy_ReloadLCKSetting(struct rtl8192cd_priv *priv);
+#endif
+#ifdef CONFIG_RTL_92D_DMDP
+EXTERN void IQK_92D_2G_phy1(struct rtl8192cd_priv * priv);
+#endif
+#endif
+
+EXTERN void CCK_CCA_dynamic_enhance(struct rtl8192cd_priv *priv, unsigned char rssi_strength);
+
+#undef EXTERN
+
+
+
+
+// P2P_SUPPORT
+/*-----------------------------------------------------------------------------
+								8192cd_p2p.c
+------------------------------------------------------------------------------*/
+#ifdef P2P_SUPPORT
+#undef EXTERN
+#ifndef _8192CD_P2P_C_
+#define EXTERN  extern
+#else
+#define EXTERN
+#endif
+
+EXTERN void issue_probersp(struct rtl8192cd_priv *priv, unsigned char *da,
+				UINT8 *ssid, int ssid_len, int set_privacy);
+
+EXTERN unsigned char *get_ie(unsigned char *pbuf, int index, int *len, int limit);
+EXTERN int process_p2p_cmd(struct rtl8192cd_priv *priv, unsigned char *data);
+EXTERN int	P2P_on_public_action(struct rtl8192cd_priv *priv,struct rx_frinfo *pfrinfo);
+
+EXTERN void P2P_on_probe_req(
+	struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo, 
+	unsigned char *IEaddr, unsigned int IElen );
+
+EXTERN void p2p_init(struct rtl8192cd_priv *priv);
+
+
+EXTERN int P2P_scan(struct rtl8192cd_priv *priv, unsigned char *data);
+EXTERN void P2P_1sec_timer(struct rtl8192cd_priv *priv);
+EXTERN void P2P_listen_timer(unsigned long task_priv);	
+EXTERN void p2p_start_timer(unsigned long task_priv);
+EXTERN void p2p_search_timer(unsigned long task_priv);
+
+EXTERN int req_p2p_wsc_confirm(struct rtl8192cd_priv *priv, unsigned char *data);
+EXTERN int req_p2p_provision_req(struct rtl8192cd_priv *priv,unsigned char *data);
+
+EXTERN int p2p_get_role(struct rtl8192cd_priv *priv,unsigned char *p2p_ie ,int p2pIElen );
+EXTERN void  p2p_get_device_info(struct rtl8192cd_priv *priv, 
+	unsigned char *p2p_ie ,int p2pIElen ,struct device_info_s* devinfo_ptr);
+
+EXTERN int  p2p_get_GO_p2p_info(struct rtl8192cd_priv *priv, 
+	unsigned char *p2p_ie ,int p2pIElen ,struct device_info_s* devinfo_ptr);
+
+EXTERN void  p2p_get_GO_wsc_info(struct rtl8192cd_priv *priv, 
+	unsigned char *wsc_ie ,int wscIElen ,struct device_info_s *devinfo_ptr);
+
+
+EXTERN int p2p_build_beacon_ie(struct rtl8192cd_priv *priv, unsigned char *data);
+
+EXTERN void P2P_on_assoc_req(struct rtl8192cd_priv *priv,
+	unsigned char *IEaddr, unsigned int IElen ,unsigned char *sa);
+EXTERN int p2pcmd_apply(struct rtl8192cd_priv *priv, unsigned char *data);
+EXTERN void P2P_client_on_beacon(struct rtl8192cd_priv *priv,
+	unsigned char *IEaddr, unsigned int IElen, int seq);
+EXTERN void p2p_noa_timer(struct rtl8192cd_priv *priv);
+EXTERN int P2P_on_action(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo);
+EXTERN void p2p_client_remove(struct rtl8192cd_priv *priv , struct stat_info *pstat );
+EXTERN int p2p_build_assocRsp_ie(struct rtl8192cd_priv *priv, unsigned char *data
+		,unsigned char status);
+EXTERN void P2P_on_assoc_rsp(struct rtl8192cd_priv *priv,unsigned char *sa);
+EXTERN int P2P_filter_manage_ap(struct rtl8192cd_priv *priv,
+		unsigned char *IEaddr, unsigned int IElen );
+EXTERN void p2p_debug_out(unsigned char *label, unsigned char *data, int data_length);
+
+#undef EXTERN
+
+#endif
+
+
+
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+/*-----------------------------------------------------------------------------
+								HalPwrSeqCmd.c
+------------------------------------------------------------------------------*/
+#define EXTERN  extern
+EXTERN unsigned int HalPwrSeqCmdParsing(struct rtl8192cd_priv *priv, unsigned char CutVersion, 
+				unsigned char FabVersion, unsigned char InterfaceType, WLAN_PWR_CFG PwrSeqCmd[ ]);
+#undef EXTERN
+
+
+
+
+/*-----------------------------------------------------------------------------
+								8188e_hw.c
+------------------------------------------------------------------------------*/
+#ifndef _8188E_HW_C_
+#define EXTERN  extern
+#else
+#define EXTERN
+#endif
+
+EXTERN void RTL8188E_MACID_NOLINK(struct rtl8192cd_priv * priv, unsigned int nolink, unsigned int aid);
+EXTERN void RTL8188E_MACID_PAUSE(struct rtl8192cd_priv * priv, unsigned int pause, unsigned int aid);
+
+#ifdef SUPPORT_RTL8188E_TC
+EXTERN void check_RTL8188E_testChip(struct rtl8192cd_priv * priv);
+#endif
+
+#ifdef TXREPORT
+EXTERN void RTL8188E_EnableTxReport(struct rtl8192cd_priv *priv);
+EXTERN void RTL8188E_DisableTxReport(struct rtl8192cd_priv *priv);
+EXTERN void RTL8188E_ResumeTxReport(struct rtl8192cd_priv *priv);
+EXTERN void RTL8188E_SuspendTxReport(struct rtl8192cd_priv *priv);
+EXTERN void RTL8188E_AssignTxReportMacId(struct rtl8192cd_priv *priv);
+EXTERN void RTL8188E_TxReportHandler(struct rtl8192cd_priv *priv, struct sk_buff *pskb, unsigned int bitmapLowByte,
+	unsigned int bitmapHighByte, struct rx_desc *pdesc);
+EXTERN void RTL8188E_SetTxReportTimeByRA(struct rtl8192cd_priv *priv, int extend);
+
+#ifndef CALIBRATE_BY_ODM
+EXTERN void PHY_IQCalibrate_8188E(struct rtl8192cd_priv *priv, char bReCovery);
+#endif
+
+
+
+#undef EXTERN
+
+
+
+
+/*-----------------------------------------------------------------------------
+								RateAdaptive.c
+------------------------------------------------------------------------------*/
+#define EXTERN  extern
+EXTERN int RateAdaptiveInfoInit(PSTATION_RA_INFO  pRaInfo);
+EXTERN int ARFBRefresh(struct rtl8192cd_priv *priv, PSTATION_RA_INFO  pRaInfo);
+EXTERN void RateDecision(struct rtl8192cd_priv *priv, PSTATION_RA_INFO  pRaInfo);
+#endif
+
+#undef EXTERN
+#endif
+
+
+
+
+/*-----------------------------------------------------------------------------
+								ODM
+------------------------------------------------------------------------------*/
+
+#ifdef USE_OUT_SRC
+#include "OUTSRC/odm_precomp.h"
+#endif
+
+
+
+
+#ifdef __ECOS
+/*-----------------------------------------------------------------------------
+								8192cd_ecos.c
+------------------------------------------------------------------------------*/
+#ifndef _8192CD_ECOS_C_
+#define EXTERN  extern
+#else
+#define EXTERN
+#endif
+
+EXTERN void interrupt_dsr(struct net_device *dev);
+EXTERN int can_xmit(struct net_device *dev);
+
+#undef EXTERN
+
+#endif // __ECOS
+
 #endif // _8192CD_HEADERS_H_
 

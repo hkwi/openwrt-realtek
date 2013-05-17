@@ -47,36 +47,35 @@
  *
  * Atomically adds @i to @v.
  */
+
 static __inline__ void atomic_add(int i, atomic_t * v)
 {
 #ifdef CONFIG_CPU_HAS_LLSC
-		int temp;
+	int temp;
 
     smp_llsc_mb();
 
-		__asm__ __volatile__(
-		"	.set	mips3					\n"
-		"1:	ll	%0, %1		# atomic_add		\n"
+	__asm__ __volatile__(
+		"1:	ll	%0, %1		# atomic_add    \n"
 #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
                 "       nop                                             \n"
 #endif
 		"	addu	%0, %2					\n"
-		"	sc	%0, %1					\n"
+		"	sc	%0, %1                      \n"
 		"	beqz	%0, 2f					\n"
 		"	.subsection 2					\n"
-		"2:	b	1b					\n"
-		"	.previous					\n"
-		"	.set	mips0					\n"
+		"2:	b	1b                          \n"
+		"	.previous                       \n"
 		: "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter));
 
     smp_llsc_mb();
 #else
-		unsigned long flags;
+	unsigned long flags;
 
-		raw_local_irq_save(flags);
-		v->counter += i;
-		raw_local_irq_restore(flags);
+	raw_local_irq_save(flags);
+	v->counter += i;
+	raw_local_irq_restore(flags);
 #endif
 }
 
@@ -90,11 +89,11 @@ static __inline__ void atomic_add(int i, atomic_t * v)
 static __inline__ void atomic_sub(int i, atomic_t * v)
 {
 #ifdef CONFIG_CPU_HAS_LLSC
-		int temp;
+	int temp;
 
     smp_llsc_mb();
 
-		__asm__ __volatile__(
+	__asm__ __volatile__(
 		"1:	ll	    %0, %1		# atomic_sub		\n"
 #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
                 "       nop                                             \n"
@@ -110,11 +109,11 @@ static __inline__ void atomic_sub(int i, atomic_t * v)
 
     smp_llsc_mb();
 #else
-		unsigned long flags;
+	unsigned long flags;
 
-		raw_local_irq_save(flags);
-		v->counter -= i;
-		raw_local_irq_restore(flags);
+	raw_local_irq_save(flags);
+	v->counter -= i;
+	raw_local_irq_restore(flags);
 #endif
 }
 
@@ -128,7 +127,7 @@ static __inline__ int atomic_add_return(int i, atomic_t * v)
     int temp;
 	smp_llsc_mb();
 
-		__asm__ __volatile__(
+	__asm__ __volatile__(
 		"1:	ll	%1, %2		# atomic_add_return	\n"
 #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
                 "       nop                                             \n"
@@ -149,11 +148,11 @@ static __inline__ int atomic_add_return(int i, atomic_t * v)
 	int result;
     unsigned long flags;
 
-		raw_local_irq_save(flags);
-		result = v->counter;
-		result += i;
-		v->counter = result;
-		raw_local_irq_restore(flags);
+	raw_local_irq_save(flags);
+	result = v->counter;
+	result += i;
+	v->counter = result;
+	raw_local_irq_restore(flags);
 #endif
 
 	return result;
@@ -167,7 +166,7 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
 
 	smp_llsc_mb();
 
-		__asm__ __volatile__(
+	__asm__ __volatile__(
 		"1:	ll	%1, %2		# atomic_sub_return	\n"
 #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
                 "       nop                                             \n"
@@ -188,11 +187,11 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
     unsigned long flags;
 	int result;
 
-		raw_local_irq_save(flags);
-		result = v->counter;
-		result -= i;
-		v->counter = result;
-		raw_local_irq_restore(flags);
+	raw_local_irq_save(flags);
+	result = v->counter;
+	result -= i;
+	v->counter = result;
+	raw_local_irq_restore(flags);
 
 #endif
 
@@ -215,7 +214,7 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 
 	smp_llsc_mb();
 
-		__asm__ __volatile__(
+	__asm__ __volatile__(
 		"1:	ll	%1, %2		# atomic_sub_if_positive\n"
 #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
                 "       nop                                             \n"
@@ -240,12 +239,12 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
     unsigned long flags;
 	int result;
 
-		raw_local_irq_save(flags);
-		result = v->counter;
-		result -= i;
-		if (result >= 0)
-			v->counter = result;
-		raw_local_irq_restore(flags);
+	raw_local_irq_save(flags);
+	result = v->counter;
+	result -= i;
+	if (result >= 0)
+		v->counter = result;
+	raw_local_irq_restore(flags);
 #endif
 
 	return result;

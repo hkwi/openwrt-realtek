@@ -30,7 +30,7 @@
 #include <net/udp.h>
 #include <net/rtl/rtl865x_netif.h>
 #include <net/rtl/rtl_nic.h>
-#if defined(CONFIG_HTTP_FILE_SERVER_SUPPORT)
+#if defined(CONFIG_RTL_USB_UWIFI_HOST_SPEEDUP) || defined(CONFIG_HTTP_FILE_SERVER_SUPPORT) || defined(CONFIG_RTL_ULINKER)
 extern void get_lan_ip_mask(void);
 #endif
 #define OPT_CODE 0
@@ -58,7 +58,7 @@ extern void get_lan_ip_mask(void);
 #define DHCP_IP_TTL		0x17
 #define DHCP_MTU		0x1a
 #define DHCP_BROADCAST		0x1c
-#define DHCP_STATIC_ROUTE	0x21 
+#define DHCP_STATIC_ROUTE	0x21
 #define DHCP_NTP_SERVER		0x2a
 #define DHCP_WINS_SERVER	0x2c
 #define DHCP_REQUESTED_IP	0x32
@@ -101,7 +101,7 @@ struct dhcpMessage {
 	unsigned char sname[64];
 	unsigned char file[128];
 	unsigned int cookie;
-	unsigned char options[308]; /* 312 - cookie */ 
+	unsigned char options[308]; /* 312 - cookie */
 };
 
 struct udp_dhcp_packet {
@@ -113,7 +113,7 @@ struct udp_dhcp_packet {
 static int br_filter_resize_packet(struct sk_buff **skb, int new_size)
 {
 	struct iphdr *iph;
-	
+
 
 
 	if (new_size > (*skb)->len + skb_tailroom(*skb)) {
@@ -127,7 +127,7 @@ static int br_filter_resize_packet(struct sk_buff **skb, int new_size)
 			*skb = newskb;
 		}
 	}
-	
+
 	return 1;
 }
 
@@ -175,10 +175,10 @@ int br_filter_mangle_udp_packet(struct sk_buff **skb, unsigned int match_offset,
 
 	/* update skb info */
 	if (newlen > (*skb)->len) {
-		
+
 		skb_put(*skb, newlen - (*skb)->len);
 	} else {
-		
+
 		skb_trim(*skb, newlen);
 	}
 
@@ -203,7 +203,7 @@ unsigned char *br_filter_get_dhcp_option(struct dhcpMessage *packet, int code)
 	int i, length;
 	unsigned char *optionptr=NULL;
 	int over = 0, done = 0, curr = OPTION_FIELD;
-	
+
 	optionptr = packet->options;
 	i = 0;
 	length = 308;
@@ -216,7 +216,7 @@ unsigned char *br_filter_get_dhcp_option(struct dhcpMessage *packet, int code)
 				return NULL;
 			}
 			return optionptr + i + 2;
-		}			
+		}
 		switch (optionptr[i + OPT_CODE]) {
 		case DHCP_PADDING:
 			i++;
@@ -247,6 +247,8 @@ unsigned char *br_filter_get_dhcp_option(struct dhcpMessage *packet, int code)
 	}
 	return NULL;
 }
+
+
 int br_filter_enter(struct sk_buff *skb)
 {
 	struct iphdr *iph;
@@ -263,25 +265,61 @@ int br_filter_enter(struct sk_buff *skb)
 	if(enable_filter==0)
 		return 0;
 	else{
+
+	#if 0//defined(CONFIG_RTL_ULINKER)
+		if (skb) {
+			iph = (struct iphdr *)skb_network_header(skb);
+			if (iph) {}
+			else return 0;
+		}	else return 0;
+
+		/* if da is dut */
+		{
+			unsigned char *dst_mac;
+			dst_mac=(unsigned char*)(skb_mac_header(skb));
+
+			if (memcmp(dut_br0_mac, dst_mac, ETH_ALEN)==0)
+			{
+				//panic_printk("\r\n dst mac equal to dut_br0_mac. __[%s-%u]\r\n",__FILE__,__LINE__);
+				return 0;
+			}
+		}
+	#endif /* #if defined(CONFIG_RTL_ULINKER) */
 		
 		udph=(void *) iph + iph->ihl*4;
 		//panic_printk("start to trace dhcp packet, dst port=%d\n",udph->dest);
 		if(iph->protocol==IPPROTO_UDP &&(udph->dest ==67 || udph->dest ==68)){
-			if(udph->dest ==67){//from Client host in dhcp 
+			if(udph->dest ==67){//from Client host in dhcp
 				//panic_printk("start to trace dhcp packet:client packet from :%s\n",skb->dev->name);
 				if(!strcmp(skb->dev->name, RTL_PS_LAN_P0_DEV_NAME)){
-					if(Filter_State==0){ 
+					if(Filter_State==0){
 						//panic_printk("in this state, we drop client packet:Filter_State=%d\n",Filter_State);
 						return 1;
 					}
 				}
-				
+
+				#if defined(CONFIG_RTL_ULINKER)
+				{
+					extern int get_wlan_opmode(struct net_device *dev);
+
+					if (!strcmp(skb->dev->name, "wlan0-vxd") && get_wlan_opmode(skb->dev) == 1) //drop dhcp discover & request from wlan0-vxd(client)
+					{
+						//printk("[%s:%d] drop dhcp discover & request from wlan0-vxd\n", __FUNCTION__, __LINE__);
+						return 1;							
+					}
+					else if (!strcmp(skb->dev->name, "wlan0") && get_wlan_opmode(skb->dev) == 1) //drop dhcp discover & request from wlan0(client)
+					{
+						//printk("[%s:%d] drop dhcp discover & request from wlan0\n", __FUNCTION__, __LINE__);
+						return 1;
+					}
+				}
+				#endif
 			}
-			
+
 			if(udph->dest ==68){//from server host in dhcp
 				if(Filter_State==1 || Filter_State==0){ //our dut has got ip address
-					dhcp_packet =(struct udp_dhcp_packet *)skb->data; 
-					if ((temp = br_filter_get_dhcp_option(&(dhcp_packet->data), DHCP_DNS_SERVER))) 
+					dhcp_packet =(struct udp_dhcp_packet *)skb->data;
+					if ((temp = br_filter_get_dhcp_option(&(dhcp_packet->data), DHCP_DNS_SERVER)))
 					{
 						int roop=0;
 						unsigned char *router_temp, *subnet_temp;
@@ -290,16 +328,16 @@ int br_filter_enter(struct sk_buff *skb)
 
 						subnet_temp = br_filter_get_dhcp_option(&(dhcp_packet->data), DHCP_SUBNET);
 
-#if 0 //debug for domain name query						
+#if 0 //debug for domain name query
 printk("\r\n DHCP_ROUTER=[%x.%x.%x.%x]__[%s-%u]\r\n",(unsigned char *)router_temp[0],
-(unsigned char *)router_temp[1], (unsigned char *)router_temp[2], (unsigned char *)router_temp[3], __FILE__,__LINE__);	
+(unsigned char *)router_temp[1], (unsigned char *)router_temp[2], (unsigned char *)router_temp[3], __FILE__,__LINE__);
 
 printk("\r\n DHCP_SUBNET=[%x.%x.%x.%x]__[%s-%u]\r\n",(unsigned char *)subnet_temp[0],
 (unsigned char *)subnet_temp[1], (unsigned char *)subnet_temp[2], (unsigned char *)subnet_temp[3], __FILE__,__LINE__);
 
-	
+
 printk("\r\n dut_br0_ip=[%x.%x.%x.%x]__[%s-%u]\r\n",((unsigned char *)&dut_br0_ip)[0],
-((unsigned char *)&dut_br0_ip)[1], ((unsigned char *)&dut_br0_ip)[2], ((unsigned char *)&dut_br0_ip)[3], __FILE__,__LINE__);						
+((unsigned char *)&dut_br0_ip)[1], ((unsigned char *)&dut_br0_ip)[2], ((unsigned char *)&dut_br0_ip)[3], __FILE__,__LINE__);
 
 printk("\r\n router_temp & subnet_temp=[%x],__[%s-%u]\r\n",((*(unsigned int*)router_temp) & (*(unsigned int*)subnet_temp)),__FILE__,__LINE__);
 printk("\r\n dut_br0_ip  & subnet_temp=[%x],__[%s-%u]\r\n",(dut_br0_ip & (*(unsigned int*)subnet_temp)),__FILE__,__LINE__);
@@ -310,11 +348,11 @@ printk("\r\n dut_br0_ip  & subnet_temp=[%x],__[%s-%u]\r\n",(dut_br0_ip & (*(unsi
 							//printk("\r\n dut ip does not in the client's subnet. __[%s-%u]\r\n",__FILE__,__LINE__);
 							return 0;
 						}
-							
+
 						option_len = (temp-1)[0];
 						match_offset=(temp-2)-(unsigned char *)&(dhcp_packet->data);
 						match_len = option_len+2;
-						
+
 						replace_buffer[0]= DHCP_DNS_SERVER;
 						replace_buffer[1]=4;
 						replace_buffer[2]=((unsigned char *)&dut_br0_ip)[0];
@@ -327,8 +365,8 @@ printk("\r\n dut_br0_ip  & subnet_temp=[%x],__[%s-%u]\r\n",(dut_br0_ip & (*(unsi
 						}
 					}
 				}
-					
-					
+
+
 			}
 		}
 		return 0;
@@ -349,7 +387,7 @@ static int en_filter_proc_read(char *page, char **start, off_t off,
       len -= off;
       if (len>count) len = count;
       if (len<0) len = 0;
-   	
+
       return len;
 
 }
@@ -387,15 +425,15 @@ static int en_filter_proc_write(struct file *file, const char *buffer,
 
       if (count < 2)
 	    return -EFAULT;
-	    
+
 	if (buffer && !copy_from_user(tmpbuf, buffer, 80))  {
-		if (tmpbuf[0] == '0'){ 
-			enable_filter = 0;	
+		if (tmpbuf[0] == '0'){
+			enable_filter = 0;
 		}else if (tmpbuf[0] == '1'){
 			enable_filter = 1;
-		}	    
+		}
 		return count;
-	}	
+	}
       return -EFAULT;
 }
 int br_filter_string_to_hex(char *string, unsigned char *key, int len)
@@ -413,6 +451,32 @@ int br_filter_string_to_hex(char *string, unsigned char *key, int len)
 	}
 	return 1;
 }
+
+#if !defined(CONFIG_RTL_IPTABLES_FAST_PATH)
+#ifndef __HAVE_ARCH_STRTOK
+char * ___strtok;
+char * strtok(char * s,const char * ct)
+{
+	char *sbegin, *send;
+
+	sbegin  = s ? s : ___strtok;
+	if (!sbegin) {
+		return NULL;
+	}
+	sbegin += strspn(sbegin,ct);
+	if (*sbegin == '\0') {
+		___strtok = NULL;
+		return( NULL );
+	}
+	send = strpbrk( sbegin, ct);
+	if (send && *send != '\0')
+		*send++ = '\0';
+	___strtok = send;
+	return (sbegin);
+}
+#endif
+#endif
+
 static int filter_conf_proc_write(struct file *file, const char *buffer,
 		      unsigned long count, void *data)
 {
@@ -438,22 +502,22 @@ static int filter_conf_proc_write(struct file *file, const char *buffer,
 				break;
 			case 2:
 				br_filter_string_to_hex(tokptr, dut_br0_mac, 12);
-				//panic_printk("dut mac=%02X:%02X:%02X:%02X:%02X:%02X\n",dut_br0_mac[0], dut_br0_mac[1], dut_br0_mac[2], dut_br0_mac[3],dut_br0_mac[4],dut_br0_mac[5]); 
+				//panic_printk("dut mac=%02X:%02X:%02X:%02X:%02X:%02X\n",dut_br0_mac[0], dut_br0_mac[1], dut_br0_mac[2], dut_br0_mac[3],dut_br0_mac[4],dut_br0_mac[5]);
 				break;
 			case 3:
 				val=simple_strtol(tokptr,NULL,10);
 				Filter_State=val;
 				//panic_printk("Filter_State=%d\n",Filter_State);
-				break;	
+				break;
 			default:
 				break;
 			}
 			idx++;
 
 		}
-#if defined(CONFIG_HTTP_FILE_SERVER_SUPPORT)		
+#if defined(CONFIG_RTL_USB_UWIFI_HOST_SPEEDUP) || defined(CONFIG_HTTP_FILE_SERVER_SUPPORT)
 		get_lan_ip_mask();
-#endif		
+#endif
 	    return count;
       }
       return -EFAULT;
@@ -481,7 +545,7 @@ int __init br_filter_init(void)
 		res2->read_proc = filter_conf_proc_read;
 		res2->write_proc = filter_conf_proc_write;
 	}
-	
+
 #endif // CONFIG_PROC_FS
 	return 0;
 }

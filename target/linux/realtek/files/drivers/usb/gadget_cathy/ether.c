@@ -61,9 +61,17 @@
 #include <asm-mips/rtl865x/platform.h>	
 #define SPEED_UP_TX
 
+#if 1//defined(CONFIG_RTL_ULINKER_BRSC)
+#include "linux/ulinker_brsc.h"
+#endif
+
 //#define TEST_MODE
 #ifdef TEST_MODE
 #include "../net/otg_dev_driver.h"
+#endif
+
+#if 1//defined(CONFIG_RTL_ULINKER)
+#include "usb_ulinker.h"
 #endif
 
 struct eth_dev		* g_eth_dev;
@@ -142,6 +150,9 @@ struct eth_dev {
 
 	spinlock_t		req_lock;
 	struct list_head	tx_reqs, rx_reqs;
+#if ULINKER_BRSC_RECOVER_TX_REQ
+	struct list_head	txed_reqs;
+#endif
 
 	struct net_device	*net;
 	struct net_device_stats	stats;
@@ -208,9 +219,14 @@ struct eth_dev {
  * the non-RNDIS configuration.
  */
  //cathy, test 
+
+#if 0
 #define RNDIS_VENDOR_NUM	0x0BDA//0x0525	/* NetChip */
 #define RNDIS_PRODUCT_NUM	0x8672//0xa4a2	/* Ethernet/RNDIS Gadget */
-
+#else
+#define RNDIS_VENDOR_NUM	ULINKER_ETHER_VID
+#define RNDIS_PRODUCT_NUM	ULINKER_ETHER_PID
+#endif
 
 /* Some systems will want different product identifers published in the
  * device descriptor, either numbers or strings or both.  These string
@@ -351,9 +367,11 @@ static inline int rndis_active(struct eth_dev *dev)
 #define	subset_active(dev)	(!is_cdc(dev) && !rndis_active(dev))
 #define	cdc_active(dev)		( is_cdc(dev) && !rndis_active(dev))
 
-
-
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+#define DEFAULT_QLEN	4	/* double buffering by default */
+#else
 #define DEFAULT_QLEN	2	/* double buffering by default */
+#endif
 
 /* peak bulk transfer bits-per-second */
 //#define	HS_BPS		(13 * 512 * 8 * 1000 * 8)
@@ -1186,6 +1204,19 @@ static void eth_reset_config (struct eth_dev *dev)
 			spin_lock(&dev->req_lock);
 		}
 		spin_unlock(&dev->req_lock);
+#if ULINKER_BRSC_RECOVER_TX_REQ //clean txed list
+	spin_lock(&dev->req_lock);
+	while (likely (!list_empty (&dev->txed_reqs))) {
+		req = container_of (dev->txed_reqs.next,
+					struct usb_request, list);
+		list_del (&req->list);
+	
+		spin_unlock(&dev->req_lock);
+		//usb_ep_free_request (dev->in_ep, req);
+		spin_lock(&dev->req_lock);
+	}
+	spin_unlock(&dev->req_lock);
+#endif		
 	}
 	if (dev->out) {
 		usb_ep_disable (dev->out_ep);
@@ -1281,6 +1312,13 @@ eth_set_config (struct eth_dev *dev, unsigned number, gfp_t gfp_flags)
 					: (cdc_active(dev)
 						? "CDC Ethernet"
 						: "CDC Ethernet Subset"));
+
+{
+	extern int rndis_reset;
+	if (rndis_reset == 1 && number == 1)
+		rndis_reset = 2;
+}
+
 	}
 	return result;
 }
@@ -1405,6 +1443,15 @@ static void rndis_command_complete (struct usb_ep *ep, struct usb_request *req)
 
 #endif	/* RNDIS */
 
+#if defined(CONFIG_RTL_ULINKER)
+int wall_mount = 1;
+enum {
+	RTL_ETHER_STATE_INIT,
+	RTL_ETHER_STATE_GET_DEV_DESC,
+	RTL_ETHER_STATE_SET_CONF
+};
+int ether_state = RTL_ETHER_STATE_INIT;
+#endif
 /*
  * The setup() callback implements all the ep0 functionality that's not
  * handled lower down.  CDC has a number of less-common features:
@@ -1439,6 +1486,19 @@ eth_setup (struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		case USB_DT_DEVICE:
 			value = min (wLength, (u16) sizeof device_desc);
 			memcpy (req->buf, &device_desc, value);
+#if defined(CONFIG_RTL_ULINKER)
+				/*
+					if wall_mount=1 means usb driver doesn't get any control urb
+					ie, when ulinker is plugged into a usb adapter, not pc, we need to change ulinker into
+					ether mode after some seconds.
+				*/
+				if (wall_mount)
+				{
+					wall_mount = 0;
+					ether_state = RTL_ETHER_STATE_GET_DEV_DESC;				
+					BDBG_GADGET_MODE_SWITCH("[%s:%d] get dev_desc, set wall_mount=0\n", __FUNCTION__, __LINE__);
+				}
+#endif
 			break;
 #ifdef CONFIG_USB_GADGET_DUALSPEED
 		case USB_DT_DEVICE_QUALIFIER:
@@ -1481,6 +1541,13 @@ eth_setup (struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		spin_lock (&dev->lock);
 		value = eth_set_config (dev, wValue, GFP_ATOMIC);
 		spin_unlock (&dev->lock);
+#if defined(CONFIG_RTL_ULINKER)
+		if ((value == 0) && (ether_state == RTL_ETHER_STATE_GET_DEV_DESC))
+		{
+			BDBG_GADGET_MODE_SWITCH("[%s:%d] set conf\n", __FUNCTION__, __LINE__);
+			ether_state = RTL_ETHER_STATE_SET_CONF;
+		}
+#endif
 		break;
 	case USB_REQ_GET_CONFIGURATION:
 		if (ctrl->bRequestType != USB_DIR_IN)
@@ -1687,7 +1754,7 @@ eth_disconnect (struct usb_gadget *gadget)
 
 /* NETWORK DRIVER HOOKUP (to the layer above this driver) */
 
-static int eth_change_mtu (struct net_device *net, int new_mtu)
+static int geth_change_mtu (struct net_device *net, int new_mtu)
 {
 	struct eth_dev	*dev = netdev_priv(net);
 
@@ -1792,6 +1859,173 @@ static void defer_kevent (struct eth_dev *dev, int flag)
 		DEBUG (dev, "kevent %d scheduled\n", flag);
 }
 
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+#define MACADDRLEN 6
+
+#if ULINKER_BRSC_COUNTER
+struct brsc_counter_s brsc_counter = {0};
+#endif
+
+char usb_cached = 0;
+
+struct brsc_cache cached_usb;
+struct brsc_cache cached_eth;
+struct brsc_cache cached_wlan;
+
+static struct net_device * eth0_dev = NULL;
+spinlock_t brsc_cache_lock = SPIN_LOCK_UNLOCKED;
+
+#if ULINKER_BRSC_RECOVER_TX_REQ
+extern int early_tx_complete (void);
+#endif
+
+inline struct net_device *brsc_get_cached_dev(char from_usb, unsigned char *da)
+{
+	if (usb_cached == 0)
+		return NULL;
+
+	if (cached_usb.dev == NULL)	{
+		cached_usb.dev = dev_get_by_name(&init_net, "usb0");
+		if (cached_usb.dev == NULL)
+			return NULL;
+	}
+
+	BDBG_BRSC("BRSC: da[%02x:%02x:%02x:%02x:%02x:%02x]\n",
+		da[0], da[1], da[2], da[3], da[4], da[5]);
+
+	if (from_usb == 0) {
+		if (cached_usb.dev && !memcmp(da, cached_usb.addr, MACADDRLEN)) {
+			BDBG_BRSC("BRSC: return cached_usb\n");
+			return cached_usb.dev;
+		}
+	}
+	else {
+	unsigned long flags;
+	spin_lock_irqsave(&brsc_cache_lock, flags);
+		if (cached_wlan.dev && !memcmp(da, cached_wlan.addr, MACADDRLEN)) {
+			BDBG_BRSC("BRSC: return cached_wlan\n");
+			spin_unlock_irqrestore(&brsc_cache_lock, flags);
+			return cached_wlan.dev;
+		}
+
+		if (cached_eth.dev && !memcmp(da, cached_eth.addr, MACADDRLEN)) {
+			BDBG_BRSC("BRSC: return cached_eth\n");
+			spin_unlock_irqrestore(&brsc_cache_lock, flags);
+			return cached_eth.dev;
+		}
+	spin_unlock_irqrestore(&brsc_cache_lock, flags);
+	}
+
+	return NULL;
+}
+
+inline void brsc_cache_dev(int from, struct net_device *dev, unsigned char *sa)
+{
+	unsigned long flags;
+
+	if (dev) {	
+		if (from == 1) {
+			BDBG_BRSC("BRSC: cache %s, %02x:%02x:%02x:%02x:%02x:%02x\n",
+				dev->name, sa[0], sa[1], sa[2], sa[3], sa[4], sa[5]);
+
+			spin_lock_irqsave(&brsc_cache_lock, flags);
+			cached_wlan.dev = dev;
+			memcpy(cached_wlan.addr, sa, MACADDRLEN);
+			spin_unlock_irqrestore(&brsc_cache_lock, flags);
+		}
+		else if (from == 2) {
+			BDBG_BRSC("BRSC: cache %s, %02x:%02x:%02x:%02x:%02x:%02x\n",
+				dev->name, sa[0], sa[1], sa[2], sa[3], sa[4], sa[5]);
+
+			if (eth0_dev == NULL)
+				eth0_dev = dev_get_by_name(&init_net, "eth0");
+			else if (dev == eth0_dev)
+				printk("[%s:%d] from eth0\n", __FUNCTION__, __LINE__);
+
+			spin_lock_irqsave(&brsc_cache_lock, flags);
+			cached_eth.dev = dev;
+			memcpy(cached_eth.addr, sa, MACADDRLEN);
+			spin_unlock_irqrestore(&brsc_cache_lock, flags);
+		}
+		else {	
+			printk("[%s:%d] not handle dev[%s]\n", __FUNCTION__, __LINE__, dev->name);
+		}
+	}
+}
+
+#if defined(CONFIG_RTL_ULINKER_BRSC_TASKLET)
+#define ULINKER_BRSC_TASKLET 1
+#endif
+
+#if defined(ULINKER_BRSC_TASKLET)
+#include <linux/kfifo.h>
+
+struct rx_fifo {
+	struct sk_buff *skb;
+	struct net_device *outdev;
+};
+
+struct tasklet_struct usb_rx_tasklet;
+static spinlock_t rx_fifo_buffer_lock = SPIN_LOCK_UNLOCKED;
+static struct kfifo *rx_fifo_buffer;
+
+#define QUEUE_MAX	(1024)
+#define BUFFER_SIZE	(8192) //(QUEUE_MAX*sizeof(struct rx_fifo))
+#define ENTRY_SIZE	(8)    //(sizeof(struct rx_fifo))
+
+inline void rx_queue_in(struct sk_buff *pskb, struct net_device *poutdev)
+{
+	static struct rx_fifo tmp;
+	unsigned long flags;
+
+	spin_lock_irqsave(rx_fifo_buffer->lock, flags);
+
+	(&tmp)->skb = pskb;
+	(&tmp)->outdev = poutdev;	
+	if((BUFFER_SIZE - kfifo_len(rx_fifo_buffer)) >= ENTRY_SIZE)
+	{
+		__kfifo_put(rx_fifo_buffer, (unsigned char *)(&tmp), ENTRY_SIZE);
+	}
+	else {
+		printk("[%s:%d] queue run out!!!\n", __FUNCTION__, __LINE__);
+		dev_kfree_skb(pskb);
+	}
+
+	spin_unlock_irqrestore(rx_fifo_buffer->lock, flags);
+}
+
+inline unsigned int rx_queue_out(struct rx_fifo *tmp)
+{
+	return kfifo_get(rx_fifo_buffer, (unsigned char *)(tmp), ENTRY_SIZE);
+}
+
+void rx_xmit_kfifo(unsigned long s)
+{
+	static struct rx_fifo tmp;
+	while (rx_queue_out(&tmp)) {
+		(&tmp)->outdev->netdev_ops->ndo_start_xmit((&tmp)->skb,(&tmp)->outdev);
+	}
+}
+
+inline void init_rx_queue(void)
+{
+	rx_fifo_buffer = kfifo_alloc(BUFFER_SIZE, GFP_KERNEL, &rx_fifo_buffer_lock);
+}
+
+inline void free_rx_queue(void)
+{
+#if 0
+	static struct rx_fifo tmp;
+	while (rx_queue_out(&tmp)) {
+		dev_kfree_skb((&tmp)->skb);
+	}
+#endif
+	kfifo_free(rx_fifo_buffer);
+}
+#endif /* #if defined(ULINKER_BRSC_TASKLET) */
+
+#endif /* #if defined(CONFIG_RTL_ULINKER_BRSC) */
+
 
 static void rx_complete (struct usb_ep *ep, struct usb_request *req);
 
@@ -1822,6 +2056,7 @@ rx_submit (struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 	size += 1000;
 #endif
 	if ((skb = alloc_skb (size + NET_IP_ALIGN, gfp_flags)) == 0) {
+		BRSC_COUNTER_UPDATE(rx_alloc_fail);
 		DEBUG (dev, "no rx skb\n");
 		goto enomem;
 	}
@@ -1839,6 +2074,7 @@ rx_submit (struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 
 	retval = usb_ep_queue (dev->out_ep, req, gfp_flags);
 	if (retval == -ENOMEM) {
+		BRSC_COUNTER_UPDATE(rx_ep_queue_fail);
 enomem:
 		defer_kevent (dev, WORK_RX_MEMORY);
 		//cathy
@@ -1848,14 +2084,23 @@ enomem:
 		return retval;
 	}
 	if (retval) {
+		BRSC_COUNTER_UPDATE(rx_ep_queue_fail2);
 		DEBUG (dev, "rx submit --> %d\n", retval);
 		dev_kfree_skb_any (skb);
 		spin_lock(&dev->req_lock);
 		list_add (&req->list, &dev->rx_reqs);
 		spin_unlock(&dev->req_lock);
 	}
+
+#if ULINKER_BRSC_COUNTER
+	if (retval == 0) {
+		BRSC_COUNTER_UPDATE(rx_ep_queue_ok);
+	}
+#endif
+
 	return retval;
 }
+
 static int eth_start_xmit (struct sk_buff *skb, struct net_device *net);
 #ifdef TEST_MODE
 extern void memDump (void *start, u32 size, char * strHeader);
@@ -1873,6 +2118,9 @@ static void rx_complete (struct usb_ep *ep, struct usb_request *req)
 	int rest;
 #endif
 #endif
+
+	BRSC_COUNTER_UPDATE(rx_complete_in);
+
 	switch (status) {
 
 	/* normal completion */
@@ -1888,6 +2136,7 @@ static void rx_complete (struct usb_ep *ep, struct usb_request *req)
 			dev->stats.rx_errors++;
 			dev->stats.rx_length_errors++;
 			DEBUG (dev, "rx length %d\n", skb->len);
+			BRSC_COUNTER_UPDATE(rx_complete_err);
 			break;
 		}
 #endif
@@ -2019,6 +2268,76 @@ check_length_again:
 #endif	
 
 #ifndef TEST_MODE
+  #if defined(CONFIG_RTL_ULINKER_BRSC)
+	{
+		unsigned char *data = NULL;
+		struct net_device *cached_dev;
+		int offset = 0;
+	
+		if (skb)
+			data = skb_mac_header(skb);
+		
+		BDBG_BRSC("BRSC: 0x%x, 0x%x\n", skb->data, data);
+
+		BDBG_BRSC("BRSC: data[%02x:%02x:%02x:%02x:%02x:%02x]\n",
+			data[0], data[1], data[2], data[3], data[4], data[5]);
+	
+		if (0==(data[0]&0x01)) /* unicast pkt only */
+		{
+			/*	shortcut process	*/
+			if ((cached_dev=brsc_get_cached_dev(1, data))!=NULL) {
+			#if 0
+				if (cached_dev->name) {
+					BDBG_BRSC("BRSC: go short cut[%s]\n", cached_dev->name);
+				}
+				else {
+					BDBG_BRSC("BRSC: go short cut[%s] fail, go normal path\n", "NULL");
+					goto NORMAL_PATH;
+				}
+			#endif
+
+			offset = skb->data-data;
+
+			BDBG_BRSC("BRSC: offset[%d]\n", offset);
+
+			if (offset > 0) {
+				skb_push(skb, offset);
+				BDBG_BRSC("BRSC: skb_push: 0x%x, 0x%x\n", skb->data, data);
+			}
+			else if (offset < 0) {
+				printk("BRSC: %d, %d, go normal path!!!!!!!!!!!!\n", offset, 0-offset);
+				goto NORMAL_PATH;
+			}
+
+			skb->dev = cached_dev;
+			BRSC_COUNTER_UPDATE(rx_complete_sc);
+			
+	#if defined(ULINKER_BRSC_TASKLET)
+			rx_queue_in(skb, cached_dev);
+			tasklet_schedule(&usb_rx_tasklet);
+	#else
+			#if defined(CONFIG_COMPAT_NET_DEV_OPS)
+				cached_dev->hard_start_xmit(skb, cached_dev);
+			#else
+				cached_dev->netdev_ops->ndo_start_xmit(skb,cached_dev);
+			#endif
+	#endif
+	
+				BDBG_BRSC("BRSC: send by shortcut dev[%s]\n\n", cached_dev->name);
+			
+				if (req)
+					rx_submit(dev, req, GFP_ATOMIC);
+
+				return;
+			}
+		}
+	}
+
+NORMAL_PATH:
+	BRSC_COUNTER_UPDATE(rx_complete_normal);
+
+  #endif /* #if defined(CONFIG_RTL_ULINKER_BRSC) */
+		
 		status = netif_rx (skb);
 		skb = NULL;
 #endif		
@@ -2026,12 +2345,19 @@ check_length_again:
 
 	/* software-driven interface shutdown */
 	case -ECONNRESET:		// unlink
+		#if ULINKER_BRSC_COUNTER
+		BRSC_COUNTER_UPDATE(rx_complete_connreset);
+		VDEBUG (dev, "rx shutdown, code %d\n", status);
+		goto quiesce;	
+		#endif
 	case -ESHUTDOWN:		// disconnect etc
+		BRSC_COUNTER_UPDATE(rx_complete_shutdown);
 		VDEBUG (dev, "rx shutdown, code %d\n", status);
 		goto quiesce;
 
 	/* for hardware automagic (such as pxa) */
 	case -ECONNABORTED:		// endpoint reset
+		BRSC_COUNTER_UPDATE(rx_complete_connabort);
 		DEBUG (dev, "rx %s reset\n", ep->name);
 		defer_kevent (dev, WORK_RX_MEMORY);
 quiesce:
@@ -2040,10 +2366,12 @@ quiesce:
 
 	/* data overrun */
 	case -EOVERFLOW:
+		BRSC_COUNTER_UPDATE(rx_complete_overflow);
 		dev->stats.rx_over_errors++;
 		// FALLTHROUGH
 
 	default:
+		BRSC_COUNTER_UPDATE(rx_complete_other_err);
 		dev->stats.rx_errors++;
 		DEBUG (dev, "rx status %d\n", status);
 		break;
@@ -2178,12 +2506,20 @@ static void tx_complete (struct usb_ep *ep, struct usb_request *req)
 		dev->stats.tx_bytes += skb->len;
 	}
 	dev->stats.tx_packets++;
+	BRSC_COUNTER_UPDATE(tx_ok);
 
 	spin_lock(&dev->req_lock);
+#if ULINKER_BRSC_RECOVER_TX_REQ
+	list_del (&req->list); // remove from transferred list
+#endif
 	list_add (&req->list, &dev->tx_reqs);
 	spin_unlock(&dev->req_lock);
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+	dev_kfree_skb_any (skb);
+#else
 	//dev_kfree_skb_any (skb);//cathy
 	dev_kfree_skb (skb);
+#endif
 
 	atomic_dec (&dev->tx_qlen);
 	if (netif_carrier_ok (dev->net))
@@ -2239,6 +2575,9 @@ static int eth_start_xmit (struct sk_buff *skb, struct net_device *net)
 #ifdef SPEED_UP_TX
 	struct rndis_packet_msg_type *header=NULL;
 #endif
+
+	BRSC_COUNTER_UPDATE(tx_in);
+
 	/* apply outgoing CDC or RNDIS filters */
 	if (!eth_is_promisc (dev)) {
 		u8		*dest = skb->data;
@@ -2254,6 +2593,7 @@ static int eth_start_xmit (struct sk_buff *skb, struct net_device *net)
 			else
 				type = USB_CDC_PACKET_TYPE_ALL_MULTICAST;
 			if (!(dev->cdc_filter & type)) {
+				BRSC_COUNTER_UPDATE(tx_unknown_cdc_filter);
 				dev_kfree_skb_any (skb);
 				return 0;
 			}
@@ -2264,8 +2604,32 @@ static int eth_start_xmit (struct sk_buff *skb, struct net_device *net)
 
 	//eason,for usb1.1 fault
     	spin_lock_irqsave(&dev->req_lock, flags);
-	if (list_empty (&dev->tx_reqs)){
-		netif_stop_queue (net);	
+#if ULINKER_BRSC_RECOVER_TX_REQ
+	if (list_empty (&dev->tx_reqs))
+	{
+		struct usb_request	*preq = NULL;
+		int i = 0;
+
+		list_for_each_entry(preq, &dev->txed_reqs, list) {
+			if (early_tx_complete()==11) {
+				BRSC_COUNTER_UPDATE(tx_req_full_recover);
+				break;
+			}
+			else {
+				break;
+			}
+			i++;
+		}
+	}
+#endif /* #if ULINKER_BRSC_RECOVER_TX_REQ */
+
+	if (list_empty (&dev->tx_reqs) 
+#if 0//defined(CONFIG_RTL_ULINKER_BRSC)
+			|| netif_queue_stopped(net)
+#endif
+	) {
+		BRSC_COUNTER_UPDATE(tx_req_full);
+		netif_stop_queue (net); 
 		dev->stats.tx_dropped++;
 		dev_kfree_skb_any (skb);
 		spin_unlock_irqrestore(&dev->req_lock, flags);	
@@ -2273,6 +2637,9 @@ static int eth_start_xmit (struct sk_buff *skb, struct net_device *net)
 	}else{
 		req = container_of (dev->tx_reqs.next, struct usb_request, list);	
 		list_del (&req->list);
+	#if ULINKER_BRSC_RECOVER_TX_REQ
+		list_add_tail(&req->list, &dev->txed_reqs);// add to transferred list
+	#endif
 		spin_unlock_irqrestore(&dev->req_lock, flags);	
 	}
 
@@ -2312,8 +2679,10 @@ static int eth_start_xmit (struct sk_buff *skb, struct net_device *net)
 		struct sk_buff	*skb_rndis;
 		skb_rndis = skb_realloc_headroom2 (skb,
 				sizeof (struct rndis_packet_msg_type));
-		if (!skb_rndis)
+		if (!skb_rndis) {
+			BRSC_COUNTER_UPDATE(tx_realloc_header_fail);
 			goto drop;
+		}
 		if( skb!=skb_rndis) {
 			//dev_kfree_skb_any (skb);
 			dev_kfree_skb(skb); //cathy test
@@ -2338,6 +2707,28 @@ static int eth_start_xmit (struct sk_buff *skb, struct net_device *net)
 	offset = (u32)skb->data%4;
 	if( offset ) {
 		skb_new = skb_copy_expand(skb, skb_headroom(skb)+offset, 0, GFP_ATOMIC);
+
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+		if (skb_new==NULL) {
+			offset = 0;
+			BRSC_COUNTER_UPDATE(tx_skb_expand_full);
+			goto drop;
+		}
+
+		dev_kfree_skb(skb);
+		skb = skb_new;
+		#ifdef SPEED_UP_TX
+			if(header==NULL)
+				req->buf = skb->data;
+			else
+				req->buf = skb->data-(sizeof *header);
+		#else
+			req->buf = skb->data;
+		#endif
+			req->context = skb;
+
+		offset = 0; //for free skb, not skb_new
+#else //------
 #ifdef SPEED_UP_TX
 		if(header==NULL)
 #endif
@@ -2348,6 +2739,7 @@ static int eth_start_xmit (struct sk_buff *skb, struct net_device *net)
 #endif
 		req->context = skb_new;
 		dev_kfree_skb(skb); 
+#endif /* #if defined(CONFIG_RTL_ULINKER_BRSC) */
 	}
 	else {
 #ifdef SPEED_UP_TX
@@ -2379,10 +2771,18 @@ static int eth_start_xmit (struct sk_buff *skb, struct net_device *net)
 		: 0;
 #endif
 
+#ifdef SUPPORT_MACOS
+	if (req->length % 512 == 0) {
+		//printk("[%s:%d] req->length=%d, skb->len=%d\n", __FUNCTION__, __LINE__, req->length, skb->len);
+		req->length++;
+	}
+#endif
+
 	retval = usb_ep_queue (dev->in_ep, req, GFP_ATOMIC);
 	switch (retval) {
 	default:
 		DEBUG (dev, "tx queue err %d\n", retval);
+		BRSC_COUNTER_UPDATE(tx_ep_queue_err);
 		break;
 	case 0:
 		net->trans_start = jiffies;
@@ -2399,6 +2799,9 @@ drop:
 		spin_lock_irqsave(&dev->req_lock, flags);
 		if (list_empty (&dev->tx_reqs))
 			netif_start_queue (net);
+	#if ULINKER_BRSC_RECOVER_TX_REQ
+		list_del(&req->list);// remove from transferred list
+	#endif
 		list_add (&req->list, &dev->tx_reqs);
 		spin_unlock_irqrestore(&dev->req_lock, flags);
 	}
@@ -2503,6 +2906,13 @@ static int eth_open (struct net_device *net)
 {
 	#define USB2_PHY_DELAY __delay(200)
 	struct eth_dev		*dev = netdev_priv(net);
+
+#if defined(ULINKER_BRSC_TASKLET)
+	spin_lock_init(&brsc_cache_lock);
+	init_rx_queue();
+	tasklet_init(&usb_rx_tasklet, (void *)rx_xmit_kfifo, (unsigned long)net);
+#endif
+
 #if 0	
 	u32 tmp = REG32(0xb8003314);
 	//090929 cathy start
@@ -2557,8 +2967,17 @@ static int eth_stop (struct net_device *net)
 {
 	struct eth_dev		*dev = netdev_priv(net);
 
+#if defined(CONFIG_RTL_ULINKER)
+	 // for link down rndis on winows
+	(void) rndis_signal_disconnect (dev->rndis_config);
+#else
 	VDEBUG (dev, "%s\n", __FUNCTION__);
 	netif_stop_queue (net);
+
+#if defined(ULINKER_BRSC_TASKLET)
+	tasklet_kill(&usb_rx_tasklet);
+	free_rx_queue();
+#endif
 
 	DEBUG (dev, "stop stats: rx/tx %ld/%ld, errs %ld/%ld\n",
 		dev->stats.rx_packets, dev->stats.tx_packets,
@@ -2586,6 +3005,7 @@ static int eth_stop (struct net_device *net)
 					NDIS_MEDIUM_802_3, 0);
 		(void) rndis_signal_disconnect (dev->rndis_config);
 	}
+#endif /* #if defined(CONFIG_RTL_ULINKER) */
 
 	return 0;
 }
@@ -2651,7 +3071,7 @@ eth_unbind (struct usb_gadget *gadget)
 	set_gadget_data (gadget, NULL);
 }
 
-static u8 __devinit nibble (unsigned char c)
+static u8 ULINKER_DEVINIT nibble (unsigned char c)
 {
 	if (likely (isdigit (c)))
 		return c - '0';
@@ -2661,7 +3081,7 @@ static u8 __devinit nibble (unsigned char c)
 	return 0;
 }
 
-static int __devinit get_ether_addr(const char *str, u8 *dev_addr)
+static int ULINKER_DEVINIT get_ether_addr(const char *str, u8 *dev_addr)
 {
 	if (str) {
 		unsigned	i;
@@ -2705,7 +3125,46 @@ static int eth_set_host_mac_addr(struct net_device *net, void *addr)
 	return err;
 }
 
-static int __devinit
+#if defined(CONFIG_RTL_ULINKER) && !defined(CONFIG_COMPAT_NET_DEV_OPS)
+static void eth_set_rx_mode (struct net_device *dev)
+{
+	/*	Not yet implemented.	*/
+}
+
+static void eth_tx_timeout (struct net_device *dev)
+{
+	printk("Tx Timeout!!! Can't send packet\n");
+}
+
+static const struct net_device_ops rtl819x_netdev_ops_usb = {
+	.ndo_open		= eth_open,
+	.ndo_stop		= eth_stop,
+	.ndo_validate_addr	= eth_validate_addr,
+	.ndo_set_mac_address 	= eth_set_host_mac_addr,
+	.ndo_set_multicast_list	= eth_set_rx_mode,
+	.ndo_get_stats		= eth_get_stats,
+	.ndo_do_ioctl		= eth_ioctl,
+#ifdef TEST_MODE
+	.ndo_start_xmit		= eth_start_xmit2,
+#else
+	.ndo_start_xmit		= eth_start_xmit,
+#endif
+	.ndo_tx_timeout		= eth_tx_timeout,
+#if defined(CP_VLAN_TAG_USED)
+	.ndo_vlan_rx_register	= cp_vlan_rx_register,
+#endif
+	.ndo_change_mtu		= geth_change_mtu,
+};
+
+#if 0
+//cathy, for update host mac (eth mac + 1)
+	my_eth_mac_addr = net->set_mac_address;
+	net->set_mac_address = eth_set_host_mac_addr;
+#endif
+
+#endif /* defined(CONFIG_RTL_ULINKER) && !defined(CONFIG_COMPAT_NET_DEV_OPS) */
+
+static int ULINKER_DEVINIT 
 eth_bind (struct usb_gadget *gadget)
 {
 	struct eth_dev		*dev;
@@ -2714,7 +3173,7 @@ eth_bind (struct usb_gadget *gadget)
 	struct usb_ep		*in_ep, *out_ep, *status_ep = NULL;
 	int			status = -ENOMEM;
 	int			gcnum;
-	
+
 	//REG32(0xb8030804) |= 0x02000000;	//cathy, set soft disconnect in reg DCTL
 	/* these flags are only ever cleared; compiler take note */
 #ifndef	DEV_CONFIG_CDC
@@ -2765,13 +3224,13 @@ eth_bind (struct usb_gadget *gadget)
 			gadget->name);
 		return -ENODEV;
 	}
-#endif	
+#endif
 #if 0
 	snprintf (manufacturer, sizeof manufacturer, "%s %s/%s",
 		init_utsname()->sysname, init_utsname()->release,
 		gadget->name);
 #endif
-	snprintf (manufacturer, sizeof manufacturer, "Realtek Semiconductor Corporation");
+	snprintf (manufacturer, sizeof manufacturer, ULINKER_MANUFACTURER);
 	/* If there's an RNDIS configuration, that's what Windows wants to
 	 * be using ... so use these product IDs here and in the "linux.inf"
 	 * needed to install MSFT drivers.  Current Linux kernels will use
@@ -2913,6 +3372,9 @@ autoconf_fail:
 	g_eth_dev=	net;
 	INIT_LIST_HEAD (&dev->tx_reqs);
 	INIT_LIST_HEAD (&dev->rx_reqs);
+#if ULINKER_BRSC_RECOVER_TX_REQ
+	INIT_LIST_HEAD (&dev->txed_reqs);
+#endif
 
 	/* network device setup */
 	dev->net = net;
@@ -2929,6 +3391,32 @@ autoconf_fail:
 	 * The host side address is used with CDC and RNDIS, and commonly
 	 * ends up in a persistent config database.
 	 */
+
+#if defined(CONFIG_RTL_ULINKER)
+{
+	extern char ulinker_rndis_mac[];
+	if (strlen(ulinker_rndis_mac)==12)
+	{
+		strcpy(host_addr, ulinker_rndis_mac);
+		//panic_printk("[%s:%d] host_addr[%s], len[%d]\n", __FUNCTION__, __LINE__, host_addr, strlen(host_addr));
+
+	#if defined(CONFIG_RTL_ULINKER_BRSC)
+		get_ether_addr(ulinker_rndis_mac, cached_usb.addr);
+		cached_usb.dev = dev_get_by_name(&init_net, "usb0");
+	  #if 0
+		printk("[%s:%d] host_addr[%s], len[%d]\n",
+			__FUNCTION__, __LINE__, ulinker_rndis_mac, strlen(ulinker_rndis_mac));	
+		printk("--> 1. %02x:%02x:%02x:%02x:%02x:%02x\n", 
+			cached_usb.addr[0], cached_usb.addr[1], cached_usb.addr[2], 
+			cached_usb.addr[3], cached_usb.addr[4], cached_usb.addr[5]);
+		printk("--> 1. cached_usb.dev[%s], dev[%s]\n", cached_usb.dev->name, net->name);
+	  #endif
+		usb_cached = 1;		
+	#endif
+	}
+}
+#endif
+
 	if (get_ether_addr(dev_addr, net->dev_addr))
 		dev_warn(&gadget->dev,
 			"using random %s ethernet address\n", "self");
@@ -2953,7 +3441,11 @@ autoconf_fail:
 		}
 	}
 
-	net->change_mtu = eth_change_mtu;
+#if defined(CONFIG_RTL_ULINKER) && !defined(CONFIG_COMPAT_NET_DEV_OPS) /* bruce, for support newer net_device */
+	net->netdev_ops = &rtl819x_netdev_ops_usb;
+	SET_ETHTOOL_OPS(net, &ops);
+#else //--- !defined(CONFIG_RTL_ULINKER)
+	net->change_mtu = geth_change_mtu;
 	net->get_stats = eth_get_stats;
 #ifdef TEST_MODE
 	net->hard_start_xmit = eth_start_xmit2;
@@ -2970,6 +3462,8 @@ autoconf_fail:
 	// watchdog_timeo, tx_timeout ...
 	// set_multicast_list
 	SET_ETHTOOL_OPS(net, &ops);
+#endif /* defined(CONFIG_RTL_ULINKER) */
+
 //cathy test
 	device_desc.iSerialNumber = STRING_ETHADDR,
 	
@@ -3127,22 +3621,132 @@ static void __exit cleanup (void)
 }
 module_exit (cleanup);
 
+
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+static int read_ulinker_brsc_en(char *page, char **start, off_t off,
+				int count, int *eof, void *data)
+{
+	int len;
+#if ULINKER_BRSC_COUNTER
+	len = sprintf(page, "USB_TX:\n\t"
+		"tx_in:          %lu\n\t"
+		"from_eth_sc:    %lu\n\t"
+		"from_wlan_sc:   %lu\n\t"
+		"tx_ok:          %lu\n\t"
+		"uno_cdc_filter: %lu\n\t"
+		"tx_req_full:    %lu\n\t"
+		"realloc_fail:   %lu\n\t"
+		"expand_full:    %lu\n\t"
+		"ep_queue_err:   %lu\n\t"
+		"tx_req_recover: %lu\n\t"
+		"\n"
+		"USB_RX:\n\t"
+		"alloc_fail:     %lu\n\t"
+		"ep_queue_fail:  %lu\n\t"
+		"ep_queue_fail2: %lu\n\t"
+		"ep_queue_ok:    %lu\n\t"
+		"complete_in:    %lu\n\t"
+		"complete_err:   %lu\n\t"
+		"complete_sc:    %lu\n\t"
+		"complete_normal:%lu\n\t"
+		"connreset:      %lu\n\t"
+		"shutdown:       %lu\n\t"
+		"connabort:      %lu\n\t"
+		"overflow:       %lu\n\t"
+		"other_err:      %lu\n\t"
+		"\n"
+		"OTG_INTR:\n\t"
+		"status_fail:    %lu\n\t"
+		"inepint:        %lu\n\t"
+		"outepintr:      %lu\n\t",
+		brsc_counter.tx_in,
+		brsc_counter.tx_eth_sc,
+		brsc_counter.tx_wlan_sc,
+		brsc_counter.tx_ok,
+		brsc_counter.tx_unknown_cdc_filter,
+		brsc_counter.tx_req_full,
+		brsc_counter.tx_realloc_header_fail,
+		brsc_counter.tx_skb_expand_full,
+		brsc_counter.tx_ep_queue_err,
+		brsc_counter.tx_req_full_recover,
+
+		brsc_counter.rx_alloc_fail,
+		brsc_counter.rx_ep_queue_fail,
+		brsc_counter.rx_ep_queue_fail2,
+		brsc_counter.rx_ep_queue_ok,
+		brsc_counter.rx_complete_in, 
+		brsc_counter.rx_complete_err, 
+		brsc_counter.rx_complete_sc,
+		brsc_counter.rx_complete_normal,
+		brsc_counter.rx_complete_connreset, 
+		brsc_counter.rx_complete_shutdown,
+		brsc_counter.rx_complete_connabort,
+		brsc_counter.rx_complete_overflow, 
+		brsc_counter.rx_complete_other_err,
+
+		brsc_counter.otg_status_fail,
+		brsc_counter.otg_inepint,
+		brsc_counter.otg_outepintr);	
+#else
+	len = sprintf(page, "not enable\n");
+#endif
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len > count) len = count;
+	if (len < 0) len = 0;
+
+	return len;
+}
+#endif /* #if defined(CONFIG_RTL_ULINKER_BRSC) */
+
+
 int eth_reg_again(void)
 {
 	int ret=0;
-	 ret=usb_gadget_register_driver (&eth_driver);
-	 if(ret!=0) printk("Ether: gad reg fail \n");
-	 else        printk("Ether: gad reg ok \n");
-	 return ret;
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+	struct proc_dir_entry *res=NULL;
+
+#if ULINKER_BRSC_COUNTER
+	memset(&brsc_counter, 0, sizeof(struct brsc_counter_s));
+#endif
+
+#if defined(CONFIG_RTL_ULINKER)
+	wall_mount = 1;
+	ether_state = RTL_ETHER_STATE_INIT;
+
+	BDBG_GADGET_MODE_SWITCH("[%s:%d] reinit ether gadget, set wall_mount=%d, ether_state=%d\n", 
+		__FUNCTION__, __LINE__, wall_mount, ether_state);
+#endif
+
+	res = create_proc_entry("brsc", 0, NULL);
+	if (res)
+	{
+		res->read_proc  = read_ulinker_brsc_en;
+	}
+	else
+	 printk("create brsc failed!\n");
+#endif
+
+	ret=usb_gadget_register_driver (&eth_driver);
+	if(ret!=0) printk("Ether: gad reg fail \n");
+	else       printk("Ether: gad reg ok \n");
+	return ret;
 }
 
 int eth_unreg_again(void)
 {
 	int ret;
 	ret=usb_gadget_unregister_driver (&eth_driver);
-	if(ret!=0)	printk("Ether: gad unreg fail\n");
-	else			printk("Ether: gad unreg pass \n");
-	 return ret;
+
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+	remove_proc_entry("brsc", NULL);
+#endif
+
+	if(ret!=0) printk("Ether: gad unreg fail\n");
+	else       printk("Ether: gad unreg pass \n");
+	return ret;
 }
 
 
