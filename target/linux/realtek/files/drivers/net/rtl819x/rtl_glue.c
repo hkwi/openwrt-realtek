@@ -1,11 +1,14 @@
 /*
-* Copyright c                  Realtek Semiconductor Corporation, 2002  
-* All rights reserved.
-* 
 * Program : Implementation of Glue Functions of Model Code
 * Abstract : 
 * Author : Louis Yung-Chieh Lo (yjlou@realtek.com.tw)               
 * $Id: rtl_glue.c,v 1.5 2008/04/11 10:12:38 bo_zhao Exp $
+
+*  Copyright (c) 2011 Realtek Semiconductor Corp.
+*
+*  This program is free software; you can redistribute it and/or modify
+*  it under the terms of the GNU General Public License version 2 as
+*  published by the Free Software Foundation.
 */
 
 #include <net/rtl/rtl_types.h>

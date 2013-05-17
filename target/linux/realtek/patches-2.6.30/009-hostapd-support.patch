@@ -11,14 +11,14 @@ index ae02e5a..e2596f2 100644
 --- a/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
 +++ b/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
 @@ -357,7 +357,7 @@
+ //-------------------------------------------------------------
  // WPA Supplicant 
  //-------------------------------------------------------------
- 
 -//#define WIFI_WPAS
 +#define WIFI_WPAS
  
  #ifdef WIFI_WPAS
- 
+ #ifndef WIFI_HAPD
 @@ -525,9 +525,10 @@
  //-------------------------------------------------------------
  // Hostapd 

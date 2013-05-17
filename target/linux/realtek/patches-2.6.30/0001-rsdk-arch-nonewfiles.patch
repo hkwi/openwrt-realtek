@@ -1,0 +1,4232 @@
+--- linux-2.6.30.9/arch/mips/include/asm/atomic.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/include/asm/atomic.h	2013-05-02 01:47:49.320227415 +0300
+@@ -9,18 +9,30 @@
+  * License.  See the file "COPYING" in the main directory of this archive
+  * for more details.
+  *
+- * Copyright (C) 1996, 97, 99, 2000, 03, 04, 06 by Ralf Baechle
++ * Copyright (C) 1996, 97, 99, 2000, 03, 04 by Ralf Baechle
+  */
++
++/*
++ * As workaround for the ATOMIC_DEC_AND_LOCK / atomic_dec_and_lock mess in
++ * <linux/spinlock.h> we have to include <linux/spinlock.h> outside the
++ * main big wrapper ...
++ */
++#include <linux/spinlock.h>
++
+ #ifndef _ASM_ATOMIC_H
+ #define _ASM_ATOMIC_H
+ 
+ #include <linux/irqflags.h>
+-#include <linux/types.h>
+-#include <asm/barrier.h>
+ #include <asm/cpu-features.h>
+ #include <asm/war.h>
+-#include <asm/system.h>
+ 
++//typedef struct { volatile int counter; } atomic_t;
++//
++#if 0
++typedef struct {
++	volatile int counter;
++} atomic_t;
++#endif
+ #define ATOMIC_INIT(i)    { (i) }
+ 
+ /*
+@@ -38,7 +50,7 @@
+  *
+  * Atomically sets the value of @v to @i.
+  */
+-#define atomic_set(v, i)		((v)->counter = (i))
++#define atomic_set(v,i)		((v)->counter = (i))
+ 
+ /*
+  * atomic_add - add integer to atomic variable
+@@ -49,8 +61,9 @@
+  */
+ static __inline__ void atomic_add(int i, atomic_t * v)
+ {
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -62,27 +75,27 @@ static __inline__ void atomic_add(int i,
+ 		: "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter));
+ 	} else if (cpu_has_llsc) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+ 		"1:	ll	%0, %1		# atomic_add		\n"
+ 		"	addu	%0, %2					\n"
+ 		"	sc	%0, %1					\n"
+-		"	beqz	%0, 2f					\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter));
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		v->counter += i;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
++#endif
+ }
+ 
+ /*
+@@ -94,8 +107,9 @@ static __inline__ void atomic_add(int i,
+  */
+ static __inline__ void atomic_sub(int i, atomic_t * v)
+ {
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -107,27 +121,27 @@ static __inline__ void atomic_sub(int i,
+ 		: "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter));
+ 	} else if (cpu_has_llsc) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+ 		"1:	ll	%0, %1		# atomic_sub		\n"
+ 		"	subu	%0, %2					\n"
+ 		"	sc	%0, %1					\n"
+-		"	beqz	%0, 2f					\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter));
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		v->counter -= i;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
++#endif
+ }
+ 
+ /*
+@@ -135,12 +149,11 @@ static __inline__ void atomic_sub(int i,
+  */
+ static __inline__ int atomic_add_return(int i, atomic_t * v)
+ {
+-	int result;
+-
+-	smp_llsc_mb();
++	unsigned long result;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -149,50 +162,49 @@ static __inline__ int atomic_add_return(
+ 		"	sc	%0, %2					\n"
+ 		"	beqzl	%0, 1b					\n"
+ 		"	addu	%0, %1, %3				\n"
++		"	sync						\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else if (cpu_has_llsc) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+ 		"1:	ll	%1, %2		# atomic_add_return	\n"
+ 		"	addu	%0, %1, %3				\n"
+ 		"	sc	%0, %2					\n"
+-		"	beqz	%0, 2f					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	addu	%0, %1, %3				\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	sync						\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		result = v->counter;
+ 		result += i;
+ 		v->counter = result;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
+-
+-	smp_llsc_mb();
++#endif
+ 
+ 	return result;
+ }
+ 
+ static __inline__ int atomic_sub_return(int i, atomic_t * v)
+ {
+-	int result;
+-
+-	smp_llsc_mb();
++	unsigned long result;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -201,38 +213,38 @@ static __inline__ int atomic_sub_return(
+ 		"	sc	%0, %2					\n"
+ 		"	beqzl	%0, 1b					\n"
+ 		"	subu	%0, %1, %3				\n"
++		"	sync						\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else if (cpu_has_llsc) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+ 		"1:	ll	%1, %2		# atomic_sub_return	\n"
+ 		"	subu	%0, %1, %3				\n"
+ 		"	sc	%0, %2					\n"
+-		"	beqz	%0, 2f					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	subu	%0, %1, %3				\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	sync						\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		result = v->counter;
+ 		result -= i;
+ 		v->counter = result;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
+-
+-	smp_llsc_mb();
++#endif
+ 
+ 	return result;
+ }
+@@ -247,12 +259,11 @@ static __inline__ int atomic_sub_return(
+  */
+ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
+ {
+-	int result;
+-
+-	smp_llsc_mb();
++	unsigned long result;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -264,13 +275,14 @@ static __inline__ int atomic_sub_if_posi
+ 		"	beqzl	%0, 1b					\n"
+ 		"	 subu	%0, %1, %3				\n"
+ 		"	.set	reorder					\n"
++		"	sync						\n"
+ 		"1:							\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else if (cpu_has_llsc) {
+-		int temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -279,35 +291,34 @@ static __inline__ int atomic_sub_if_posi
+ 		"	bltz	%0, 1f					\n"
+ 		"	sc	%0, %2					\n"
+ 		"	.set	noreorder				\n"
+-		"	beqz	%0, 2f					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	 subu	%0, %1, %3				\n"
+ 		"	.set	reorder					\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	sync						\n"
+ 		"1:							\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		result = v->counter;
+ 		result -= i;
+ 		if (result >= 0)
+ 			v->counter = result;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
+-
+-	smp_llsc_mb();
++#endif
+ 
+ 	return result;
+ }
+ 
+-#define atomic_cmpxchg(v, o, n) (cmpxchg(&((v)->counter), (o), (n)))
+-#define atomic_xchg(v, new) (xchg(&((v)->counter), (new)))
++#define atomic_cmpxchg(v, o, n) ((int)cmpxchg(&((v)->counter), (o), (n)))
++#define atomic_xchg(v, new) (xchg(&((v)->counter), new))
+ 
+ /**
+  * atomic_add_unless - add unless the number is a given value
+@@ -318,24 +329,18 @@ static __inline__ int atomic_sub_if_posi
+  * Atomically adds @a to @v, so long as it was not @u.
+  * Returns non-zero if @v was not @u, and zero otherwise.
+  */
+-static __inline__ int atomic_add_unless(atomic_t *v, int a, int u)
+-{
+-	int c, old;
+-	c = atomic_read(v);
+-	for (;;) {
+-		if (unlikely(c == (u)))
+-			break;
+-		old = atomic_cmpxchg((v), c, c + (a));
+-		if (likely(old == c))
+-			break;
+-		c = old;
+-	}
+-	return c != (u);
+-}
++#define atomic_add_unless(v, a, u)				\
++({								\
++	int c, old;						\
++	c = atomic_read(v);					\
++	while (c != (u) && (old = atomic_cmpxchg((v), c, c + (a))) != c) \
++		c = old;					\
++	c != (u);						\
++})
+ #define atomic_inc_not_zero(v) atomic_add_unless((v), 1, 0)
+ 
+-#define atomic_dec_return(v) atomic_sub_return(1, (v))
+-#define atomic_inc_return(v) atomic_add_return(1, (v))
++#define atomic_dec_return(v) atomic_sub_return(1,(v))
++#define atomic_inc_return(v) atomic_add_return(1,(v))
+ 
+ /*
+  * atomic_sub_and_test - subtract value from variable and test result
+@@ -346,7 +351,7 @@ static __inline__ int atomic_add_unless(
+  * true if the result is zero, or false for all
+  * other cases.
+  */
+-#define atomic_sub_and_test(i, v) (atomic_sub_return((i), (v)) == 0)
++#define atomic_sub_and_test(i,v) (atomic_sub_return((i), (v)) == 0)
+ 
+ /*
+  * atomic_inc_and_test - increment and test
+@@ -380,7 +385,7 @@ static __inline__ int atomic_add_unless(
+  *
+  * Atomically increments @v by 1.
+  */
+-#define atomic_inc(v) atomic_add(1, (v))
++#define atomic_inc(v) atomic_add(1,(v))
+ 
+ /*
+  * atomic_dec - decrement and test
+@@ -388,7 +393,7 @@ static __inline__ int atomic_add_unless(
+  *
+  * Atomically decrements @v by 1.
+  */
+-#define atomic_dec(v) atomic_sub(1, (v))
++#define atomic_dec(v) atomic_sub(1,(v))
+ 
+ /*
+  * atomic_add_negative - add and test if negative
+@@ -399,10 +404,12 @@ static __inline__ int atomic_add_unless(
+  * if the result is negative, or false when
+  * result is greater than or equal to zero.
+  */
+-#define atomic_add_negative(i, v) (atomic_add_return(i, (v)) < 0)
++#define atomic_add_negative(i,v) (atomic_add_return(i, (v)) < 0)
+ 
+ #ifdef CONFIG_64BIT
+ 
++typedef struct { volatile __s64 counter; } atomic64_t;
++
+ #define ATOMIC64_INIT(i)    { (i) }
+ 
+ /*
+@@ -417,7 +424,7 @@ static __inline__ int atomic_add_unless(
+  * @v: pointer of type atomic64_t
+  * @i: required value
+  */
+-#define atomic64_set(v, i)	((v)->counter = (i))
++#define atomic64_set(v,i)	((v)->counter = (i))
+ 
+ /*
+  * atomic64_add - add integer to atomic variable
+@@ -428,8 +435,9 @@ static __inline__ int atomic_add_unless(
+  */
+ static __inline__ void atomic64_add(long i, atomic64_t * v)
+ {
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -441,27 +449,27 @@ static __inline__ void atomic64_add(long
+ 		: "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter));
+ 	} else if (cpu_has_llsc) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+ 		"1:	lld	%0, %1		# atomic64_add		\n"
+ 		"	addu	%0, %2					\n"
+ 		"	scd	%0, %1					\n"
+-		"	beqz	%0, 2f					\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter));
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		v->counter += i;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
++#endif
+ }
+ 
+ /*
+@@ -473,8 +481,9 @@ static __inline__ void atomic64_add(long
+  */
+ static __inline__ void atomic64_sub(long i, atomic64_t * v)
+ {
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -486,27 +495,27 @@ static __inline__ void atomic64_sub(long
+ 		: "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter));
+ 	} else if (cpu_has_llsc) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+ 		"1:	lld	%0, %1		# atomic64_sub		\n"
+ 		"	subu	%0, %2					\n"
+ 		"	scd	%0, %1					\n"
+-		"	beqz	%0, 2f					\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter));
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		v->counter -= i;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
++#endif
+ }
+ 
+ /*
+@@ -514,12 +523,11 @@ static __inline__ void atomic64_sub(long
+  */
+ static __inline__ long atomic64_add_return(long i, atomic64_t * v)
+ {
+-	long result;
+-
+-	smp_llsc_mb();
++	unsigned long result;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -528,50 +536,49 @@ static __inline__ long atomic64_add_retu
+ 		"	scd	%0, %2					\n"
+ 		"	beqzl	%0, 1b					\n"
+ 		"	addu	%0, %1, %3				\n"
++		"	sync						\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else if (cpu_has_llsc) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+ 		"1:	lld	%1, %2		# atomic64_add_return	\n"
+ 		"	addu	%0, %1, %3				\n"
+ 		"	scd	%0, %2					\n"
+-		"	beqz	%0, 2f					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	addu	%0, %1, %3				\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	sync						\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		result = v->counter;
+ 		result += i;
+ 		v->counter = result;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
+-
+-	smp_llsc_mb();
++#endif
+ 
+ 	return result;
+ }
+ 
+ static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
+ {
+-	long result;
+-
+-	smp_llsc_mb();
++	unsigned long result;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -580,38 +587,38 @@ static __inline__ long atomic64_sub_retu
+ 		"	scd	%0, %2					\n"
+ 		"	beqzl	%0, 1b					\n"
+ 		"	subu	%0, %1, %3				\n"
++		"	sync						\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else if (cpu_has_llsc) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+ 		"1:	lld	%1, %2		# atomic64_sub_return	\n"
+ 		"	subu	%0, %1, %3				\n"
+ 		"	scd	%0, %2					\n"
+-		"	beqz	%0, 2f					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	subu	%0, %1, %3				\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	sync						\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		result = v->counter;
+ 		result -= i;
+ 		v->counter = result;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
+-
+-	smp_llsc_mb();
++#endif
+ 
+ 	return result;
+ }
+@@ -626,12 +633,11 @@ static __inline__ long atomic64_sub_retu
+  */
+ static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
+ {
+-	long result;
+-
+-	smp_llsc_mb();
++	unsigned long result;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -643,13 +649,14 @@ static __inline__ long atomic64_sub_if_p
+ 		"	beqzl	%0, 1b					\n"
+ 		"	 dsubu	%0, %1, %3				\n"
+ 		"	.set	reorder					\n"
++		"	sync						\n"
+ 		"1:							\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else if (cpu_has_llsc) {
+-		long temp;
++		unsigned long temp;
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -658,65 +665,34 @@ static __inline__ long atomic64_sub_if_p
+ 		"	bltz	%0, 1f					\n"
+ 		"	scd	%0, %2					\n"
+ 		"	.set	noreorder				\n"
+-		"	beqz	%0, 2f					\n"
++		"	beqz	%0, 1b					\n"
+ 		"	 dsubu	%0, %1, %3				\n"
+ 		"	.set	reorder					\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	sync						\n"
+ 		"1:							\n"
+ 		"	.set	mips0					\n"
+ 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+ 		: "Ir" (i), "m" (v->counter)
+ 		: "memory");
+ 	} else {
++#endif
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		result = v->counter;
+ 		result -= i;
+ 		if (result >= 0)
+ 			v->counter = result;
+-		raw_local_irq_restore(flags);
++		local_irq_restore(flags);
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
+-
+-	smp_llsc_mb();
++#endif
+ 
+ 	return result;
+ }
+ 
+-#define atomic64_cmpxchg(v, o, n) \
+-	((__typeof__((v)->counter))cmpxchg(&((v)->counter), (o), (n)))
+-#define atomic64_xchg(v, new) (xchg(&((v)->counter), (new)))
+-
+-/**
+- * atomic64_add_unless - add unless the number is a given value
+- * @v: pointer of type atomic64_t
+- * @a: the amount to add to v...
+- * @u: ...unless v is equal to u.
+- *
+- * Atomically adds @a to @v, so long as it was not @u.
+- * Returns non-zero if @v was not @u, and zero otherwise.
+- */
+-static __inline__ int atomic64_add_unless(atomic64_t *v, long a, long u)
+-{
+-	long c, old;
+-	c = atomic64_read(v);
+-	for (;;) {
+-		if (unlikely(c == (u)))
+-			break;
+-		old = atomic64_cmpxchg((v), c, c + (a));
+-		if (likely(old == c))
+-			break;
+-		c = old;
+-	}
+-	return c != (u);
+-}
+-
+-#define atomic64_inc_not_zero(v) atomic64_add_unless((v), 1, 0)
+-
+-#define atomic64_dec_return(v) atomic64_sub_return(1, (v))
+-#define atomic64_inc_return(v) atomic64_add_return(1, (v))
++#define atomic64_dec_return(v) atomic64_sub_return(1,(v))
++#define atomic64_inc_return(v) atomic64_add_return(1,(v))
+ 
+ /*
+  * atomic64_sub_and_test - subtract value from variable and test result
+@@ -727,7 +703,7 @@ static __inline__ int atomic64_add_unles
+  * true if the result is zero, or false for all
+  * other cases.
+  */
+-#define atomic64_sub_and_test(i, v) (atomic64_sub_return((i), (v)) == 0)
++#define atomic64_sub_and_test(i,v) (atomic64_sub_return((i), (v)) == 0)
+ 
+ /*
+  * atomic64_inc_and_test - increment and test
+@@ -761,7 +737,7 @@ static __inline__ int atomic64_add_unles
+  *
+  * Atomically increments @v by 1.
+  */
+-#define atomic64_inc(v) atomic64_add(1, (v))
++#define atomic64_inc(v) atomic64_add(1,(v))
+ 
+ /*
+  * atomic64_dec - decrement and test
+@@ -769,7 +745,7 @@ static __inline__ int atomic64_add_unles
+  *
+  * Atomically decrements @v by 1.
+  */
+-#define atomic64_dec(v) atomic64_sub(1, (v))
++#define atomic64_dec(v) atomic64_sub(1,(v))
+ 
+ /*
+  * atomic64_add_negative - add and test if negative
+@@ -780,7 +756,7 @@ static __inline__ int atomic64_add_unles
+  * if the result is negative, or false when
+  * result is greater than or equal to zero.
+  */
+-#define atomic64_add_negative(i, v) (atomic64_add_return(i, (v)) < 0)
++#define atomic64_add_negative(i,v) (atomic64_add_return(i, (v)) < 0)
+ 
+ #endif /* CONFIG_64BIT */
+ 
+@@ -788,11 +764,10 @@ static __inline__ int atomic64_add_unles
+  * atomic*_return operations are serializing but not the non-*_return
+  * versions.
+  */
+-#define smp_mb__before_atomic_dec()	smp_llsc_mb()
+-#define smp_mb__after_atomic_dec()	smp_llsc_mb()
+-#define smp_mb__before_atomic_inc()	smp_llsc_mb()
+-#define smp_mb__after_atomic_inc()	smp_llsc_mb()
++#define smp_mb__before_atomic_dec()	smp_mb()
++#define smp_mb__after_atomic_dec()	smp_mb()
++#define smp_mb__before_atomic_inc()	smp_mb()
++#define smp_mb__after_atomic_inc()	smp_mb()
+ 
+ #include <asm-generic/atomic.h>
+-
+ #endif /* _ASM_ATOMIC_H */
+--- linux-2.6.30.9/arch/mips/include/asm/bitops.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/include/asm/bitops.h	2013-05-02 01:47:49.321227415 +0300
+@@ -57,10 +57,10 @@
+  */
+ static inline void set_bit(unsigned long nr, volatile unsigned long *addr)
+ {
+-	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
++//	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+ 	unsigned short bit = nr & SZLONG_MASK;
+-	unsigned long temp;
+-
++//	unsigned long temp;
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		__asm__ __volatile__(
+ 		"	.set	mips3					\n"
+@@ -97,7 +97,9 @@ static inline void set_bit(unsigned long
+ 		"	.set	mips0					\n"
+ 		: "=&r" (temp), "=m" (*m)
+ 		: "ir" (1UL << bit), "m" (*m));
+-	} else {
++	} else 
++#endif
++	{
+ 		volatile unsigned long *a = addr;
+ 		unsigned long mask;
+ 		unsigned long flags;
+@@ -122,8 +124,9 @@ static inline void set_bit(unsigned long
+  */
+ static inline void clear_bit(unsigned long nr, volatile unsigned long *addr)
+ {
+-	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+ 	unsigned short bit = nr & SZLONG_MASK;
++#if !defined(CONFIG_REALTEK_CPU)
++	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+ 	unsigned long temp;
+ 
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+@@ -162,7 +165,9 @@ static inline void clear_bit(unsigned lo
+ 		"	.set	mips0					\n"
+ 		: "=&r" (temp), "=m" (*m)
+ 		: "ir" (~(1UL << bit)), "m" (*m));
+-	} else {
++	} else
++#endif
++	{
+ 		volatile unsigned long *a = addr;
+ 		unsigned long mask;
+ 		unsigned long flags;
+@@ -202,6 +207,7 @@ static inline void change_bit(unsigned l
+ {
+ 	unsigned short bit = nr & SZLONG_MASK;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+ 		unsigned long temp;
+@@ -231,7 +237,9 @@ static inline void change_bit(unsigned l
+ 		"	.set	mips0				\n"
+ 		: "=&r" (temp), "=m" (*m)
+ 		: "ir" (1UL << bit), "m" (*m));
+-	} else {
++	} else 
++#endif
++	{
+ 		volatile unsigned long *a = addr;
+ 		unsigned long mask;
+ 		unsigned long flags;
+@@ -260,6 +268,7 @@ static inline int test_and_set_bit(unsig
+ 
+ 	smp_llsc_mb();
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+ 		unsigned long temp;
+@@ -296,7 +305,9 @@ static inline int test_and_set_bit(unsig
+ 		: "=&r" (temp), "=m" (*m), "=&r" (res)
+ 		: "r" (1UL << bit), "m" (*m)
+ 		: "memory");
+-	} else {
++	} else 
++#endif
++	{
+ 		volatile unsigned long *a = addr;
+ 		unsigned long mask;
+ 		unsigned long flags;
+@@ -328,6 +339,7 @@ static inline int test_and_set_bit_lock(
+ 	unsigned short bit = nr & SZLONG_MASK;
+ 	unsigned long res;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+ 		unsigned long temp;
+@@ -364,7 +376,9 @@ static inline int test_and_set_bit_lock(
+ 		: "=&r" (temp), "=m" (*m), "=&r" (res)
+ 		: "r" (1UL << bit), "m" (*m)
+ 		: "memory");
+-	} else {
++	} else 
++#endif
++	{
+ 		volatile unsigned long *a = addr;
+ 		unsigned long mask;
+ 		unsigned long flags;
+@@ -397,6 +411,7 @@ static inline int test_and_clear_bit(uns
+ 
+ 	smp_llsc_mb();
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+ 		unsigned long temp;
+@@ -453,7 +468,9 @@ static inline int test_and_clear_bit(uns
+ 		: "=&r" (temp), "=m" (*m), "=&r" (res)
+ 		: "r" (1UL << bit), "m" (*m)
+ 		: "memory");
+-	} else {
++	} else 
++#endif
++	{
+ 		volatile unsigned long *a = addr;
+ 		unsigned long mask;
+ 		unsigned long flags;
+@@ -487,6 +504,7 @@ static inline int test_and_change_bit(un
+ 
+ 	smp_llsc_mb();
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+ 		unsigned long temp;
+@@ -523,7 +541,9 @@ static inline int test_and_change_bit(un
+ 		: "=&r" (temp), "=m" (*m), "=&r" (res)
+ 		: "r" (1UL << bit), "m" (*m)
+ 		: "memory");
+-	} else {
++	} else
++#endif
++	{
+ 		volatile unsigned long *a = addr;
+ 		unsigned long mask;
+ 		unsigned long flags;
+--- linux-2.6.30.9/arch/mips/include/asm/cmpxchg.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/include/asm/cmpxchg.h	2013-05-02 01:47:49.323227415 +0300
+@@ -12,6 +12,7 @@
+ 
+ #define __HAVE_ARCH_CMPXCHG 1
+ 
++#if 0
+ #define __cmpxchg_asm(ld, st, m, old, new)				\
+ ({									\
+ 	__typeof(*(m)) __ret;						\
+@@ -65,7 +66,69 @@
+ 									\
+ 	__ret;								\
+ })
++#else
++static inline unsigned long __cmpxchg_asm(char *a, char* b, volatile int * m, unsigned long old,
++	unsigned long new)
++{
++	__u32 retval;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
++	if (cpu_has_llsc && R10000_LLSC_WAR) {
++		__asm__ __volatile__(
++		"	.set	push					\n"
++		"	.set	noat					\n"
++		"	.set	mips3					\n"
++		"1:	ll	%0, %2			# __cmpxchg_u32	\n"
++		"	bne	%0, %z3, 2f				\n"
++		"	.set	mips0					\n"
++		"	move	$1, %z4					\n"
++		"	.set	mips3					\n"
++		"	sc	$1, %1					\n"
++		"	beqzl	$1, 1b					\n"
++#ifdef CONFIG_SMP
++		"	sync						\n"
++#endif
++		"2:							\n"
++		"	.set	pop					\n"
++		: "=&r" (retval), "=R" (*m)
++		: "R" (*m), "Jr" (old), "Jr" (new)
++		: "memory");
++	} else if (cpu_has_llsc) {
++		__asm__ __volatile__(
++		"	.set	push					\n"
++		"	.set	noat					\n"
++		"	.set	mips3					\n"
++		"1:	ll	%0, %2			# __cmpxchg_u32	\n"
++		"	bne	%0, %z3, 2f				\n"
++		"	.set	mips0					\n"
++		"	move	$1, %z4					\n"
++		"	.set	mips3					\n"
++		"	sc	$1, %1					\n"
++		"	beqz	$1, 1b					\n"
++#ifdef CONFIG_SMP
++		"	sync						\n"
++#endif
++		"2:							\n"
++		"	.set	pop					\n"
++		: "=&r" (retval), "=R" (*m)
++		: "R" (*m), "Jr" (old), "Jr" (new)
++		: "memory");
++	} else {
++#endif		
++		unsigned long flags;
++
++		local_irq_save(flags);
++		retval = *m;
++		if (retval == old)
++			*m = new;
++		local_irq_restore(flags);	/* implies memory barrier  */
++#if !defined(CONFIG_REALTEK_CPU)
++	}
++#endif
++
++	return retval;
++}
++#endif
+ /*
+  * This function doesn't exist, so you'll get a linker error
+  * if something tries to do an invalid cmpxchg().
+--- linux-2.6.30.9/arch/mips/include/asm/futex.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/include/asm/futex.h	2013-05-02 01:47:49.329227414 +0300
+@@ -16,6 +16,7 @@
+ #include <asm/errno.h>
+ #include <asm/war.h>
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ #define __futex_atomic_op(insn, ret, oldval, uaddr, oparg)		\
+ {									\
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {				\
+@@ -73,6 +74,12 @@
+ 	} else								\
+ 		ret = -ENOSYS;						\
+ }
++#else
++#define __futex_atomic_op(insn, ret, oldval, uaddr, oparg)		\
++{									\
++		ret = -ENOSYS;						\
++}
++#endif
+ 
+ static inline int
+ futex_atomic_op_inuser(int encoded_op, int __user *uaddr)
+@@ -139,6 +146,7 @@ futex_atomic_cmpxchg_inatomic(int __user
+ 	if (!access_ok(VERIFY_WRITE, uaddr, sizeof(int)))
+ 		return -EFAULT;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		__asm__ __volatile__(
+ 		"# futex_atomic_cmpxchg_inatomic			\n"
+@@ -195,6 +203,7 @@ futex_atomic_cmpxchg_inatomic(int __user
+ 		: "memory");
+ 	} else
+ 		return -ENOSYS;
++#endif
+ 
+ 	return retval;
+ }
+--- linux-2.6.30.9/arch/mips/include/asm/local.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/include/asm/local.h	2013-05-02 01:47:49.335227414 +0300
+@@ -29,6 +29,7 @@ static __inline__ long local_add_return(
+ {
+ 	unsigned long result;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		unsigned long temp;
+ 
+@@ -57,7 +58,9 @@ static __inline__ long local_add_return(
+ 		: "=&r" (result), "=&r" (temp), "=m" (l->a.counter)
+ 		: "Ir" (i), "m" (l->a.counter)
+ 		: "memory");
+-	} else {
++	} else 
++#endif
++	{
+ 		unsigned long flags;
+ 
+ 		local_irq_save(flags);
+@@ -74,6 +77,7 @@ static __inline__ long local_sub_return(
+ {
+ 	unsigned long result;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		unsigned long temp;
+ 
+@@ -102,7 +106,9 @@ static __inline__ long local_sub_return(
+ 		: "=&r" (result), "=&r" (temp), "=m" (l->a.counter)
+ 		: "Ir" (i), "m" (l->a.counter)
+ 		: "memory");
+-	} else {
++	} else 
++#endif
++	{
+ 		unsigned long flags;
+ 
+ 		local_irq_save(flags);
+--- linux-2.6.30.9/arch/mips/include/asm/string.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/include/asm/string.h	2013-05-02 01:47:49.390227409 +0300
+@@ -92,7 +92,7 @@ static __inline__ int strcmp(__const__ c
+ 	"3:\t.set\tat\n\t"
+ 	".set\treorder"
+ 	: "=r" (__cs), "=r" (__ct), "=r" (__res)
+-	: "0" (__cs), "1" (__ct));
++	: "0" (__cs), "1" (__ct),  "m" (*__cs), "m" (*__ct));
+ 
+   return __res;
+ }
+@@ -125,7 +125,7 @@ strncmp(__const__ char *__cs, __const__
+ 	".set\tat\n\t"
+ 	".set\treorder"
+ 	: "=r" (__cs), "=r" (__ct), "=r" (__count), "=r" (__res)
+-	: "0" (__cs), "1" (__ct), "2" (__count));
++	: "0" (__cs), "1" (__ct), "2" (__count), "m" (*__cs), "m" (*__ct));
+ 
+ 	return __res;
+ }
+--- linux-2.6.30.9/arch/mips/include/asm/system.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/include/asm/system.h	2013-05-02 01:47:49.391227409 +0300
+@@ -84,6 +84,7 @@ static inline unsigned long __xchg_u32(v
+ {
+ 	__u32 retval;
+ 
++#if !defined(CONFIG_REALTEK_CPU)
+ 	if (cpu_has_llsc && R10000_LLSC_WAR) {
+ 		unsigned long dummy;
+ 
+@@ -95,6 +96,9 @@ static inline unsigned long __xchg_u32(v
+ 		"	.set	mips3					\n"
+ 		"	sc	%2, %1					\n"
+ 		"	beqzl	%2, 1b					\n"
++#ifdef CONFIG_SMP
++		"	sync						\n"
++#endif
+ 		"	.set	mips0					\n"
+ 		: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+ 		: "R" (*m), "Jr" (val)
+@@ -109,24 +113,25 @@ static inline unsigned long __xchg_u32(v
+ 		"	move	%2, %z4					\n"
+ 		"	.set	mips3					\n"
+ 		"	sc	%2, %1					\n"
+-		"	beqz	%2, 2f					\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	beqz	%2, 1b					\n"
++#ifdef CONFIG_SMP
++		"	sync						\n"
++#endif
+ 		"	.set	mips0					\n"
+ 		: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+ 		: "R" (*m), "Jr" (val)
+ 		: "memory");
+ 	} else {
++#endif		
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		retval = *m;
+ 		*m = val;
+-		raw_local_irq_restore(flags);	/* implies memory barrier  */
++		local_irq_restore(flags);	/* implies memory barrier  */
++#if !defined(CONFIG_REALTEK_CPU)
+ 	}
+-
+-	smp_llsc_mb();
++#endif
+ 
+ 	return retval;
+ }
+@@ -145,6 +150,9 @@ static inline __u64 __xchg_u64(volatile
+ 		"	move	%2, %z4					\n"
+ 		"	scd	%2, %1					\n"
+ 		"	beqzl	%2, 1b					\n"
++#ifdef CONFIG_SMP
++		"	sync						\n"
++#endif
+ 		"	.set	mips0					\n"
+ 		: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+ 		: "R" (*m), "Jr" (val)
+@@ -157,10 +165,10 @@ static inline __u64 __xchg_u64(volatile
+ 		"1:	lld	%0, %3			# xchg_u64	\n"
+ 		"	move	%2, %z4					\n"
+ 		"	scd	%2, %1					\n"
+-		"	beqz	%2, 2f					\n"
+-		"	.subsection 2					\n"
+-		"2:	b	1b					\n"
+-		"	.previous					\n"
++		"	beqz	%2, 1b					\n"
++#ifdef CONFIG_SMP
++		"	sync						\n"
++#endif
+ 		"	.set	mips0					\n"
+ 		: "=&r" (retval), "=m" (*m), "=&r" (dummy)
+ 		: "R" (*m), "Jr" (val)
+@@ -168,14 +176,12 @@ static inline __u64 __xchg_u64(volatile
+ 	} else {
+ 		unsigned long flags;
+ 
+-		raw_local_irq_save(flags);
++		local_irq_save(flags);
+ 		retval = *m;
+ 		*m = val;
+-		raw_local_irq_restore(flags);	/* implies memory barrier  */
++		local_irq_restore(flags);	/* implies memory barrier  */
+ 	}
+ 
+-	smp_llsc_mb();
+-
+ 	return retval;
+ }
+ #else
+--- linux-2.6.30.9/arch/mips/include/asm/thread_info.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/include/asm/thread_info.h	2013-05-02 01:47:49.391227409 +0300
+@@ -63,23 +63,27 @@ register struct thread_info *__current_t
+ #define current_thread_info()  __current_thread_info
+ 
+ /* thread information allocation */
+-#if defined(CONFIG_PAGE_SIZE_4KB) && defined(CONFIG_32BIT)
+-#define THREAD_SIZE_ORDER (1)
+-#endif
+-#if defined(CONFIG_PAGE_SIZE_4KB) && defined(CONFIG_64BIT)
+-#define THREAD_SIZE_ORDER (2)
+-#endif
+-#ifdef CONFIG_PAGE_SIZE_8KB
+-#define THREAD_SIZE_ORDER (1)
+-#endif
+-#ifdef CONFIG_PAGE_SIZE_16KB
+-#define THREAD_SIZE_ORDER (0)
+-#endif
+-#ifdef CONFIG_PAGE_SIZE_32KB
+-#define THREAD_SIZE_ORDER (0)
+-#endif
+-#ifdef CONFIG_PAGE_SIZE_64KB
+-#define THREAD_SIZE_ORDER (0)
++#ifdef CONFIG_KERNEL_STACK_SIZE_ORDER
++  #define THREAD_SIZE_ORDER (CONFIG_KERNEL_STACK_SIZE_ORDER)
++#else
++  #if defined(CONFIG_PAGE_SIZE_4KB) && defined(CONFIG_32BIT)
++    #define THREAD_SIZE_ORDER (2)
++  #endif
++  #if defined(CONFIG_PAGE_SIZE_4KB) && defined(CONFIG_64BIT)
++    #define THREAD_SIZE_ORDER (2)
++  #endif
++  #ifdef CONFIG_PAGE_SIZE_8KB
++    #define THREAD_SIZE_ORDER (1)
++  #endif
++  #ifdef CONFIG_PAGE_SIZE_16KB
++    #define THREAD_SIZE_ORDER (0)
++  #endif
++  #ifdef CONFIG_PAGE_SIZE_32KB
++    #define THREAD_SIZE_ORDER (0)
++  #endif
++  #ifdef CONFIG_PAGE_SIZE_64KB
++    #define THREAD_SIZE_ORDER (0)
++  #endif
+ #endif
+ 
+ #define THREAD_SIZE (PAGE_SIZE << THREAD_SIZE_ORDER)
+--- linux-2.6.30.9/arch/mips/include/asm/war.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/include/asm/war.h	2013-05-02 01:47:49.397227409 +0300
+@@ -9,6 +9,51 @@
+ #ifndef _ASM_WAR_H
+ #define _ASM_WAR_H
+ 
++#undef cpu_has_llsc
++#define MIPS34K_MISSED_ITLB_WAR 0
++#define cpu_has_llsc 0
++#define R10000_LLSC_WAR 0
++#define DADDI_WAR 0
++/*
++ *  * Workarounds default to off
++ *   */
++#ifndef ICACHE_REFILLS_WORKAROUND_WAR
++#define ICACHE_REFILLS_WORKAROUND_WAR	0
++#endif
++#ifndef R4600_V1_INDEX_ICACHEOP_WAR
++#define R4600_V1_INDEX_ICACHEOP_WAR	0
++#endif
++#ifndef R4600_V1_HIT_CACHEOP_WAR
++#define R4600_V1_HIT_CACHEOP_WAR	0
++#endif
++#ifndef R4600_V2_HIT_CACHEOP_WAR
++#define R4600_V2_HIT_CACHEOP_WAR	0
++#endif
++#ifndef R5432_CP0_INTERRUPT_WAR
++#define R5432_CP0_INTERRUPT_WAR		0
++#endif
++#ifndef BCM1250_M3_WAR
++#define BCM1250_M3_WAR			0
++#endif
++#ifndef SIBYTE_1956_WAR
++#define SIBYTE_1956_WAR			0
++#endif
++#ifndef MIPS4K_ICACHE_REFILL_WAR
++#define MIPS4K_ICACHE_REFILL_WAR	0
++#endif
++#ifndef MIPS_CACHE_SYNC_WAR
++#define MIPS_CACHE_SYNC_WAR		0
++#endif
++#ifndef TX49XX_ICACHE_INDEX_INV_WAR
++#define TX49XX_ICACHE_INDEX_INV_WAR	0
++#endif
++#ifndef RM9000_CDEX_SMP_WAR
++#define RM9000_CDEX_SMP_WAR		0
++#endif
++#ifndef R10000_LLSC_WAR
++#define R10000_LLSC_WAR			0
++#endif
++#if 0
+ #include <war.h>
+ 
+ /*
+@@ -240,5 +285,5 @@
+ #ifndef MIPS34K_MISSED_ITLB_WAR
+ #error Check setting of MIPS34K_MISSED_ITLB_WAR for your platform
+ #endif
+-
++#endif
+ #endif /* _ASM_WAR_H */
+--- linux-2.6.30.9/arch/mips/Kconfig	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/Kconfig	2013-05-10 19:41:05.351467589 +0300
+@@ -17,7 +17,40 @@ config ZONE_DMA
+ 
+ choice
+ 	prompt "System type"
+-	default SGI_IP22
++	default MACH_RTL8196B
++
++config MACH_RTL8196B
++	bool "Realtek rtl8196b"
++	select CPU_R3000
++	select IRQ_CPU
++#	select SYS_HAS_EARLY_PRINTK
++	select CPU_BIG_ENDIAN
++	select RTL_819X
++	select RTL_8196B_GW
++	select RTL_8196B
++	select REALTEK_CPU
++	select SYS_SUPPORTS_BIG_ENDIAN
++	select SYS_HAS_CPU_R3000
++	select SYS_SUPPORTS_32BIT_KERNEL
++	select SYS_SUPPORTS_100HZ
++	select RTL8196B
++	select DMA_NONCOHERENT
++
++config MACH_RTL8196C
++	bool "Realtek rtl8196c"
++	select CPU_R3000
++	select IRQ_CPU
++	select SYS_HAS_EARLY_PRINTK
++	select CPU_BIG_ENDIAN
++	select RTL_819X
++	select RTL_8196C_GW
++	select RTL_8196C
++	select REALTEK_CPU
++	select SYS_SUPPORTS_BIG_ENDIAN
++	select SYS_HAS_CPU_R3000
++	select SYS_SUPPORTS_32BIT_KERNEL
++	select SYS_SUPPORTS_100HZ
++	select DMA_NONCOHERENT
+ 
+ config MACH_ALCHEMY
+ 	bool "Alchemy processor based machines"
+@@ -633,19 +666,119 @@ config CAVIUM_OCTEON_REFERENCE_BOARD
+ 
+ endchoice
+ 
+-source "arch/mips/alchemy/Kconfig"
+-source "arch/mips/basler/excite/Kconfig"
+-source "arch/mips/jazz/Kconfig"
+-source "arch/mips/lasat/Kconfig"
+-source "arch/mips/pmc-sierra/Kconfig"
+-source "arch/mips/sgi-ip27/Kconfig"
+-source "arch/mips/sibyte/Kconfig"
+-source "arch/mips/txx9/Kconfig"
+-source "arch/mips/vr41xx/Kconfig"
+-source "arch/mips/cavium-octeon/Kconfig"
+-
++#source "arch/mips/alchemy/Kconfig"
++#source "arch/mips/basler/excite/Kconfig"
++#source "arch/mips/jazz/Kconfig"
++#source "arch/mips/lasat/Kconfig"
++#source "arch/mips/pmc-sierra/Kconfig"
++#source "arch/mips/sgi-ip27/Kconfig"
++#source "arch/mips/sibyte/Kconfig"
++#source "arch/mips/txx9/Kconfig"
++#source "arch/mips/vr41xx/Kconfig"
++#source "arch/mips/cavium-octeon/Kconfig"
++config RTL_FLASH_MAPPING_ENABLE
++        bool "Enable Flash Mapping"
++
++comment "Flash size 2M or 4M, default 2M"
++config RTL_FLASH_SIZE
++	hex "Size of Flash"
++	depends on RTL_819X
++	default "0x200000"
++	help
++          Size of Flash, Normally should be 2M or 4M.
++
++comment "Hardware setting offset,should be 4K alignment"
++config RTL_HW_SETTING_OFFSET
++        hex "Hardware setting offset in flash."
++        depends on RTL_819X 
++        default "0x6000"
++        help
++	  Hardware Setting store in flash from the offset.
++	  it should be 4k alignment.
++
++comment "Default setting offset,should be 4K alignment."
++comment "size of default and current setting should be same."
++config RTL_DEFAULT_SETTING_OFFSET
++        hex "Default setting offset in flash."
++        depends on RTL_819X 
++        default "0x8000"
++        help
++	  Default Setting store in flash from the offset.
++	  normally the default setting shoud save before current settting.
++	  NOTE: make sure it's size is enough for default setting,
++		default size is 16K.
++
++comment "Current setting offset,should be 4K alignment."
++config RTL_CURRENT_SETTING_OFFSET
++        hex "Current setting offset in flash."
++        depends on RTL_819X 
++        default "0xC000"
++        help
++	  Current Setting store in flash from the offset.
++	  normally the current setting saved after default setting.
++	  NOTE: make sure it's size is enough for current setting,
++		default size is 16K.
++
++comment "Webpage image offset,should be 4K alignment."
++comment "size of web page is normally about 100K."
++config RTL_WEB_PAGES_OFFSET
++	hex "webpages image offset in flash."
++	depends on RTL_819X
++	default "0x10000"
++	help
++	  Webpages image store in flash from the offset.
++	  NOTE: default size is 128K.
++
++comment "Linux image offset,should be 4K alignment."
++comment "this offset MUST between 0x10000~0x30000."
++config RTL_LINUX_IMAGE_OFFSET
++        hex "linux image offset in flash."
++        depends on RTL_819X 
++        default "0x30000"
++        help
++	  linux image store in flash from the offset.
++
++comment "Root image offset,should be 64K alignment."
++config RTL_ROOT_IMAGE_OFFSET
++        hex "root image offset in flash."
++        depends on RTL_819X 
++        default "0xF0000"
++        help
++	  root image store in flash from the offset.
+ endmenu
+ 
++config DMA_NONCOHERENT
++	bool
++	default y
++
++config RTL8196B
++	bool
++	default n
++
++config RTL_8196B
++	bool
++	default n
++
++config RTL_8196C
++	bool
++	default n
++
++config RTL_8196B_GW
++	bool
++	default n
++
++config RTL_8196C_GW
++	bool
++	default n
++
++config RTL_819X
++	bool
++	default y
++
++config REALTEK_CPU
++	bool
++	default y
++
+ config RWSEM_GENERIC_SPINLOCK
+ 	bool
+ 	default y
+@@ -687,7 +820,7 @@ config GENERIC_TIME
+ 
+ config GENERIC_CMOS_UPDATE
+ 	bool
+-	default y
++	default n
+ 
+ config SCHED_OMIT_FRAME_POINTER
+ 	bool
+@@ -767,7 +900,7 @@ config DMA_NEED_PCI_MAP_STATE
+ config EARLY_PRINTK
+ 	bool "Early printk" if EMBEDDED && DEBUG_KERNEL
+ 	depends on SYS_HAS_EARLY_PRINTK
+-	default y
++	default n
+ 	help
+ 	  This option enables special console drivers which allow the kernel
+ 	  to print messages very early in the bootup process.
+@@ -1003,7 +1136,7 @@ menu "CPU selection"
+ 
+ choice
+ 	prompt "CPU type"
+-	default CPU_R4X00
++	default CPU_R3000
+ 
+ config CPU_LOONGSON2
+ 	bool "Loongson 2"
+@@ -1084,7 +1217,6 @@ config CPU_MIPS64_R2
+ config CPU_R3000
+ 	bool "R3000"
+ 	depends on SYS_HAS_CPU_R3000
+-	select CPU_HAS_WB
+ 	select CPU_SUPPORTS_32BIT_KERNEL
+ 	select CPU_SUPPORTS_HIGHMEM
+ 	help
+@@ -1398,6 +1530,16 @@ config 64BIT
+ 
+ endchoice
+ 
++config KERNEL_STACK_SIZE_ORDER
++        int "Kenel Stack Size Order Configuration"
++        default "2"
++        help
++          With Page Size 4K
++          1 for 8K kenel stack size
++          2 for 16K kernel stack size
++          3 for 32K kernel stack size
++          etc...
++
+ choice
+ 	prompt "Kernel page size"
+ 	default PAGE_SIZE_4KB
+--- linux-2.6.30.9/arch/mips/kernel/cpu-probe.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/cpu-probe.c	2013-05-02 01:47:49.401227408 +0300
+@@ -32,6 +32,14 @@
+  */
+ void (*cpu_wait)(void) = NULL;
+ 
++#if defined(CONFIG_REALTEK_CPU)
++static void rlx_wait(void)
++{
++	#ifdef CONFIG_RTL865X_SUSPEND
++	__asm__("	sleep			\n");
++	#endif
++}
++#else
+ static void r3081_wait(void)
+ {
+ 	unsigned long cfg = read_c0_conf();
+@@ -113,6 +121,7 @@ static void au1k_wait(void)
+ 		"	.set	mips0			\n"
+ 		: : "r" (au1k_wait));
+ }
++#endif
+ 
+ static int __initdata nowait = 0;
+ 
+@@ -127,6 +136,11 @@ __setup("nowait", wait_disable);
+ 
+ void __init check_wait(void)
+ {
++#if defined(CONFIG_RTL_819X)
++	printk("Checking for 'wait' instruction... ");
++	cpu_wait = rlx_wait;
++	printk(" available.\n");
++#else
+ 	struct cpuinfo_mips *c = &current_cpu_data;
+ 
+ 	if (nowait) {
+@@ -211,6 +225,7 @@ void __init check_wait(void)
+ 	default:
+ 		break;
+ 	}
++#endif
+ }
+ 
+ static inline void check_errata(void)
+@@ -892,9 +907,24 @@ const char *__cpu_name[NR_CPUS];
+ __cpuinit void cpu_probe(void)
+ {
+ 	struct cpuinfo_mips *c = &current_cpu_data;
+-	unsigned int cpu = smp_processor_id();
++
++ 
++#if defined(CONFIG_RTL8652)|| defined(CONFIG_RTL_8196B) || defined(CONFIG_RTL_8196C)
++	c->fpu_id       = FPIR_IMP_NONE;
++        c->cputype      = CPU_R3000;
++        c->isa_level= MIPS_CPU_ISA_I;
++        c->options      = MIPS_CPU_TLB | MIPS_CPU_3K_CACHE | MIPS_CPU_NOFPUEX;
++        c->tlbsize      = 32;
++        c->icache.ways = 2;
++        c->dcache.ways = 2;
+ 
+ 	c->processor_id	= PRID_IMP_UNKNOWN;
++	//c->options = MIPS_CPU_TLB | MIPS_CPU_3K_CACHE | MIPS_CPU_NOFPUEX;
++	//c->tlbsize = 32;  /* defined in bspcpu.h */
++	c->processor_id = read_c0_prid();
++#else
++	unsigned int cpu = smp_processor_id();
++	c->processor_id	= PRID_IMP_UNKNOWN;
+ 	c->fpu_id	= FPIR_IMP_NONE;
+ 	c->cputype	= CPU_UNKNOWN;
+ 
+@@ -952,14 +982,15 @@ __cpuinit void cpu_probe(void)
+ 		c->srsets = ((read_c0_srsctl() >> 26) & 0x0f) + 1;
+ 	else
+ 		c->srsets = 1;
++#endif
+ }
+ 
+ __cpuinit void cpu_report(void)
+ {
+ 	struct cpuinfo_mips *c = &current_cpu_data;
+ 
+-	printk(KERN_INFO "CPU revision is: %08x (%s)\n",
+-	       c->processor_id, cpu_name_string());
++	printk(KERN_INFO "CPU revision is: %08x\n",
++	       c->processor_id);
+ 	if (c->options & MIPS_CPU_FPU)
+ 		printk(KERN_INFO "FPU revision is: %08x\n", c->fpu_id);
+ }
+--- linux-2.6.30.9/arch/mips/kernel/early_printk.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/early_printk.c	2013-05-02 01:47:49.402227408 +0300
+@@ -34,6 +34,7 @@ static struct console early_console __in
+ 
+ static int early_console_initialized __initdata;
+ 
++extern void smp_setup_processor_id(void);
+ void __init setup_early_printk(void)
+ {
+ 	if (early_console_initialized)
+@@ -39,6 +40,6 @@ void __init setup_early_printk(void)
+ 	if (early_console_initialized)
+ 		return;
+ 	early_console_initialized = 1;
+-
+ 	register_console(&early_console);
++	smp_setup_processor_id();
+ }
+--- linux-2.6.30.9/arch/mips/kernel/genex.S	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/genex.S	2013-05-02 01:47:49.403227408 +0300
+@@ -163,38 +163,8 @@ LEAF(r4k_wait)
+ 
+ 	.align  5
+ BUILD_ROLLBACK_PROLOGUE handle_int
++	.section .iram-gen
+ NESTED(handle_int, PT_SIZE, sp)
+-#ifdef CONFIG_TRACE_IRQFLAGS
+-	/*
+-	 * Check to see if the interrupted code has just disabled
+-	 * interrupts and ignore this interrupt for now if so.
+-	 *
+-	 * local_irq_disable() disables interrupts and then calls
+-	 * trace_hardirqs_off() to track the state. If an interrupt is taken
+-	 * after interrupts are disabled but before the state is updated
+-	 * it will appear to restore_all that it is incorrectly returning with
+-	 * interrupts disabled
+-	 */
+-	.set	push
+-	.set	noat
+-	mfc0	k0, CP0_STATUS
+-#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
+-	and	k0, ST0_IEP
+-	bnez	k0, 1f
+-
+-	mfc0	k0, CP0_EPC
+-	.set	noreorder
+-	j	k0
+-	rfe
+-#else
+-	and	k0, ST0_IE
+-	bnez	k0, 1f
+-
+-	eret
+-#endif
+-1:
+-	.set pop
+-#endif
+ 	SAVE_ALL
+ 	CLI
+ 	TRACE_IRQS_OFF
+@@ -204,6 +174,7 @@ NESTED(handle_int, PT_SIZE, sp)
+ 	PTR_LA	ra, ret_from_irq
+ 	j	plat_irq_dispatch
+ 	END(handle_int)
++	.previous
+ 
+ 	__INIT
+ 
+--- linux-2.6.30.9/arch/mips/kernel/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/Makefile	2013-05-02 01:47:49.399227408 +0300
+@@ -1,6 +1,7 @@
+ #
+ # Makefile for the Linux/MIPS kernel.
+ #
++DIR_RTLASIC = $(DIR_LINUX)/drivers/net/rtl819x/
+ 
+ extra-y		:= head.o init_task.o vmlinux.lds
+ 
+@@ -8,6 +9,7 @@ obj-y		+= cpu-probe.o branch.o entry.o g
+ 		   ptrace.o reset.o setup.o signal.o syscall.o \
+ 		   time.o topology.o traps.o unaligned.o watch.o
+ 
++obj-y	+= cevt-rtl819x.o
+ obj-$(CONFIG_CEVT_BCM1480)	+= cevt-bcm1480.o
+ obj-$(CONFIG_CEVT_R4K_LIB)	+= cevt-r4k.o
+ obj-$(CONFIG_MIPS_MT_SMTC)	+= cevt-smtc.o
+@@ -91,3 +93,4 @@ CFLAGS_cpu-bugs64.o	= $(shell if $(CC) $
+ obj-$(CONFIG_HAVE_STD_PC_SERIAL_PORT)	+= 8250-platform.o
+ 
+ EXTRA_CFLAGS += -Werror
++EXTRA_CFLAGS += -I$(DIR_RTLASIC)
+--- linux-2.6.30.9/arch/mips/kernel/setup.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/setup.c	2013-05-02 01:47:49.408227408 +0300
+@@ -32,6 +32,9 @@
+ #include <asm/smp-ops.h>
+ #include <asm/system.h>
+ 
++#include <asm/mach-realtek/rtl_types.h>
++#include <asm/mach-realtek/rtl8196b/platform.h>
++
+ struct cpuinfo_mips cpu_data[NR_CPUS] __read_mostly;
+ 
+ EXPORT_SYMBOL(cpu_data);
+@@ -114,16 +115,16 @@ static void __init print_memory_map(void
+ 
+ 		switch (boot_mem_map.map[i].type) {
+ 		case BOOT_MEM_RAM:
+-			printk(KERN_CONT "(usable)\n");
++			printk(KERN_INFO "(usable)\n");
+ 			break;
+ 		case BOOT_MEM_ROM_DATA:
+-			printk(KERN_CONT "(ROM data)\n");
++			printk(KERN_INFO "(ROM data)\n");
+ 			break;
+ 		case BOOT_MEM_RESERVED:
+-			printk(KERN_CONT "(reserved)\n");
++			printk(KERN_INFO "(reserved)\n");
+ 			break;
+ 		default:
+-			printk(KERN_CONT "type %lu\n", boot_mem_map.map[i].type);
++			printk(KERN_INFO "type %lu\n", boot_mem_map.map[i].type);
+ 			break;
+ 		}
+ 	}
+@@ -468,10 +469,10 @@ early_param("mem", early_parse_mem);
+ 
+ static void __init arch_mem_init(char **cmdline_p)
+ {
+-	extern void plat_mem_setup(void);
+-
++	//extern void plat_mem_setup(void);
++	//unsigned int test;
+ 	/* call board setup routine */
+-	plat_mem_setup();
++	//plat_mem_setup();
+ 
+ 	pr_info("Determined physical RAM map:\n");
+ 	print_memory_map();
+@@ -490,6 +491,9 @@ static void __init arch_mem_init(char **
+ 
+ 	bootmem_init();
+ 	sparse_init();
++	//test = *(volatile unsigned int *)(0xb800311C);
++//printk(KERN_INFO "----wtdog(%d)\n",test);
++	*(volatile unsigned int *)(0xb800311C) = 0xa5000000;
+ 	paging_init();
+ }
+ 
+@@ -546,10 +550,13 @@ static void __init resource_init(void)
+ 	}
+ }
+ 
++static void __init rtl8652_setup(void);
+ void __init setup_arch(char **cmdline_p)
+ {
++	boot_mem_map.nr_map = 0;
+ 	cpu_probe();
+ 	prom_init();
++	plat_mem_setup();
+ 
+ #ifdef CONFIG_EARLY_PRINTK
+ 	setup_early_printk();
+@@ -569,6 +576,19 @@ void __init setup_arch(char **cmdline_p)
+ 
+ 	resource_init();
+ 	plat_smp_setup();
++
++#ifdef CONFIG_RTL865X_SUSPEND
++       {
++       /* initial the cpu_wait function pointer, it is NULL originally. */
++       void (RTL865x_cpu_wait)(void);
++       cpu_wait = RTL865x_cpu_wait;
++       }
++#endif
++
++      rtl8652_setup( );
++#if defined(CONFIG_RTL8214_SUPPORT)
++      rtl8651_getAsicEthernetPHYReg( CONFIG_EXTRTL8212_PHYID_P5, 0, &tmp );
++#endif
+ }
+ 
+ static int __init fpu_disable(char *s)
+@@ -609,3 +629,94 @@ static int __init debugfs_mips(void)
+ }
+ arch_initcall(debugfs_mips);
+ #endif
++
++#if 0
++static void shutdown_netdev()
++{
++
++	struct net_device *dev;
++	
++	printk("Shutdown network interface\n");
++	read_lock(&dev_base_lock);
++	
++      	for (dev = dev_base; dev; dev = dev->next) 
++	{
++		if( (dev->flags &IFF_UP) && (dev->stop))
++		{
++			printk("%s:===>\n",dev->name);			
++			rtnl_lock();
++			dev_close(dev);
++			rtnl_unlock();			
++		}
++      	}
++	read_unlock(&dev_base_lock);
++}
++
++
++
++static void rtl8652_machine_restart(char *command)
++{
++	unsigned long flags;
++	static void (*back_to_prom)(void) = (void (*)(void)) 0xbfc00000;
++
++	REG32(GIMR)=0;	
++
++	//save_flags(flags); 
++#if 0	
++	shutdown_netdev();
++#endif
++	//cli();
++	/* Perform full-reset for sw-core. */
++    	REG32(SIRR) |= FULL_RST;
++    	//tick_Delay10ms(2000);
++
++	printk("Enable Watch Dog to Reset whole system\n");
++#ifdef CONFIG_RTL8196_RTL8366
++        {
++                int ret;
++                ret = smi_init(GPIO_PORT_F, 2, 1);
++/*                printk("[%s][%d]:%d\n", __FUNCTION__, __LINE__, ret); */
++                ret = rtl8366rb_initChip();
++/*                printk("[%s][%d]:%d\n", __FUNCTION__, __LINE__, ret); */
++                ret = rtl8366rb_initVlan();
++/*                printk("[%s][%d]:%d\n", __FUNCTION__, __LINE__, ret);*/
++		ret = rtl8366rb_initChip();
++         }
++#endif
++	*(volatile unsigned long *)(0xB800311c)=0; /*this is to enable 865xc watch dog reset*/
++		
++	for(;;);
++	/* Reboot */
++	back_to_prom();
++}
++
++static void rtl8652_machine_halt(void)
++{
++	printk(KERN_EMERG "RTL8652 halted.\n");
++	while(1);
++}
++
++static void rtl8652_machine_power_off(void)
++{
++	printk(KERN_EMERG "RTL8652 halted. Please turn off power.\n");
++	while(1);
++}
++#endif
++static void __init rtl8652_setup(void)
++{	
++	//clear GIMR first!
++	set_io_port_base(KSEG1ADDR(0x18000000));
++
++	REG32(GIMR)=0;	
++	REG32(IRR0)=0;
++	REG32(IRR1)=0;
++	REG32(IRR2)=0;
++	REG32(IRR3)=0;
++	
++	//_machine_restart = rtl8652_machine_restart;
++	//_machine_halt = rtl8652_machine_halt;
++	//pm_power_off = rtl8652_machine_power_off;
++#ifdef CONFIG_RTL8186_KB
++	rtl865x_startBooting_ledControl();
++#endif
++}
+--- linux-2.6.30.9/arch/mips/kernel/time.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/time.c	2013-05-02 01:47:49.412227407 +0300
+@@ -113,10 +113,13 @@ void __cpuinit clockevent_set_clock(stru
+  * setup_irq calls and each clock_event_device should use its own
+  * struct irqrequest.
+  */
++
++#if 1
+ void __init plat_timer_setup(void)
+ {
+ 	BUG();
+ }
++#endif
+ 
+ static __init int cpu_has_mfc0_count_bug(void)
+ {
+--- linux-2.6.30.9/arch/mips/kernel/topology.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/topology.c	2013-05-02 01:47:49.412227407 +0300
+@@ -7,6 +7,7 @@
+ 
+ static DEFINE_PER_CPU(struct cpu, cpu_devices);
+ 
++extern int prom_putchar(char c);
+ static int __init topology_init(void)
+ {
+ 	int i, ret;
+--- linux-2.6.30.9/arch/mips/kernel/traps.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/traps.c	2013-05-02 01:47:49.412227407 +0300
+@@ -48,6 +48,9 @@
+ #include <asm/types.h>
+ #include <asm/stacktrace.h>
+ #include <asm/irq.h>
++#if defined(CONFIG_RTL_819X)
++#include <common/rtl_types.h>
++#endif
+ 
+ extern void check_wait(void);
+ extern asmlinkage void r4k_wait(void);
+@@ -1241,7 +1244,7 @@ NORET_TYPE void ATTRIB_NORET nmi_excepti
+ #define VECTORSPACING 0x100	/* for EI/VI mode */
+ 
+ unsigned long ebase;
+-unsigned long exception_handlers[32];
++__DRAM_GEN unsigned long exception_handlers[32];
+ unsigned long vi_handlers[64];
+ 
+ /*
+--- linux-2.6.30.9/arch/mips/kernel/unaligned.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/unaligned.c	2013-05-02 01:47:49.412227407 +0300
+@@ -187,9 +187,41 @@ static void emulate_load_store_insn(stru
+ 
+ 		__asm__ __volatile__ (
+ #ifdef __BIG_ENDIAN
++#if defined(CONFIG_REALTEK_CPU)
++#if 0//sync from skylark kernel 2.6.19 mips arch
++			".set\tnoat\n"
++			"1:\tlbu\t$1, 0(%2)\n"
++			"  \tnop\n"
++			"  \tsll\t$1, 24\n"
++			"  \tmove\t%0, $1\n"
++			"  \tlbu\t$1, 1(%2)\n"
++			"  \tnop\n"
++			"  \tsll\t$1, 16\n"
++			"  \tor\t%0, $1\n"
++			"2:\tlbu\t$1, 2(%2)\n"
++			"  \tnop\n"
++			"  \tsll\t$1, 8\n"
++			"  \tor\t%0, $1\n"
++			"  \tlbu\t$1, 3(%2)\n"
++			"  \tnop\n"
++			"  \tor\t%0, $1\n"
++#else//sync from jungle kernel 2.6.30 rlx arch
++			"1:  lb    %0,  0(%2)\n"
++	            "    lb    %1,  1(%2)\n"
++	            "    sll   %0,  8\n"
++	            "    or    %0,  %1\n"
++	            "    lb    %1,  2(%2)\n"
++	            "    sll   %0,  8\n"
++	            "    or    %0,  %1\n"
++	            "    lb    %1,  3(%2)\n"
++	            "    sll   %0,  8\n"
++	            "    or    %0,  %1\n"
++#endif
++#else
+ 			"1:\tlwl\t%0, (%2)\n"
+ 			"2:\tlwr\t%0, 3(%2)\n\t"
+ #endif
++#endif
+ #ifdef __LITTLE_ENDIAN
+ 			"1:\tlwl\t%0, 3(%2)\n"
+ 			"2:\tlwr\t%0, (%2)\n\t"
+@@ -375,9 +407,30 @@ static void emulate_load_store_insn(stru
+ 		value = regs->regs[insn.i_format.rt];
+ 		__asm__ __volatile__ (
+ #ifdef __BIG_ENDIAN
++#if defined(CONFIG_REALTEK_CPU)
++#if 0
++			"1:\tsb\t%1, 3(%2)\n"
++			"  \tsrl\t%1, 8\n"
++			"  \tsb\t%1, 2(%2)\n"
++			"  \tsrl\t%1, 8\n"
++			"2:\tsb\t%1, 1(%2)\n"
++			"  \tsrl\t%1, 8\n"
++			"  \tsb\t%1, 0(%2)\n"
++#else
++			"1:  or   %0, %1, $0\n"
++	            "    sb   %0, 3(%2)\n"
++	            "    srl  %0, 8\n"
++	            "    sb   %0, 2(%2)\n"
++	            "    srl  %0, 8\n"
++	            "    sb   %0, 1(%2)\n"
++	            "    srl  %0, 8\n"
++	            "    sb   %0, 0(%2)\n"							
++#endif
++#else
+ 			"1:\tswl\t%1,(%2)\n"
+ 			"2:\tswr\t%1, 3(%2)\n\t"
+ #endif
++#endif
+ #ifdef __LITTLE_ENDIAN
+ 			"1:\tswl\t%1, 3(%2)\n"
+ 			"2:\tswr\t%1, (%2)\n\t"
+--- linux-2.6.30.9/arch/mips/kernel/vmlinux.lds.S	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/kernel/vmlinux.lds.S	2013-05-02 01:47:49.412227407 +0300
+@@ -39,6 +39,62 @@ SECTIONS
+ 		*(.text.*)
+ 		*(.fixup)
+ 		*(.gnu.warning)
++#ifdef CONFIG_RTL8192SE
++	/* start of wlan f/w definition */
++	__fw_start = . ;
++	*(.rtl8192sfw.bin)
++	__fw_end = . ;
++	
++	__AGC_TAB_start = . ;
++	*(.AGC_TAB.txt)
++	__AGC_TAB_end = . ;
++
++	__phy_reg_start = . ;
++	*(.phy_reg.txt)
++	__phy_reg_end = . ;
++
++        __phy_reg_MP_start = . ;
++        *(.phy_reg_MP.txt)
++        __phy_reg_MP_end = . ;
++
++	__MACPHY_REG_start = . ;
++	*(.MACPHY_REG.txt)
++	__MACPHY_REG_end = . ;
++
++	__radio_a_start = . ;
++	*(.radio_a.txt)
++	__radio_a_end = . ;                                                       
++
++	__radio_b_start = . ;
++	*(.radio_b.txt)
++	__radio_b_end = . ;
++
++	__PHY_REG_PG_start = .;
++	*(.PHY_REG_PG.txt)
++	__PHY_REG_PG_end = .;
++
++	__PHY_to1T2R_start = .;
++        *(.PHY_to1T2R.txt)
++        __PHY_to1T2R_end = .;
++ 
++        __PHY_to1T2R_b_start = .;
++        *(.PHY_to1T2R_b.txt)
++        __PHY_to1T2R_b_end = .;
++ 
++        __PHY_to1T1R_start = .;
++        *(.PHY_to1T1R.txt)
++        __PHY_to1T1R_end = .;
++ 
++        __PHY_to1T1R_b_start = .;
++        *(.PHY_to1T1R_b.txt)
++        __PHY_to1T1R_b_end = .;
++
++        __radio_a_hp_start = . ;
++        *(.radio_a_hp.txt)
++        __radio_a_hp_end = . ;
++
++	/* end of wlan f/w definition */
++#endif
+ 	} :text = 0
+ 	_etext = .;	/* End of text section */
+ 
+@@ -62,6 +118,44 @@ SECTIONS
+ 
+ 	RODATA
+ 
++	. = ALIGN(16384);
++	__iram = . ;
++	.iram        :
++	{
++		*(.iram-gen)            /* general usage (essential) */
++		*(.iram-fwd)            /* general packet forwarding used */
++		*(.iram-rtkwlan)        /* realtek wlan driver */
++		*(.iram-l2-fwd)         /* L2 packet forwarding */
++		*(.iram-l34-fwd)        /* L34 packet forwarding */
++		*(.iram-tx)             /* protocol stack TX */
++		*(.iram-extdev)         /* ROMEDRV extension device fwd */
++		*(.iram-crypto)         /* authetication / crypto-engine */
++		*(.iram-voip)           /* voip */
++		*(.iram)                /* other usage */
++		*(.iram.1)
++	}
++
++	. = ALIGN(8192);
++	__dram = . ;
++	__dram_start = . ;
++	.dram        :
++	{
++		*(.dram-gen)            /* general usage (essential) */
++		*(.dram-fwd)            /* general packet forwarding used */
++		*(.dram-l2-fwd)         /* L2 packet forwarding */
++		*(.dram-l34-fwd)        /* L34 packet forwarding */
++		*(.dram-extdev)         /* ROMEDRV extension device fwd */
++		*(.dram-wapi)           /*wapi encryption/decryption used*/
++		*(.dram-rtkwlan)        /* realtek wlan driver */
++		*(.dram-crypto)         /* authetication / crypto-engine */
++		*(.dram-voip)           /* voip */
++		*(.dram-tx)             /* protocol stack TX */
++		*(.dram)                /* other usage */
++		*(.dram.1)
++	}
++	. = ALIGN(8192);
++	__dram_end = . ;
++
+ 	/* writeable */
+ 	.data : {	/* Data */
+ 		. = . + DATAOFFSET;		/* for CONFIG_MAPPED_KERNEL */
+--- linux-2.6.30.9/arch/mips/lib/csum_partial.S	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/lib/csum_partial.S	2013-05-02 01:47:49.414227407 +0300
+@@ -232,11 +232,37 @@ LEAF(csum_partial)
+ 	 andi	t0, a1, 2
+ 
+ 	/* Still a full word to go  */
++#ifndef CONFIG_REALTEK_CPU
+ 	ulw	t1, (src)
+ 	PTR_ADDIU	src, 4
++#else   /* CONFIG_REALTEK_CPU */
+ #ifdef USE_DOUBLE
+ 	dsll	t1, t1, 32			/* clear lower 32bit */
+ #endif
++
++/* Replace "ulw" with "lbu"/"sll"/"or" Insts */
++/***** Start of "ulw" replacer ****/
++/* Notes: for LX5181, there is none interlock for "Load" Inst */
++/* So have to wait loading-data validating for ONE Inst-Cycle */
++        .set noat
++        lbu  t1,  0(src)
++        lbu  $at, 1(src)
++        sll  t1,  t1, 24
++        sll  $at, $at,16
++        or   t1,  $at
++
++        lbu  $at, 2(src)
++        nop           
++        sll  $at, $at,8
++        or   t1,  $at
++ 
++        lbu  $at, 3(src)
++        nop           
++        or   t1,  $at
++        .set at
++/***** End of "ulw" replacer ****/
++#endif
++	addiu	src, 4
+ 	ADDC(sum, t1)
+ 
+ 1:	move	t1, zero
+@@ -245,7 +271,8 @@ LEAF(csum_partial)
+ 
+ 	/* Still a halfword to go  */
+ 	ulhu	t1, (src)
+-	PTR_ADDIU	src, 2
++	/* PTR_ADDIU	src,  */
++	addiu	src, 2
+ 
+ 1:	beqz	t0, 1f
+ 	 sll	t1, t1, 16
+@@ -376,6 +403,8 @@ LEAF(csum_partial)
+ #define STREST  STOREL
+ #define SHIFT_DISCARD SLLV
+ #define SHIFT_DISCARD_REVERT SRLV
++#define SHIFT_START 0
++#define SHIFT_INC   8
+ #else
+ #define LDFIRST LOADL
+ #define LDREST  LOADR
+@@ -383,6 +412,8 @@ LEAF(csum_partial)
+ #define STREST  STORER
+ #define SHIFT_DISCARD SRLV
+ #define SHIFT_DISCARD_REVERT SLLV
++#define SHIFT_START 8*(NBYTES-1)
++#define SHIFT_INC   -8
+ #endif
+ 
+ #define FIRST(unit) ((unit)*NBYTES)
+@@ -417,6 +448,7 @@ FEXPORT(csum_partial_copy_nocheck)
+ 	 *
+ 	 * If len < NBYTES use byte operations.
+ 	 */
++#ifdef CONFIG_CPU_HAS_ULS
+ 	sltu	t2, len, NBYTES
+ 	and	t1, dst, ADDRMASK
+ 	bnez	t2, .Lcopy_bytes_checklen
+@@ -425,6 +457,16 @@ FEXPORT(csum_partial_copy_nocheck)
+ 	bnez	t1, .Ldst_unaligned
+ 	 nop
+ 	bnez	t0, .Lsrc_unaligned_dst_aligned
++#else
++    sltu    t2, len, NBYTES
++    and     t1, dst, ADDRMASK
++    and     t0, src, ADDRMASK
++    or      t2, t1  
++    or      t2, t0
++	bnez	t2, .Lcopy_bytes_checklen
++     andi   odd, dst, 0x1			/* odd buffer? */
++#endif
++
+ 	/*
+ 	 * use delay slot for fall-through
+ 	 * src and dst are aligned; need to compute rem
+@@ -526,6 +568,7 @@ EXC(	STORE	t0, 0(dst),		.Ls_exc)
+ 	 * wide-issue mips processors because the code has fewer branches and
+ 	 * more instruction-level parallelism.
+ 	 */
++#ifdef CONFIG_CPU_HAS_ULS
+ #define bits t2
+ 	beqz	len, .Ldone
+ 	 ADD	t1, dst, len	# t1 is just past last byte of dst
+@@ -689,6 +732,63 @@ EXC(	sb	t0, NBYTES-2(dst), .Ls_exc)
+ 	jr	ra
+ 	.set noreorder
+ 
++#else
++
++.Lcopy_bytes_checklen:
++    beqz    len, .Ldone
++     nop
++
++.Lcopy_bytes:
++    move   t2, zero
++    li     t3, SHIFT_START
++    li     t4, NBYTES-1
++
++2:  EXC( lbu     t0, 0(src), .Ll_exc_copy)
++         sub     len, len, 1
++    EXC( sb	     t0, 0(dst), .Ls_exc)
++         addiu   src, src, 1
++         addiu   dst, dst, 1
++
++    sllv   t0, t0, t3
++    ADD    t3, SHIFT_INC
++
++    beqz   len, .Lcopy_bytes_done
++     or    t2, t0
++
++    bnez   t4, 2b
++     sub   t4, t4, 1
++     ADDC(sum, t2)
++    b .Lcopy_bytes
++    nop
++
++.Lcopy_bytes_done:
++	ADDC(sum, t2)
++.Ldone:
++	/* fold checksum */
++	.set	push
++	.set	noat
++	sll	v1, sum, 16
++	addu	sum, v1
++	sltu	v1, sum, v1
++	srl	sum, sum, 16
++	addu	sum, v1
++
++	/* odd buffer alignment? */
++	beqz	odd, 1f
++	 nop
++	sll	v1, sum, 8
++	srl	sum, sum, 8
++	or	sum, v1
++	andi	sum, 0xffff
++	.set	pop
++1:
++	ADDC(sum, psum)
++	jr	ra
++	nop
++#endif
++
++
++
+ .Ll_exc_copy:
+ 	/*
+ 	 * Copy bytes from src until faulting load address (or until a
+--- linux-2.6.30.9/arch/mips/lib/delay.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/lib/delay.c	2013-05-02 01:47:49.414227407 +0300
+@@ -13,7 +13,6 @@
+ #include <linux/smp.h>
+ 
+ #include <asm/compiler.h>
+-#include <asm/war.h>
+ 
+ inline void __delay(unsigned int loops)
+ {
+@@ -43,7 +42,7 @@ void __udelay(unsigned long us)
+ {
+ 	unsigned int lpj = current_cpu_data.udelay_val;
+ 
+-	__delay((us * 0x000010c7 * HZ * lpj) >> 32);
++	__delay((us * 0x000010c7ull * HZ * lpj) >> 32);
+ }
+ EXPORT_SYMBOL(__udelay);
+ 
+@@ -51,6 +50,6 @@ void __ndelay(unsigned long ns)
+ {
+ 	unsigned int lpj = current_cpu_data.udelay_val;
+ 
+-	__delay((us * 0x00000005 * HZ * lpj) >> 32);
++	__delay((ns * 0x00000005ull * HZ * lpj) >> 32);
+ }
+ EXPORT_SYMBOL(__ndelay);
+--- linux-2.6.30.9/arch/mips/lib/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/lib/Makefile	2013-05-02 01:47:49.413227407 +0300
+@@ -2,6 +2,8 @@
+ # Makefile for MIPS-specific library files..
+ #
+ 
++#lib-y	+= csum_partial.o delay.o memcpy-inatomic.o \
++	   strlen_user.o strncpy_user.o strnlen_user.o uncached.o
+ lib-y	+= csum_partial.o delay.o memcpy.o memcpy-inatomic.o memset.o \
+ 	   strlen_user.o strncpy_user.o strnlen_user.o uncached.o
+ 
+--- linux-2.6.30.9/arch/mips/lib/memcpy-inatomic.S	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/lib/memcpy-inatomic.S	2013-05-02 01:47:49.415227407 +0300
+@@ -14,20 +14,6 @@
+  * Mnemonic names for arguments to memcpy/__copy_user
+  */
+ 
+-/*
+- * Hack to resolve longstanding prefetch issue
+- *
+- * Prefetching may be fatal on some systems if we're prefetching beyond the
+- * end of memory on some systems.  It's also a seriously bad idea on non
+- * dma-coherent systems.
+- */
+-#ifdef CONFIG_DMA_NONCOHERENT
+-#undef CONFIG_CPU_HAS_PREFETCH
+-#endif
+-#ifdef CONFIG_MIPS_MALTA
+-#undef CONFIG_CPU_HAS_PREFETCH
+-#endif
+-
+ #include <asm/asm.h>
+ #include <asm/asm-offsets.h>
+ #include <asm/regdef.h>
+@@ -91,51 +77,6 @@
+ 	PTR	9b, handler;			\
+ 	.previous
+ 
+-/*
+- * Only on the 64-bit kernel we can made use of 64-bit registers.
+- */
+-#ifdef CONFIG_64BIT
+-#define USE_DOUBLE
+-#endif
+-
+-#ifdef USE_DOUBLE
+-
+-#define LOAD   ld
+-#define LOADL  ldl
+-#define LOADR  ldr
+-#define STOREL sdl
+-#define STORER sdr
+-#define STORE  sd
+-#define ADD    daddu
+-#define SUB    dsubu
+-#define SRL    dsrl
+-#define SRA    dsra
+-#define SLL    dsll
+-#define SLLV   dsllv
+-#define SRLV   dsrlv
+-#define NBYTES 8
+-#define LOG_NBYTES 3
+-
+-/*
+- * As we are sharing code base with the mips32 tree (which use the o32 ABI
+- * register definitions). We need to redefine the register definitions from
+- * the n64 ABI register naming to the o32 ABI register naming.
+- */
+-#undef t0
+-#undef t1
+-#undef t2
+-#undef t3
+-#define t0	$8
+-#define t1	$9
+-#define t2	$10
+-#define t3	$11
+-#define t4	$12
+-#define t5	$13
+-#define t6	$14
+-#define t7	$15
+-
+-#else
+-
+ #define LOAD   lw
+ #define LOADL  lwl
+ #define LOADR  lwr
+@@ -149,11 +90,8 @@
+ #define SRA    sra
+ #define SLLV   sllv
+ #define SRLV   srlv
+-#define NBYTES 4
+ #define LOG_NBYTES 2
+ 
+-#endif /* USE_DOUBLE */
+-
+ #ifdef CONFIG_CPU_LITTLE_ENDIAN
+ #define LDFIRST LOADR
+ #define LDREST  LOADL
+@@ -168,19 +106,13 @@
+ #define SHIFT_DISCARD SRLV
+ #endif
+ 
+-#define FIRST(unit) ((unit)*NBYTES)
+-#define REST(unit)  (FIRST(unit)+NBYTES-1)
++#define FIRST(unit) ((unit)*LONGSIZE)
++#define REST(unit)  (FIRST(unit)+LONGSIZE-1)
+ #define UNIT(unit)  FIRST(unit)
+ 
+-#define ADDRMASK (NBYTES-1)
+-
+ 	.text
+ 	.set	noreorder
+-#ifndef CONFIG_CPU_DADDI_WORKAROUNDS
+ 	.set	noat
+-#else
+-	.set	at=v1
+-#endif
+ 
+ /*
+  * A combined memcpy/__copy_user
+@@ -201,100 +133,95 @@ LEAF(__copy_user_inatomic)
+ 	 * Issue delays for dcache fills will perturb the schedule, as will
+ 	 * load queue full replay traps, etc.
+ 	 *
+-	 * If len < NBYTES use byte operations.
++	 * If len < LONGSIZE use byte operations.
+ 	 */
+-	PREF(	0, 0(src) )
+-	PREF(	1, 0(dst) )
+-	sltu	t2, len, NBYTES
+-	and	t1, dst, ADDRMASK
+-	PREF(	0, 1*32(src) )
+-	PREF(	1, 1*32(dst) )
++#ifdef CONFIG_CPU_HAS_ULS
++	sltu	t2, len, LONGSIZE
++	and	t1, dst, LONGMASK
+ 	bnez	t2, .Lcopy_bytes_checklen
+-	 and	t0, src, ADDRMASK
+-	PREF(	0, 2*32(src) )
+-	PREF(	1, 2*32(dst) )
++	 and	t0, src, LONGMASK
+ 	bnez	t1, .Ldst_unaligned
+ 	 nop
+ 	bnez	t0, .Lsrc_unaligned_dst_aligned
++#else
++	sltu	t2, len, LONGSIZE
++	and	    t1, dst, LONGMASK
++    and     t0, src, LONGMASK
++    or      t2, t1
++    or      t2, t0
++	bnez	t2, .Lcopy_bytes_checklen
++#endif
+ 	/*
+ 	 * use delay slot for fall-through
+ 	 * src and dst are aligned; need to compute rem
+ 	 */
+ .Lboth_aligned:
+ 	 SRL	t0, len, LOG_NBYTES+3    	# +3 for 8 units/iter
+-	beqz	t0, .Lcleanup_both_aligned	# len < 8*NBYTES
+-	 and	rem, len, (8*NBYTES-1)	 	# rem = len % (8*NBYTES)
+-	PREF(	0, 3*32(src) )
+-	PREF(	1, 3*32(dst) )
++	beqz	t0, .Lcleanup_both_aligned  # len < 8*LONGSIZE
++	 and	rem, len, (8*LONGSIZE-1)    # rem = len % (8*LONGSIZE)
+ 	.align	4
+ 1:
+ EXC(	LOAD	t0, UNIT(0)(src),	.Ll_exc)
+ EXC(	LOAD	t1, UNIT(1)(src),	.Ll_exc_copy)
+ EXC(	LOAD	t2, UNIT(2)(src),	.Ll_exc_copy)
+ EXC(	LOAD	t3, UNIT(3)(src),	.Ll_exc_copy)
+-	SUB	len, len, 8*NBYTES
++	SUB	len, len, 8*LONGSIZE
+ EXC(	LOAD	t4, UNIT(4)(src),	.Ll_exc_copy)
+ EXC(	LOAD	t7, UNIT(5)(src),	.Ll_exc_copy)
+ 	STORE	t0, UNIT(0)(dst)
+ 	STORE	t1, UNIT(1)(dst)
+ EXC(	LOAD	t0, UNIT(6)(src),	.Ll_exc_copy)
+ EXC(	LOAD	t1, UNIT(7)(src),	.Ll_exc_copy)
+-	ADD	src, src, 8*NBYTES
+-	ADD	dst, dst, 8*NBYTES
++	ADD	src, src, 8*LONGSIZE
++	ADD	dst, dst, 8*LONGSIZE
+ 	STORE	t2, UNIT(-6)(dst)
+ 	STORE	t3, UNIT(-5)(dst)
+ 	STORE	t4, UNIT(-4)(dst)
+ 	STORE	t7, UNIT(-3)(dst)
+ 	STORE	t0, UNIT(-2)(dst)
+ 	STORE	t1, UNIT(-1)(dst)
+-	PREF(	0, 8*32(src) )
+-	PREF(	1, 8*32(dst) )
+ 	bne	len, rem, 1b
+ 	 nop
+ 
+ 	/*
+-	 * len == rem == the number of bytes left to copy < 8*NBYTES
++	 * len == rem == the number of bytes left to copy < 8*LONGSIZE
+ 	 */
+ .Lcleanup_both_aligned:
+ 	beqz	len, .Ldone
+-	 sltu	t0, len, 4*NBYTES
++	 sltu	t0, len, 4*LONGSIZE
+ 	bnez	t0, .Lless_than_4units
+-	 and	rem, len, (NBYTES-1)	# rem = len % NBYTES
++	 and	rem, len, (LONGSIZE-1)	# rem = len % LONGSIZE
+ 	/*
+-	 * len >= 4*NBYTES
++	 * len >= 4*LONGSIZE
+ 	 */
+ EXC(	LOAD	t0, UNIT(0)(src),	.Ll_exc)
+ EXC(	LOAD	t1, UNIT(1)(src),	.Ll_exc_copy)
+ EXC(	LOAD	t2, UNIT(2)(src),	.Ll_exc_copy)
+ EXC(	LOAD	t3, UNIT(3)(src),	.Ll_exc_copy)
+-	SUB	len, len, 4*NBYTES
+-	ADD	src, src, 4*NBYTES
++	SUB	len, len, 4*LONGSIZE
++	ADD	src, src, 4*LONGSIZE
+ 	STORE	t0, UNIT(0)(dst)
+ 	STORE	t1, UNIT(1)(dst)
+ 	STORE	t2, UNIT(2)(dst)
+ 	STORE	t3, UNIT(3)(dst)
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	dst, dst, 4*NBYTES
+ 	beqz	len, .Ldone
+-	.set	noreorder
++	 ADD	dst, dst, 4*LONGSIZE
+ .Lless_than_4units:
+ 	/*
+-	 * rem = len % NBYTES
++	 * rem = len % LONGSIZE
+ 	 */
+ 	beq	rem, len, .Lcopy_bytes
+ 	 nop
+ 1:
+ EXC(	LOAD	t0, 0(src),		.Ll_exc)
+-	ADD	src, src, NBYTES
+-	SUB	len, len, NBYTES
++	ADD	src, src, LONGSIZE
++	SUB	len, len, LONGSIZE
+ 	STORE	t0, 0(dst)
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	dst, dst, NBYTES
+ 	bne	rem, len, 1b
+-	.set	noreorder
++	 ADD	dst, dst, LONGSIZE
+ 
+ 	/*
+-	 * src and dst are aligned, need to copy rem bytes (rem < NBYTES)
++	 * src and dst are aligned, need to copy rem bytes (rem < LONGSIZE)
+ 	 * A loop would do only a byte at a time with possible branch
+ 	 * mispredicts.  Can't do an explicit LOAD dst,mask,or,STORE
+ 	 * because can't assume read-access to dst.  Instead, use
+@@ -304,10 +231,13 @@ EXC(	LOAD	t0, 0(src),		.Ll_exc)
+ 	 * wide-issue mips processors because the code has fewer branches and
+ 	 * more instruction-level parallelism.
+ 	 */
++#ifdef CONFIG_CPU_HAS_ULS
++
+ #define bits t2
+ 	beqz	len, .Ldone
+ 	 ADD	t1, dst, len	# t1 is just past last byte of dst
+-	li	bits, 8*NBYTES
++
++	li	bits, 8*LONGSIZE
+ 	SLL	rem, len, 3	# rem = number of bits to keep
+ EXC(	LOAD	t0, 0(src),		.Ll_exc)
+ 	SUB	bits, bits, rem	# bits = number of bits to discard
+@@ -318,16 +249,16 @@ EXC(	LOAD	t0, 0(src),		.Ll_exc)
+ .Ldst_unaligned:
+ 	/*
+ 	 * dst is unaligned
+-	 * t0 = src & ADDRMASK
+-	 * t1 = dst & ADDRMASK; T1 > 0
+-	 * len >= NBYTES
++	 * t0 = src & LONGMASK
++	 * t1 = dst & LONGMASK; T1 > 0
++	 * len >= LONGSIZE
+ 	 *
+ 	 * Copy enough bytes to align dst
+ 	 * Set match = (src and dst have same alignment)
+ 	 */
+ #define match rem
+ EXC(	LDFIRST	t3, FIRST(0)(src),	.Ll_exc)
+-	ADD	t2, zero, NBYTES
++	ADD	t2, zero, LONGSIZE
+ EXC(	LDREST	t3, REST(0)(src),	.Ll_exc_copy)
+ 	SUB	t2, t2, t1	# t2 = number of bytes copied
+ 	xor	match, t0, t1
+@@ -340,10 +271,8 @@ EXC(	LDREST	t3, REST(0)(src),	.Ll_exc_co
+ 
+ .Lsrc_unaligned_dst_aligned:
+ 	SRL	t0, len, LOG_NBYTES+2    # +2 for 4 units/iter
+-	PREF(	0, 3*32(src) )
+ 	beqz	t0, .Lcleanup_src_unaligned
+-	 and	rem, len, (4*NBYTES-1)   # rem = len % 4*NBYTES
+-	PREF(	1, 3*32(dst) )
++	 and	rem, len, (4*LONGSIZE-1)   # rem = len % 4*LONGSIZE
+ 1:
+ /*
+  * Avoid consecutive LD*'s to the same register since some mips
+@@ -353,43 +282,34 @@ EXC(	LDREST	t3, REST(0)(src),	.Ll_exc_co
+  */
+ EXC(	LDFIRST	t0, FIRST(0)(src),	.Ll_exc)
+ EXC(	LDFIRST	t1, FIRST(1)(src),	.Ll_exc_copy)
+-	SUB     len, len, 4*NBYTES
++	SUB     len, len, 4*LONGSIZE
+ EXC(	LDREST	t0, REST(0)(src),	.Ll_exc_copy)
+ EXC(	LDREST	t1, REST(1)(src),	.Ll_exc_copy)
+ EXC(	LDFIRST	t2, FIRST(2)(src),	.Ll_exc_copy)
+ EXC(	LDFIRST	t3, FIRST(3)(src),	.Ll_exc_copy)
+ EXC(	LDREST	t2, REST(2)(src),	.Ll_exc_copy)
+ EXC(	LDREST	t3, REST(3)(src),	.Ll_exc_copy)
+-	PREF(	0, 9*32(src) )		# 0 is PREF_LOAD  (not streamed)
+-	ADD	src, src, 4*NBYTES
+-#ifdef CONFIG_CPU_SB1
+-	nop				# improves slotting
+-#endif
++	ADD	src, src, 4*LONGSIZE
+ 	STORE	t0, UNIT(0)(dst)
+ 	STORE	t1, UNIT(1)(dst)
+ 	STORE	t2, UNIT(2)(dst)
+ 	STORE	t3, UNIT(3)(dst)
+-	PREF(	1, 9*32(dst) )     	# 1 is PREF_STORE (not streamed)
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	dst, dst, 4*NBYTES
+ 	bne	len, rem, 1b
+-	.set	noreorder
++	 ADD	dst, dst, 4*LONGSIZE
+ 
+ .Lcleanup_src_unaligned:
+ 	beqz	len, .Ldone
+-	 and	rem, len, NBYTES-1  # rem = len % NBYTES
++	 and	rem, len, LONGSIZE-1  # rem = len % LONGSIZE
+ 	beq	rem, len, .Lcopy_bytes
+ 	 nop
+ 1:
+ EXC(	LDFIRST t0, FIRST(0)(src),	.Ll_exc)
+ EXC(	LDREST	t0, REST(0)(src),	.Ll_exc_copy)
+-	ADD	src, src, NBYTES
+-	SUB	len, len, NBYTES
++	ADD	src, src, LONGSIZE
++	SUB	len, len, LONGSIZE
+ 	STORE	t0, 0(dst)
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	dst, dst, NBYTES
+ 	bne	len, rem, 1b
+-	.set	noreorder
++	 ADD	dst, dst, LONGSIZE
+ 
+ .Lcopy_bytes_checklen:
+ 	beqz	len, .Ldone
+@@ -394,8 +314,9 @@ EXC(	LDREST	t0, REST(0)(src),	.Ll_exc_co
+ .Lcopy_bytes_checklen:
+ 	beqz	len, .Ldone
+ 	 nop
++
+ .Lcopy_bytes:
+-	/* 0 < len < NBYTES  */
++    /* 0 < len < LONGSIZE*/
+ #define COPY_BYTE(N)			\
+ EXC(	lb	t0, N(src), .Ll_exc);	\
+ 	SUB	len, len, 1;		\
+@@ -404,16 +325,27 @@ EXC(	lb	t0, N(src), .Ll_exc);	\
+ 
+ 	COPY_BYTE(0)
+ 	COPY_BYTE(1)
+-#ifdef USE_DOUBLE
+-	COPY_BYTE(2)
+-	COPY_BYTE(3)
+-	COPY_BYTE(4)
+-	COPY_BYTE(5)
+-#endif
+-EXC(	lb	t0, NBYTES-2(src), .Ll_exc)
++
++EXC(    lb  t0, LONGSIZE-2(src), .Ll_exc)
+ 	SUB	len, len, 1
+ 	jr	ra
+-	 sb	t0, NBYTES-2(dst)
++     sb t0, LONGSIZE-2(dst)
++
++#else /* NO ULS */
++
++.Lcopy_bytes_checklen:
++	beqz	len, .Ldone
++     nop
++
++.Lcopy_bytes:
++EXC( lb   t0,  0(src), .Ll_exc)
++     SUB  len, len, 1
++     sb   t0,  0(dst)
++     ADD  src, src, 1
++     bnez len, .Lcopy_bytes
++      ADD  dst, dst, 1
++#endif
++
+ .Ldone:
+ 	jr	ra
+ 	 nop
+@@ -437,10 +369,8 @@ EXC(	lb	t0, NBYTES-2(src), .Ll_exc)
+ EXC(	lb	t1, 0(src),	.Ll_exc)
+ 	ADD	src, src, 1
+ 	sb	t1, 0(dst)	# can't fault -- we're copy_from_user
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	dst, dst, 1
+ 	bne	src, t0, 1b
+-	.set	noreorder
++	 ADD	dst, dst, 1
+ .Ll_exc:
+ 	LOAD	t0, TI_TASK($28)
+ 	 nop
+--- linux-2.6.30.9/arch/mips/lib/memcpy.S	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/lib/memcpy.S	2013-05-02 01:47:49.416227407 +0300
+@@ -9,7 +9,6 @@
+  * Copyright (C) 1999, 2000, 01, 2002 Silicon Graphics, Inc.
+  * Copyright (C) 2002 Broadcom, Inc.
+  *   memcpy/copy_user author: Mark Vandevoorde
+- * Copyright (C) 2007  Maciej W. Rozycki
+  *
+  * Mnemonic names for arguments to memcpy/__copy_user
+  */
+@@ -21,7 +20,7 @@
+  * end of memory on some systems.  It's also a seriously bad idea on non
+  * dma-coherent systems.
+  */
+-#ifdef CONFIG_DMA_NONCOHERENT
++#if !defined(CONFIG_DMA_COHERENT) || !defined(CONFIG_DMA_IP27)
+ #undef CONFIG_CPU_HAS_PREFETCH
+ #endif
+ #ifdef CONFIG_MIPS_MALTA
+@@ -176,11 +175,7 @@
+ 
+ 	.text
+ 	.set	noreorder
+-#ifndef CONFIG_CPU_DADDI_WORKAROUNDS
+ 	.set	noat
+-#else
+-	.set	at=v1
+-#endif
+ 
+ /*
+  * A combined memcpy/__copy_user
+@@ -191,7 +186,7 @@
+ 	.align	5
+ LEAF(memcpy)					/* a0=dst a1=src a2=len */
+ 	move	v0, dst				/* return value */
+-.L__memcpy:
++__memcpy:
+ FEXPORT(__copy_user)
+ 	/*
+ 	 * Note: dst & src may be unaligned, len may be 0
+@@ -199,7 +194,6 @@ FEXPORT(__copy_user)
+ 	 */
+ #define rem t8
+ 
+-	R10KCBARRIER(0(ra))
+ 	/*
+ 	 * The "issue break"s below are very approximate.
+ 	 * Issue delays for dcache fills will perturb the schedule, as will
+@@ -207,51 +201,66 @@ FEXPORT(__copy_user)
+ 	 *
+ 	 * If len < NBYTES use byte operations.
+ 	 */
++#if defined(CONFIG_REALTEK_CPU)
++	PREF(	0, 0(src) )
++	PREF(	1, 0(dst) )
++	sltu	t2, len, NBYTES
++	and	t1, dst, ADDRMASK
++	PREF(	0, 1*32(src) )
++	PREF(	1, 1*32(dst) )
++	bnez	t2, copy_bytes_checklen
++	 and	t0, src, ADDRMASK
++	PREF(	0, 2*32(src) )
++	PREF(	1, 2*32(dst) )
++	bnez	t1, copy_bytes_checklen
++	 nop
++	bnez	t0, copy_bytes_checklen
++#else
+ 	PREF(	0, 0(src) )
+ 	PREF(	1, 0(dst) )
+ 	sltu	t2, len, NBYTES
+ 	and	t1, dst, ADDRMASK
+ 	PREF(	0, 1*32(src) )
+ 	PREF(	1, 1*32(dst) )
+-	bnez	t2, .Lcopy_bytes_checklen
++	bnez	t2, copy_bytes_checklen
+ 	 and	t0, src, ADDRMASK
+ 	PREF(	0, 2*32(src) )
+ 	PREF(	1, 2*32(dst) )
+-	bnez	t1, .Ldst_unaligned
++	bnez	t1, dst_unaligned
+ 	 nop
+-	bnez	t0, .Lsrc_unaligned_dst_aligned
++	bnez	t0, src_unaligned_dst_aligned
++#endif
+ 	/*
+ 	 * use delay slot for fall-through
+ 	 * src and dst are aligned; need to compute rem
+ 	 */
+-.Lboth_aligned:
++both_aligned:
+ 	 SRL	t0, len, LOG_NBYTES+3    # +3 for 8 units/iter
+-	beqz	t0, .Lcleanup_both_aligned # len < 8*NBYTES
++	beqz	t0, cleanup_both_aligned # len < 8*NBYTES
+ 	 and	rem, len, (8*NBYTES-1)	 # rem = len % (8*NBYTES)
+ 	PREF(	0, 3*32(src) )
+ 	PREF(	1, 3*32(dst) )
+ 	.align	4
+ 1:
+-	R10KCBARRIER(0(ra))
+-EXC(	LOAD	t0, UNIT(0)(src),	.Ll_exc)
+-EXC(	LOAD	t1, UNIT(1)(src),	.Ll_exc_copy)
+-EXC(	LOAD	t2, UNIT(2)(src),	.Ll_exc_copy)
+-EXC(	LOAD	t3, UNIT(3)(src),	.Ll_exc_copy)
++EXC(	LOAD	t0, UNIT(0)(src),	l_exc)
++EXC(	LOAD	t1, UNIT(1)(src),	l_exc_copy)
++EXC(	LOAD	t2, UNIT(2)(src),	l_exc_copy)
++EXC(	LOAD	t3, UNIT(3)(src),	l_exc_copy)
+ 	SUB	len, len, 8*NBYTES
+-EXC(	LOAD	t4, UNIT(4)(src),	.Ll_exc_copy)
+-EXC(	LOAD	t7, UNIT(5)(src),	.Ll_exc_copy)
+-EXC(	STORE	t0, UNIT(0)(dst),	.Ls_exc_p8u)
+-EXC(	STORE	t1, UNIT(1)(dst),	.Ls_exc_p7u)
+-EXC(	LOAD	t0, UNIT(6)(src),	.Ll_exc_copy)
+-EXC(	LOAD	t1, UNIT(7)(src),	.Ll_exc_copy)
++EXC(	LOAD	t4, UNIT(4)(src),	l_exc_copy)
++EXC(	LOAD	t7, UNIT(5)(src),	l_exc_copy)
++EXC(	STORE	t0, UNIT(0)(dst),	s_exc_p8u)
++EXC(	STORE	t1, UNIT(1)(dst),	s_exc_p7u)
++EXC(	LOAD	t0, UNIT(6)(src),	l_exc_copy)
++EXC(	LOAD	t1, UNIT(7)(src),	l_exc_copy)
+ 	ADD	src, src, 8*NBYTES
+ 	ADD	dst, dst, 8*NBYTES
+-EXC(	STORE	t2, UNIT(-6)(dst),	.Ls_exc_p6u)
+-EXC(	STORE	t3, UNIT(-5)(dst),	.Ls_exc_p5u)
+-EXC(	STORE	t4, UNIT(-4)(dst),	.Ls_exc_p4u)
+-EXC(	STORE	t7, UNIT(-3)(dst),	.Ls_exc_p3u)
+-EXC(	STORE	t0, UNIT(-2)(dst),	.Ls_exc_p2u)
+-EXC(	STORE	t1, UNIT(-1)(dst),	.Ls_exc_p1u)
++EXC(	STORE	t2, UNIT(-6)(dst),	s_exc_p6u)
++EXC(	STORE	t3, UNIT(-5)(dst),	s_exc_p5u)
++EXC(	STORE	t4, UNIT(-4)(dst),	s_exc_p4u)
++EXC(	STORE	t7, UNIT(-3)(dst),	s_exc_p3u)
++EXC(	STORE	t0, UNIT(-2)(dst),	s_exc_p2u)
++EXC(	STORE	t1, UNIT(-1)(dst),	s_exc_p1u)
+ 	PREF(	0, 8*32(src) )
+ 	PREF(	1, 8*32(dst) )
+ 	bne	len, rem, 1b
+@@ -260,46 +269,43 @@ EXC(	STORE	t1, UNIT(-1)(dst),	.Ls_exc_p1
+ 	/*
+ 	 * len == rem == the number of bytes left to copy < 8*NBYTES
+ 	 */
+-.Lcleanup_both_aligned:
+-	beqz	len, .Ldone
++cleanup_both_aligned:
++	beqz	len, done
+ 	 sltu	t0, len, 4*NBYTES
+-	bnez	t0, .Lless_than_4units
++	bnez	t0, less_than_4units
+ 	 and	rem, len, (NBYTES-1)	# rem = len % NBYTES
+ 	/*
+ 	 * len >= 4*NBYTES
+ 	 */
+-EXC(	LOAD	t0, UNIT(0)(src),	.Ll_exc)
+-EXC(	LOAD	t1, UNIT(1)(src),	.Ll_exc_copy)
+-EXC(	LOAD	t2, UNIT(2)(src),	.Ll_exc_copy)
+-EXC(	LOAD	t3, UNIT(3)(src),	.Ll_exc_copy)
++EXC(	LOAD	t0, UNIT(0)(src),	l_exc)
++EXC(	LOAD	t1, UNIT(1)(src),	l_exc_copy)
++EXC(	LOAD	t2, UNIT(2)(src),	l_exc_copy)
++EXC(	LOAD	t3, UNIT(3)(src),	l_exc_copy)
+ 	SUB	len, len, 4*NBYTES
+ 	ADD	src, src, 4*NBYTES
+-	R10KCBARRIER(0(ra))
+-EXC(	STORE	t0, UNIT(0)(dst),	.Ls_exc_p4u)
+-EXC(	STORE	t1, UNIT(1)(dst),	.Ls_exc_p3u)
+-EXC(	STORE	t2, UNIT(2)(dst),	.Ls_exc_p2u)
+-EXC(	STORE	t3, UNIT(3)(dst),	.Ls_exc_p1u)
+-	.set	reorder				/* DADDI_WAR */
++EXC(	STORE	t0, UNIT(0)(dst),	s_exc_p4u)
++EXC(	STORE	t1, UNIT(1)(dst),	s_exc_p3u)
++EXC(	STORE	t2, UNIT(2)(dst),	s_exc_p2u)
++EXC(	STORE	t3, UNIT(3)(dst),	s_exc_p1u)
++	beqz	len, done
+ 	ADD	dst, dst, 4*NBYTES
+-	beqz	len, .Ldone
+-	.set	noreorder
+-.Lless_than_4units:
++less_than_4units:
+ 	/*
+ 	 * rem = len % NBYTES
+ 	 */
+-	beq	rem, len, .Lcopy_bytes
++	beq	rem, len, copy_bytes
+ 	 nop
+ 1:
+-	R10KCBARRIER(0(ra))
+-EXC(	LOAD	t0, 0(src),		.Ll_exc)
++EXC(	LOAD	t0, 0(src),		l_exc)
+ 	ADD	src, src, NBYTES
+ 	SUB	len, len, NBYTES
+-EXC(	STORE	t0, 0(dst),		.Ls_exc_p1u)
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	dst, dst, NBYTES
++EXC(	STORE	t0, 0(dst),		s_exc_p1u)
+ 	bne	rem, len, 1b
+-	.set	noreorder
++	 ADD	dst, dst, NBYTES
++
++#if defined(CONFIG_REALTEK_CPU)
+ 
++#else
+ 	/*
+ 	 * src and dst are aligned, need to copy rem bytes (rem < NBYTES)
+ 	 * A loop would do only a byte at a time with possible branch
+@@ -312,17 +318,17 @@ EXC(	STORE	t0, 0(dst),		.Ls_exc_p1u)
+ 	 * more instruction-level parallelism.
+ 	 */
+ #define bits t2
+-	beqz	len, .Ldone
++	beqz	len, done
+ 	 ADD	t1, dst, len	# t1 is just past last byte of dst
+ 	li	bits, 8*NBYTES
+ 	SLL	rem, len, 3	# rem = number of bits to keep
+-EXC(	LOAD	t0, 0(src),		.Ll_exc)
++EXC(	LOAD	t0, 0(src),		l_exc)
+ 	SUB	bits, bits, rem	# bits = number of bits to discard
+ 	SHIFT_DISCARD t0, t0, bits
+-EXC(	STREST	t0, -1(t1),		.Ls_exc)
++EXC(	STREST	t0, -1(t1),		s_exc)
+ 	jr	ra
+ 	 move	len, zero
+-.Ldst_unaligned:
++dst_unaligned:
+ 	/*
+ 	 * dst is unaligned
+ 	 * t0 = src & ADDRMASK
+@@ -333,23 +339,22 @@ EXC(	STREST	t0, -1(t1),		.Ls_exc)
+ 	 * Set match = (src and dst have same alignment)
+ 	 */
+ #define match rem
+-EXC(	LDFIRST	t3, FIRST(0)(src),	.Ll_exc)
++EXC(	LDFIRST	t3, FIRST(0)(src),	l_exc)
+ 	ADD	t2, zero, NBYTES
+-EXC(	LDREST	t3, REST(0)(src),	.Ll_exc_copy)
++EXC(	LDREST	t3, REST(0)(src),	l_exc_copy)
+ 	SUB	t2, t2, t1	# t2 = number of bytes copied
+ 	xor	match, t0, t1
+-	R10KCBARRIER(0(ra))
+-EXC(	STFIRST t3, FIRST(0)(dst),	.Ls_exc)
+-	beq	len, t2, .Ldone
++EXC(	STFIRST t3, FIRST(0)(dst),	s_exc)
++	beq	len, t2, done
+ 	 SUB	len, len, t2
+ 	ADD	dst, dst, t2
+-	beqz	match, .Lboth_aligned
++	beqz	match, both_aligned
+ 	 ADD	src, src, t2
+ 
+-.Lsrc_unaligned_dst_aligned:
++src_unaligned_dst_aligned:
+ 	SRL	t0, len, LOG_NBYTES+2    # +2 for 4 units/iter
+ 	PREF(	0, 3*32(src) )
+-	beqz	t0, .Lcleanup_src_unaligned
++	beqz	t0, cleanup_src_unaligned
+ 	 and	rem, len, (4*NBYTES-1)   # rem = len % 4*NBYTES
+ 	PREF(	1, 3*32(dst) )
+ 1:
+@@ -359,59 +364,65 @@ EXC(	STFIRST t3, FIRST(0)(dst),	.Ls_exc)
+  * It's OK to load FIRST(N+1) before REST(N) because the two addresses
+  * are to the same unit (unless src is aligned, but it's not).
+  */
+-	R10KCBARRIER(0(ra))
+-EXC(	LDFIRST	t0, FIRST(0)(src),	.Ll_exc)
+-EXC(	LDFIRST	t1, FIRST(1)(src),	.Ll_exc_copy)
++EXC(	LDFIRST	t0, FIRST(0)(src),	l_exc)
++EXC(	LDFIRST	t1, FIRST(1)(src),	l_exc_copy)
+ 	SUB     len, len, 4*NBYTES
+-EXC(	LDREST	t0, REST(0)(src),	.Ll_exc_copy)
+-EXC(	LDREST	t1, REST(1)(src),	.Ll_exc_copy)
+-EXC(	LDFIRST	t2, FIRST(2)(src),	.Ll_exc_copy)
+-EXC(	LDFIRST	t3, FIRST(3)(src),	.Ll_exc_copy)
+-EXC(	LDREST	t2, REST(2)(src),	.Ll_exc_copy)
+-EXC(	LDREST	t3, REST(3)(src),	.Ll_exc_copy)
++EXC(	LDREST	t0, REST(0)(src),	l_exc_copy)
++EXC(	LDREST	t1, REST(1)(src),	l_exc_copy)
++EXC(	LDFIRST	t2, FIRST(2)(src),	l_exc_copy)
++EXC(	LDFIRST	t3, FIRST(3)(src),	l_exc_copy)
++EXC(	LDREST	t2, REST(2)(src),	l_exc_copy)
++EXC(	LDREST	t3, REST(3)(src),	l_exc_copy)
+ 	PREF(	0, 9*32(src) )		# 0 is PREF_LOAD  (not streamed)
+ 	ADD	src, src, 4*NBYTES
+ #ifdef CONFIG_CPU_SB1
+ 	nop				# improves slotting
+ #endif
+-EXC(	STORE	t0, UNIT(0)(dst),	.Ls_exc_p4u)
+-EXC(	STORE	t1, UNIT(1)(dst),	.Ls_exc_p3u)
+-EXC(	STORE	t2, UNIT(2)(dst),	.Ls_exc_p2u)
+-EXC(	STORE	t3, UNIT(3)(dst),	.Ls_exc_p1u)
++EXC(	STORE	t0, UNIT(0)(dst),	s_exc_p4u)
++EXC(	STORE	t1, UNIT(1)(dst),	s_exc_p3u)
++EXC(	STORE	t2, UNIT(2)(dst),	s_exc_p2u)
++EXC(	STORE	t3, UNIT(3)(dst),	s_exc_p1u)
+ 	PREF(	1, 9*32(dst) )     	# 1 is PREF_STORE (not streamed)
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	dst, dst, 4*NBYTES
+ 	bne	len, rem, 1b
+-	.set	noreorder
++	 ADD	dst, dst, 4*NBYTES
+ 
+-.Lcleanup_src_unaligned:
+-	beqz	len, .Ldone
++cleanup_src_unaligned:
++	beqz	len, done
+ 	 and	rem, len, NBYTES-1  # rem = len % NBYTES
+-	beq	rem, len, .Lcopy_bytes
++	beq	rem, len, copy_bytes
+ 	 nop
+ 1:
+-	R10KCBARRIER(0(ra))
+-EXC(	LDFIRST t0, FIRST(0)(src),	.Ll_exc)
+-EXC(	LDREST	t0, REST(0)(src),	.Ll_exc_copy)
++EXC(	LDFIRST t0, FIRST(0)(src),	l_exc)
++EXC(	LDREST	t0, REST(0)(src),	l_exc_copy)
+ 	ADD	src, src, NBYTES
+ 	SUB	len, len, NBYTES
+-EXC(	STORE	t0, 0(dst),		.Ls_exc_p1u)
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	dst, dst, NBYTES
++EXC(	STORE	t0, 0(dst),		s_exc_p1u)
+ 	bne	len, rem, 1b
+-	.set	noreorder
++	 ADD	dst, dst, NBYTES
++#endif
+ 
+-.Lcopy_bytes_checklen:
+-	beqz	len, .Ldone
++copy_bytes_checklen:
++	beqz	len, done
++	 nop
++copy_bytes:
++#if defined(CONFIG_REALTEK_CPU)
++1:
++	beqz	len, done
++	nop
++EXC(	lb  t0, 0(src), l_exc)
++	SUB len, len, 1
++EXC(	sb      t0, 0(dst), s_exc_p1)
++	ADD	dst,    dst, 1
++	ADD src,        src, 1
++	bnez	len, 1b
+ 	 nop
+-.Lcopy_bytes:
++#else
+ 	/* 0 < len < NBYTES  */
+-	R10KCBARRIER(0(ra))
+ #define COPY_BYTE(N)			\
+-EXC(	lb	t0, N(src), .Ll_exc);	\
++EXC(	lb	t0, N(src), l_exc);	\
+ 	SUB	len, len, 1;		\
+-	beqz	len, .Ldone;		\
+-EXC(	 sb	t0, N(dst), .Ls_exc_p1)
++	beqz	len, done;		\
++EXC(	 sb	t0, N(dst), s_exc_p1)
+ 
+ 	COPY_BYTE(0)
+ 	COPY_BYTE(1)
+@@ -421,16 +432,17 @@ EXC(	 sb	t0, N(dst), .Ls_exc_p1)
+ 	COPY_BYTE(4)
+ 	COPY_BYTE(5)
+ #endif
+-EXC(	lb	t0, NBYTES-2(src), .Ll_exc)
++EXC(	lb	t0, NBYTES-2(src), l_exc)
+ 	SUB	len, len, 1
+ 	jr	ra
+-EXC(	 sb	t0, NBYTES-2(dst), .Ls_exc_p1)
+-.Ldone:
++EXC(	 sb	t0, NBYTES-2(dst), s_exc_p1)
++#endif
++done:
+ 	jr	ra
+ 	 nop
+ 	END(memcpy)
+ 
+-.Ll_exc_copy:
++l_exc_copy:
+ 	/*
+ 	 * Copy bytes from src until faulting load address (or until a
+ 	 * lb faults)
+@@ -445,14 +457,12 @@ EXC(	 sb	t0, NBYTES-2(dst), .Ls_exc_p1)
+ 	 nop
+ 	LOAD	t0, THREAD_BUADDR(t0)
+ 1:
+-EXC(	lb	t1, 0(src),	.Ll_exc)
++EXC(	lb	t1, 0(src),	l_exc)
+ 	ADD	src, src, 1
+ 	sb	t1, 0(dst)	# can't fault -- we're copy_from_user
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	dst, dst, 1
+ 	bne	src, t0, 1b
+-	.set	noreorder
+-.Ll_exc:
++	 ADD	dst, dst, 1
++l_exc:
+ 	LOAD	t0, TI_TASK($28)
+ 	 nop
+ 	LOAD	t0, THREAD_BUADDR(t0)	# t0 is just past last good address
+@@ -469,33 +479,20 @@ EXC(	lb	t1, 0(src),	.Ll_exc)
+ 	 * Clear len bytes starting at dst.  Can't call __bzero because it
+ 	 * might modify len.  An inefficient loop for these rare times...
+ 	 */
+-	.set	reorder				/* DADDI_WAR */
++	beqz	len, done
+ 	SUB	src, len, 1
+-	beqz	len, .Ldone
+-	.set	noreorder
+ 1:	sb	zero, 0(dst)
+ 	ADD	dst, dst, 1
+-#ifndef CONFIG_CPU_DADDI_WORKAROUNDS
+ 	bnez	src, 1b
+ 	 SUB	src, src, 1
+-#else
+-	.set	push
+-	.set	noat
+-	li	v1, 1
+-	bnez	src, 1b
+-	 SUB	src, src, v1
+-	.set	pop
+-#endif
+ 	jr	ra
+ 	 nop
+ 
+ 
+ #define SEXC(n)							\
+-	.set	reorder;			/* DADDI_WAR */	\
+-.Ls_exc_p ## n ## u:						\
+-	ADD	len, len, n*NBYTES;				\
++s_exc_p ## n ## u:			\
+ 	jr	ra;						\
+-	.set	noreorder
++	 ADD	len, len, n*NBYTES
+ 
+ SEXC(8)
+ SEXC(7)
+@@ -506,12 +503,10 @@ SEXC(3)
+ SEXC(2)
+ SEXC(1)
+ 
+-.Ls_exc_p1:
+-	.set	reorder				/* DADDI_WAR */
+-	ADD	len, len, 1
++s_exc_p1:
+ 	jr	ra
+-	.set	noreorder
+-.Ls_exc:
++	 ADD	len, len, 1
++s_exc:
+ 	jr	ra
+ 	 nop
+ 
+@@ -522,44 +517,38 @@ LEAF(memmove)
+ 	sltu	t0, a1, t0			# dst + len <= src -> memcpy
+ 	sltu	t1, a0, t1			# dst >= src + len -> memcpy
+ 	and	t0, t1
+-	beqz	t0, .L__memcpy
++	beqz	t0, __memcpy
+ 	 move	v0, a0				/* return value */
+-	beqz	a2, .Lr_out
++	beqz	a2, r_out
+ 	END(memmove)
+ 
+ 	/* fall through to __rmemcpy */
+ LEAF(__rmemcpy)					/* a0=dst a1=src a2=len */
+ 	 sltu	t0, a1, a0
+-	beqz	t0, .Lr_end_bytes_up		# src >= dst
++	beqz	t0, r_end_bytes_up		# src >= dst
+ 	 nop
+ 	ADD	a0, a2				# dst = dst + len
+ 	ADD	a1, a2				# src = src + len
+ 
+-.Lr_end_bytes:
+-	R10KCBARRIER(0(ra))
++r_end_bytes:
+ 	lb	t0, -1(a1)
+ 	SUB	a2, a2, 0x1
+ 	sb	t0, -1(a0)
+ 	SUB	a1, a1, 0x1
+-	.set	reorder				/* DADDI_WAR */
++	bnez	a2, r_end_bytes
+ 	SUB	a0, a0, 0x1
+-	bnez	a2, .Lr_end_bytes
+-	.set	noreorder
+ 
+-.Lr_out:
++r_out:
+ 	jr	ra
+ 	 move	a2, zero
+ 
+-.Lr_end_bytes_up:
+-	R10KCBARRIER(0(ra))
++r_end_bytes_up:
+ 	lb	t0, (a1)
+ 	SUB	a2, a2, 0x1
+ 	sb	t0, (a0)
+ 	ADD	a1, a1, 0x1
+-	.set	reorder				/* DADDI_WAR */
++	bnez	a2, r_end_bytes_up
+ 	ADD	a0, a0, 0x1
+-	bnez	a2, .Lr_end_bytes_up
+-	.set	noreorder
+ 
+ 	jr	ra
+ 	 move	a2, zero
+--- linux-2.6.30.9/arch/mips/lib/memset.S	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/lib/memset.S	2013-05-02 01:47:49.416227407 +0300
+@@ -5,20 +5,11 @@
+  *
+  * Copyright (C) 1998, 1999, 2000 by Ralf Baechle
+  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+- * Copyright (C) 2007  Maciej W. Rozycki
+  */
+ #include <asm/asm.h>
+ #include <asm/asm-offsets.h>
+ #include <asm/regdef.h>
+ 
+-#if LONGSIZE == 4
+-#define LONG_S_L swl
+-#define LONG_S_R swr
+-#else
+-#define LONG_S_L sdl
+-#define LONG_S_R sdr
+-#endif
+-
+ #define EX(insn,reg,addr,handler)			\
+ 9:	insn	reg, addr;				\
+ 	.section __ex_table,"a"; 			\
+@@ -34,7 +25,6 @@
+ 	EX(LONG_S, \val, (\offset +  5 * LONGSIZE)(\dst), \fixup)
+ 	EX(LONG_S, \val, (\offset +  6 * LONGSIZE)(\dst), \fixup)
+ 	EX(LONG_S, \val, (\offset +  7 * LONGSIZE)(\dst), \fixup)
+-#if LONGSIZE == 4
+ 	EX(LONG_S, \val, (\offset +  8 * LONGSIZE)(\dst), \fixup)
+ 	EX(LONG_S, \val, (\offset +  9 * LONGSIZE)(\dst), \fixup)
+ 	EX(LONG_S, \val, (\offset + 10 * LONGSIZE)(\dst), \fixup)
+@@ -43,7 +33,6 @@
+ 	EX(LONG_S, \val, (\offset + 13 * LONGSIZE)(\dst), \fixup)
+ 	EX(LONG_S, \val, (\offset + 14 * LONGSIZE)(\dst), \fixup)
+ 	EX(LONG_S, \val, (\offset + 15 * LONGSIZE)(\dst), \fixup)
+-#endif
+ 	.endm
+ 
+ /*
+@@ -60,94 +49,90 @@ LEAF(memset)
+ 	 move		v0, a0			/* result */
+ 
+ 	andi		a1, 0xff		/* spread fillword */
+-	LONG_SLL		t1, a1, 8
++	sll		t1, a1, 8
+ 	or		a1, t1
+-	LONG_SLL		t1, a1, 16
+-#if LONGSIZE == 8
+-	or		a1, t1
+-	LONG_SLL		t1, a1, 32
+-#endif
++	sll		t1, a1, 16
+ 	or		a1, t1
+ 1:
+ 
+ FEXPORT(__bzero)
+ 	sltiu		t0, a2, LONGSIZE	/* very small region? */
+-	bnez		t0, .Lsmall_memset
++	bnez		t0, small_memset
+ 	 andi		t0, a0, LONGMASK	/* aligned? */
+ 
+-#ifndef CONFIG_CPU_DADDI_WORKAROUNDS
+ 	beqz		t0, 1f
+ 	 PTR_SUBU	t0, LONGSIZE		/* alignment in bytes */
+-#else
+-	.set		noat
+-	li		AT, LONGSIZE
+-	beqz		t0, 1f
+-	 PTR_SUBU	t0, AT			/* alignment in bytes */
+-	.set		at
+-#endif
+ 
+-	R10KCBARRIER(0(ra))
++#if defined(CONFIG_REALTEK_CPU)
++0:
++	EX(sb, a1, 0(a0), first_fixup)
++	addiu	a0, 1
++	subu	a2, 1
++	andi	t0, a0, LONGMASK
++	bnez 	t0, 0b
++	nop
++#else
+ #ifdef __MIPSEB__
+-	EX(LONG_S_L, a1, (a0), .Lfirst_fixup)	/* make word/dword aligned */
++	EX(swl, a1, (a0), first_fixup)		/* make word aligned */
+ #endif
+ #ifdef __MIPSEL__
+-	EX(LONG_S_R, a1, (a0), .Lfirst_fixup)	/* make word/dword aligned */
++	EX(swr, a1, (a0), first_fixup)		/* make word aligned */
+ #endif
+ 	PTR_SUBU	a0, t0			/* long align ptr */
+ 	PTR_ADDU	a2, t0			/* correct size */
++#endif
+ 
+ 1:	ori		t1, a2, 0x3f		/* # of full blocks */
+ 	xori		t1, 0x3f
+-	beqz		t1, .Lmemset_partial	/* no block to fill */
+-	 andi		t0, a2, 0x40-LONGSIZE
++	beqz		t1, memset_partial	/* no block to fill */
++	 andi		t0, a2, 0x3c
+ 
+ 	PTR_ADDU	t1, a0			/* end address */
+ 	.set		reorder
+ 1:	PTR_ADDIU	a0, 64
+-	R10KCBARRIER(0(ra))
+-	f_fill64 a0, -64, a1, .Lfwd_fixup
++	f_fill64 a0, -64, a1, fwd_fixup
+ 	bne		t1, a0, 1b
+ 	.set		noreorder
+ 
+-.Lmemset_partial:
+-	R10KCBARRIER(0(ra))
++memset_partial:
+ 	PTR_LA		t1, 2f			/* where to start */
+-#if LONGSIZE == 4
+ 	PTR_SUBU	t1, t0
+-#else
+-	.set		noat
+-	LONG_SRL		AT, t0, 1
+-	PTR_SUBU	t1, AT
+-	.set		at
+-#endif
+ 	jr		t1
+ 	 PTR_ADDU	a0, t0			/* dest ptr */
+ 
+ 	.set		push
+ 	.set		noreorder
+ 	.set		nomacro
+-	f_fill64 a0, -64, a1, .Lpartial_fixup	/* ... but first do longs ... */
++	f_fill64 a0, -64, a1, partial_fixup	/* ... but first do longs ... */
+ 2:	.set		pop
+ 	andi		a2, LONGMASK		/* At most one long to go */
+ 
+ 	beqz		a2, 1f
++#if defined(CONFIG_REALTEK_CPU)
++	nop
++byte_write:  /* fill bytewise */
++    EX(sb, a1, 0(a0), last_fixup)
++    addiu   a0, 1
++    subu    a2, 1
++    bnez    a2, byte_write 
++    nop
++#else
+ 	 PTR_ADDU	a0, a2			/* What's left */
+-	R10KCBARRIER(0(ra))
+ #ifdef __MIPSEB__
+-	EX(LONG_S_R, a1, -1(a0), .Llast_fixup)
++	EX(swr, a1, -1(a0), last_fixup)
+ #endif
+ #ifdef __MIPSEL__
+-	EX(LONG_S_L, a1, -1(a0), .Llast_fixup)
++	EX(swl, a1, -1(a0), last_fixup)
++#endif
+ #endif
+ 1:	jr		ra
+ 	 move		a2, zero
+ 
+-.Lsmall_memset:
++small_memset:
+ 	beqz		a2, 2f
+ 	 PTR_ADDU	t1, a0, a2
+ 
+ 1:	PTR_ADDIU	a0, 1			/* fill bytewise */
+-	R10KCBARRIER(0(ra))
+ 	bne		t1, a0, 1b
+ 	 sb		a1, -1(a0)
+ 
+@@ -155,11 +140,11 @@ FEXPORT(__bzero)
+ 	 move		a2, zero
+ 	END(memset)
+ 
+-.Lfirst_fixup:
++first_fixup:
+ 	jr	ra
+ 	 nop
+ 
+-.Lfwd_fixup:
++fwd_fixup:
+ 	PTR_L		t0, TI_TASK($28)
+ 	LONG_L		t0, THREAD_BUADDR(t0)
+ 	andi		a2, 0x3f
+@@ -167,7 +152,7 @@ FEXPORT(__bzero)
+ 	jr		ra
+ 	 LONG_SUBU	a2, t0
+ 
+-.Lpartial_fixup:
++partial_fixup:
+ 	PTR_L		t0, TI_TASK($28)
+ 	LONG_L		t0, THREAD_BUADDR(t0)
+ 	andi		a2, LONGMASK
+@@ -175,6 +160,6 @@ FEXPORT(__bzero)
+ 	jr		ra
+ 	 LONG_SUBU	a2, t0
+ 
+-.Llast_fixup:
++last_fixup:
+ 	jr		ra
+ 	 andi		v1, a2, LONGMASK
+--- linux-2.6.30.9/arch/mips/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/Makefile	2013-05-02 01:47:49.298227417 +0300
+@@ -17,30 +17,17 @@ KBUILD_DEFCONFIG := ip22_defconfig
+ #
+ # Select the object file format to substitute into the linker script.
+ #
+-ifdef CONFIG_CPU_LITTLE_ENDIAN
+-32bit-tool-archpref	= mipsel
+-64bit-tool-archpref	= mips64el
+-32bit-bfd		= elf32-tradlittlemips
+-64bit-bfd		= elf64-tradlittlemips
+-32bit-emul		= elf32ltsmip
+-64bit-emul		= elf64ltsmip
+-else
+ 32bit-tool-archpref	= mips
+ 64bit-tool-archpref	= mips64
+ 32bit-bfd		= elf32-tradbigmips
+ 64bit-bfd		= elf64-tradbigmips
+ 32bit-emul		= elf32btsmip
+ 64bit-emul		= elf64btsmip
+-endif
+ 
+ ifdef CONFIG_32BIT
+ tool-archpref		= $(32bit-tool-archpref)
+ UTS_MACHINE		:= mips
+ endif
+-ifdef CONFIG_64BIT
+-tool-archpref		= $(64bit-tool-archpref)
+-UTS_MACHINE		:= mips64
+-endif
+ 
+ ifneq ($(SUBARCH),$(ARCH))
+   ifeq ($(CROSS_COMPILE),)
+@@ -113,7 +100,7 @@ cflags-$(CONFIG_SB1XXX_CORELIS)	+= $(cal
+ #
+ # CPU-dependent compiler/assembler options for optimization.
+ #
+-cflags-$(CONFIG_CPU_R3000)	+= -march=r3000
++cflags-$(CONFIG_CPU_R3000)	+= -march=5181
+ cflags-$(CONFIG_CPU_TX39XX)	+= -march=r3900
+ cflags-$(CONFIG_CPU_R6000)	+= -march=r6000 -Wa,--trap
+ cflags-$(CONFIG_CPU_R4300)	+= -march=r4300 -Wa,--trap
+@@ -167,7 +154,6 @@ libs-$(CONFIG_ARC)		+= arch/mips/fw/arc/
+ libs-$(CONFIG_CFE)		+= arch/mips/fw/cfe/
+ libs-$(CONFIG_SNIPROM)		+= arch/mips/fw/sni/
+ libs-y				+= arch/mips/fw/lib/
+-libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/sibyte/cfe/
+ 
+ #
+ # Board-dependent options and extra files
+@@ -176,118 +162,11 @@ libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/s
+ #
+ # Acer PICA 61, Mips Magnum 4000 and Olivetti M700.
+ #
+-core-$(CONFIG_MACH_JAZZ)	+= arch/mips/jazz/
+-cflags-$(CONFIG_MACH_JAZZ)	+= -I$(srctree)/arch/mips/include/asm/mach-jazz
+-load-$(CONFIG_MACH_JAZZ)	+= 0xffffffff80080000
+-
+-#
+ # Common Alchemy Au1x00 stuff
+ #
+-core-$(CONFIG_SOC_AU1X00)	+= arch/mips/alchemy/common/
+-cflags-$(CONFIG_SOC_AU1X00)	+= -I$(srctree)/arch/mips/include/asm/mach-au1x00
+-
+-#
+-# AMD Alchemy Pb1000 eval board
+-#
+-core-$(CONFIG_MIPS_PB1000)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_PB1000)	+= -I$(srctree)/arch/mips/include/asm/mach-pb1x00
+-load-$(CONFIG_MIPS_PB1000)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Pb1100 eval board
+-#
+-core-$(CONFIG_MIPS_PB1100)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_PB1100)	+= -I$(srctree)/arch/mips/include/asm/mach-pb1x00
+-load-$(CONFIG_MIPS_PB1100)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Pb1500 eval board
+-#
+-core-$(CONFIG_MIPS_PB1500)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_PB1500)	+= -I$(srctree)/arch/mips/include/asm/mach-pb1x00
+-load-$(CONFIG_MIPS_PB1500)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Pb1550 eval board
+-#
+-core-$(CONFIG_MIPS_PB1550)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_PB1550)	+= -I$(srctree)/arch/mips/include/asm/mach-pb1x00
+-load-$(CONFIG_MIPS_PB1550)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Pb1200 eval board
+-#
+-core-$(CONFIG_MIPS_PB1200)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_PB1200)	+= -I$(srctree)/arch/mips/include/asm/mach-pb1x00
+-load-$(CONFIG_MIPS_PB1200)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Db1000 eval board
+-#
+-core-$(CONFIG_MIPS_DB1000)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_DB1000)	+= -I$(srctree)/arch/mips/include/asm/mach-db1x00
+-load-$(CONFIG_MIPS_DB1000)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Db1100 eval board
+-#
+-core-$(CONFIG_MIPS_DB1100)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_DB1100)	+= -I$(srctree)/arch/mips/include/asm/mach-db1x00
+-load-$(CONFIG_MIPS_DB1100)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Db1500 eval board
+-#
+-core-$(CONFIG_MIPS_DB1500)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_DB1500)	+= -I$(srctree)/arch/mips/include/asm/mach-db1x00
+-load-$(CONFIG_MIPS_DB1500)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Db1550 eval board
+-#
+-core-$(CONFIG_MIPS_DB1550)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_DB1550)	+= -I$(srctree)/arch/mips/include/asm/mach-db1x00
+-load-$(CONFIG_MIPS_DB1550)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Db1200 eval board
+-#
+-core-$(CONFIG_MIPS_DB1200)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_DB1200)	+= -I$(srctree)/arch/mips/include/asm/mach-db1x00
+-load-$(CONFIG_MIPS_DB1200)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Bosporus eval board
+-#
+-core-$(CONFIG_MIPS_BOSPORUS)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_BOSPORUS)	+= -I$(srctree)/arch/mips/include/asm/mach-db1x00
+-load-$(CONFIG_MIPS_BOSPORUS)	+= 0xffffffff80100000
+-
+-#
+-# AMD Alchemy Mirage eval board
+-#
+-core-$(CONFIG_MIPS_MIRAGE)	+= arch/mips/alchemy/devboards/
+-cflags-$(CONFIG_MIPS_MIRAGE)	+= -I$(srctree)/arch/mips/include/asm/mach-db1x00
+-load-$(CONFIG_MIPS_MIRAGE)	+= 0xffffffff80100000
+-
+-#
+-# 4G-Systems eval board
+-#
+-libs-$(CONFIG_MIPS_MTX1)	+= arch/mips/alchemy/mtx-1/
+-load-$(CONFIG_MIPS_MTX1)	+= 0xffffffff80100000
+-
+-#
+-# MyCable eval board
+-#
+-libs-$(CONFIG_MIPS_XXS1500)	+= arch/mips/alchemy/xxs1500/
+-load-$(CONFIG_MIPS_XXS1500)	+= 0xffffffff80100000
+ 
+ #
+ # Cobalt Server
+-#
+-core-$(CONFIG_MIPS_COBALT)	+= arch/mips/cobalt/
+-cflags-$(CONFIG_MIPS_COBALT)	+= -I$(srctree)/arch/mips/include/asm/mach-cobalt
+-load-$(CONFIG_MIPS_COBALT)	+= 0xffffffff80080000
+ 
+ #
+ # DECstation family
+@@ -300,17 +179,9 @@ load-$(CONFIG_MACH_DECSTATION)	+= 0xffff
+ #
+ # Wind River PPMC Board (4KC + GT64120)
+ #
+-core-$(CONFIG_WR_PPMC)		+= arch/mips/gt64120/wrppmc/
+-cflags-$(CONFIG_WR_PPMC)		+= -I$(srctree)/arch/mips/include/asm/mach-wrppmc
+-load-$(CONFIG_WR_PPMC)		+= 0xffffffff80100000
+-
+ #
+ # lemote fulong mini-PC board
+ #
+-core-$(CONFIG_LEMOTE_FULONG) +=arch/mips/lemote/lm2e/
+-load-$(CONFIG_LEMOTE_FULONG) +=0xffffffff80100000
+-cflags-$(CONFIG_LEMOTE_FULONG) += -I$(srctree)/arch/mips/include/asm/mach-lemote
+-
+ #
+ # MIPS Malta board
+ #
+@@ -319,6 +190,15 @@ cflags-$(CONFIG_MIPS_MALTA)	+= -I$(srctr
+ load-$(CONFIG_MIPS_MALTA)	+= 0xffffffff80100000
+ all-$(CONFIG_MIPS_MALTA)	:= vmlinux.bin
+ 
++core-$(CONFIG_RTL_8196B)         += arch/mips/rtl8196b/
++cflags-$(CONFIG_RTL_8196B)       += -I$(srctree)/arch/mips/include/asm/mach-realtek/rtl8196b -fno-builtin -D__KERNEL__
++cflags-$(CONFIG_RTL_8196B)       += -march=5181
++load-$(CONFIG_RTL_8196B)         += 0xffffffff80000000
++
++core-$(CONFIG_RTL_8196C)         += arch/mips/rtl8196c/
++cflags-$(CONFIG_RTL_8196C)       += -I$(srctree)/arch/mips/include/asm/mach-realtek/rtl8196c -fno-builtin -D__KERNEL__
++cflags-$(CONFIG_RTL_8196C)       += -march=4181
++load-$(CONFIG_RTL_8196C)         += 0xffffffff80000000
+ #
+ # MIPS SIM
+ #
+@@ -344,87 +224,13 @@ load-$(CONFIG_PMC_YOSEMITE)	+= 0xfffffff
+ #
+ # Basler eXcite
+ #
+-core-$(CONFIG_BASLER_EXCITE)	+= arch/mips/basler/excite/
+-cflags-$(CONFIG_BASLER_EXCITE)	+= -I$(srctree)/arch/mips/include/asm/mach-excite
+-load-$(CONFIG_BASLER_EXCITE)	+= 0x80100000
+-
+ #
+ # LASAT platforms
+ #
+-core-$(CONFIG_LASAT)		+= arch/mips/lasat/
+-cflags-$(CONFIG_LASAT)		+= -I$(srctree)/arch/mips/include/asm/mach-lasat
+-load-$(CONFIG_LASAT)		+= 0xffffffff80000000
+ 
+ #
+ # Common VR41xx
+ #
+-core-$(CONFIG_MACH_VR41XX)	+= arch/mips/vr41xx/common/
+-cflags-$(CONFIG_MACH_VR41XX)	+= -I$(srctree)/arch/mips/include/asm/mach-vr41xx
+-
+-#
+-# ZAO Networks Capcella (VR4131)
+-#
+-load-$(CONFIG_ZAO_CAPCELLA)	+= 0xffffffff80000000
+-
+-#
+-# Victor MP-C303/304 (VR4122)
+-#
+-load-$(CONFIG_VICTOR_MPC30X)	+= 0xffffffff80001000
+-
+-#
+-# IBM WorkPad z50 (VR4121)
+-#
+-core-$(CONFIG_IBM_WORKPAD)	+= arch/mips/vr41xx/ibm-workpad/
+-load-$(CONFIG_IBM_WORKPAD)	+= 0xffffffff80004000
+-
+-#
+-# CASIO CASSIPEIA E-55/65 (VR4111)
+-#
+-core-$(CONFIG_CASIO_E55)	+= arch/mips/vr41xx/casio-e55/
+-load-$(CONFIG_CASIO_E55)	+= 0xffffffff80004000
+-
+-#
+-# TANBAC VR4131 multichip module(TB0225) and TANBAC VR4131DIMM(TB0229) (VR4131)
+-#
+-load-$(CONFIG_TANBAC_TB022X)	+= 0xffffffff80000000
+-
+-# NXP STB225
+-core-$(CONFIG_SOC_PNX833X)		+= arch/mips/nxp/pnx833x/common/
+-cflags-$(CONFIG_SOC_PNX833X)	+= -Iarch/mips/include/asm/mach-pnx833x
+-libs-$(CONFIG_NXP_STB220)		+= arch/mips/nxp/pnx833x/stb22x/
+-load-$(CONFIG_NXP_STB220)		+= 0xffffffff80001000
+-libs-$(CONFIG_NXP_STB225)		+= arch/mips/nxp/pnx833x/stb22x/
+-load-$(CONFIG_NXP_STB225)		+= 0xffffffff80001000
+-
+-#
+-# Common NXP PNX8550
+-#
+-core-$(CONFIG_SOC_PNX8550)	+= arch/mips/nxp/pnx8550/common/
+-cflags-$(CONFIG_SOC_PNX8550)	+= -I$(srctree)/arch/mips/include/asm/mach-pnx8550
+-
+-#
+-# NXP PNX8550 JBS board
+-#
+-libs-$(CONFIG_PNX8550_JBS)	+= arch/mips/nxp/pnx8550/jbs/
+-#cflags-$(CONFIG_PNX8550_JBS)	+= -I$(srctree)/arch/mips/include/asm/mach-pnx8550
+-load-$(CONFIG_PNX8550_JBS)	+= 0xffffffff80060000
+-
+-# NXP PNX8550 STB810 board
+-#
+-libs-$(CONFIG_PNX8550_STB810)	+= arch/mips/nxp/pnx8550/stb810/
+-load-$(CONFIG_PNX8550_STB810)	+= 0xffffffff80060000
+-
+-#
+-# Common NEC EMMAXXX
+-#
+-core-$(CONFIG_SOC_EMMA2RH)	+= arch/mips/emma/common/
+-cflags-$(CONFIG_SOC_EMMA2RH)	+= -I$(srctree)/arch/mips/include/asm/mach-emma2rh
+-
+-#
+-# NEC EMMA2RH Mark-eins
+-#
+-core-$(CONFIG_NEC_MARKEINS)	+= arch/mips/emma/markeins/
+-load-$(CONFIG_NEC_MARKEINS)	+= 0xffffffff88100000
+ 
+ #
+ # SGI IP22 (Indy/Indigo2)
+@@ -435,14 +241,6 @@ load-$(CONFIG_NEC_MARKEINS)	+= 0xfffffff
+ # current variable will break so for 64-bit kernels we have to raise the start
+ # address by 8kb.
+ #
+-core-$(CONFIG_SGI_IP22)		+= arch/mips/sgi-ip22/
+-cflags-$(CONFIG_SGI_IP22)	+= -I$(srctree)/arch/mips/include/asm/mach-ip22
+-ifdef CONFIG_32BIT
+-load-$(CONFIG_SGI_IP22)		+= 0xffffffff88002000
+-endif
+-ifdef CONFIG_64BIT
+-load-$(CONFIG_SGI_IP22)		+= 0xffffffff88004000
+-endif
+ 
+ #
+ # SGI-IP27 (Origin200/2000)
+@@ -451,18 +249,6 @@ endif
+ # symmon, 0xc00000000001c000 for production kernels.  Note that the value must
+ # be 16kb aligned or the handling of the current variable will break.
+ #
+-ifdef CONFIG_SGI_IP27
+-core-$(CONFIG_SGI_IP27)		+= arch/mips/sgi-ip27/
+-cflags-$(CONFIG_SGI_IP27)	+= -I$(srctree)/arch/mips/include/asm/mach-ip27
+-ifdef CONFIG_MAPPED_KERNEL
+-load-$(CONFIG_SGI_IP27)		+= 0xc00000004001c000
+-OBJCOPYFLAGS			:= --change-addresses=0x3fffffff80000000
+-dataoffset-$(CONFIG_SGI_IP27)	+= 0x01000000
+-else
+-load-$(CONFIG_SGI_IP27)		+= 0xa80000000001c000
+-OBJCOPYFLAGS			:= --change-addresses=0x57ffffff80000000
+-endif
+-endif
+ 
+ #
+ # SGI IP28 (Indigo2 R10k)
+@@ -477,9 +263,6 @@ ifdef CONFIG_SGI_IP28
+       $(error gcc doesn't support needed option -mr10k-cache-barrier=store)
+   endif
+ endif
+-core-$(CONFIG_SGI_IP28)		+= arch/mips/sgi-ip22/
+-cflags-$(CONFIG_SGI_IP28)	+= -mr10k-cache-barrier=store -I$(srctree)/arch/mips/include/asm/mach-ip28
+-load-$(CONFIG_SGI_IP28)		+= 0xa800000020004000
+ 
+ #
+ # SGI-IP32 (O2)
+@@ -489,9 +272,6 @@ load-$(CONFIG_SGI_IP28)		+= 0xa800000020
+ # a multiple of the kernel stack size or the handling of the current variable
+ # will break.
+ #
+-core-$(CONFIG_SGI_IP32)		+= arch/mips/sgi-ip32/
+-cflags-$(CONFIG_SGI_IP32)	+= -I$(srctree)/arch/mips/include/asm/mach-ip32
+-load-$(CONFIG_SGI_IP32)		+= 0xffffffff80004000
+ 
+ #
+ # Sibyte SB1250/BCM1480 SOC
+@@ -500,25 +280,6 @@ load-$(CONFIG_SGI_IP32)		+= 0xffffffff80
+ # the sequence; but it is built as an object so that modules don't get
+ # removed (as happens, even if they have __initcall/module_init)
+ #
+-core-$(CONFIG_SIBYTE_BCM112X)	+= arch/mips/sibyte/sb1250/
+-core-$(CONFIG_SIBYTE_BCM112X)	+= arch/mips/sibyte/common/
+-cflags-$(CONFIG_SIBYTE_BCM112X)	+= -I$(srctree)/arch/mips/include/asm/mach-sibyte \
+-			-DSIBYTE_HDR_FEATURES=SIBYTE_HDR_FMASK_1250_112x_ALL
+-
+-core-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/sb1250/
+-core-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/common/
+-cflags-$(CONFIG_SIBYTE_SB1250)	+= -I$(srctree)/arch/mips/include/asm/mach-sibyte \
+-			-DSIBYTE_HDR_FEATURES=SIBYTE_HDR_FMASK_1250_112x_ALL
+-
+-core-$(CONFIG_SIBYTE_BCM1x55)	+= arch/mips/sibyte/bcm1480/
+-core-$(CONFIG_SIBYTE_BCM1x55)	+= arch/mips/sibyte/common/
+-cflags-$(CONFIG_SIBYTE_BCM1x55)	+= -I$(srctree)/arch/mips/include/asm/mach-sibyte \
+-			-DSIBYTE_HDR_FEATURES=SIBYTE_HDR_FMASK_1480_ALL
+-
+-core-$(CONFIG_SIBYTE_BCM1x80)	+= arch/mips/sibyte/bcm1480/
+-core-$(CONFIG_SIBYTE_BCM1x80)	+= arch/mips/sibyte/common/
+-cflags-$(CONFIG_SIBYTE_BCM1x80)	+= -I$(srctree)/arch/mips/include/asm/mach-sibyte \
+-			-DSIBYTE_HDR_FEATURES=SIBYTE_HDR_FMASK_1480_ALL
+ 
+ #
+ # Sibyte BCM91120x (Carmel) board
+@@ -528,80 +289,17 @@ cflags-$(CONFIG_SIBYTE_BCM1x80)	+= -I$(s
+ # Sibyte SWARM board
+ # Sibyte BCM91x80 (BigSur) board
+ #
+-core-$(CONFIG_SIBYTE_CARMEL)	+= arch/mips/sibyte/swarm/
+-load-$(CONFIG_SIBYTE_CARMEL)	:= 0xffffffff80100000
+-core-$(CONFIG_SIBYTE_CRHINE)	+= arch/mips/sibyte/swarm/
+-load-$(CONFIG_SIBYTE_CRHINE)	:= 0xffffffff80100000
+-core-$(CONFIG_SIBYTE_CRHONE)	+= arch/mips/sibyte/swarm/
+-load-$(CONFIG_SIBYTE_CRHONE)	:= 0xffffffff80100000
+-core-$(CONFIG_SIBYTE_RHONE)	+= arch/mips/sibyte/swarm/
+-load-$(CONFIG_SIBYTE_RHONE)	:= 0xffffffff80100000
+-core-$(CONFIG_SIBYTE_SENTOSA)	+= arch/mips/sibyte/swarm/
+-load-$(CONFIG_SIBYTE_SENTOSA)	:= 0xffffffff80100000
+-core-$(CONFIG_SIBYTE_SWARM)	+= arch/mips/sibyte/swarm/
+-load-$(CONFIG_SIBYTE_SWARM)	:= 0xffffffff80100000
+-core-$(CONFIG_SIBYTE_BIGSUR)	+= arch/mips/sibyte/swarm/
+-load-$(CONFIG_SIBYTE_BIGSUR)	:= 0xffffffff80100000
+ 
+ #
+ # Broadcom BCM47XX boards
+ #
+-core-$(CONFIG_BCM47XX)		+= arch/mips/bcm47xx/
+-cflags-$(CONFIG_BCM47XX)	+= -I$(srctree)/arch/mips/include/asm/mach-bcm47xx
+-load-$(CONFIG_BCM47XX)		:= 0xffffffff80001000
+-
+ #
+ # SNI RM
+ #
+-core-$(CONFIG_SNI_RM)		+= arch/mips/sni/
+-cflags-$(CONFIG_SNI_RM)		+= -I$(srctree)/arch/mips/include/asm/mach-rm
+-ifdef CONFIG_CPU_LITTLE_ENDIAN
+-load-$(CONFIG_SNI_RM)		+= 0xffffffff80600000
+-else
+-load-$(CONFIG_SNI_RM)		+= 0xffffffff80030000
+-endif
+-all-$(CONFIG_SNI_RM)		:= vmlinux.ecoff
+-
+-#
+-# Common TXx9
+-#
+-core-$(CONFIG_MACH_TX39XX)	+= arch/mips/txx9/generic/
+-cflags-$(CONFIG_MACH_TX39XX) += -I$(srctree)/arch/mips/include/asm/mach-tx39xx
+-load-$(CONFIG_MACH_TX39XX)	+= 0xffffffff80050000
+-core-$(CONFIG_MACH_TX49XX)	+= arch/mips/txx9/generic/
+-cflags-$(CONFIG_MACH_TX49XX) += -I$(srctree)/arch/mips/include/asm/mach-tx49xx
+-load-$(CONFIG_MACH_TX49XX)	+= 0xffffffff80100000
+-
+-#
+-# Toshiba JMR-TX3927 board
+-#
+-core-$(CONFIG_TOSHIBA_JMR3927)	+= arch/mips/txx9/jmr3927/
+-
+-#
+-# Routerboard 532 board
+-#
+-core-$(CONFIG_MIKROTIK_RB532)	+= arch/mips/rb532/
+-cflags-$(CONFIG_MIKROTIK_RB532) += -I$(srctree)/arch/mips/include/asm/mach-rc32434
+-load-$(CONFIG_MIKROTIK_RB532)	+= 0xffffffff80101000
+-
+-#
+-# Toshiba RBTX49XX boards
+-#
+-core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/txx9/rbtx4927/
+-core-$(CONFIG_TOSHIBA_RBTX4938) += arch/mips/txx9/rbtx4938/
+-core-$(CONFIG_TOSHIBA_RBTX4939) += arch/mips/txx9/rbtx4939/
+ 
+ #
+ # Cavium Octeon
+ #
+-core-$(CONFIG_CPU_CAVIUM_OCTEON)	+= arch/mips/cavium-octeon/
+-cflags-$(CONFIG_CPU_CAVIUM_OCTEON)	+= -I$(srctree)/arch/mips/include/asm/mach-cavium-octeon
+-core-$(CONFIG_CPU_CAVIUM_OCTEON)	+= arch/mips/cavium-octeon/executive/
+-ifdef CONFIG_CAVIUM_OCTEON_2ND_KERNEL
+-load-$(CONFIG_CPU_CAVIUM_OCTEON)	+= 0xffffffff84100000
+-else
+-load-$(CONFIG_CPU_CAVIUM_OCTEON) 	+= 0xffffffff81100000
+-endif
+ 
+ cflags-y			+= -I$(srctree)/arch/mips/include/asm/mach-generic
+ drivers-$(CONFIG_PCI)		+= arch/mips/pci/
+@@ -728,7 +426,7 @@ install:
+ 
+ archclean:
+ 	@$(MAKE) $(clean)=arch/mips/boot
+-	@$(MAKE) $(clean)=arch/mips/lasat
++	#@$(MAKE) $(clean)=arch/mips/lasat
+ 
+ define archhelp
+ 	echo '  install              - install kernel into $(INSTALL_PATH)'
+--- linux-2.6.30.9/arch/mips/mm/c-r3k.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/mm/c-r3k.c	2013-05-02 01:47:49.424227406 +0300
+@@ -25,6 +25,24 @@
+ 
+ static unsigned long icache_size, dcache_size;		/* Size in bytes */
+ static unsigned long icache_lsize, dcache_lsize;	/* Size in bytes */
++#ifdef CONFIG_RTL865XC 
++/* For Realtek RTL865XC Network platform series */
++#define _ICACHE_SIZE		(16 * 1024)		/* 16K bytes */
++#define _DCACHE_SIZE		(8 * 1024)		/* 8K bytes */
++#define _CACHE_LINE_SIZE	4			/* 4 words */
++extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
++#elif defined(CONFIG_RTL_819X)
++/* For Realtek RTL865XC Network platform series */
++#define _ICACHE_SIZE		(16 * 1024)		/* 16K bytes */
++#define _DCACHE_SIZE		(8 * 1024)		/* 8K bytes */
++#define _CACHE_LINE_SIZE	4			/* 4 words */
++extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
++#elif defined (CONFIG_RTL865XB)
++/* For Realtek RTL865XB Network platform series */
++#define _ICACHE_SIZE	(4 * 1024)			/* 4K bytes */
++#define _DCACHE_SIZE	(4 * 1024)			/* 4K bytes */
++#define _CACHE_LIN
++#endif
+ 
+ unsigned long __cpuinit r3k_cache_size(unsigned long ca_flags)
+ {
+@@ -92,6 +110,17 @@ unsigned long __cpuinit r3k_cache_lsize(
+ 
+ static void __cpuinit r3k_probe_cache(void)
+ {
++#if defined(CONFIG_RTL865XB)
++   dcache_size = 4 << 10;
++   dcache_lsize = 16;
++   icache_size = 4 << 10;
++   icache_lsize = 16;
++#elif defined(CONFIG_RTL8652) || defined(CONFIG_RTL_819X)
++   dcache_size = 8 << 10;
++   dcache_lsize = 16;
++   icache_size = 16 << 10;
++   icache_lsize = 16;
++#else
+ 	dcache_size = r3k_cache_size(ST0_ISC);
+ 	if (dcache_size)
+ 		dcache_lsize = r3k_cache_lsize(ST0_ISC);
+@@ -99,10 +128,46 @@ static void __cpuinit r3k_probe_cache(vo
+ 	icache_size = r3k_cache_size(ST0_ISC|ST0_SWC);
+ 	if (icache_size)
+ 		icache_lsize = r3k_cache_lsize(ST0_ISC|ST0_SWC);
++#endif
+ }
+ 
++static void r3k_flush_dcache_range(unsigned long start, unsigned long end);
+ static void r3k_flush_icache_range(unsigned long start, unsigned long end)
+ {
++#if defined(CONFIG_RTL865XB) || defined(CONFIG_RTL8652) || defined(CONFIG_RTL_819X)
++	unsigned long flags;
++        /*
++                Flush data cache at first in write-back platform.
++ 
++                Ghhuang (2007/3/9):
++ 
++                RD-Center suggest that we need to flush D-cache entries which
++                might match to same address as I-cache ... when we flush
++                I-cache.
++                ( Maybe some data is treated as data/instruction, both. )
++		
++		Hf_shi copy from RTL8651C Platform
++        */
++	r3k_flush_dcache_range(start, end);
++
++	flags = read_c0_status();
++	write_c0_status((ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
++
++	__asm__ volatile(
++		"mtc0 $0,$20\n\t"
++		"nop\n\t"
++		"li $8,2\n\t"
++		"mtc0 $8,$20\n\t"
++		"nop\n\t"
++		"nop\n\t"
++		"mtc0 $0,$20\n\t"
++		"nop"
++		: /* no output */
++		: /* no input */
++			);
++
++	write_c0_status(flags);
++#else
+ 	unsigned long size, i, flags;
+ 	volatile unsigned char *p;
+ 
+@@ -156,10 +221,99 @@ static void r3k_flush_icache_range(unsig
+ 	}
+ 
+ 	write_c0_status(flags);
++#endif
+ }
+ 
+ static void r3k_flush_dcache_range(unsigned long start, unsigned long end)
+ {
++#if defined(CONFIG_RTL865XB)
++	unsigned long flags;
++
++	flags = read_c0_status();
++	write_c0_status((ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
++
++	__asm__ volatile(
++		"mtc0 $0,$20\n\t"
++		"nop\n\t"
++		"li $8,1\n\t"
++		"mtc0 $8,$20\n\t"
++		"nop\n\t"
++		"nop\n\t"
++		"mtc0 $0,$20\n\t"
++		"nop"
++		: /* no output */
++		: /* no input */
++			);
++	write_c0_status(flags);
++#elif defined(CONFIG_RTL8652) || defined(CONFIG_RTL_819X)
++
++#if 0
++	unsigned long flags;
++
++	flags = read_c0_status();
++	write_c0_status((flags)&~ST0_IEC);
++
++	__asm__ volatile(
++		"mtc0 $0,$20\n\t"
++		"nop\n\t"
++		"li $8,512\n\t"
++		"mtc0 $8,$20\n\t"
++		"nop\n\t"
++		"nop\n\t"
++		"mtc0 $0,$20\n\t"
++		"nop"
++		: /* no output */
++		: /* no input */
++			);
++
++	write_c0_status(flags);
++#else
++	unsigned long size, i, flags;
++	volatile unsigned char *p;
++	start = start & (~0xF);
++	size = end - start;
++	#ifdef CONFIG_RTL_819X
++	size += 64; //jason, flush one more cache line for CPU write-buffer issue
++	#endif	
++	if (size > dcache_size || KSEGX(start) != KSEG0) {
++		start = KSEG0;
++		size = dcache_size;
++		#ifdef CONFIG_RTL_819X
++		size += 64; //jason, flush one more cache line for CPU write-buffer issue
++		#endif
++
++	}
++	p = (char *)start;
++
++	flags = read_c0_status();
++	write_c0_status((flags)&~ST0_IEC);
++
++	for (i = 0; i < size; i += 0x080) {
++		asm ( 	"cache\t0x15, 0x000(%0)\n\t"
++			"cache\t0x15, 0x010(%0)\n\t"
++			"cache\t0x15, 0x020(%0)\n\t"
++			"cache\t0x15, 0x030(%0)\n\t"
++			"cache\t0x15, 0x040(%0)\n\t"
++			"cache\t0x15, 0x050(%0)\n\t"
++			"cache\t0x15, 0x060(%0)\n\t"
++			"cache\t0x15, 0x070(%0)\n\t"
++			: : "r" (p) );
++		p += 0x080;
++	}
++
++	write_c0_status(flags);
++	__asm__ __volatile__(			\
++		".set	push\n\t"		\
++		".set	noreorder\n\t"		\
++		"lw	$0,%0\n\t"		\
++		"nop\n\t"			\
++		".set	pop"			\
++		: /* no output */		\
++		: "m" (*(int *)CKSEG1)		\
++		: "memory");
++#endif
++
++#else
+ 	unsigned long size, i, flags;
+ 	volatile unsigned char *p;
+ 
+@@ -213,6 +367,7 @@ static void r3k_flush_dcache_range(unsig
+ 	}
+ 
+ 	write_c0_status(flags);
++#endif
+ }
+ 
+ static inline void r3k_flush_cache_all(void)
+@@ -291,9 +446,14 @@ static void r3k_flush_cache_sigtramp(uns
+ 
+ 	write_c0_status((ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
+ 
++#if defined(CONFIG_RTL8652) || defined(CONFIG_RTL_819X)
++	asm ( 	"cache\t0x15, 0x000(%0)\n\t"
++		: : "r" (addr) );
++#else
+ 	asm( 	"sb\t$0, 0x000(%0)\n\t"
+ 		"sb\t$0, 0x004(%0)\n\t"
+ 		: : "r" (addr) );
++#endif
+ 
+ 	write_c0_status(flags);
+ }
+--- linux-2.6.30.9/arch/mips/mm/init.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/mm/init.c	2013-05-02 01:47:49.426227406 +0300
+@@ -326,13 +324,6 @@ void __init paging_init(void)
+ 	kmap_init();
+ #endif
+ 	kmap_coherent_init();
+-
+-#ifdef CONFIG_ZONE_DMA
+-	max_zone_pfns[ZONE_DMA] = MAX_DMA_PFN;
+-#endif
+-#ifdef CONFIG_ZONE_DMA32
+-	max_zone_pfns[ZONE_DMA32] = MAX_DMA32_PFN;
+-#endif
+ 	max_zone_pfns[ZONE_NORMAL] = max_low_pfn;
+ 	lastpfn = max_low_pfn;
+ #ifdef CONFIG_HIGHMEM
+--- linux-2.6.30.9/arch/mips/mm/tlbex.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/arch/mips/mm/tlbex.c	2013-05-02 01:47:49.429227406 +0300
+@@ -187,7 +187,7 @@ static void __cpuinit build_r3000_tlb_re
+ 
+ 	memcpy((void *)ebase, tlb_handler, 0x80);
+ 
+-	dump_handler((u32 *)ebase, 32);
++	//dump_handler((u32 *)ebase, 32);
+ }
+ 
+ /*
+@@ -263,6 +263,7 @@ static void __cpuinit build_tlb_write_en
+ 		return;
+ 	}
+ 
++	printk("---%s(%d),cpu_type(%d)\n",__FUNCTION__,__LINE__,current_cpu_type());
+ 	switch (current_cpu_type()) {
+ 	case CPU_R4000PC:
+ 	case CPU_R4000SC:
+@@ -759,7 +760,7 @@ static void __cpuinit build_r4000_tlb_re
+ 
+ 	memcpy((void *)ebase, final_handler, 0x100);
+ 
+-	dump_handler((u32 *)ebase, 64);
++	//dump_handler((u32 *)ebase, 64);
+ }
+ 
+ /*
+@@ -1010,7 +1011,7 @@ static void __cpuinit build_r3000_tlb_lo
+ 	pr_debug("Wrote TLB load handler fastpath (%u instructions).\n",
+ 		 (unsigned int)(p - handle_tlbl));
+ 
+-	dump_handler(handle_tlbl, ARRAY_SIZE(handle_tlbl));
++	//dump_handler(handle_tlbl, ARRAY_SIZE(handle_tlbl));
+ }
+ 
+ static void __cpuinit build_r3000_tlb_store_handler(void)
+@@ -1040,7 +1041,7 @@ static void __cpuinit build_r3000_tlb_st
+ 	pr_debug("Wrote TLB store handler fastpath (%u instructions).\n",
+ 		 (unsigned int)(p - handle_tlbs));
+ 
+-	dump_handler(handle_tlbs, ARRAY_SIZE(handle_tlbs));
++	//dump_handler(handle_tlbs, ARRAY_SIZE(handle_tlbs));
+ }
+ 
+ static void __cpuinit build_r3000_tlb_modify_handler(void)
+@@ -1070,7 +1071,7 @@ static void __cpuinit build_r3000_tlb_mo
+ 	pr_debug("Wrote TLB modify handler fastpath (%u instructions).\n",
+ 		 (unsigned int)(p - handle_tlbm));
+ 
+-	dump_handler(handle_tlbm, ARRAY_SIZE(handle_tlbm));
++	//dump_handler(handle_tlbm, ARRAY_SIZE(handle_tlbm));
+ }
+ 
+ /*
+@@ -1155,7 +1156,7 @@ static void __cpuinit build_r4000_tlb_lo
+ 	pr_debug("Wrote TLB load handler fastpath (%u instructions).\n",
+ 		 (unsigned int)(p - handle_tlbl));
+ 
+-	dump_handler(handle_tlbl, ARRAY_SIZE(handle_tlbl));
++	//dump_handler(handle_tlbl, ARRAY_SIZE(handle_tlbl));
+ }
+ 
+ static void __cpuinit build_r4000_tlb_store_handler(void)
+@@ -1186,7 +1187,7 @@ static void __cpuinit build_r4000_tlb_st
+ 	pr_debug("Wrote TLB store handler fastpath (%u instructions).\n",
+ 		 (unsigned int)(p - handle_tlbs));
+ 
+-	dump_handler(handle_tlbs, ARRAY_SIZE(handle_tlbs));
++	//dump_handler(handle_tlbs, ARRAY_SIZE(handle_tlbs));
+ }
+ 
+ static void __cpuinit build_r4000_tlb_modify_handler(void)
+@@ -1218,7 +1219,7 @@ static void __cpuinit build_r4000_tlb_mo
+ 	pr_debug("Wrote TLB modify handler fastpath (%u instructions).\n",
+ 		 (unsigned int)(p - handle_tlbm));
+ 
+-	dump_handler(handle_tlbm, ARRAY_SIZE(handle_tlbm));
++	//dump_handler(handle_tlbm, ARRAY_SIZE(handle_tlbm));
+ }
+ 
+ void __cpuinit build_tlb_refill_handler(void)

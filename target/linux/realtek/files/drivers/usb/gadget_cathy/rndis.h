@@ -19,6 +19,10 @@
 
 #include "ndis.h"
 
+#if 1//defined(CONFIG_RTL_ULINKER)
+#include "usb_ulinker.h"
+#endif
+
 #define RNDIS_MAXIMUM_FRAME_SIZE	1518
 #define RNDIS_MAX_TOTAL_SIZE		1558
 
@@ -264,7 +268,7 @@ int  rndis_signal_disconnect (int configNr);
 int  rndis_state (int configNr);
 extern void rndis_set_host_mac (int configNr, const u8 *addr);
 
-int __devinit rndis_init (void);
+int ULINKER_DEVINIT rndis_init (void);
 void rndis_exit (void);
 
 #endif  /* _LINUX_RNDIS_H */

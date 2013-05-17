@@ -10,6 +10,12 @@
 #ifndef RTL865X_ASICCOM_H
 #define RTL865X_ASICCOM_H
 
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#define RTL865XC_VLANTBL_SIZE				16
+#else
+#define RTL865XC_VLANTBL_SIZE				4096
+#endif
+
 #define RTL865XC_NETIFTBL_SIZE			8
 #define RTL8651_ACLTBL_SIZE			125
 #define RTL8651_ACLHWTBL_SIZE			128
@@ -224,7 +230,11 @@ typedef struct {
 typedef struct {
 #ifndef _LITTLE_ENDIAN
 	 /* word 0 */
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	uint32	vid:12;
+#else
 	uint32	reserved1:12;
+#endif
 	uint32	fid:2;
 	uint32     extEgressUntag  : 3;
 	uint32     egressUntag : 6;
@@ -608,6 +618,9 @@ typedef struct rtl865x_tblAsicDrv_vlanParam_s {
 	uint32 	memberPortMask; /*extension ports [rtl8651_totalExtPortNum-1:0] are located at bits [RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum-1:RTL8651_PORT_NUMBER]*/
 	uint32 	untagPortMask; /*extension ports [rtl8651_totalExtPortNum-1:0] are located at bits [RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum-1:RTL8651_PORT_NUMBER]*/
 	uint32  fid:2;
+#if defined(CONFIG_RTL_819XD)  || defined(CONFIG_RTL_8196E)
+	uint32  vid:12;
+#endif
 } rtl865x_tblAsicDrv_vlanParam_t;
 
 typedef struct rtl865x_tblAsicDrv_intfParam_s {
@@ -700,6 +713,9 @@ extern rtl8651_tblAsic_InitPara_t rtl8651_tblAsicDrvPara;
 
 int32 rtl8651_clearAsicCommTable(void);
 /*vlan*/
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+int rtl8651_findAsicVlanIndexByVid(uint16 *vid);
+#endif
 int32 rtl8651_setAsicVlan(uint16 vid, rtl865x_tblAsicDrv_vlanParam_t *vlanp);
 int32 rtl8651_getAsicVlan(uint16 vid, rtl865x_tblAsicDrv_vlanParam_t *vlanp);
 int32 rtl8651_delAsicVlan(uint16 vid);
@@ -744,7 +760,7 @@ void rtl865x_start(void);
 void rtl865x_down(void);
 
 /*counter*/
-int32 rtl8651_returnAsicCounter(uint32 offset);
+uint32 rtl8651_returnAsicCounter(uint32 offset);
 int32 rtl8651_clearAsicCounter(void);
 int32 rtl865xC_dumpAsicDiagCounter(void);
 int32 rtl865xC_dumpAsicCounter(void);

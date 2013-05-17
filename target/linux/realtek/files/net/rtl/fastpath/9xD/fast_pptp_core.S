@@ -807,7 +807,7 @@ $L45:
 
 	move	$2,$3
 #APP
- # 83 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
+ # 83 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
 		.set	push		# csum_fold
 	.set	noat		
 	sll	$1, $2, 16	
@@ -822,7 +822,7 @@ $L45:
 	sh	$2,10($16)
 $L40:
 #APP
- # 134 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/irqflags.h" 1
+ # 134 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/irqflags.h" 1
 	raw_local_irq_restore	$17
  # 0 "" 2
 #NO_APP
@@ -921,7 +921,7 @@ is_pptp_device:
 
 	jal	rtl_get_ppp_dev_name
 #APP
- # 75 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$3,($2)
@@ -1059,7 +1059,7 @@ $L68:
 	lui	$3,%hi($LC3)
 	addiu	$4,$3,%lo($LC3)
 #APP
- # 75 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$3,($2)
@@ -1365,7 +1365,7 @@ $L65:
 	addiu	$17,$18,%lo(pptpAccInfo)
 	sh	$3,46($17)
 #APP
- # 83 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
+ # 83 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
 		.set	push		# csum_fold
 	.set	noat		
 	sll	$1, $2, 16	

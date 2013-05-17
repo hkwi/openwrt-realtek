@@ -27,9 +27,9 @@ dwc_otg-objs	:= dwc_otg_driver.o
 dwc_otg-objs    += dwc_otg_cil.o dwc_otg_cil_intr.o
 
 
-ifeq ($(CONFIG_USB_OTG_DEVICE_RTL8672),y)
+#ifeq ($(CONFIG_USB_OTG_DEVICE_RTL8672),y)
 dwc_otg-objs    += dwc_otg_pcd.o dwc_otg_pcd_intr.o
-endif
+#endif
 
 ifeq ($(CONFIG_USB),y)
 dwc_otg-objs    += dwc_otg_hcd.o dwc_otg_hcd_intr.o dwc_otg_hcd_queue.o
@@ -39,6 +39,7 @@ endif
 obj-y	+= lm.o
 #obj-y	+= dwc_otg.o 
 
-obj-y	+= rtk_otg_autodet.o
+obj-$(CONFIG_RTL_OTGCTRL)	+= rtk_otg_autodet.o
+
 clean:
 	rm -rf   *.o *.ko .*cmd *.mod.c .tmp_versions

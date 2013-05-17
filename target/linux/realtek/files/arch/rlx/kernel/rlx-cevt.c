@@ -169,7 +169,7 @@ static irqreturn_t rlx_timer_interrupt(int irq, void *dev_id)
   #endif
 		{
 		// quick fix for warn reboot fail issue
-#if defined(CONFIG_RTL8192SE) || defined(CONFIG_RTL8192CD)
+#if defined(CONFIG_RTL8192SE) || defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192E)
 #if !defined(CONFIG_RTL865X_PANAHOST) && !defined(CONFIG_RTL8197B_PANA)
 		extern void force_stop_wlan_hw(void);
 		force_stop_wlan_hw();

@@ -230,7 +230,7 @@ static inline uint32_t SET_DEBUG_LEVEL( const uint32_t _new )
  * </code>
  */
 //#define DEBUG
-#if 1 //def DEBUG
+#if CONFIG_DWC_OTG_DEBUG  //def DEBUG
 
 #if 0
 //#define DWC_DEBUGPL(lvl, x...) do{ if ((lvl)&g_dbg_lvl)printk( KERN_DEBUG USB_DWC x ); }while(0)

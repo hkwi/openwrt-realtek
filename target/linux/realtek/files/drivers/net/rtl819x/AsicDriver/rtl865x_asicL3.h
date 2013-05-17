@@ -17,9 +17,17 @@
 #define RTL8651_ROUTINGTBL_SIZE		8
 #define RTL8651_ARPTBL_SIZE			512
 
-#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) 
+#if defined(CONFIG_RTL_8196E)
+
+#define RTL8651_MULTICASTTBL_SIZE			256
+#define RTL8651_IPMULTICASTTBL_SIZE		256
+#define RTL8651_IPMCAST_CAM_SIZE			32
+
+#elif defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD)
 #define RTL8651_IPMULTICASTTBL_SIZE		128
 #define RTL8651_MULTICASTTBL_SIZE		128
+#define RTL8651_IPMCAST_CAM_SIZE			32
+
 #else
 #define RTL8651_IPMULTICASTTBL_SIZE		64
 #define RTL8651_MULTICASTTBL_SIZE		64
@@ -321,7 +329,7 @@ typedef struct {
 } rtl865xc_tblAsic_arpTable_t;
 
 typedef struct {
-#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B)
+#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
     /* word 0 */
     ipaddr_t        srcIPAddr;
     /* word 1 */

@@ -130,8 +130,8 @@ void rtl8651_memcpy(void *dst,void*src,int32 len)
 	}
 #endif
 }
-
-#ifndef RTK_X86_CLE//RTK-CNSD2-NickWu-20061222: for x86 compile
+#if 1
+//#ifndef RTK_X86_CLE//RTK-CNSD2-NickWu-20061222: for x86 compile
 /*cfliu: This function is only for debugging. Should not be used in production code...*/
 void memDump (void *start, uint32 size, int8 * strHeader)
 {
@@ -170,15 +170,17 @@ void memDump (void *start, uint32 size, int8 * strHeader)
 		max = (index == row - 1) ? column : 16;
 		if ( max==0 ) break; /* If we need not dump this line, break it. */
 
-		rtlglue_printf ("\n%08x ", (memaddr) line);
+		rtlglue_printf ("\n%08x: ", (memaddr) line);
 		
 		//Hex
 		for (index2 = 0; index2 < max; index2++)
 		{
 			if (index2 == 8)
 			rtlglue_printf ("  ");
-			rtlglue_printf ("%02x ", (uint8) buf[index2]);
+			rtlglue_printf ("%02X", (uint8) buf[index2]);
 			ascii[index2] = ((uint8) buf[index2] < 32) ? empty : buf[index2];
+			if((index2+1)%4==0)
+				rtlglue_printf ("  ");
 		}
 
 		if (max != 16)

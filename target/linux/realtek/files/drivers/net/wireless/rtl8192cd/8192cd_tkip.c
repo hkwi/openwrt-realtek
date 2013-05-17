@@ -15,16 +15,25 @@
 #ifdef __KERNEL__
 #include <linux/module.h>
 #include <asm/byteorder.h>
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
 #endif
 
 #include "./8192cd_cfg.h"
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && !defined(__ECOS)
 #include "./sys-support.h"
 #endif
 
 #include "./8192cd.h"
+#ifdef __KERNEL__
 #include "./ieee802_mib.h"
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wlan/ieee802_mib.h>
+#endif
 #include "./8192cd_util.h"
 #include "./8192cd_headers.h"
 #include "./8192cd_debug.h"

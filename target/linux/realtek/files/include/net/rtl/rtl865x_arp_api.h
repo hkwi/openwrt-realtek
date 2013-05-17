@@ -24,4 +24,8 @@ int32 rtl865x_getArpMapping(ipaddr_t ip, rtl865x_arpMapping_entry_t * arp_mappin
 int32 rtl_set_callback_for_ps_arp(int (*call_back_fn)(u32 ip,rtl865x_arpMapping_entry_t *entry));
 #endif
 
+#if 1//#if defined(CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT)
+int32 rtl865x_isEthArp(ipaddr_t ip);
+#endif
+
 #endif

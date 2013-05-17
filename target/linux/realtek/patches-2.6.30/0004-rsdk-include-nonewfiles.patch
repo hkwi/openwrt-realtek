@@ -1,0 +1,1918 @@
+--- linux-2.6.30.9/include/asm-generic/bitops/sched.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/asm-generic/bitops/sched.h	2013-05-02 01:47:58.430226677 +0300
+@@ -11,11 +11,6 @@
+  */
+ static inline int sched_find_first_bit(const unsigned long *b)
+ {
+-#if BITS_PER_LONG == 64
+-	if (b[0])
+-		return __ffs(b[0]);
+-	return __ffs(b[1]) + 64;
+-#elif BITS_PER_LONG == 32
+ 	if (b[0])
+ 		return __ffs(b[0]);
+ 	if (b[1])
+@@ -23,9 +18,6 @@ static inline int sched_find_first_bit(c
+ 	if (b[2])
+ 		return __ffs(b[2]) + 64;
+ 	return __ffs(b[3]) + 96;
+-#else
+-#error BITS_PER_LONG not defined
+-#endif
+ }
+ 
+ #endif /* _ASM_GENERIC_BITOPS_SCHED_H_ */
+--- linux-2.6.30.9/include/asm-generic/int-ll64.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/asm-generic/int-ll64.h	2013-05-02 01:47:58.433226677 +0300
+@@ -8,6 +8,8 @@
+ #ifndef _ASM_GENERIC_INT_LL64_H
+ #define _ASM_GENERIC_INT_LL64_H
+ 
++#include <asm-generic/bitsperlong.h>
++
+ #ifndef __ASSEMBLY__
+ /*
+  * __xx is ok: it doesn't pollute the POSIX namespace. Use these in the
+--- linux-2.6.30.9/include/linux/crypto.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/crypto.h	2013-05-02 01:47:58.489226673 +0300
+@@ -367,7 +367,22 @@ int crypto_unregister_alg(struct crypto_
+ /*
+  * Algorithm query interface.
+  */
++#if defined(CONFIG_PPP_MPPE_MPPC)
++#ifdef CONFIG_CRYPTO
++int crypto_alg_available(const char *name, u32 flags)
++       __deprecated_for_modules;
+ int crypto_has_alg(const char *name, u32 type, u32 mask);
++#else
++static int crypto_alg_available(const char *name, u32 flags)
++       __deprecated_for_modules;
++static inline int crypto_has_alg(const char *name, u32 type, u32 mask)
++{
++       return 0;
++}
++#endif
++#else
++int crypto_has_alg(const char *name, u32 type, u32 mask);
++#endif
+ 
+ /*
+  * Transforms: user-instantiated objects which encapsulate algorithms
+@@ -1173,6 +1188,18 @@ static inline void crypto_cipher_decrypt
+ 						dst, src);
+ }
+ 
++#if defined(CONFIG_PPP_MPPE_MPPC)
++void crypto_digest_init(struct crypto_tfm *tfm) __deprecated_for_modules;
++void crypto_digest_update(struct crypto_tfm *tfm,
++                         struct scatterlist *sg, unsigned int nsg)
++       __deprecated_for_modules;
++void crypto_digest_final(struct crypto_tfm *tfm, u8 *out)
++       __deprecated_for_modules;
++void crypto_digest_digest(struct crypto_tfm *tfm,
++                         struct scatterlist *sg, unsigned int nsg, u8 *out)
++       __deprecated_for_modules;
++#endif
++
+ static inline struct crypto_hash *__crypto_hash_cast(struct crypto_tfm *tfm)
+ {
+ 	return (struct crypto_hash *)tfm;
+@@ -1185,6 +1212,16 @@ static inline struct crypto_hash *crypto
+ 	return __crypto_hash_cast(tfm);
+ }
+ 
++#if defined(CONFIG_PPP_MPPE_MPPC)
++static int crypto_digest_setkey(struct crypto_tfm *tfm, const u8 *key,
++                               unsigned int keylen) __deprecated;
++static inline int crypto_digest_setkey(struct crypto_tfm *tfm,
++                                       const u8 *key, unsigned int keylen)
++{
++       return tfm->crt_hash.setkey(crypto_hash_cast(tfm), key, keylen);
++}
++#endif
++
+ static inline struct crypto_hash *crypto_alloc_hash(const char *alg_name,
+ 						    u32 type, u32 mask)
+ {
+--- linux-2.6.30.9/include/linux/decompress/mm.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/decompress/mm.h	2013-05-02 01:47:58.493226672 +0300
+@@ -53,8 +53,6 @@ static void free(void *where)
+ 
+ #define set_error_fn(x)
+ 
+-#define INIT
+-
+ #else /* STATIC */
+ 
+ /* Code active when compiled standalone for use when loading ramdisk: */
+@@ -77,7 +75,6 @@ static void free(void *where)
+ static void(*error)(char *m);
+ #define set_error_fn(x) error = x;
+ 
+-#define INIT __init
+ #define STATIC
+ 
+ #include <linux/init.h>
+--- linux-2.6.30.9/include/linux/gfp.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/gfp.h	2013-05-02 01:47:58.528226669 +0300
+@@ -5,6 +5,7 @@
+ #include <linux/stddef.h>
+ #include <linux/linkage.h>
+ #include <linux/topology.h>
++#include <linux/mmdebug.h>
+ 
+ struct vm_area_struct;
+ 
+--- linux-2.6.30.9/include/linux/hardirq.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/hardirq.h	2013-05-02 01:47:58.529226669 +0300
+@@ -2,7 +2,9 @@
+ #define LINUX_HARDIRQ_H
+ 
+ #include <linux/preempt.h>
++#ifdef CONFIG_PREEMPT
+ #include <linux/smp_lock.h>
++#endif
+ #include <linux/lockdep.h>
+ #include <linux/ftrace_irq.h>
+ #include <asm/hardirq.h>
+--- linux-2.6.30.9/include/linux/if_bridge.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/if_bridge.h	2013-05-02 01:47:58.549226668 +0300
+@@ -49,6 +49,16 @@
+ #define BR_STATE_FORWARDING 3
+ #define BR_STATE_BLOCKING 4
+ 
++#if defined CONFIG_RTK_MESH
++//brian
++#define BRCTL_SET_MESH_PATHSELPID 111
++#define BRCTL_GET_PORTSTAT 112
++#endif
++
++#if defined (CONFIG_RTL_IGMP_SNOOPING)
++#define BRCTL_SET_IGMPPROXY_PID 200
++#endif
++
+ struct __bridge_info
+ {
+ 	__u64 designated_root;
+--- linux-2.6.30.9/include/linux/in6.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/in6.h	2013-05-02 01:47:58.563226667 +0300
+@@ -259,7 +259,9 @@ struct in6_flowlabel_req
+ 
+ /* RFC5014: Source address selection */
+ #define IPV6_ADDR_PREFERENCES	72
+-
++#ifdef CONFIG_RTL_IPV6READYLOGO
++#define IPV6_SRC_ADDR	73
++#endif
+ #define IPV6_PREFER_SRC_TMP		0x0001
+ #define IPV6_PREFER_SRC_PUBLIC		0x0002
+ #define IPV6_PREFER_SRC_PUBTMP_DEFAULT	0x0100
+--- linux-2.6.30.9/include/linux/in.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/in.h	2013-05-02 01:47:58.562226667 +0300
+@@ -44,6 +44,7 @@ enum {
+   IPPROTO_PIM    = 103,		/* Protocol Independent Multicast	*/
+ 
+   IPPROTO_COMP   = 108,                /* Compression Header protocol */
++  IPPROTO_L2TP   = 115,		/*L2tp over ip*/
+   IPPROTO_SCTP   = 132,		/* Stream Control Transport Protocol	*/
+   IPPROTO_UDPLITE = 136,	/* UDP-Lite (RFC 3828)			*/
+ 
+@@ -251,6 +252,17 @@ struct sockaddr_in {
+ #include <asm/byteorder.h> 
+ 
+ #ifdef __KERNEL__
++/* Some random defines to make it easier in the kernel.. */
++#define LOOPBACK(x)	(((x) & htonl(0xff000000)) == htonl(0x7f000000))
++#define MULTICAST(x)	(((x) & htonl(0xf0000000)) == htonl(0xe0000000))
++#define BADCLASS(x)	(((x) & htonl(0xf0000000)) == htonl(0xf0000000))
++#define ZERONET(x)	(((x) & htonl(0xff000000)) == htonl(0x00000000))
++#define LOCAL_MCAST(x)	(((x) & htonl(0xFFFFFF00)) == htonl(0xE0000000))
++
++#endif
++
++
++#ifdef __KERNEL__
+ 
+ static inline bool ipv4_is_loopback(__be32 addr)
+ {
+--- linux-2.6.30.9/include/linux/ipv6.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/ipv6.h	2013-05-02 01:47:58.580226665 +0300
+@@ -326,6 +326,9 @@ struct ipv6_pinfo {
+ 				dstopts:1,
+ 				odstopts:1,
+                                 rxflow:1,
++#ifdef CONFIG_RTL_IPV6READYLOGO
++				srcaddr:1,
++#endif
+ 				rxtclass:1;
+ 		} bits;
+ 		__u16		all;
+--- linux-2.6.30.9/include/linux/irqflags.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/irqflags.h	2013-05-02 01:47:58.581226665 +0300
+@@ -12,6 +12,7 @@
+ #define _LINUX_TRACE_IRQFLAGS_H
+ 
+ #include <linux/typecheck.h>
++#include <asm/irqflags.h>
+ 
+ #ifdef CONFIG_TRACE_IRQFLAGS
+   extern void trace_softirqs_on(unsigned long ip);
+@@ -52,10 +53,7 @@
+ # define start_critical_timings() do { } while (0)
+ #endif
+ 
+-#ifdef CONFIG_TRACE_IRQFLAGS_SUPPORT
+-
+-#include <asm/irqflags.h>
+-
++#if defined(CONFIG_TRACE_IRQFLAGS_SUPPORT)
+ #define local_irq_enable() \
+ 	do { trace_hardirqs_on(); raw_local_irq_enable(); } while (0)
+ #define local_irq_disable() \
+@@ -84,6 +82,7 @@
+  * The local_irq_*() APIs are equal to the raw_local_irq*()
+  * if !TRACE_IRQFLAGS.
+  */
++ #if 0
+ # define raw_local_irq_disable()	local_irq_disable()
+ # define raw_local_irq_enable()		local_irq_enable()
+ # define raw_local_irq_save(flags)			\
+@@ -96,9 +95,32 @@
+ 		typecheck(unsigned long, flags);	\
+ 		local_irq_restore(flags);		\
+ 	} while (0)
++#endif
++
++#define local_irq_enable() \
++	do { raw_local_irq_enable(); } while (0)
++#define local_irq_disable() \
++	do { raw_local_irq_disable();} while (0)
++#define local_irq_save(flags)				\
++	do {					\
++		typecheck(unsigned long, flags);	\
++		raw_local_irq_save(flags);	\
++	} while (0)
++
++
++#define local_irq_restore(flags)			\
++	do {						\
++		typecheck(unsigned long, flags);	\
++		if (raw_irqs_disabled_flags(flags)) {	\
++			raw_local_irq_restore(flags);	\
++		} else {				\
++			raw_local_irq_restore(flags);	\
++		}					\
++	} while (0)
++
+ #endif /* CONFIG_TRACE_IRQFLAGS_SUPPORT */
+ 
+-#ifdef CONFIG_TRACE_IRQFLAGS_SUPPORT
++#if defined(CONFIG_TRACE_IRQFLAGS_SUPPORT)
+ #define safe_halt()						\
+ 	do {							\
+ 		trace_hardirqs_on();				\
+@@ -124,6 +146,31 @@
+ 	typecheck(unsigned long, flags);	\
+ 	raw_irqs_disabled_flags(flags);		\
+ })
+-#endif		/* CONFIG_X86 */
++#elif defined(CONFIG_RTL_819X)
++#define safe_halt()						\
++	do {							\
++		raw_safe_halt();				\
++	} while (0)
++
++#define local_save_flags(flags)				\
++	do {						\
++		typecheck(unsigned long, flags);	\
++		raw_local_save_flags(flags);		\
++	} while (0)
++
++#define irqs_disabled()						\
++({								\
++	unsigned long _flags;					\
++								\
++	raw_local_save_flags(_flags);				\
++	raw_irqs_disabled_flags(_flags);			\
++})
++
++#define irqs_disabled_flags(flags)		\
++({						\
++	typecheck(unsigned long, flags);	\
++	raw_irqs_disabled_flags(flags);		\
++})
++#endif
+ 
+ #endif
+--- linux-2.6.30.9/include/linux/irq.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/irq.h	2013-05-02 01:47:58.581226665 +0300
+@@ -205,7 +205,9 @@ extern void arch_init_copy_chip_data(str
+ extern void arch_free_chip_data(struct irq_desc *old_desc, struct irq_desc *desc);
+ 
+ #ifndef CONFIG_SPARSE_IRQ
++#if !defined(CONFIG_RTL_819X)
+ extern struct irq_desc irq_desc[NR_IRQS];
++#endif
+ #else /* CONFIG_SPARSE_IRQ */
+ extern struct irq_desc *move_irq_desc(struct irq_desc *old_desc, int cpu);
+ #endif /* CONFIG_SPARSE_IRQ */
+--- linux-2.6.30.9/include/linux/irqnr.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/irqnr.h	2013-05-02 01:47:58.591226664 +0300
+@@ -24,7 +23,12 @@
+ #else /* CONFIG_GENERIC_HARDIRQS */
+ 
+ extern int nr_irqs;
+-extern struct irq_desc *irq_to_desc(unsigned int irq);
++#if defined(CONFIG_RTL_819X) && !defined(CONFIG_RTL_8196C) && !defined(CONFIG_SPARSE_IRQ)
++ //__MIPS16 is defined at include/net/rtl/rtl_types.h
++ extern __attribute__((mips16))  struct irq_desc *irq_to_desc(unsigned int irq);
++#else
++ extern  struct irq_desc *irq_to_desc(unsigned int irq);
++#endif
+ 
+ # define for_each_irq_desc(irq, desc)					\
+ 	for (irq = 0, desc = irq_to_desc(irq); irq < nr_irqs;		\
+--- linux-2.6.30.9/include/linux/jiffies.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/jiffies.h	2013-05-02 01:47:58.605226663 +0300
+@@ -71,7 +71,11 @@
+  * but that can only take up to, say, 4-byte variables. jiffies being part of
+  * an 8-byte variable may not be correctly accessed unless we force the issue
+  */
++ #if defined(CONFIG_RTL_819X)
++ #define __jiffy_data  __attribute__((section(".dram-gen")))
++ #else
+ #define __jiffy_data  __attribute__((section(".data")))
++#endif
+ 
+ /*
+  * The 64-bit value is not atomic - you MUST NOT read it
+--- linux-2.6.30.9/include/linux/kernel.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/kernel.h	2013-05-02 01:47:58.607226663 +0300
+@@ -232,11 +232,18 @@ extern struct pid *session_of_pgrp(struc
+ #define FW_WARN		"[Firmware Warn]: "
+ #define FW_INFO		"[Firmware Info]: "
+ 
+-#ifdef CONFIG_PRINTK
++asmlinkage int scrlog_printk(const char *fmt, ...);
++
++#if defined(CONFIG_PRINTK) || defined(CONFIG_PANIC_PRINTK)
+ asmlinkage int vprintk(const char *fmt, va_list args)
+ 	__attribute__ ((format (printf, 1, 0)));
++#endif
++
++#ifdef CONFIG_PRINTK
+ asmlinkage int printk(const char * fmt, ...)
+ 	__attribute__ ((format (printf, 1, 2))) __cold;
++asmlinkage int panic_printk(const char * fmt, ...)
++	__attribute__ ((format (printf, 1, 2))) __cold;
+ 
+ extern struct ratelimit_state printk_ratelimit_state;
+ extern int printk_ratelimit(void);
+@@ -257,11 +264,15 @@ extern bool printk_timed_ratelimit(unsig
+ 
+ void log_buf_kexec_setup(void);
+ #else
++#if !defined(CONFIG_PANIC_PRINTK)
+ static inline int vprintk(const char *s, va_list args)
+ 	__attribute__ ((format (printf, 1, 0)));
+ static inline int vprintk(const char *s, va_list args) { return 0; }
++#endif
+ static inline int printk(const char *s, ...)
+ 	__attribute__ ((format (printf, 1, 2)));
++asmlinkage int panic_printk(const char * fmt, ...)
++	__attribute__ ((format (printf, 1, 2))) __cold;
+ static inline int __cold printk(const char *s, ...) { return 0; }
+ static inline int printk_ratelimit(void) { return 0; }
+ static inline bool printk_timed_ratelimit(unsigned long *caller_jiffies, \
+--- linux-2.6.30.9/include/linux/major.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/major.h	2013-05-02 01:47:58.626226661 +0300
+@@ -54,6 +54,7 @@
+ #define ACSI_MAJOR		28
+ #define AZTECH_CDROM_MAJOR	29
+ #define FB_MAJOR		29   /* /dev/fb* framebuffers */
++#define MTDBLK_MAJOR      31  /*/dev/mtdblock*/
+ #define CM206_CDROM_MAJOR	32
+ #define IDE2_MAJOR		33
+ #define IDE3_MAJOR		34
+--- linux-2.6.30.9/include/linux/mm.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/mm.h	2013-05-02 01:47:58.640226660 +0300
+@@ -7,7 +7,6 @@
+ 
+ #include <linux/gfp.h>
+ #include <linux/list.h>
+-#include <linux/mmdebug.h>
+ #include <linux/mmzone.h>
+ #include <linux/rbtree.h>
+ #include <linux/prio_tree.h>
+@@ -823,8 +822,12 @@ static inline int handle_mm_fault(struct
+ extern int make_pages_present(unsigned long addr, unsigned long end);
+ extern int access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
+ 
+-int get_user_pages(struct task_struct *tsk, struct mm_struct *mm, unsigned long start,
+-		int len, int write, int force, struct page **pages, struct vm_area_struct **vmas);
++int get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
++            unsigned long start, int nr_pages, int write, int force,
++            struct page **pages, struct vm_area_struct **vmas);
++int get_user_pages_fast(unsigned long start, int nr_pages, int write,
++            struct page **pages);
++
+ 
+ extern int try_to_release_page(struct page * page, gfp_t gfp_mask);
+ extern void do_invalidatepage(struct page *page, unsigned long offset);
+@@ -849,16 +852,9 @@ extern int mprotect_fixup(struct vm_area
+ 			  unsigned long end, unsigned long newflags);
+ 
+ /*
+- * get_user_pages_fast provides equivalent functionality to get_user_pages,
+- * operating on current and current->mm (force=0 and doesn't return any vmas).
+- *
+- * get_user_pages_fast may take mmap_sem and page tables, so no assumptions
+- * can be made about locking. get_user_pages_fast is to be implemented in a
+- * way that is advantageous (vs get_user_pages()) when the user memory area is
+- * already faulted in and present in ptes. However if the pages have to be
+- * faulted in, it may turn out to be slightly slower).
++ * doesn't attempt to fault and will return short.
+  */
+-int get_user_pages_fast(unsigned long start, int nr_pages, int write,
++int __get_user_pages_fast(unsigned long start, int nr_pages, int write,
+ 			struct page **pages);
+ 
+ /*
+--- linux-2.6.30.9/include/linux/mmzone.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/mmzone.h	2013-05-02 01:47:58.644226660 +0300
+@@ -86,13 +86,8 @@ enum zone_stat_item {
+ 	NR_ACTIVE_ANON,		/*  "     "     "   "       "         */
+ 	NR_INACTIVE_FILE,	/*  "     "     "   "       "         */
+ 	NR_ACTIVE_FILE,		/*  "     "     "   "       "         */
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ 	NR_UNEVICTABLE,		/*  "     "     "   "       "         */
+ 	NR_MLOCK,		/* mlock()ed pages found and moved off LRU */
+-#else
+-	NR_UNEVICTABLE = NR_ACTIVE_FILE, /* avoid compiler errors in dead code */
+-	NR_MLOCK = NR_ACTIVE_FILE,
+-#endif
+ 	NR_ANON_PAGES,	/* Mapped anonymous pages */
+ 	NR_FILE_MAPPED,	/* pagecache pages mapped into pagetables.
+ 			   only modified from process context */
+@@ -135,11 +130,7 @@ enum lru_list {
+ 	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,
+ 	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,
+ 	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ 	LRU_UNEVICTABLE,
+-#else
+-	LRU_UNEVICTABLE = LRU_ACTIVE_FILE, /* avoid compiler errors in dead code */
+-#endif
+ 	NR_LRU_LISTS
+ };
+ 
+@@ -159,11 +150,7 @@ static inline int is_active_lru(enum lru
+ 
+ static inline int is_unevictable_lru(enum lru_list l)
+ {
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ 	return (l == LRU_UNEVICTABLE);
+-#else
+-	return 0;
+-#endif
+ }
+ 
+ struct per_cpu_pages {
+--- linux-2.6.30.9/include/linux/mroute.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/mroute.h	2013-05-02 01:47:58.646226660 +0300
+@@ -198,6 +198,9 @@ struct mfc_cache
+ #endif
+ 	__be32 mfc_mcastgrp;			/* Group the entry belongs to 	*/
+ 	__be32 mfc_origin;			/* Source of packet 		*/
++	#if defined (CONFIG_RTL_IGMP_PROXY)
++	__u32 mfc_firstone;
++	#endif
+ 	vifi_t mfc_parent;			/* Source interface		*/
+ 	int mfc_flags;				/* Flags on line		*/
+ 
+--- linux-2.6.30.9/include/linux/mtd/mtd.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/mtd/mtd.h	2013-05-02 01:47:58.649226660 +0300
+@@ -343,5 +343,127 @@ static inline void mtd_erase_callback(st
+ 	} while(0)
+ 
+ #endif /* CONFIG_MTD_DEBUG */
++/*****************************************************************************/
++/*
++*          Added by alva_zhang
++*/
++/*****************************************************************************/
++
++__asm__ (
++	".macro\t__sti\n\t"
++	".set\tpush\n\t"
++	".set\treorder\n\t"
++	".set\tnoat\n\t"
++	"mfc0\t$1,$12\n\t"
++	"ori\t$1,0x1f\n\t"
++	"xori\t$1,0x1e\n\t"
++	"mtc0\t$1,$12\n\t"
++	".set\tpop\n\t"
++	".endm");
++
++extern __inline__ void
++mtd_sti(void)
++{
++	__asm__ __volatile__(
++		"__sti"
++		: /* no outputs */
++		: /* no inputs */
++		: "memory");
++}
++
++/*
++ * For cli() we have to insert nops to make sure that the new value
++ * has actually arrived in the status register before the end of this
++ * macro.
++ * R4000/R4400 need three nops, the R4600 two nops and the R10000 needs
++ * no nops at all.
++ */
++__asm__ (
++	".macro\t__cli\n\t"
++	".set\tpush\n\t"
++	".set\tnoat\n\t"
++	"mfc0\t$1,$12\n\t"
++	"ori\t$1,1\n\t"
++	"xori\t$1,1\n\t"
++	".set\tnoreorder\n\t"
++	"mtc0\t$1,$12\n\t"
++	"sll\t$0, $0, 1\t\t\t# nop\n\t"
++	"sll\t$0, $0, 1\t\t\t# nop\n\t"
++	"sll\t$0, $0, 1\t\t\t# nop\n\t"
++	".set\tpop\n\t"
++	".endm");
++
++extern __inline__ void
++mtd_cli(void)
++{
++	__asm__ __volatile__(
++		"__cli"
++		: /* no outputs */
++		: /* no inputs */
++		: "memory");
++}
++
++__asm__ (
++	".macro\t__save_flags flags\n\t"
++	".set\tpush\n\t"
++	".set\treorder\n\t"
++	"mfc0\t\\flags, $12\n\t"
++	".set\tpop\n\t"
++	".endm");
++
++#define mtd_save_flags(x)			\
++__asm__ __volatile__(					\
++	"__save_flags %0"					\
++	: "=r" (x))
++
++__asm__ (
++	".macro\t__save_and_cli result\n\t"
++	".set\tpush\n\t"
++	".set\treorder\n\t"
++	".set\tnoat\n\t"
++	"mfc0\t\\result, $12\n\t"
++	"ori\t$1, \\result, 1\n\t"
++	"xori\t$1, 1\n\t"
++	".set\tnoreorder\n\t"
++	"mtc0\t$1, $12\n\t"
++	"sll\t$0, $0, 1\t\t\t# nop\n\t"
++	"sll\t$0, $0, 1\t\t\t# nop\n\t"
++	"sll\t$0, $0, 1\t\t\t# nop\n\t"
++	".set\tpop\n\t"	
++	".endm");
++
++#define mtd_save_and_cli(x)						\
++__asm__ __volatile__(							\
++	"__save_and_cli\t%0"						\
++	: "=r" (x)							\
++	: /* no inputs */						\
++	: "memory")
++
++__asm__(".macro\t__restore_flags flags\n\t"
++	".set\tnoreorder\n\t"
++	".set\tnoat\n\t"
++	"mfc0\t$1, $12\n\t"
++	"andi\t\\flags, 1\n\t"
++	"ori\t$1, 1\n\t"
++	"xori\t$1, 1\n\t"
++	"or\t\\flags, $1\n\t"
++	"mtc0\t\\flags, $12\n\t"
++	"nop\n\t"
++	"nop\n\t"
++	"nop\n\t"
++	".set\tat\n\t"
++	".set\treorder\n\t"
++	".endm");
++
++#define mtd_restore_flags(flags)						\
++do {									\
++	unsigned long __tmp1;						\
++									\
++	__asm__ __volatile__(						\
++		"__restore_flags\t%0"					\
++		: "=r" (__tmp1)						\
++		: "0" (flags)						\
++		: "memory");						\
++} while(0)
+ 
+ #endif /* __MTD_MTD_H__ */
+--- linux-2.6.30.9/include/linux/netdevice.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/netdevice.h	2013-05-02 01:47:58.658226659 +0300
+@@ -75,7 +75,11 @@ struct wireless_dev;
+ #define NET_RX_CN_MOD		3   /* Storm on its way! */
+ #define NET_RX_CN_HIGH		4   /* The storm is here */
+ #define NET_RX_BAD		5  /* packet dropped due to kernel error */
++#define NET_RX_PASSBY	6 /* packet pass by for next process */
+ 
++#if defined 	(CONFIG_RTL865X_LANPORT_RESTRICTION)	
++#define NET_RX_AUTH_BLOCK	6 
++#endif
+ /* NET_XMIT_CN is special. It does not guarantee that this packet is lost. It
+  * indicates that the device will soon be dropping packets, or already drops
+  * some packets of the same priority; prompting us to send less aggressively. */
+@@ -712,6 +716,7 @@ struct net_device
+ 	/* Instance data managed by the core of Wireless Extensions. */
+ 	struct iw_public_data *	wireless_data;
+ #endif
++	void			*priv;	/* pointer to private data	*/
+ 	/* Management operations */
+ 	const struct net_device_ops *netdev_ops;
+ 	const struct ethtool_ops *ethtool_ops;
+@@ -905,6 +910,12 @@ struct net_device
+ #endif
+ 	};
+ #endif
++
++	#if	defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_HW_NAPT)
++	/*2007-12-19*/
++	int			wanif;
++	#endif
++
+ };
+ #define to_net_dev(d) container_of(d, struct net_device, dev)
+ 
+@@ -990,6 +1001,14 @@ static inline void *netdev_priv(const st
+  */
+ #define SET_NETDEV_DEV(net, pdev)	((net)->dev.parent = (pdev))
+ 
++#ifdef CONFIG_RTL_USB_OTG
++/* Set the sysfs device type for the network logical device to allow
++ * fin grained indentification of different network device types. For
++ * example Ethernet, Wirelss LAN, Bluetooth, WiMAX etc.
++ */
++#define SET_NETDEV_DEVTYPE(net, devtype)	((net)->dev.type = (devtype))
++#endif
++
+ /**
+  *	netif_napi_add - initialize a napi context
+  *	@dev:  network device
+@@ -1098,6 +1117,7 @@ extern struct net_device	*dev_get_by_fla
+ 						  unsigned short mask);
+ extern struct net_device	*dev_get_by_name(struct net *net, const char *name);
+ extern struct net_device	*__dev_get_by_name(struct net *net, const char *name);
++extern int rtl865x_getDevIpAndNetmask(struct net_device * dev, unsigned int *ipAddr, unsigned int *netMask );
+ extern int		dev_alloc_name(struct net_device *dev, const char *name);
+ extern int		dev_open(struct net_device *dev);
+ extern int		dev_close(struct net_device *dev);
+--- linux-2.6.30.9/include/linux/netfilter/nf_conntrack_common.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/netfilter/nf_conntrack_common.h	2013-05-02 01:47:58.659226659 +0300
+@@ -73,6 +73,13 @@ enum ip_conntrack_status {
+ 	/* Connection has fixed timeout. */
+ 	IPS_FIXED_TIMEOUT_BIT = 10,
+ 	IPS_FIXED_TIMEOUT = (1 << IPS_FIXED_TIMEOUT_BIT),
++
++#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
++	/* Connection is bt session: identify for bt session */
++	IPS_BT_SESSION_BIT = 11,
++	IPS_BT_SESSION = (1 << IPS_BT_SESSION_BIT),
++#endif	
++
+ };
+ 
+ /* Connection tracking event bits */
+--- linux-2.6.30.9/include/linux/netfilter/x_tables.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/netfilter/x_tables.h	2013-05-02 01:47:58.663226659 +0300
+@@ -5,6 +5,11 @@
+ 
+ #define XT_FUNCTION_MAXNAMELEN 30
+ #define XT_TABLE_MAXNAMELEN 32
++#if defined(CONFIG_RTL_IPTABLES_RULE_2_ACL)
++#define RTL865X_SKIP_THIS_RULE 0x8
++#define RTL865X_ESTABLISH_RULE 0x10
++#define RTL865X_MATCH_NOT_SUPPORTED 0xFFFF;
++#endif
+ 
+ struct xt_entry_match
+ {
+@@ -292,6 +297,15 @@ struct xt_match
+ 	void (*compat_from_user)(void *dst, void *src);
+ 	int (*compat_to_user)(void __user *dst, void *src);
+ 
++#if defined(CONFIG_RTL_IPTABLES_RULE_2_ACL)
++	int (*match2acl)(const char *tablename,
++			  const void *ip,
++			  const struct xt_match *match,
++			  void *matchinfo,
++			  void *rule,
++			  unsigned int *invflag);
++#endif
++
+ 	/* Set this to THIS_MODULE if you are a module, otherwise NULL */
+ 	struct module *me;
+ 
+@@ -336,6 +350,16 @@ struct xt_target
+ 	/* Set this to THIS_MODULE if you are a module, otherwise NULL */
+ 	struct module *me;
+ 
++#if defined(CONFIG_RTL_IPTABLES_RULE_2_ACL)
++	int (*target2acl)(const char *tablename,
++			  const void *entry,
++			  const struct xt_target *target,
++			  void *targinfo,
++			 void *rule,
++			  unsigned int hook_mask, 
++			  void **data);
++#endif
++
+ 	const char *table;
+ 	unsigned int targetsize;
+ 	unsigned int compatsize;
+--- linux-2.6.30.9/include/linux/netfilter/xt_mac.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/netfilter/xt_mac.h	2013-05-02 01:47:58.666226658 +0300
+@@ -1,8 +1,26 @@
+ #ifndef _XT_MAC_H
+ #define _XT_MAC_H
+ 
++#define MAC_SRC		0x01	/* Match source MAC address */
++#define MAC_DST		0x02	/* Match destination MAC address */
++#if defined(CONFIG_RTL_MAC_FILTER_CARE_INPORT)
++#define INPORT_FLAG    0x04
++#endif
++#define MAC_SRC_INV		0x10	/* Negate the condition */
++#define MAC_DST_INV		0x20	/* Negate the condition */
++
++struct xt_mac{
++    unsigned char macaddr[ETH_ALEN];
++};
++
+ struct xt_mac_info {
+-    unsigned char srcaddr[ETH_ALEN];
+-    int invert;
++   struct xt_mac srcaddr;
++   struct xt_mac dstaddr;
++//    int invert;
++    u_int8_t flags;
++#if defined(CONFIG_RTL_MAC_FILTER_CARE_INPORT)
++    u_int8_t inPortMask;
++#endif
+ };
++
+ #endif /*_XT_MAC_H*/
+--- linux-2.6.30.9/include/linux/netfilter_ipv4/ip_tables.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/netfilter_ipv4/ip_tables.h	2013-05-02 01:47:58.673226658 +0300
+@@ -73,6 +73,11 @@ struct ipt_ip {
+ #define IPT_INV_PROTO		XT_INV_PROTO
+ #define IPT_INV_MASK		0x7F	/* All possible flag bits mask. */
+ 
++#if	defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_IPTABLES_RULE_2_ACL)
++/* Values for special return value	*/
++#define	RTL_QOSFINDSPECIALNETIF		1
++#endif
++
+ /* This structure defines each of the firewall rules.  Consists of 3
+    parts which are 1) general IP header stuff 2) match specific
+    stuff 3) the target to perform if the rule matches */
+@@ -228,6 +233,25 @@ ipt_get_target(struct ipt_entry *e)
+ 	return (void *)e + e->target_offset;
+ }
+ 
++#if defined(CONFIG_RTL_IPTABLES_RULE_2_ACL)
++
++#define IPT_MATCH_NUMBER(e) \
++({					\
++	unsigned int __i;		\
++	int __ret = 0;			\
++	struct ipt_entry_match *__match;	\
++	for(__i = sizeof(struct ipt_entry);	\
++		__i < (e)->target_offset;		\
++		__i += __match->u.match_size)	\
++		{		\
++		__match = (void*)(e) + __i;		\
++		__ret++;		\
++		}		\
++		__ret;	\
++})
++
++#endif
++
+ /* fn returns 0 to continue iteration */
+ #define IPT_MATCH_ITERATE(e, fn, args...) \
+ 	XT_MATCH_ITERATE(struct ipt_entry, e, fn, ## args)
+@@ -336,4 +360,37 @@ compat_ipt_get_target(struct compat_ipt_
+ 
+ #endif /* CONFIG_COMPAT */
+ #endif /*__KERNEL__*/
++
++#if defined(CONFIG_RTL_IPTABLES_RULE_2_ACL)
++#define RTL865X_CHAINLIST_NUMBER_PER_TBL 5
++#define RTL865x_CHAINLIST_PRIORITY_LEVEL_0 0
++#define RTL865x_CHAINLIST_PRIORITY_LEVEL_1 1
++#define RTL865x_CHAINLIST_PRIORITY_LEVEL_2 2
++#define RTL865x_CHAINLIST_PRIORITY_LEVEL_3 3
++#define RTL865x_CHAINLIST_PRIORITY_LEVEL_4 4
++
++typedef struct _rtl865x_iptRule2Acl_tbl_
++{
++	struct list_head list;
++	/*chain list priority: 0 > 1 > ...> 4*/
++	struct list_head chainList[RTL865X_CHAINLIST_NUMBER_PER_TBL]; /*chain list head in this table*/
++	
++	int32_t priority; /*table priority*/
++	char tblName[32];
++}rtl865x_iptRule2Acl_tbl;
++//extern struct list_head rtl865x_iptRule2Acl_tbl_list;
++//extern struct list_head rtl865x_iptRule2Acl_def_rule_list;
++//extern struct list_head match_to_acl_rule_list;
++//extern struct list_head def_rule_list;
++#endif
++
++#if defined (CONFIG_RTL_IGMP_SNOOPING) && defined (CONFIG_NETFILTER)
++extern unsigned int (*IgmpRxFilter_Hook)(struct sk_buff *skb,
++	     unsigned int hook,
++	     const struct net_device *in,
++	     const struct net_device *out,
++	     struct xt_table *table);
++#endif
++
++
+ #endif /* _IPTABLES_H */
+--- linux-2.6.30.9/include/linux/netfilter_ipv4.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/netfilter_ipv4.h	2013-05-02 01:47:58.671226658 +0300
+@@ -36,6 +36,7 @@
+ #define NFC_IP_DST_PT		0x0400
+ /* Something else about the proto */
+ #define NFC_IP_PROTO_UNKNOWN	0x2000
++#endif /* ! __KERNEL__ */
+ 
+ /* IP Hooks */
+ /* After promisc drops, checksum checks. */
+@@ -49,7 +50,7 @@
+ /* Packets about to hit the wire. */
+ #define NF_IP_POST_ROUTING	4
+ #define NF_IP_NUMHOOKS		5
+-#endif /* ! __KERNEL__ */
++
+ 
+ enum nf_ip_hook_priorities {
+ 	NF_IP_PRI_FIRST = INT_MIN,
+--- linux-2.6.30.9/include/linux/netlink.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/netlink.h	2013-05-02 01:47:58.679226657 +0300
+@@ -25,6 +25,16 @@
+ #define NETLINK_SCSITRANSPORT	18	/* SCSI Transports */
+ #define NETLINK_ECRYPTFS	19
+ 
++#define NETLINK_L2TP 20
++
++#if defined(CONFIG_RTL_819X)
++#define NETLINK_RTK_DEBUG 	21
++#define NETLINK_RTK_FILTER 	22
++#define NETLINK_MULTICAST_DELETE 	23
++#define NETLINK_RTK_FB		24
++#define NETLINK_RTK_HW_QOS 25
++#endif
++
+ #define MAX_LINKS 32		
+ 
+ struct net;
+@@ -174,8 +184,10 @@ struct netlink_skb_parms
+ 
+ #define NETLINK_CB(skb)		(*(struct netlink_skb_parms*)&((skb)->cb))
+ #define NETLINK_CREDS(skb)	(&NETLINK_CB((skb)).creds)
+-
+-
++#if defined(CONFIG_RTL_819X)
++extern int rtk_nlrecvmsg(struct sk_buff *_skb,int _len, void *_recv_data);
++extern int rtk_nlsendmsg (int _pid,struct sock *_nl_sk,int _len,void *_send_info);
++#endif
+ extern struct sock *netlink_kernel_create(struct net *net,
+ 					  int unit,unsigned int groups,
+ 					  void (*input)(struct sk_buff *skb),
+--- linux-2.6.30.9/include/linux/page-flags.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/page-flags.h	2013-05-02 01:47:58.687226657 +0300
+@@ -95,9 +95,7 @@ enum pageflags {
+ 	PG_reclaim,		/* To be reclaimed asap */
+ 	PG_buddy,		/* Page is free, on buddy lists */
+ 	PG_swapbacked,		/* Page is backed by RAM/swap */
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ 	PG_unevictable,		/* Page is "unevictable"  */
+-#endif
+ #ifdef CONFIG_HAVE_MLOCKED_PAGE_BIT
+ 	PG_mlocked,		/* Page is vma mlocked */
+ #endif
+@@ -248,14 +246,8 @@ PAGEFLAG_FALSE(SwapCache)
+ 	SETPAGEFLAG_NOOP(SwapCache) CLEARPAGEFLAG_NOOP(SwapCache)
+ #endif
+ 
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ PAGEFLAG(Unevictable, unevictable) __CLEARPAGEFLAG(Unevictable, unevictable)
+ 	TESTCLEARFLAG(Unevictable, unevictable)
+-#else
+-PAGEFLAG_FALSE(Unevictable) TESTCLEARFLAG_FALSE(Unevictable)
+-	SETPAGEFLAG_NOOP(Unevictable) CLEARPAGEFLAG_NOOP(Unevictable)
+-	__CLEARPAGEFLAG_NOOP(Unevictable)
+-#endif
+ 
+ #ifdef CONFIG_HAVE_MLOCKED_PAGE_BIT
+ #define MLOCK_PAGES 1
+@@ -382,11 +374,7 @@ static inline void __ClearPageTail(struc
+ 
+ #endif /* !PAGEFLAGS_EXTENDED */
+ 
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ #define __PG_UNEVICTABLE	(1 << PG_unevictable)
+-#else
+-#define __PG_UNEVICTABLE	0
+-#endif
+ 
+ #ifdef CONFIG_HAVE_MLOCKED_PAGE_BIT
+ #define __PG_MLOCKED		(1 << PG_mlocked)
+--- linux-2.6.30.9/include/linux/pagemap.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/pagemap.h	2013-05-02 01:47:58.688226656 +0300
+@@ -22,9 +22,7 @@ enum mapping_flags {
+ 	AS_EIO		= __GFP_BITS_SHIFT + 0,	/* IO error on async write */
+ 	AS_ENOSPC	= __GFP_BITS_SHIFT + 1,	/* ENOSPC on async write */
+ 	AS_MM_ALL_LOCKS	= __GFP_BITS_SHIFT + 2,	/* under mm_take_all_locks() */
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ 	AS_UNEVICTABLE	= __GFP_BITS_SHIFT + 3,	/* e.g., ramdisk, SHM_LOCK */
+-#endif
+ };
+ 
+ static inline void mapping_set_error(struct address_space *mapping, int error)
+@@ -37,8 +35,6 @@ static inline void mapping_set_error(str
+ 	}
+ }
+ 
+-#ifdef CONFIG_UNEVICTABLE_LRU
+-
+ static inline void mapping_set_unevictable(struct address_space *mapping)
+ {
+ 	set_bit(AS_UNEVICTABLE, &mapping->flags);
+@@ -55,14 +51,6 @@ static inline int mapping_unevictable(st
+ 		return test_bit(AS_UNEVICTABLE, &mapping->flags);
+ 	return !!mapping;
+ }
+-#else
+-static inline void mapping_set_unevictable(struct address_space *mapping) { }
+-static inline void mapping_clear_unevictable(struct address_space *mapping) { }
+-static inline int mapping_unevictable(struct address_space *mapping)
+-{
+-	return 0;
+-}
+-#endif
+ 
+ static inline gfp_t mapping_gfp_mask(struct address_space * mapping)
+ {
+--- linux-2.6.30.9/include/linux/ppp_channel.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/ppp_channel.h	2013-05-02 01:47:58.698226656 +0300
+@@ -81,5 +81,10 @@ extern int ppp_unit_number(struct ppp_ch
+  * that ppp_unregister_channel returns.
+  */
+ 
++#if defined(CONFIG_RTL_PPPOE_HWACC) || defined (CONFIG_RTL_FAST_PPPOE)
++extern void ppp_channel_pppoe(struct ppp_channel *chan);
++#endif
++
++
+ #endif /* __KERNEL__ */
+ #endif
+--- linux-2.6.30.9/include/linux/ppp-comp.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/ppp-comp.h	2013-05-02 01:47:58.698226656 +0300
+@@ -26,7 +26,7 @@
+  */
+ 
+ /*
+- *  ==FILEVERSION 980319==
++ *  ==FILEVERSION 20040509==
+  *
+  *  NOTE TO MAINTAINERS:
+  *     If you modify this file at all, please set the above date.
+@@ -109,8 +109,11 @@ struct compressor {
+ 
+ 	/* Used in locking compressor modules */
+ 	struct module *owner;
++	
++#if !defined(CONFIG_PPP_MPPE_MPPC)
+ 	/* Extra skb space needed by the compressor algorithm */
+ 	unsigned int comp_extra;
++#endif
+ };
+ 
+ /*
+@@ -191,12 +194,43 @@ struct compressor {
+ #define DEFLATE_CHK_SEQUENCE	0
+ 
+ /*
+- * Definitions for MPPE.
++ * Definitions for MPPE/MPPC.
+  */
+ 
+ #define CI_MPPE                18      /* config option for MPPE */
+ #define CILEN_MPPE              6      /* length of config option */
+ 
++#if defined(CONFIG_PPP_MPPE_MPPC)
++#define MPPE_OVHD              4       /* MPPE overhead */
++#define MPPE_MAX_KEY_LEN       16      /* largest key length (128-bit) */
++
++#define MPPE_STATELESS          0x01   /* configuration bit H */
++#define MPPE_40BIT              0x20   /* configuration bit L */
++#define MPPE_56BIT              0x80   /* configuration bit M */
++#define MPPE_128BIT             0x40   /* configuration bit S */
++#define MPPE_MPPC               0x01   /* configuration bit C */
++
++/*
++ * Definitions for Stac LZS.
++ */
++
++#define CI_LZS                 17      /* config option for Stac LZS */
++#define CILEN_LZS              5       /* length of config option */
++
++#define LZS_OVHD               4       /* max. LZS overhead */
++#define LZS_HIST_LEN           2048    /* LZS history size */
++#define LZS_MAX_CCOUNT         0x0FFF  /* max. coherency counter value */
++
++#define LZS_MODE_NONE          0
++#define LZS_MODE_LCB           1
++#define LZS_MODE_CRC           2
++#define LZS_MODE_SEQ           3
++#define LZS_MODE_EXT           4
++
++#define LZS_EXT_BIT_FLUSHED    0x80    /* bit A */
++#define LZS_EXT_BIT_COMP       0x20    /* bit C */
++#endif
++
+ /*
+  * Definitions for other, as yet unsupported, compression methods.
+  */
+--- linux-2.6.30.9/include/linux/rmap.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/rmap.h	2013-05-02 01:47:58.708226655 +0300
+@@ -105,18 +105,11 @@ unsigned long page_address_in_vma(struct
+  */
+ int page_mkclean(struct page *);
+ 
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ /*
+  * called in munlock()/munmap() path to check for other vmas holding
+  * the page mlocked.
+  */
+ int try_to_munlock(struct page *);
+-#else
+-static inline int try_to_munlock(struct page *page)
+-{
+-	return 0;	/* a.k.a. SWAP_SUCCESS */
+-}
+-#endif
+ 
+ #else	/* !CONFIG_MMU */
+ 
+--- linux-2.6.30.9/include/linux/root_dev.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/root_dev.h	2013-05-02 01:47:58.708226655 +0300
+@@ -16,6 +16,7 @@ enum {
+ 	Root_SDA2 = MKDEV(SCSI_DISK0_MAJOR, 2),
+ 	Root_HDC1 = MKDEV(IDE1_MAJOR, 1),
+ 	Root_SR0 = MKDEV(SCSI_CDROM_MAJOR, 0),
++	Root_MTDBLK1=MKDEV(MTDBLK_MAJOR, 1),
+ };
+ 
+ extern dev_t ROOT_DEV;
+--- linux-2.6.30.9/include/linux/rtnetlink.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/rtnetlink.h	2013-05-02 01:47:58.711226655 +0300
+@@ -113,6 +113,11 @@ enum {
+ 	RTM_SETDCB,
+ #define RTM_SETDCB RTM_SETDCB
+ 
++#ifdef CONFIG_RTK_VOIP
++        RTM_LINKCHANGE,
++#define RTM_LINKCHANGE RTM_LINKCHANGE
++#endif
++
+ 	__RTM_MAX,
+ #define RTM_MAX		(((__RTM_MAX + 3) & ~3) - 1)
+ };
+--- linux-2.6.30.9/include/linux/sched.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/sched.h	2013-05-02 01:47:58.713226654 +0300
+@@ -482,6 +482,15 @@ struct task_cputime {
+ 		.sum_exec_runtime = 0,				\
+ 	}
+ 
++/*
++ * Disable preemption until the scheduler is running.
++ * Reset by start_kernel()->sched_init()->init_idle().
++ *
++ * We include PREEMPT_ACTIVE to avoid cond_resched() from working
++ * before the scheduler is active -- see should_resched().
++ */
++#define INIT_PREEMPT_COUNT  (1 + PREEMPT_ACTIVE)
++
+ /**
+  * struct thread_group_cputimer - thread group interval timer counts
+  * @cputime:		thread group interval timers.
+--- linux-2.6.30.9/include/linux/serial_8250.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/serial_8250.h	2013-05-02 01:47:58.716226654 +0300
+@@ -50,6 +50,7 @@ enum {
+ 	PLAT8250_DEV_MCA,
+ 	PLAT8250_DEV_AU1X00,
+ 	PLAT8250_DEV_SM501,
++	PLAT8250_DEV_SC16IS7X0, // I2C
+ };
+ 
+ /*
+--- linux-2.6.30.9/include/linux/serial_core.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/serial_core.h	2013-05-02 01:47:58.716226654 +0300
+@@ -273,6 +273,7 @@ struct uart_port {
+ #define UPIO_TSI		(5)			/* Tsi108/109 type IO */
+ #define UPIO_DWAPB		(6)			/* DesignWare APB UART */
+ #define UPIO_RM9000		(7)			/* RM9000 type IO */
++#define UPIO_I2C		(8)			/* I2C */
+ 
+ 	unsigned int		read_status_mask;	/* driver specific */
+ 	unsigned int		ignore_status_mask;	/* driver specific */
+--- linux-2.6.30.9/include/linux/skbuff.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/skbuff.h	2013-05-02 01:47:58.719226654 +0300
+@@ -28,6 +28,24 @@
+ #include <linux/rcupdate.h>
+ #include <linux/dmaengine.h>
+ #include <linux/hrtimer.h>
++#if defined(CONFIG_RTK_VLAN_SUPPORT)
++#include <net/rtl/rtk_vlan.h>
++#endif
++
++#if defined(CONFIG_RTL_819X) || defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8190) || defined(CONFIG_RTL8192SE)
++#define RTL_PRIV_DATA_SIZE		128
++#endif
++
++#if defined(CONFIG_RTL_QOS_PATCH)  || defined(CONFIG_RTK_VOIP_QOS)|| defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT)
++#define	QOS_PATCH_HIGH_QUEUE_PRIO	7
++#define	QOS_PATCH_RX_FROM_LOCAL		0xff
++#define QOS_PATCH_RX_FROM_WIRELESS      7
++#if defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT)
++#define RX_FROM_LOCAL	QOS_PATCH_RX_FROM_LOCAL
++#define RX_FROM_WIRELESS QOS_PATCH_RX_FROM_WIRELESS
++#endif
++#endif
++
+ 
+ /* Don't change this without changing skb_csum_unnecessary! */
+ #define CHECKSUM_NONE 0
+@@ -334,6 +352,9 @@ struct sk_buff {
+ 	 */
+ 	char			cb[48];
+ 
++	/*This field is only needed by RTL8190 Driver.FIX ME!!!*/
++	unsigned char 	__unused;
++
+ 	unsigned int		len,
+ 				data_len;
+ 	__u16			mac_len,
+@@ -391,6 +412,50 @@ struct sk_buff {
+ 	__u32			secmark;
+ #endif
+ 
++#if defined( CONFIG_RTL_HARDWARE_MULTICAST) || defined(CONFIG_RTL865X_LANPORT_RESTRICTION)
++	__u16			srcPort;
++	__u16			srcVlanId:12;
++#endif
++
++#if	defined(CONFIG_RTL_QOS_8021P_SUPPORT)
++	__u16			srcVlanPriority:3;
++#endif
++
++/* #if defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT)|| defined(CONFIG_RTL_FAST_FILTER) */
++	__u8			srcPhyPort;		// 0~4
++	__u8			dstPhyPort;		// 0~4
++/* #endif */
++
++#if defined(CONFIG_RTK_VLAN_SUPPORT)
++	struct vlan_tag tag;
++#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
++	struct vlan_info *src_info;
++#endif
++#endif
++#if defined (CONFIG_RTL_LOCAL_PUBLIC)
++	__u32 srcLocalPublicIp;
++	__u8 fromLocalPublic;
++	__u8 toLocalPublic;
++	__u8 localPublicFlags;
++#endif
++#if defined(CONFIG_RTL_FAST_BRIDGE)
++	__u8 fast_br_forwarding_flags;
++#endif
++
++#if defined(CONFIG_RTL_DSCP_IPTABLE_CHECK)			
++	__u8 original_dscp;
++ #endif
++ 
++#if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
++/* #if defined(IMPROVE_QOS) && defined(CONFIG_NET_SCHED) */
++	/* This member is only used at fastpath when both IMPROVE_QOS and CONFIG_NET_SCHED are defined. */
++	struct net_device	*inDev;
++/* end of IMPROVE_QOS and CONFIG_NET_SCHED */
++#endif
++#if defined (CONFIG_RTL_FAST_PPPOE)
++	__u32 pppoe_flag;
++	struct net_device	*rx_dev;
++#endif
+ 	__u32			mark;
+ 
+ 	__u16			vlan_tci;
+@@ -1423,11 +1488,19 @@ static inline void skb_orphan(struct sk_
+  *	list lock and the caller must hold the relevant locks to use it.
+  */
+ extern void skb_queue_purge(struct sk_buff_head *list);
++extern void dev_kfree_skb_any(struct sk_buff *skb);
+ static inline void __skb_queue_purge(struct sk_buff_head *list)
+ {
+ 	struct sk_buff *skb;
+ 	while ((skb = __skb_dequeue(list)) != NULL)
++	{
++		#if CONFIG_RTL_819X
++		dev_kfree_skb_any(skb);
++		#else
+ 		kfree_skb(skb);
++		#endif
++	}
++
+ }
+ 
+ /**
+@@ -2044,5 +2117,9 @@ static inline void skb_forward_csum(stru
+ }
+ 
+ bool skb_partial_csum_set(struct sk_buff *skb, u16 start, u16 off);
++
++#if defined(CONFIG_RTL_ETH_PRIV_SKB) && (defined(CONFIG_NET_WIRELESS_AGN) || defined(CONFIG_NET_WIRELESS_AG))
++void copy_skb_header(struct sk_buff *new, const struct sk_buff *old);
++#endif
+ #endif	/* __KERNEL__ */
+ #endif	/* _LINUX_SKBUFF_H */
+--- linux-2.6.30.9/include/linux/string.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/string.h	2013-05-02 01:47:58.730226653 +0300
+@@ -14,6 +14,7 @@
+ 
+ extern char *strndup_user(const char __user *, long);
+ extern void *memdup_user(const void __user *, size_t);
++extern char * strtok(char *,const char *);
+ 
+ /*
+  * Include machine specific inline routines
+--- linux-2.6.30.9/include/linux/swap.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/swap.h	2013-05-02 01:47:58.735226653 +0300
+@@ -235,7 +235,6 @@ static inline int zone_reclaim(struct zo
+ }
+ #endif
+ 
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ extern int page_evictable(struct page *page, struct vm_area_struct *vma);
+ extern void scan_mapping_unevictable_pages(struct address_space *);
+ 
+@@ -244,24 +243,6 @@ extern int scan_unevictable_handler(stru
+ 					void __user *, size_t *, loff_t *);
+ extern int scan_unevictable_register_node(struct node *node);
+ extern void scan_unevictable_unregister_node(struct node *node);
+-#else
+-static inline int page_evictable(struct page *page,
+-						struct vm_area_struct *vma)
+-{
+-	return 1;
+-}
+-
+-static inline void scan_mapping_unevictable_pages(struct address_space *mapping)
+-{
+-}
+-
+-static inline int scan_unevictable_register_node(struct node *node)
+-{
+-	return 0;
+-}
+-
+-static inline void scan_unevictable_unregister_node(struct node *node) { }
+-#endif
+ 
+ extern int kswapd_run(int nid);
+ 
+--- linux-2.6.30.9/include/linux/sysctl.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/sysctl.h	2013-05-02 01:47:58.736226653 +0300
+@@ -335,6 +335,11 @@ enum
+ 	NET_NF_CONNTRACK_FRAG6_LOW_THRESH=30,
+ 	NET_NF_CONNTRACK_FRAG6_HIGH_THRESH=31,
+ 	NET_NF_CONNTRACK_CHECKSUM=32,
++#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
++	NET_NF_CONNTRACK_GARBAGE_TCP,
++	NET_NF_CONNTRACK_GARBAGE_UDP,
++#endif
++
+ };
+ 
+ /* /proc/sys/net/ipv4 */
+--- linux-2.6.30.9/include/linux/types.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/types.h	2013-05-02 01:47:58.745226652 +0300
+@@ -135,9 +135,14 @@ typedef		__s64		int64_t;
+ typedef u64 sector_t;
+ typedef u64 blkcnt_t;
+ #else
++#ifdef CONFIG_4KB_HARDDISK_SUPPORT
++typedef u64 sector_t;
++typedef u64 blkcnt_t;
++#else
+ typedef unsigned long sector_t;
+ typedef unsigned long blkcnt_t;
+ #endif
++#endif
+ 
+ /*
+  * The type of an index into the pagecache.  Use a #define so asm/types.h
+--- linux-2.6.30.9/include/linux/usb/ch9.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/usb/ch9.h	2013-05-02 01:47:58.750226651 +0300
+@@ -191,6 +191,8 @@ struct usb_ctrlrequest {
+ #define USB_DT_WIRE_ADAPTER		0x21
+ #define USB_DT_RPIPE			0x22
+ #define USB_DT_CS_RADIO_CONTROL		0x23
++/* USB 3.0 */
++#define USB_DT_SS_ENDPOINT_COMP 0x30
+ 
+ /* Conventional codes for class-specific descriptors.  The convention is
+  * defined in the USB "Common Class" Spec (3.11).  Individual class specs
+@@ -715,6 +717,15 @@ struct usb_wireless_ep_comp_descriptor {
+ #define USB_ENDPOINT_SWITCH_SCALE	2
+ } __attribute__((packed));
+ 
++/* USB 3.0 */
++struct usb_superspeed_ep_comp_descriptor {
++  __u8 bLength;
++  __u8 bDescriptorType;
++  __u8 bMaxBurst;
++  __u8 bmAttributes;
++  __u16 wBytesPerInterval;
++} __attribute__((packed));
++
+ /*-------------------------------------------------------------------------*/
+ 
+ /* USB_REQ_SET_HANDSHAKE is a four-way handshake used between a wireless
+@@ -752,6 +763,7 @@ enum usb_device_speed {
+ 	USB_SPEED_LOW, USB_SPEED_FULL,		/* usb 1.1 */
+ 	USB_SPEED_HIGH,				/* usb 2.0 */
+ 	USB_SPEED_VARIABLE,			/* wireless (usb 2.5) */
++    USB_SPEED_SUPER,            /* usb 3.0 */
+ };
+ 
+ enum usb_device_state {
+--- linux-2.6.30.9/include/linux/usb/gadget.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/usb/gadget.h	2013-05-02 01:47:58.751226651 +0300
+@@ -83,6 +83,11 @@ struct usb_request {
+ 	unsigned		zero:1;
+ 	unsigned		short_not_ok:1;
+ 
++#ifdef DWC_UASP_GADGET
++    unsigned        padding:13;  // align stream_id to 16-bit boundary
++    unsigned        stream_id:16;
++#endif
++
+ 	void			(*complete)(struct usb_ep *ep,
+ 					struct usb_request *req);
+ 	void			*context;
+@@ -110,6 +115,12 @@ struct usb_ep_ops {
+ 		gfp_t gfp_flags);
+ 	void (*free_request) (struct usb_ep *ep, struct usb_request *req);
+ 
++#ifdef CONFIG_RTL_USB_OTG
++	void *(*alloc_buffer) (struct usb_ep *ep, unsigned bytes,
++		dma_addr_t *dma, gfp_t gfp_flags);
++	void (*free_buffer) (struct usb_ep *ep, void *buf, dma_addr_t dma,
++		unsigned bytes);
++#endif
+ 	int (*queue) (struct usb_ep *ep, struct usb_request *req,
+ 		gfp_t gfp_flags);
+ 	int (*dequeue) (struct usb_ep *ep, struct usb_request *req);
+@@ -228,6 +239,49 @@ static inline void usb_ep_free_request(s
+ 	ep->ops->free_request(ep, req);
+ }
+ 
++#ifdef CONFIG_RTL_USB_OTG
++/**
++ * usb_ep_alloc_buffer - allocate an I/O buffer
++ * @ep:the endpoint associated with the buffer
++ * @len:length of the desired buffer
++ * @dma:pointer to the buffer's DMA address; must be valid
++ * @gfp_flags:GFP_* flags to use
++ *
++ * Returns a new buffer, or null if one could not be allocated.
++ * The buffer is suitably aligned for dma, if that endpoint uses DMA,
++ * and the caller won't have to care about dma-inconsistency
++ * or any hidden "bounce buffer" mechanism.  No additional per-request
++ * DMA mapping will be required for such buffers.
++ * Free it later with usb_ep_free_buffer().
++ *
++ * You don't need to use this call to allocate I/O buffers unless you
++ * want to make sure drivers don't incur costs for such "bounce buffer"
++ * copies or per-request DMA mappings.
++ */
++static inline void *
++usb_ep_alloc_buffer (struct usb_ep *ep, unsigned len, dma_addr_t *dma,
++	gfp_t gfp_flags)
++{
++	return ep->ops->alloc_buffer (ep, len, dma, gfp_flags);
++}
++
++/**
++ * usb_ep_free_buffer - frees an i/o buffer
++ * @ep:the endpoint associated with the buffer
++ * @buf:CPU view address of the buffer
++ * @dma:the buffer's DMA address
++ * @len:length of the buffer
++ *
++ * reverses the effect of usb_ep_alloc_buffer().
++ * caller guarantees the buffer will no longer be accessed
++ */
++static inline void
++usb_ep_free_buffer (struct usb_ep *ep, void *buf, dma_addr_t dma, unsigned len)
++{
++	ep->ops->free_buffer (ep, buf, dma, len);
++}
++#endif
++
+ /**
+  * usb_ep_queue - queues (submits) an I/O request to an endpoint.
+  * @ep:the endpoint associated with the request
+@@ -887,9 +941,16 @@ static inline void usb_free_descriptors(
+ 
+ /* utility wrapping a simple endpoint selection policy */
+ 
++#if defined(CONFIG_RTL_ULINKER)
++extern struct usb_ep *usb_ep_autoconfig(struct usb_gadget *,
++			struct usb_endpoint_descriptor *);
++
++extern void usb_ep_autoconfig_reset(struct usb_gadget *);
++#else
+ extern struct usb_ep *usb_ep_autoconfig(struct usb_gadget *,
+ 			struct usb_endpoint_descriptor *) __devinit;
+ 
+ extern void usb_ep_autoconfig_reset(struct usb_gadget *) __devinit;
++#endif /* #if defined(CONFIG_RTL_ULINKER) */
+ 
+ #endif /* __LINUX_USB_GADGET_H */
+--- linux-2.6.30.9/include/linux/vmstat.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/linux/vmstat.h	2013-05-02 01:47:58.760226651 +0300
+@@ -44,7 +44,6 @@ enum vm_event_item { PGPGIN, PGPGOUT, PS
+ #ifdef CONFIG_HUGETLB_PAGE
+ 		HTLB_BUDDY_PGALLOC, HTLB_BUDDY_PGALLOC_FAIL,
+ #endif
+-#ifdef CONFIG_UNEVICTABLE_LRU
+ 		UNEVICTABLE_PGCULLED,	/* culled to noreclaim list */
+ 		UNEVICTABLE_PGSCANNED,	/* scanned for reclaimability */
+ 		UNEVICTABLE_PGRESCUED,	/* rescued from noreclaim list */
+@@ -53,7 +52,6 @@ enum vm_event_item { PGPGIN, PGPGOUT, PS
+ 		UNEVICTABLE_PGCLEARED,	/* on COW, page truncate */
+ 		UNEVICTABLE_PGSTRANDED,	/* unable to isolate on unlock */
+ 		UNEVICTABLE_MLOCKFREED,
+-#endif
+ 		NR_VM_EVENT_ITEMS
+ };
+ 
+--- linux-2.6.30.9/include/net/dst.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/dst.h	2013-05-02 01:47:58.780226649 +0300
+@@ -124,6 +124,15 @@ struct dst_ops
+ 	struct net              *dst_net;
+ };
+ 
++struct dst_gc
++{
++	spinlock_t		lock;
++	struct dst_entry 	*list;
++	unsigned long		timer_inc;
++	unsigned long		timer_expires;
++};
++
++
+ #ifdef __KERNEL__
+ 
+ static inline u32
+@@ -271,6 +280,22 @@ static inline int dst_output(struct sk_b
+ /* Input packet from network to transport.  */
+ static inline int dst_input(struct sk_buff *skb)
+ {
++	if(skb->dst == NULL)
++	{
++             //printk("Func[%s] Line[%d], skb(0x%p),skb->dst(0x%p)\n", __FUNCTION__, __LINE__, skb,skb->dst);
++		kfree_skb(skb);
++             return -EHOSTUNREACH;
++	}
++
++        if(skb->dst->output == NULL)
++        {
++                //printk("Func[%s] Line[%d], func 0x%p,skb(0x%p),skb->dst(0x%p)\n", __FUNCTION__, __LINE__, skb->dst->output,skb,skb->dst);
++                //if(skb->dst->dev)
++                        //printk("skb->dst->dev->name(%s)\n",skb->dst->dev->name);
++                kfree_skb(skb);
++                return -EHOSTUNREACH;
++        }
++		
+ 	return skb->dst->input(skb);
+ }
+ 
+--- linux-2.6.30.9/include/net/ip_vs.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/ip_vs.h	2013-05-02 01:47:58.784226649 +0300
+@@ -383,6 +383,10 @@ struct ip_vs_conn {
+ 	void                    *app_data;      /* Application private data */
+ 	struct ip_vs_seq        in_seq;         /* incoming seq. struct */
+ 	struct ip_vs_seq        out_seq;        /* outgoing seq. struct */
++	#if defined(CONFIG_RTL_HARDWARE_NAT)
++	/*2007-12-19*/
++	__u32				hw_acc; /* 1: hardware acceleration, 0: software only */
++	#endif
+ };
+ 
+ 
+--- linux-2.6.30.9/include/net/netfilter/nf_conntrack_core.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/netfilter/nf_conntrack_core.h	2013-05-02 01:47:58.795226648 +0300
+@@ -51,6 +51,7 @@ nf_ct_invert_tuple(struct nf_conntrack_t
+ extern struct nf_conntrack_tuple_hash *
+ nf_conntrack_find_get(struct net *net, const struct nf_conntrack_tuple *tuple);
+ 
++#if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
+ extern int __nf_conntrack_confirm(struct sk_buff *skb);
+ 
+ /* Confirm a connection: returns NF_DROP if packet must be dropped. */
+@@ -67,6 +68,7 @@ static inline int nf_conntrack_confirm(s
+ 	}
+ 	return ret;
+ }
++#endif
+ 
+ int
+ print_tuple(struct seq_file *s, const struct nf_conntrack_tuple *tuple,
+--- linux-2.6.30.9/include/net/netfilter/nf_conntrack_expect.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/netfilter/nf_conntrack_expect.h	2013-05-02 01:47:58.796226648 +0300
+@@ -81,6 +81,11 @@ void nf_conntrack_expect_fini(struct net
+ struct nf_conntrack_expect *
+ __nf_ct_expect_find(struct net *net, const struct nf_conntrack_tuple *tuple);
+ 
++#if defined(CONFIG_IP_NF_TARGET_CONENAT)
++struct nf_conntrack_expect *
++__nf_ct_expect_find_bysave(struct net *net, const struct nf_conntrack_tuple *tupleMake, const struct nf_conntrack_tuple *tuple);
++#endif
++
+ struct nf_conntrack_expect *
+ nf_ct_expect_find_get(struct net *net, const struct nf_conntrack_tuple *tuple);
+ 
+--- linux-2.6.30.9/include/net/netfilter/nf_conntrack.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/netfilter/nf_conntrack.h	2013-05-02 01:47:58.795226648 +0300
+@@ -12,6 +12,14 @@
+ #ifndef _NF_CONNTRACK_H
+ #define _NF_CONNTRACK_H
+ 
++#if defined(CONFIG_RTL_819X)
++/* by default disable */
++#if defined(CONFIG_FAST_PATH_SPI_ENABLED)
++#define FAST_PATH_SPI_ENABLED		1
++#endif
++
++#endif
++
+ #include <linux/netfilter/nf_conntrack_common.h>
+ 
+ #ifdef __KERNEL__
+@@ -92,9 +101,11 @@ struct nf_conn_help {
+ #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
+ 
+ struct nf_conn {
++#if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
+ 	/* Usage count in here is 1 for hash table/destruct timer, 1 per skb,
+            plus 1 for any connection(s) we are `master' for */
+ 	struct nf_conntrack ct_general;
++#endif
+ 
+ 	/* XXX should I move this to the tail ? - Y.K */
+ 	/* These are my tuples; original and reply */
+@@ -117,16 +128,95 @@ struct nf_conn {
+ 	u_int32_t secmark;
+ #endif
+ 
++#if defined(CONFIG_NETFILTER_XT_MATCH_LAYER7) || \
++    defined(CONFIG_NETFILTER_XT_MATCH_LAYER7_MODULE)
++	struct {
++		/*
++		 * e.g. "http". NULL before decision. "unknown" after decision
++		 * if no match.
++		 */
++		char *app_proto;
++		/*
++		 * application layer data so far. NULL after match decision.
++		 */
++		char *app_data;
++		unsigned int app_data_len;
++	} layer7;
++#endif
++
+ 	/* Storage reserved for other modules: */
+ 	union nf_conntrack_proto proto;
+ 
+ 	/* Extensions */
+ 	struct nf_ct_ext *ext;
+-#ifdef CONFIG_NET_NS
++
++	#ifdef CONFIG_NET_NS
+ 	struct net *ct_net;
+-#endif
++	#endif
++
++	#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
++       struct list_head 	state_tuple;
++	   char drop_flag;
++	   char removed;
++	#endif
+ };
+ 
++
++extern int routerTypeFlag;
++
++#define CONFIG_RTL_ROUTER_FAST_PATH 1
++#if defined (CONFIG_RTL_ROUTER_FAST_PATH)
++extern unsigned int _br0_ip;
++extern unsigned int _br0_mask;
++
++static inline int rtl_isRouterType(struct nf_conn *ct)
++{
++	if(((ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip == ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3.ip) &&
++	    (ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u3.ip == ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip)))
++	    		return 1;
++	return 0;
++}
++
++static inline int rtl_isRouterTypeWantoLan(struct nf_conn * ct)
++{
++	if((ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip != _br0_ip) &&
++		((ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip & _br0_mask) == (_br0_ip & _br0_mask)) &&
++		((ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip & _br0_mask) != (_br0_ip & _br0_mask)))
++			return 1;
++
++	return 0;
++}
++
++
++static inline int rtl_isNatTypeWantoLan(struct nf_conn* ct)
++{
++	if(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip== ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3.ip)
++		return 1;
++
++	return 0;
++}
++
++static inline int rtl_isRouterTypeLantoWan(struct nf_conn* ct)
++{
++	if((ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip != _br0_ip) &&
++	  	 ((ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip & _br0_mask) == (_br0_ip & _br0_mask)) &&
++	 	 ((ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip & _br0_mask) != (_br0_ip & _br0_mask)))
++			return 1;
++
++	return 0;
++}
++
++static inline int rtl_isNatTypeLantoWan(struct nf_conn* ct)
++{
++	if (ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u3.ip== ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip)
++		return 1;
++
++	return 0;
++}
++
++#endif
++
++
+ static inline struct nf_conn *
+ nf_ct_tuplehash_to_ctrack(const struct nf_conntrack_tuple_hash *hash)
+ {
+@@ -169,6 +259,8 @@ extern int
+ nf_conntrack_tuple_taken(const struct nf_conntrack_tuple *tuple,
+ 			 const struct nf_conn *ignored_conntrack);
+ 
++#if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
++
+ /* Return conntrack_info and tuple hash for given skb. */
+ static inline struct nf_conn *
+ nf_ct_get(const struct sk_buff *skb, enum ip_conntrack_info *ctinfo)
+@@ -183,6 +275,7 @@ static inline void nf_ct_put(struct nf_c
+ 	NF_CT_ASSERT(ct);
+ 	nf_conntrack_put(&ct->ct_general);
+ }
++#endif
+ 
+ /* Protocol module loading */
+ extern int nf_ct_l3proto_try_module_get(unsigned short l3proto);
+@@ -215,6 +308,37 @@ extern void __nf_ct_refresh_acct(struct
+ 				 unsigned long extra_jiffies,
+ 				 int do_acct);
+ 
++#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
++extern void __nf_ct_refresh_acct_proto(void *ct,
++				      enum ip_conntrack_info ctinfo,
++				      const void *skb,
++				      unsigned long extra_jiffies,
++				      int do_acct,
++				      unsigned char proto,
++				      void * extra1,
++				      void * extra2);
++
++static inline void nf_ct_refresh_acct_tcp(struct nf_conn *ct,
++				      enum ip_conntrack_info ctinfo,
++				      const struct sk_buff *skb,
++				      unsigned long extra_jiffies,
++				      enum tcp_conntrack oldstate,
++				      enum tcp_conntrack newstate)
++{
++	__nf_ct_refresh_acct_proto(ct, ctinfo, skb, extra_jiffies, 1, 6, (void *)oldstate, (void *)newstate);
++}
++
++
++static inline void nf_ct_refresh_acct_udp(struct nf_conn *ct,
++				      enum ip_conntrack_info ctinfo,
++				      const struct sk_buff *skb,
++				      unsigned long extra_jiffies, char * status)
++{
++	__nf_ct_refresh_acct_proto(ct, ctinfo, skb, extra_jiffies, 1, 17, (void *)status, (void *)0);
++}
++#endif
++
++
+ /* Refresh conntrack for this many jiffies and do accounting */
+ static inline void nf_ct_refresh_acct(struct nf_conn *ct,
+ 				      enum ip_conntrack_info ctinfo,
+@@ -261,6 +385,20 @@ extern void nf_conntrack_tcp_update(cons
+ /* Fake conntrack entry for untracked connections */
+ extern struct nf_conn nf_conntrack_untracked;
+ 
++#if defined(CONFIG_RTL_BATTLENET_ALG)
++#define BATTLENET_PORT 6112
++#define RTL_DEV_NAME_NUM(name,num)	name#num
++#define RTL_PS_PPP_NAME	"ppp"
++#define RTL_PS_PPP0_DEV_NAME RTL_DEV_NAME_NUM(RTL_PS_PPP_NAME,0)
++extern unsigned int wan_ip;
++extern unsigned int wan_mask;
++extern struct net_device *rtl865x_getBattleNetWanDev(void );
++extern int rtl865x_getBattleNetDevIpAndNetmask(struct net_device * dev, unsigned int *ipAddr, unsigned int *netMask );
++extern struct nf_conn *rtl_find_ct_by_tuple_src(struct nf_conntrack_tuple *tuple, int *flag);
++extern struct nf_conn *rtl_find_ct_by_tuple_dst(struct nf_conntrack_tuple *tuple, int *flag);
++
++#endif
++
+ /* Iterate over all conntracks: if iter returns true, it's deleted. */
+ extern void
+ nf_ct_iterate_cleanup(struct net *net, int (*iter)(struct nf_conn *i, void *data), void *data);
+@@ -282,10 +420,12 @@ static inline int nf_ct_is_dying(struct
+ 	return test_bit(IPS_DYING_BIT, &ct->status);
+ }
+ 
++#if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
+ static inline int nf_ct_is_untracked(const struct sk_buff *skb)
+ {
+ 	return (skb->nfct == &nf_conntrack_untracked.ct_general);
+ }
++#endif
+ 
+ extern int nf_conntrack_set_hashsize(const char *val, struct kernel_param *kp);
+ extern unsigned int nf_conntrack_htable_size;
+@@ -303,5 +443,40 @@ do {							\
+ #define MODULE_ALIAS_NFCT_HELPER(helper) \
+         MODULE_ALIAS("nfct-helper-" helper)
+ 
++
++#define RTL_NF_ALG_CTL 1
++
++#ifdef RTL_NF_ALG_CTL
++extern int alg_enable(int type);
++
++enum alg_type
++{
++    alg_type_ftp,
++    alg_type_tftp,
++    alg_type_rtsp,
++    alg_type_pptp,
++    alg_type_l2tp,
++    alg_type_ipsec,
++    alg_type_sip,
++    alg_type_h323,
++    alg_type_end
++};
++
++struct alg_entry
++{
++    char *name;
++    int enable;
++};
++
++#define ALG_CTL_DEF(type, val)  [alg_type_##type] = {#type, val}
++
++#define ALG_CHECK_ONOFF(type)   \
++if (!alg_enable(type))\
++{\
++    return NF_DROP;\
++}
++#endif
++
++
+ #endif /* __KERNEL__ */
+ #endif /* _NF_CONNTRACK_H */
+--- linux-2.6.30.9/include/net/netfilter/nf_conntrack_tuple.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/netfilter/nf_conntrack_tuple.h	2013-05-02 01:47:58.796226648 +0300
+@@ -152,8 +152,7 @@ struct nf_conntrack_tuple_hash {
+ 	struct nf_conntrack_tuple tuple;
+ };
+ 
+-#endif /* __KERNEL__ */
+-
++#ifdef CONFIG_NETFILTER
+ static inline bool __nf_ct_tuple_src_equal(const struct nf_conntrack_tuple *t1,
+ 					   const struct nf_conntrack_tuple *t2)
+ { 
+@@ -216,5 +215,6 @@ nf_ct_tuple_mask_cmp(const struct nf_con
+ 	return nf_ct_tuple_src_mask_cmp(t, tuple, mask) &&
+ 	       __nf_ct_tuple_dst_equal(t, tuple);
+ }
+-
++#endif
++#endif /* __KERNEL__ */
+ #endif /* _NF_CONNTRACK_TUPLE_H */
+--- linux-2.6.30.9/include/net/netfilter/nf_nat.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/netfilter/nf_nat.h	2013-05-02 01:47:58.796226648 +0300
+@@ -76,6 +76,11 @@ struct nf_conn_nat
+     defined(CONFIG_IP_NF_TARGET_MASQUERADE_MODULE)
+ 	int masq_index;
+ #endif
++
++#if defined(CONFIG_RTL_HARDWARE_NAT)
++/*2007-12-19*/
++	int hw_acc; /* 1: hardware acceleration, 0: software only */
++#endif
+ };
+ 
+ /* Set up the info structure to map into this range. */
+--- linux-2.6.30.9/include/net/pkt_cls.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/pkt_cls.h	2013-05-02 01:47:58.800226647 +0300
+@@ -362,4 +362,8 @@ tcf_match_indev(struct sk_buff *skb, cha
+ }
+ #endif /* CONFIG_NET_CLS_IND */
+ 
++#if	defined(CONFIG_RTL_HW_QOS_SUPPORT)
++int tc_getHandleByKey(__u32 key, __u32 *handle, struct net_device *d, struct net_device **m);
++#endif	/*	CONFIG_RTL_HW_QOS_SUPPORT	*/
++
+ #endif
+--- linux-2.6.30.9/include/net/sch_generic.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/sch_generic.h	2013-05-02 01:47:58.806226647 +0300
+@@ -103,6 +103,11 @@ struct Qdisc_class_ops
+ 					struct sk_buff *skb, struct tcmsg*);
+ 	int			(*dump_stats)(struct Qdisc *, unsigned long,
+ 					struct gnet_dump *);
++#if     defined(CONFIG_RTL_HW_QOS_SUPPORT)
++        /* used for hw qos */
++        int                     (*syncHwQueue)(struct net_device *);
++        int                     (*getHandleByKey)(__u32, __u32 *, struct Qdisc *);
++#endif
+ };
+ 
+ struct Qdisc_ops
+@@ -156,7 +161,10 @@ struct tcf_proto_ops
+ 	/* rtnetlink specific */
+ 	int			(*dump)(struct tcf_proto*, unsigned long,
+ 					struct sk_buff *skb, struct tcmsg*);
+-
++#if     defined(CONFIG_RTL_HW_QOS_SUPPORT)
++        int                     (*classifyMark)(__u32, struct tcf_proto*,
++                                        struct tcf_result *);
++#endif
+ 	struct module		*owner;
+ };
+ 
+@@ -556,4 +564,8 @@ static inline struct sk_buff *skb_act_cl
+ }
+ #endif
+ 
++#if defined(CONFIG_RTL_HW_QOS_SUPPORT)
++int tc_classifyMark(__u32 mark, struct tcf_proto *tp, struct tcf_result *res);
++#endif
++
+ #endif
+--- linux-2.6.30.9/include/net/slhc_vj.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/include/net/slhc_vj.h	2013-05-02 01:47:58.809226647 +0300
+@@ -117,7 +117,8 @@
+  */
+ 
+ typedef __u8 byte_t;
+-typedef __u32 int32;
++//typedef __u32 int32;
++#define int32 __u32
+ 
+ /*
+  * "state" data for each active tcp conversation on the wire.  This is

@@ -1,0 +1,11 @@
+--- files/arch/rlx/Kconfig	2013-05-10 23:07:54.000000000 +0300
++++ files/arch/rlx/Kconfig.new	2013-05-11 18:10:02.433055256 +0300
+@@ -7,7 +7,7 @@
+ # Dec. 07, 2008
+ #
+ 
+-source "../target/config.in"
++source "arch/rlx/config.in"
+ 
+ config MIPS
+     bool

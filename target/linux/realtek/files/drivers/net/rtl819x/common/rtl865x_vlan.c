@@ -6,22 +6,6 @@
 * Abstract : 
 * Author : hyking (hyking_liu@realsil.com.cn)  
 */
-
-/*      @doc RTL_LAYEREDDRV_API
-
-        @module rtl865x_vlan.c - RTL865x Home gateway controller Layered driver API documentation       |
-        This document explains the API interface of the table driver module. Functions with rtl865x prefix
-        are external functions.
-        @normal Hyking Liu (Hyking_liu@realsil.com.cn) <date>
-
-        Copyright <cp>2008 Realtek<tm> Semiconductor Cooperation, All Rights Reserved.
-
-        @head3 List of Symbols |
-        Here is a list of all functions and variables in this module.
-        
-        @index | RTL_LAYEREDDRV_API
-*/
-
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_glue.h>
 #include "rtl_errno.h"

@@ -168,33 +168,39 @@ static struct mtd_partition rtl8196_parts1[] = {
 #ifndef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
 static struct mtd_partition rtl8196_parts1[] = {
         {
-                name: "boot+cfg",
-                size:           (CONFIG_RTL_LINUX_IMAGE_OFFSET - 0),
+                name: "boot+cfg+linux",
+                size:           (CONFIG_RTL_ROOT_IMAGE_OFFSET-0),
                 offset:         0x00000000,
         },
         {
-                name: "kernel",
-                size:           (CONFIG_RTL_ROOT_IMAGE_OFFSET - CONFIG_RTL_LINUX_IMAGE_OFFSET),
-                offset:         CONFIG_RTL_LINUX_IMAGE_OFFSET,
-        },
-        {
-                name:           "rootfs",
+                name:           "root fs",  
 #ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
 #ifdef CONFIG_MTD_CONCAT
-                size:        (CONFIG_RTL_SPI_FLASH1_SIZE + CONFIG_RTL_SPI_FLASH2_SIZE - CONFIG_RTL_ROOT_IMAGE_OFFSET),
+                size:        (CONFIG_RTL_SPI_FLASH1_SIZE+CONFIG_RTL_SPI_FLASH2_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #else
-		  size:        (CONFIG_RTL_SPI_FLASH1_SIZE - CONFIG_RTL_ROOT_IMAGE_OFFSET),
+		  size:        (CONFIG_RTL_SPI_FLASH1_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
 #endif
 #else
-                size:        (CONFIG_RTL_FLASH_SIZE - CONFIG_RTL_ROOT_IMAGE_OFFSET),
+#if !defined(CONFIG_MTD_CHAR)
+                size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
+#else
+		size:        (CONFIG_RTL_FLATFS_IMAGE_OFFSET-CONFIG_RTL_ROOT_IMAGE_OFFSET),
+#endif                	
 #endif
-                offset:         CONFIG_RTL_ROOT_IMAGE_OFFSET,
-        },
-        {
-                name: "firmware",
-                size:           (CONFIG_RTL_FLASH_SIZE - CONFIG_RTL_LINUX_IMAGE_OFFSET),
-                offset:         CONFIG_RTL_LINUX_IMAGE_OFFSET,
-        },
+                offset:         (CONFIG_RTL_ROOT_IMAGE_OFFSET),
+        }
+#if defined(CONFIG_MTD_CHAR)   
+	,     
+          {
+                name:           "flatfs",  
+
+                size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_FLATFS_IMAGE_OFFSET),
+                offset:         (CONFIG_RTL_FLATFS_IMAGE_OFFSET),
+        }
+#endif        
+        
+        
+        
 };
 
 #else //!CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE

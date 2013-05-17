@@ -65,9 +65,8 @@ static inline void cpu_wait(void)
  * ==> only apply to RTL865X, it still need to check the WLAN throughput in RTL8196B
  */
 
-#ifdef CONFIG_RTL_8196C //michaelxxx
-#define CONFIG_RTL819X_SUSPEND_CHECK_INTERRUPT
-#ifdef CONFIG_RTL819X_SUSPEND_CHECK_INTERRUPT
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#ifdef CONFIG_CPU_HAS_SLEEP
 	extern int cpu_can_suspend, cpu_can_suspend_check_init;
 	extern void suspend_check_interrupt_init(void);
 	
@@ -80,8 +79,8 @@ static inline void cpu_wait(void)
 		suspend_check_interrupt_init();
 		cpu_can_suspend_check_init = 1;
 	}
-#endif //CONFIG_RTL819X_SUSPEND_CHECK_INTERRUPT
-#endif //CONFIG_RTL8196C
+#endif
+#endif
 
 	/* We stop the CPU to conserve power */
 	__cpu_wait();

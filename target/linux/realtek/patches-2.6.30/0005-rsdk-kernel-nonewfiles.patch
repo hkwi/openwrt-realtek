@@ -1,0 +1,264 @@
+--- linux-2.6.30.9/kernel/exit.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/kernel/exit.c	2013-05-02 01:47:58.873226642 +0300
+@@ -920,6 +920,10 @@ NORET_TYPE void do_exit(long code)
+ 		 */
+ 		tsk->flags |= PF_EXITPIDONE;
+ 		set_current_state(TASK_UNINTERRUPTIBLE);
++#if defined(CONFIG_RTL_WTDOG)
++		panic("Fixing recursive fault but reboot is needed!");
++		{ extern int is_fault; is_fault=1; } // set kernel fault flag	
++#endif		
+ 		schedule();
+ 	}
+ 
+@@ -934,9 +938,15 @@ NORET_TYPE void do_exit(long code)
+ 	spin_unlock_wait(&tsk->pi_lock);
+ 
+ 	if (unlikely(in_atomic()))
++{
+ 		printk(KERN_INFO "note: %s[%d] exited with preempt_count %d\n",
+ 				current->comm, task_pid_nr(current),
+ 				preempt_count());
++#if defined(CONFIG_RTL_WTDOG)
++		panic("note: %s[%d] exited with preempt_count %d\n", current->comm, current->pid, preempt_count());
++		{ extern int is_fault; is_fault=1; } // set kernel fault flag	
++#endif		
++}
+ 
+ 	acct_update_integrals(tsk);
+ 
+--- linux-2.6.30.9/kernel/irq/handle.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/kernel/irq/handle.c	2013-05-02 01:47:58.877226641 +0300
+@@ -19,7 +18,9 @@
+ #include <linux/hash.h>
+ #include <trace/irq.h>
+ #include <linux/bootmem.h>
+-
++#if defined(CONFIG_RTL_819X)
++#include <net/rtl/rtl_types.h>
++#endif
+ #include "internals.h"
+ 
+ /*
+@@ -229,6 +229,10 @@ out_unlock:
+ }
+ 
+ #else /* !CONFIG_SPARSE_IRQ */
++#if defined(CONFIG_RTL_819X)
++__DRAM_GEN
++#endif
++static unsigned int kstat_irqs_all[NR_IRQS][NR_CPUS];
+ 
+ struct irq_desc irq_desc[NR_IRQS] __cacheline_aligned_in_smp = {
+ 	[0 ... NR_IRQS-1] = {
+@@ -240,7 +244,6 @@ struct irq_desc irq_desc[NR_IRQS] __cach
+ 	}
+ };
+ 
+-static unsigned int kstat_irqs_all[NR_IRQS][NR_CPUS];
+ int __init early_irq_init(void)
+ {
+ 	struct irq_desc *desc;
+@@ -258,7 +261,11 @@ int __init early_irq_init(void)
+ 		desc[i].irq = i;
+ 		init_alloc_desc_masks(&desc[i], 0, true);
+ 		desc[i].kstat_irqs = kstat_irqs_all[i];
++		#if defined(CONFIG_RTL_819X)
++		memset(kstat_irqs_all, 0, NR_IRQS*NR_CPUS*sizeof(unsigned int));
++		#endif
+ 	}
++	
+ 	return arch_early_irq_init();
+ }
+ 
+@@ -262,6 +269,9 @@ int __init early_irq_init(void)
+ 	return arch_early_irq_init();
+ }
+ 
++ #if defined(CONFIG_RTL_819X)
++ __MIPS16 __IRAM_GEN
++ #endif
+ struct irq_desc *irq_to_desc(unsigned int irq)
+ {
+ 	return (irq < NR_IRQS) ? irq_desc + irq : NULL;
+--- linux-2.6.30.9/kernel/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/kernel/Makefile	2013-05-02 01:47:58.865226642 +0300
+@@ -2,6 +2,17 @@
+ # Makefile for the linux kernel.
+ #
+ 
++ifdef CONFIG_RTL_819X
++obj-y     = sched.o fork.o exec_domain.o panic.o printk_log.o \
++	    cpu.o exit.o itimer.o time.o softirq.o resource.o \
++	    sysctl.o capability.o ptrace.o timer.o user.o \
++	    signal.o sys.o kmod.o workqueue.o pid.o \
++	    rcupdate.o extable.o params.o posix-timers.o \
++	    kthread.o wait.o kfifo.o sys_ni.o posix-cpu-timers.o mutex.o \
++	    hrtimer.o rwsem.o nsproxy.o srcu.o semaphore.o \
++	    notifier.o ksysfs.o pm_qos_params.o sched_clock.o cred.o \
++	    async.o
++else
+ obj-y     = sched.o fork.o exec_domain.o panic.o printk.o \
+ 	    cpu.o exit.o itimer.o time.o softirq.o resource.o \
+ 	    sysctl.o capability.o ptrace.o timer.o user.o \
+@@ -11,6 +22,7 @@ obj-y     = sched.o fork.o exec_domain.o
+ 	    hrtimer.o rwsem.o nsproxy.o srcu.o semaphore.o \
+ 	    notifier.o ksysfs.o pm_qos_params.o sched_clock.o cred.o \
+ 	    async.o
++endif
+ 
+ ifdef CONFIG_FUNCTION_TRACER
+ # Do not trace debug files and internal ftrace files
+--- linux-2.6.30.9/kernel/panic.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/kernel/panic.c	2013-05-02 01:47:58.886226640 +0300
+@@ -23,6 +23,10 @@
+ #include <linux/nmi.h>
+ #include <linux/dmi.h>
+ 
++#ifdef CONFIG_PANIC_PRINTK
++#define printk panic_printk
++#endif
++
+ int panic_on_oops;
+ static unsigned long tainted_mask;
+ static int pause_on_oops;
+@@ -93,6 +97,16 @@ NORET_TYPE void panic(const char * fmt,
+ 	if (!panic_blink)
+ 		panic_blink = no_blink;
+ 
++#if defined(CONFIG_RTL_WTDOG)
++	{ extern int is_fault; is_fault=1; } // set kernel fault flag	
++#if 0
++	{
++		static void (*hw_restart)(void) = (void (*)(void)) 0xbfc00000;
++		hw_restart();
++	}
++#endif
++#endif
++
+ 	if (panic_timeout > 0) {
+ 		/*
+ 		 * Delay timeout seconds before rebooting the machine.
+--- linux-2.6.30.9/kernel/softirq.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/kernel/softirq.c	2013-05-02 01:47:58.906226639 +0300
+@@ -27,6 +27,9 @@
+ #include <trace/irq.h>
+ 
+ #include <asm/irq.h>
++#if defined(CONFIG_RTL_819X)
++#include <net/rtl/rtl_types.h>
++#endif
+ /*
+    - No shared variables, all the data are CPU local.
+    - If a softirq needs serialization, let it serialize itself
+@@ -50,9 +53,16 @@ irq_cpustat_t irq_stat[NR_CPUS] ____cach
+ EXPORT_SYMBOL(irq_stat);
+ #endif
+ 
++#if defined(CONFIG_RTL_819X)
++#define RTL_DEFINE_PER_CPU(type, name)			\
++	PER_CPU_ATTRIBUTES PER_CPU_DEF_ATTRIBUTES			\
++	__typeof__(type) per_cpu__##name
++__DRAM_GEN static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp;
++__DRAM_GEN static RTL_DEFINE_PER_CPU(struct task_struct *, ksoftirqd);
++#else
+ static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp;
+-
+ static DEFINE_PER_CPU(struct task_struct *, ksoftirqd);
++#endif
+ 
+ char *softirq_to_name[NR_SOFTIRQS] = {
+ 	"HI", "TIMER", "NET_TX", "NET_RX", "BLOCK",
+@@ -184,7 +194,11 @@ EXPORT_SYMBOL(local_bh_enable_ip);
+  * we want to handle softirqs as soon as possible, but they
+  * should not be able to lock up the box.
+  */
++ #if defined(CONFIG_RTL_819X)
++#define MAX_SOFTIRQ_RESTART 2000
++#else
+ #define MAX_SOFTIRQ_RESTART 10
++#endif
+ 
+ DEFINE_TRACE(softirq_entry);
+ DEFINE_TRACE(softirq_exit);
+@@ -352,8 +366,13 @@ struct tasklet_head
+ 	struct tasklet_struct **tail;
+ };
+ 
++#if defined(CONFIG_RTL_819X)
++__DRAM_GEN static RTL_DEFINE_PER_CPU(struct tasklet_head, tasklet_vec);
++__DRAM_GEN static RTL_DEFINE_PER_CPU(struct tasklet_head, tasklet_hi_vec);
++#else
+ static DEFINE_PER_CPU(struct tasklet_head, tasklet_vec);
+ static DEFINE_PER_CPU(struct tasklet_head, tasklet_hi_vec);
++#endif
+ 
+ void __tasklet_schedule(struct tasklet_struct *t)
+ {
+@@ -626,6 +645,9 @@ void __init softirq_init(void)
+ 
+ static int ksoftirqd(void * __bind_cpu)
+ {
++	#if defined(CONFIG_RTL_819X)
++	set_user_nice(current, -20);
++	#endif
+ 	set_current_state(TASK_INTERRUPTIBLE);
+ 
+ 	while (!kthread_should_stop()) {
+--- linux-2.6.30.9/kernel/timer.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/kernel/timer.c	2013-05-02 01:47:58.914226638 +0300
+@@ -43,7 +43,13 @@
+ #include <asm/div64.h>
+ #include <asm/timex.h>
+ #include <asm/io.h>
++#if defined(CONFIG_RTL_819X)
++#include <net/rtl/rtl_types.h>
++#endif
+ 
++#if defined(CONFIG_RTL_819X)
++__DRAM_GEN
++#endif
+ u64 jiffies_64 __cacheline_aligned_in_smp = INITIAL_JIFFIES;
+ 
+ EXPORT_SYMBOL(jiffies_64);
+@@ -77,9 +83,20 @@ struct tvec_base {
+ 	struct tvec tv5;
+ } ____cacheline_aligned;
+ 
++#if defined(CONFIG_RTL_819X)
++__DRAM_GEN
++#endif
+ struct tvec_base boot_tvec_bases;
+ EXPORT_SYMBOL(boot_tvec_bases);
++
++#if defined(CONFIG_RTL_819X) && !defined(CONFIG_SMP)
++#define RTL_DEFINE_PER_CPU(type, name)			\
++	PER_CPU_ATTRIBUTES PER_CPU_DEF_ATTRIBUTES			\
++	__typeof__(type) per_cpu__##name
++__DRAM_GEN static RTL_DEFINE_PER_CPU(struct tvec_base *, tvec_bases);
++#else
+ static DEFINE_PER_CPU(struct tvec_base *, tvec_bases) = &boot_tvec_bases;
++#endif
+ 
+ /*
+  * Note that all tvec_bases are 2 byte aligned and lower bit of
+@@ -1628,8 +1645,19 @@ static struct notifier_block __cpuinitda
+ 
+ void __init init_timers(void)
+ {
++#if defined(CONFIG_RTL_819X)
++	int err;
++
++	jiffies_64 = INITIAL_JIFFIES;
++	#if !defined(CONFIG_SMP)
++	__raw_get_cpu_var(tvec_bases) = &boot_tvec_bases;
++	#endif
++	err = timer_cpu_notify(&timers_nb, (unsigned long)CPU_UP_PREPARE,
++				(void *)(long)smp_processor_id());
++#else
+ 	int err = timer_cpu_notify(&timers_nb, (unsigned long)CPU_UP_PREPARE,
+ 				(void *)(long)smp_processor_id());
++#endif
+ 
+ 	init_timer_stats();
+ 

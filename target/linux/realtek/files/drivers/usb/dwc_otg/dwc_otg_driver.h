@@ -50,7 +50,7 @@ struct dwc_otg_hcd;
  * This structure is a wrapper that encapsulates the driver components used to
  * manage a single DWC_otg controller.
  */
-
+#define IOT_ENHANCED_USB 1//JASON_PATCH 1
 #define DRIVER_USING_LM 1
 
 typedef struct dwc_otg_device

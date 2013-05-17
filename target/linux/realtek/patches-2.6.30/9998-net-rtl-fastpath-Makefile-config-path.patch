@@ -1,0 +1,15 @@
+--- files/net/rtl/fastpath/Makefile	2013-05-10 23:08:34.000000000 +0300
++++ files/net/rtl/fastpath/Makefile.new	2013-05-11 18:19:14.627010559 +0300
+@@ -2,10 +2,10 @@
+ # Makefile for the fastpath modules on top of IPv4.
+ #
+ 
+-include $(DIR_ROOT)/.config
++include $(TOPDIR)/.config
+ 
+ #EXTRA_CFLAGS += -I $(DIR_LINUX)/drivers/net/rtl819x
+-EXTRA_CFLAGS += -I $(DIR_LINUX)/net
++EXTRA_CFLAGS += -I $(TOPDIR)/net
+ EXTRA_CFLAGS += -D__KERNEL__
+ #EXTRA_CFLAGS += -Wno-implicit -Werror
+ 

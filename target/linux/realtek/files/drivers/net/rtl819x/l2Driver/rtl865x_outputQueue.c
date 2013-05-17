@@ -1,18 +1,12 @@
+/*
+ *
+ *  Copyright (c) 2011 Realtek Semiconductor Corp.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
+ */
 
-/*      @doc RTL_LAYEREDDRV_API
-
-        @module rtl865x_outputQueue.c - RTL865x Home gateway controller Layered driver API documentation       |
-        This document explains the API interface of the table driver module. Functions with rtl865x prefix
-        are external functions.
-        @normal Hyking Liu (Hyking_liu@realsil.com.cn) <date>
-
-        Copyright <cp>2008 Realtek<tm> Semiconductor Cooperation, All Rights Reserved.
-
-        @head3 List of Symbols |
-        Here is a list of all functions and variables in this module.
-        
-        @index | RTL_LAYEREDDRV_API
-*/
 #include <linux/config.h>
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_glue.h>
@@ -77,6 +71,7 @@ static uint32	priority2HandleMapping[NETIF_NUMBER][TOTAL_VLAN_PRIORITY_NUM] = {{
 static rtl_qos_mark_info_t	mark2Priority[NETIF_NUMBER][MAX_MARK_NUM_PER_DEV] = {{{0}}};
 
 rtl865x_qos_rule_t		*rtl865x_qosRuleHead = NULL;
+extern int hw_qos_init_netlink(void);
 static int32 _rtl865x_qosArrangeRuleByNetif(uint8 *netIfName);
 	
 int32 rtl865x_qosSetBandwidth(uint8 *netIfName, uint32 bps)
@@ -1115,6 +1110,8 @@ int __init rtl865x_initOutputQueue(uint8 **netIfName)
 #if	defined(CONFIG_RTL_QOS_8021P_SUPPORT)
 	rtl8651_flushAsicDot1qAbsolutelyPriority();
 #endif
+
+	hw_qos_init_netlink();
 
 	for(i =0; i < RTL8651_OUTPUTQUEUE_SIZE; i++)
 	{

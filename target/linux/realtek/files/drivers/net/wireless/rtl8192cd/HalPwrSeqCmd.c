@@ -13,6 +13,12 @@ Major Change History:
 	2011-07-07 Roger            Create.
 	
 --*/
+#ifdef __ECOS
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
+#endif
 
 #ifdef CONFIG_RTL_88E_SUPPORT
 //#include "Mp_Precomp.h"

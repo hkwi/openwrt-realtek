@@ -10,7 +10,7 @@
 
 #obj-y := mmap.o
 
-DIR_RTLASIC = $(TOPDIR)/drivers/net/rtl819x/
+DIR_RTLASIC = $(DIR_LINUX)/drivers/net/rtl819x/
 EXTRA_CFLAGS += -DCONFIG_RTL865X_MODULE_INTERNAL
 
 #obj-y := rtl_glue.o
@@ -27,6 +27,7 @@ endif
 #
 obj-y += rtl865xc_swNic.o
 obj-y += rtl_nic.o
+obj-$(CONFIG_RTL_DEBUG_TOOL) += rtl865x_proc_debug.o
 obj-$(CONFIG_RTL_PROC_DEBUG) += rtl865x_proc_debug.o
 obj-$(CONFIG_RTL865X_ROMEPERF) += romeperf.o
 
@@ -57,8 +58,8 @@ endif
 #
 ########################################################################################################
 
-EXTRA_CFLAGS += -I$(TOPDIR)/include
-EXTRA_CFLAGS += -I$(TOPDIR)/arch/rlx/bsp
+EXTRA_CFLAGS += -I$(DIR_LINUX)/include
+EXTRA_CFLAGS += -I$(DIR_ROOT)/target/bsp
 EXTRA_CFLAGS += -I$(DIR_RTLASIC)
 EXTRA_CFLAGS += -I$(DIR_BOARD)
 EXTRA_CFLAGS += -D__KERNEL__ 

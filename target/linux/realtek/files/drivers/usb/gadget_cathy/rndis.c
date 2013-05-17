@@ -44,6 +44,9 @@
 
 #include "rndis.h"
 
+#if 1//defined(CONFIG_RTL_ULINKER)
+#include "usb_ulinker.h"
+#endif
 
 /* The driver for your USB chip needs to support ep0 OUT to work with
  * RNDIS, plus all three CDC Ethernet endpoints (interrupt not optional).
@@ -949,6 +952,11 @@ static int rndis_reset_response (int configNr, rndis_reset_msg_type *buf)
 		rndis_per_dev_params [configNr].ack (
 			rndis_per_dev_params [configNr].dev);
 
+{
+	extern int rndis_reset;
+	rndis_reset = 1;
+}
+
 	return 0;
 }
 
@@ -1398,7 +1406,7 @@ static struct proc_dir_entry *rndis_connect_state [RNDIS_MAX_CONFIGS];
 #endif	/* CONFIG_USB_GADGET_DEBUG_FILES */
 
 
-int __devinit rndis_init (void)
+int ULINKER_DEVINIT rndis_init (void)
 {
 	u8 i;
 

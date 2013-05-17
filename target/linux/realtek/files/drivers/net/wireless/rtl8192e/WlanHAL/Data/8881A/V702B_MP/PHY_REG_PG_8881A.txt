@@ -1,0 +1,52 @@
+//RL6299_MAC_PHY_RF_Parameter_v011_20130116
+//=========================		
+// PHY_related MAC register by channel		
+// Related from RL6286 Normal driver for long distance throughput required		
+//=========================		
+		
+//Offset talbe_0 for for EEPROM_0xC1[bit0~2]= 0   Tab_0 (2G)		
+// For Ant A		
+0xc20	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)={11M 5.5M 2M 1M}
+0xc24	0x7f7f7f7f	0x08080a0a // TXAGC codeword (H-byte->L-byte)={8M 12M 9M 6M}
+0xc28	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)={54M 48M 36M 24M}
+0xc2c	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=HT_{MCS3 MCS2 MCS1 MCS0}
+0xc30	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=HT_{MCS7 MCS6 MCS5 MCS4}
+0xc34	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=HT_{MCS11 MCS10 MCS9 MCS8}
+0xc38	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=HT_{MCS15 MCS14 MCS13 MCS12}
+		
+// For Ant B		
+0xe20	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)={11M 5.5M 2M 1M}
+0xe24	0x7f7f7f7f	0x08080a0a // TXAGC codeword (H-byte->L-byte)={8M 12M 9M 6M}
+0xe28	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)={54M 48M 36M 24M}
+0xe2c	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=HT_{MCS3 MCS2 MCS1 MCS0}
+0xe30	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=HT_{MCS7 MCS6 MCS5 MCS4}
+0xe34	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=HT_{MCS11 MCS10 MCS9 MCS8}
+0xe38	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=HT_{MCS15 MCS14 MCS13 MCS12}
+		
+//Offset talbe_1 for for EEPROM_0xC1[bit0~2]= 0   Tab_1 (5G)		
+// For Ant A		
+0xc24	0x7f7f7f7f	0x08080a0a // TXAGC codeword (H-byte->L-byte)={8M 12M 9M 6M}
+0xc28	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)={54M 48M 36M 24M}
+0xc2c	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=HT_{MCS3 MCS2 MCS1 MCS0}
+0xc30	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=HT_{MCS7 MCS6 MCS5 MCS4}
+0xc34	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=HT_{MCS11 MCS10 MCS9 MCS8}
+0xc38	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=HT_{MCS15 MCS14 MCS13 MCS12}
+0xc3c	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=VHT1SS_{MCS3 MCS2 MCS1 MCS0}
+0xc40	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=VHT1SS_{MCS7 MCS6 MCS5 MCS4}
+0xc44	0x7f7f7f7f	0x0c0c0402 // TXAGC codeword (H-byte->L-byte)={VHT2SS{MCS1 MCS0} VHT1SS_{MC9 MCS8}}
+0xc48	0x7f7f7f7f	0x0406080a // TXAGC codeword (H-byte->L-byte)=VHT2SS_{MCS5 MCS4 MCS3 MCS2}
+0xc4c	0x7f7f7f7f	0x04020002 // TXAGC codeword (H-byte->L-byte)=VHT2SS_{MCS9 MCS8 MCS7 MCS6}
+		
+// For Ant B		
+0xe24	0x7f7f7f7f	0x08080a0a // TXAGC codeword (H-byte->L-byte)={8M 12M 9M 6M}
+0xe28	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)={54M 48M 36M 24M}
+0xe2c	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=HT_{MCS3 MCS2 MCS1 MCS0}
+0xe30	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=HT_{MCS7 MCS6 MCS5 MCS4}
+0xe34	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=HT_{MCS11 MCS10 MCS9 MCS8}
+0xe38	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=HT_{MCS15 MCS14 MCS13 MCS12}
+0xe3c	0x7f7f7f7f	0x080a0c0c // TXAGC codeword (H-byte->L-byte)=VHT1SS_{MCS3 MCS2 MCS1 MCS0}
+0xe40	0x7f7f7f7f	0x00020406 // TXAGC codeword (H-byte->L-byte)=VHT1SS_{MCS7 MCS6 MCS5 MCS4}
+0xe44	0x7f7f7f7f	0x0c0c0402 // TXAGC codeword (H-byte->L-byte)={VHT2SS{MCS1 MCS0} VHT1SS_{MC9 MCS8}}
+0xe48	0x7f7f7f7f	0x0406080a // TXAGC codeword (H-byte->L-byte)=VHT2SS_{MCS5 MCS4 MCS3 MCS2}
+0xe4c	0x7f7f7f7f	0x04020002 // TXAGC codeword (H-byte->L-byte)=VHT2SS_{MCS9 MCS8 MCS7 MCS6}
+0xffff 0xffff

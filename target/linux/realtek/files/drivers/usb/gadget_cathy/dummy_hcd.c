@@ -59,7 +59,11 @@
 #include <asm/unaligned.h>
 
 
+#if defined(CONFIG_USB_UWIFI_HOST)
+#include "../core_uWiFi/hcd.h"
+#else
 #include "../core/hcd.h"
+#endif
 
 
 #define DRIVER_DESC	"USB Host+Gadget Emulator"

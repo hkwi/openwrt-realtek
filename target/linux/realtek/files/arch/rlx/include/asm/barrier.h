@@ -74,7 +74,7 @@
 		: /* no input */		\
 		: "memory")
 #else
-#define __sync()	do { } while(0)
+#define __sync()	__asm__ __volatile__("" : : :"memory")
 #endif
 
 #define __fast_iob()				\

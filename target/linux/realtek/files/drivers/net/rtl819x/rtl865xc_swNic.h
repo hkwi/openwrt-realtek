@@ -1,8 +1,8 @@
 /*
 * ----------------------------------------------------------------
-* Copyright c                  Realtek Semiconductor Corporation, 2002  
+* Copyright c                  Realtek Semiconductor Corporation, 2002
 * All rights reserved.
-* 
+*
 * $Header: /home/cvsroot/linux-2.6.19/linux-2.6.x/drivers/net/re865x/rtl865xc_swNic.h,v 1.3 2008/04/11 10:12:38 bo_zhao Exp $
 *
 * Abstract: Switch core polling mode NIC header file.
@@ -35,7 +35,7 @@
 * *** empty log message ***
 *
 * Revision 1.1.1.1  2003/09/25 08:16:56  tony
-*  initial loader tree 
+*  initial loader tree
 *
 * Revision 1.1.1.1  2003/05/07 08:16:07  danwu
 * no message
@@ -52,11 +52,27 @@
 #endif
 
 #define RTL865X_SWNIC_RXRING_HW_PKTDESC	6
-#define RTL865X_SWNIC_TXRING_HW_PKTDESC	2
 
-#if defined(CONFIG_RTL_8198) && !defined(CONFIG_RTL_8198_AP_ROOT)
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) 
+#define RTL865X_SWNIC_TXRING_HW_PKTDESC	4
+#else
+#define RTL865X_SWNIC_TXRING_HW_PKTDESC	2
+#endif
+
+#define RESERVERD_MBUF_RING_NUM			8
+
+#if defined(CONFIG_RTL_NFJROM_MP)
+	#define MAX_PRE_ALLOC_RX_SKB		64
+	#define NUM_RX_PKTHDR_DESC		8
+	#define NUM_TX_PKTHDR_DESC		64
+	#define	ETH_REFILL_THRESHOLD		8	// must < NUM_RX_PKTHDR_DESC
+#elif defined(CONFIG_RTL_8198) && !defined(CONFIG_RTL_8198_AP_ROOT)
 	#define MAX_PRE_ALLOC_RX_SKB		512
+  #ifdef CONFIG_RTL_ULINKER
+	#define NUM_RX_PKTHDR_DESC			510
+  #else
 	#define NUM_RX_PKTHDR_DESC			512
+  #endif
 	#define NUM_TX_PKTHDR_DESC			1024
 	#define	ETH_REFILL_THRESHOLD		8	// must < NUM_RX_PKTHDR_DESC
 #else
@@ -126,6 +142,11 @@
 #define	QUEUEID5_RXRING_MAPPING		0
 #endif
 
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) 
+#define	NUM_TX_PKTHDR_DESC2		2
+#define	NUM_TX_PKTHDR_DESC3		2
+#endif
+
 /* refer to rtl865xc_swNic.c & rtl865xc_swNic.h
  */
 #define	UNCACHE_MASK   0x20000000
@@ -154,9 +175,12 @@ typedef struct {
 	uint16		srcExtPort;
 	uint16		flags;
 	uint32		txIdx:1;
-#if defined(CONFIG_RTL_HW_QOS_SUPPORT)
+#if defined(CONFIG_RTL_HW_QOS_SUPPORT) || defined(CONFIG_RTL_QOS_PATCH)|| defined(CONFIG_RTK_VOIP_QOS)
 	uint32		priority:3;
 	uint32		queueId:3;
+#endif
+#if defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT)
+	uint16		tagport;
 #endif
 	void 			*out_skb;
 }	rtl_nicTx_info;
@@ -180,14 +204,14 @@ typedef struct {
  * ROUTINE NAME - swNic_init
  * --------------------------------------------------------------------
  * FUNCTION: This service initializes the switch NIC.
- * INPUT   : 
+ * INPUT   :
         userNeedRxPkthdrRingCnt[RTL865X_SWNIC_RXRING_MAX_PKTDESC]: Number of Rx pkthdr descriptors. of each ring
         userNeedRxMbufRingCnt: Number of Rx mbuf descriptors.
         userNeedTxPkthdrRingCnt[RTL865X_SWNIC_TXRING_MAX_PKTDESC]: Number of Tx pkthdr descriptors. of each ring
         clusterSize: Size of a mbuf cluster.
  * OUTPUT  : None.
- * RETURN  : Upon successful completion, the function returns ENOERR. 
-        Otherwise, 
+ * RETURN  : Upon successful completion, the function returns ENOERR.
+        Otherwise,
 		EINVAL: Invalid argument.
  * NOTE    : None.
  * -------------------------------------------------------------------*/
@@ -212,7 +236,7 @@ void swNic_intHandler(uint32 intPending);
 int32 swNic_flushRxRingByPriority(int priority);
 __MIPS16 __IRAM_FWD int32 swNic_receive(rtl_nicRx_info *info, int retryCount);
 int32 swNic_send(void *skb, void * output, uint32 len, rtl_nicTx_info *nicTx);
-//__MIPS16 
+//__MIPS16
 int32 swNic_txDone(int idx);
 void swNic_freeRxBuf(void);
 int32	swNic_txRunout(void);
@@ -230,6 +254,10 @@ extern void tx_done_callback(void *skb);
 extern void eth_save_and_cli(unsigned long *flags);
 extern void eth_restore_flags(unsigned long flags);
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+int32 swNic_setVlanPortTag(int portmask);
+#endif
+
 #define	RTL8651_IOCTL_GETWANLINKSTATUS			2000
 #define	RTL8651_IOCTL_GETLANLINKSTATUS			2001
 #define	RTL8651_IOCTL_GETWANTHROUGHPUT			2002
@@ -242,6 +270,7 @@ extern void eth_restore_flags(unsigned long flags);
 
 #define	RTL8651_IOCTL_SETWANLINKSTATUS			2200
 
+#define	RTL8651_IOCTL_CLEARBRSHORTCUTENTRY		2210
 
 #define	RTL_NICRX_OK	0
 #define	RTL_NICRX_REPEAT	-2
@@ -258,7 +287,7 @@ int32	rtl_dumpIndexs(void);
 
 struct ring_que {
 	int qlen;
-	int qmax;	
+	int qmax;
 	int head;
 	int tail;
 	struct sk_buff **ring;
@@ -266,7 +295,7 @@ struct ring_que {
 
 static inline void *UNCACHED_MALLOC(int size)
 {
-	return ((void *)(((uint32)kmalloc(size, GFP_ATOMIC)) | UNCACHE_MASK));	
+	return ((void *)(((uint32)kmalloc(size, GFP_ATOMIC)) | UNCACHE_MASK));
 }
 
 #endif /* _SWNIC_H */

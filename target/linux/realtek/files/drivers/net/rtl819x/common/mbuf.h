@@ -174,7 +174,13 @@ struct rtl_pktHdr
 												(PKTHDR_VLAN_P3_AUTOADD)|	\
 												(PKTHDR_VLAN_P4_AUTOADD)|	\
 												(PKTHDR_VLAN_P5_AUTOADD)	)
-
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	uint8	ph_ptpResv:1;
+	uint8	ph_ptpMsgType:4;	/* message type */
+	uint8	ph_ptpVer:2;		/* PTP version, 0: 1588v1; 1: 1588v2 or 802.1as; others: reserved */
+	uint8	ph_ptpPkt:1;			/* 1: PTP */
+	int8		ph_reserved[3];		/* padding */
+#endif
 };
 
 	//property for ph_unnumber		: cw_du 

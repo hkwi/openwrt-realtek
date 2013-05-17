@@ -89,6 +89,38 @@ static const struct hc_driver dwc_otg_hc_driver = {
 
 };
 
+#if 0//def RTL8672_OTG_ROOT_HUB_SPEED_SWITCH
+#include <linux/usb_ch9.h>
+
+#ifdef CONFIG_USB_RTL8187SU_SOFTAP
+void hcd_reinit(dwc_otg_hcd_t *_hcd);
+#else
+static void hcd_reinit(dwc_otg_hcd_t *_hcd);
+#endif
+
+static void dwc_otg_hcd_speed_switch(dwc_otg_hcd_t *hcd, int speed)
+{
+	hprt0_data_t hprt0;
+
+	/* speed is not different from before */
+	if(hcd->core_if->core_params->speed == speed)
+		return;
+
+	hcd->core_if->core_params->speed = speed;
+
+	/* turn off port power */
+	hprt0.d32 = dwc_otg_read_hprt0(hcd->core_if);
+	hprt0.b.prtpwr = 0;
+	dwc_write_reg32(hcd->core_if->host_if->hprt0, hprt0.d32);
+
+	/* reinit otg and hcd */
+	dwc_otg_core_init(hcd->core_if);
+	dwc_otg_enable_global_interrupts(hcd->core_if);
+	hcd_reinit(hcd);
+
+	return;
+}
+#endif
 
 
 /**
@@ -364,7 +396,7 @@ static int32_t dwc_otg_hcd_disconnect_cb( void *_p )
    * longer a B-host. */
   ((struct usb_hcd *)_p)->self.is_b_host = 0;  
 
-#if 0  //cathy have
+#if 1  //cathy have
 	dwc_otg_hcd->disconn_cnt++;
 	if(!timer_pending(&dwc_otg_hcd->disconn_cnt_timer))
 		mod_timer(&dwc_otg_hcd->disconn_cnt_timer, jiffies+200);
@@ -892,7 +924,7 @@ void dwc_otg_hcd_stop(struct usb_hcd *_hcd)
 /** Returns the current frame number. */
 int dwc_otg_hcd_get_frame_number(struct usb_hcd *_hcd)
 {
-	printk("%s \n", __FUNCTION__);
+	//printk("%s \n", __FUNCTION__);
   dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd(_hcd);
   hfnum_data_t hfnum;
 
@@ -1093,8 +1125,10 @@ int dwc_otg_hcd_urb_dequeue(struct usb_hcd *_hcd,
 {
 	unsigned long flags;
 	dwc_otg_hcd_t *dwc_otg_hcd;
-	dwc_otg_qtd_t *urb_qtd;
+	dwc_otg_qtd_t *urb_qtd = NULL;
 	dwc_otg_qh_t *qh;
+	struct list_head	*qtd_item;
+int retval = 0;
     struct usb_host_endpoint *_ep = dwc_urb_to_endpoint(_urb);
 
 
@@ -1105,6 +1139,32 @@ int dwc_otg_hcd_urb_dequeue(struct usb_hcd *_hcd,
 	dwc_otg_hcd = hcd_to_dwc_otg_hcd(_hcd);
 	urb_qtd = (dwc_otg_qtd_t *)_urb->hcpriv;
 	qh = (dwc_otg_qh_t *)_ep->hcpriv;
+
+#ifdef IOT_ENHANCED_USB //JASON_PATCH
+
+        if(NULL == qh) {
+		printk("<%s %d> qh is NULL !\n", __func__, __LINE__);
+		retval = -1;
+		goto done;
+		//return -1;
+	}
+	for (qtd_item = qh->qtd_list.next;
+	     qtd_item != &qh->qtd_list;
+	     qtd_item = qtd_item->next) {
+		urb_qtd = list_entry(qtd_item, dwc_otg_qtd_t, qtd_list_entry);
+		if (urb_qtd->urb == _urb) {
+			break;
+		}
+	}
+	if((NULL == urb_qtd) || (urb_qtd->urb!=_urb)) {
+		printk("<%s %d> urb_qtd=%p, urb_qtd->urb=%p, _urb=%p\n", __func__, __LINE__, urb_qtd, urb_qtd ? urb_qtd->urb : 0, _urb);
+		retval = -1;
+		goto done;
+		//return -1;
+	}
+
+
+#endif
 
 #ifdef DEBUG
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
@@ -1144,18 +1204,20 @@ int dwc_otg_hcd_urb_dequeue(struct usb_hcd *_hcd,
 		dwc_otg_hcd_qh_remove(dwc_otg_hcd, qh);
 	}
 
+done:
+
 	local_irq_restore(flags);
 
 	_urb->hcpriv = NULL;
 
 	/* Higher layer software sets URB status. */
-	usb_hcd_giveback_urb(_hcd, _urb, 0);
+	usb_hcd_giveback_urb(_hcd, _urb, status);
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
 		DWC_PRINT("Called usb_hcd_giveback_urb()\n");
 		DWC_PRINT("  urb->status = %d\n", _urb->status);
 	}
 
-	return 0;
+	return retval;
 }
 
 
@@ -1762,7 +1824,8 @@ static void do_in_ack(void)
 	//fprintf(stderr, "GINTSTS: %08x\n", gintsts.d32);
 }
 #endif /* DWC_HS_ELECT_TST */
-
+#define REG32(reg)   (*(volatile unsigned int *)((unsigned int)reg))
+extern Enable_OTG_Suspend(int sel, int en); //sel=0 src from sys, then see en, sel=1, src from otg mac,                    
 /** Handles hub class-specific requests.*/
 int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd, 
 			    u16 _typeReq, 
@@ -1986,6 +2049,22 @@ int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd,
 		}
 
 		switch (_wValue) {
+#ifdef IOT_ENHANCED_USB //JASON_PATCH 
+#if 0//def RTL8672_OTG_ROOT_HUB_SPEED_SWITCH
+		case USB_PORT_FEAT_LOWSPEED:
+		//	DWC_DEBUGPL("DWC OTG HCD HUB CONTROL - "
+//				     "SetPortFeature - USB_PORT_FEAT_LOWSPEED\n");
+			//switch root hub to full speed
+			dwc_otg_hcd_speed_switch(dwc_otg_hcd, DWC_SPEED_PARAM_FULL);
+			break;
+		case USB_PORT_FEAT_HIGHSPEED:
+//			DWC_DEBUGPL("DWC OTG HCD HUB CONTROL - "
+//				     "SetPortFeature - USB_PORT_FEAT_HIGHSPEED\n");
+			//switch root hub to high speed
+			dwc_otg_hcd_speed_switch(dwc_otg_hcd, DWC_SPEED_PARAM_HIGH);
+			break;
+#endif
+#endif
 		case USB_PORT_FEAT_SUSPEND:
 			DWC_DEBUGPL (DBG_HCD, "DWC OTG HCD HUB CONTROL - "
 				     "SetPortFeature - USB_PORT_FEAT_SUSPEND\n");
@@ -2030,13 +2109,19 @@ int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd,
              * the reset is started within 1ms of the HNP
              * success interrupt. */
             if (!_hcd->self.is_b_host) {
-                hprt0.b.prtrst = 1;
-                dwc_write_reg32(core_if->host_if->hprt0, hprt0.d32);
+                	MDELAY (1);
+				hprt0.b.prtrst = 1;
+				hprt0.b.prtena=1;
+				dwc_write_reg32(core_if->host_if->hprt0, hprt0.d32);
+				MDELAY (500);
               }
 			/* Clear reset bit in 10ms (FS/LS) or 50ms (HS) */
 			MDELAY (60);
+			Enable_OTG_Suspend(0,0);
 			hprt0.b.prtrst = 0;
+			hprt0.b.prtena=0;
 			dwc_write_reg32(core_if->host_if->hprt0, hprt0.d32);
+			MDELAY (500);
 			break;
 
 #ifdef DWC_HS_ELECT_TST
@@ -2794,7 +2879,7 @@ void dwc_otg_hcd_complete_urb(dwc_otg_hcd_t *_hcd, struct urb *_urb, int _status
 
 	_urb->status = _status;
 	_urb->hcpriv = NULL;
-	usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(_hcd), _urb, 0);
+	usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(_hcd), _urb, _status);
 }
 
 /*

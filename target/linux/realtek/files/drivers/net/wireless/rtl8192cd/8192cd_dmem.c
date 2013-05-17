@@ -10,6 +10,16 @@
  *  published by the Free Software Foundation.
  */
 
+#ifdef __ECOS
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
+#endif
+
+#ifndef _8192CD_DMEM_C_
+#define _8192CD_DMEM_C_
+
 #include "./8192cd.h"
 //#include "./8190n_fastExtDev.h"
 #include "./8192cd_cfg.h"
@@ -271,4 +281,6 @@ static void rtl8192cd_dmem_pmib_free(void *miscInfo)
 
 }
 #endif // RTL8192CD_VARIABLE_USED_DMEM
+
+#endif
 

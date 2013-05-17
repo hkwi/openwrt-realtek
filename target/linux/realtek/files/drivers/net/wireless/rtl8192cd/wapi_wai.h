@@ -141,7 +141,8 @@ typedef enum __WAPI_AE_STATE {
 typedef	struct	__wapiStaInfo {
 	uint8			asueWapiIE[256];
 	uint8			waiASUEChallange[WAPI_N_LEN];
-	uint8			waiAEChallange[WAPI_N_LEN];
+	uint8			waiAEChallange[WAPI_N_LEN];	
+	uint8			waiAEChallangeNext[WAPI_N_LEN];
 	uint8			waiAuthFlag[WAPI_N_LEN];
 	uint8			asueWapiIELength;
 	uint8			wapiRxFragSeq;

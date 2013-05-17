@@ -48,7 +48,7 @@ extern int file_offset;
 
 #ifdef CONFIG_RTK_VOIP
 	#undef FREEMEM_END
-	#define FREEMEM_END	0x81000000
+	#define FREEMEM_END	0x82000000
 #endif
 
 // david -----------------

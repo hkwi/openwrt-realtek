@@ -82,7 +82,7 @@ static __inline__ int strcmp(__const__ char *__cs, __const__ char *__ct)
 	"addiu\t%1,1\n\t"
 	"bnez\t%2,1b\n\t"
 	"lbu\t%2,(%0)\n\t"
-#if defined(CONFIG_CPU_RLX4180) || defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
 	"nop\n\t"
 #endif
 	"move\t%2,$1\n"
@@ -115,7 +115,7 @@ strncmp(__const__ char *__cs, __const__ char *__ct, size_t __count)
 	"bnez\t%3,1b\n\t"
 	"addiu\t%1,1\n"
 	"2:\n\t"
-#if defined(CONFIG_CPU_RLX4180) || defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+#if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
 	"nop\n\t"
 #endif
 	"move\t%3,$1\n"
@@ -123,7 +123,7 @@ strncmp(__const__ char *__cs, __const__ char *__ct, size_t __count)
 	".set\tat\n\t"
 	".set\treorder"
 	: "=r" (__cs), "=r" (__ct), "=r" (__count), "=r" (__res)
-	: "0" (__cs), "1" (__ct), "2" (__count),  "m" (*__cs), "m" (*__ct));
+	: "0" (__cs), "1" (__ct), "2" (__count), "m" (*__cs), "m" (*__ct));
 
 	return __res;
 }

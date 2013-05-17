@@ -243,9 +243,10 @@
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0))
 #include <linux/config.h>
 #endif
-#include <linux/ctype.h>
+//#include <linux/ctype.h>
 #include <linux/module.h>
-#include <linux/string.h>
+//#include <linux/string.h>
+
 #endif /*__KERNEL__*/
 #endif /*__linux__*/
 
@@ -361,8 +362,8 @@
 		print macro
     =============================================================================== */
 #if	defined(__linux__)&&defined(__KERNEL__)
-
-	#define rtlglue_printf	printk
+	
+	#define rtlglue_printf	panic_printk
 
 #else	/* defined(__linux__)&&defined(__KERNEL__) */
 
@@ -418,7 +419,11 @@ typedef struct ether_addr_s {
 	uint8 octet[ETHER_ADDR_LEN];
 } ether_addr_t;
 
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+#define RX_OFFSET	4
+#else
 #define RX_OFFSET	2
+#endif
 #define MBUF_LEN	1700
 #define CROSS_LAN_MBUF_LEN		(MBUF_LEN+RX_OFFSET+10)
 
@@ -547,12 +552,6 @@ typedef struct ether_addr_s {
 #define CACHED(addr)			((uint32)(addr) & ~(UNCACHE_MASK))
 #endif
 
-#if defined(CONFIG_RTL_PROC_DEBUG)
-#define RTL865X_DRIVER_DEBUG_FLAG /*flag for debug*/
-#else
-#undef RTL865X_DRIVER_DEBUG_FLAG /*flag for debug*/
-#endif
-
 /*	asic configuration	*/
 #define RTL8651_OUTPUTQUEUE_SIZE		6
 #define TOTAL_VLAN_PRIORITY_NUM	8
@@ -560,14 +559,102 @@ typedef struct ether_addr_s {
 
 #if defined(CONFIG_RTL_8196C)
 #define CONFIG_RTL8196C_ETH_IOT         1
-#ifdef CONFIG_RTL_WTDOG
-#define CONFIG_RTL_8196C_ESD            1 
+#ifdef CONFIG_MP_PSD_SUPPORT
+#undef CONFIG_RTL8196C_GREEN_ETHERNET
+#else
+//#define CONFIG_RTL_8196C_ESD            1 
 #endif
 #endif
 
-#if defined(CONFIG_RTL_8198) && defined(CONFIG_RTL_WTDOG)
+#if defined(CONFIG_RTL_8198) && !defined(CONFIG_RTL_819XD)
 #define CONFIG_RTL_8198_ESD        1
 #endif 
 
+#if defined(CONFIG_RTL_8198)
+#define RTL8198_EEE_MAC 	1
+#endif
+
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+#define CONFIG_RTL_8197D_DYN_THR		1
+#endif
+
+#define DYN_THR_LINK_UP_PORTS			3
+
+/* IC default value */
+#define DYN_THR_DEF_fcON				0xac
+#define DYN_THR_DEF_fcOFF				0xa0
+#define DYN_THR_DEF_sharedON			0x62
+#define DYN_THR_DEF_sharedOFF			0x4a
+
+/* aggressive value */
+#define DYN_THR_AGG_fcON				0xd0
+#define DYN_THR_AGG_fcOFF				0xa0 // 0xc0
+#if defined(CONFIG_RTL_819XDT)
+#define DYN_THR_AGG_sharedON			0xa0
+#define DYN_THR_AGG_sharedOFF			0x88
+#else
+#define DYN_THR_AGG_sharedON			0x88 // 0xc0
+#define DYN_THR_AGG_sharedOFF			0x70 // 0xa8
+#endif
+
+#if defined(CONFIG_RTL_LOG_DEBUG)
+extern int scrlog_printk(const char * fmt, ...);
+
+extern struct RTL_LOG_PRINT_MASK
+{
+	uint32 ERROR:1;
+	uint32 WARN:1;
+	uint32 INFO:1;
+}RTL_LogTypeMask;
+
+extern struct RTL_LOG_ERROR_MASK
+{
+	uint32 MEM:1;
+	uint32 SKB:1;
+}RTL_LogErrorMask;
+extern uint32 RTL_LogRatelimit;
+
+extern struct RTL_LOG_MODULE_MASK
+{
+	uint8 NIC:1;
+	uint8 WIRELESS:1;
+	uint8 PROSTACK:1;
+}RTL_LogModuleMask;
+
+
+#define LOG_LIMIT (!RTL_LogRatelimit||net_ratelimit())
+
+
+#define LOG_ERROR(fmt, args...) do{ \
+	if(RTL_LogTypeMask.ERROR&&LOG_LIMIT)scrlog_printk("ERROR:"fmt, ## args); \
+		}while(0)
+		
+#define LOG_MEM_ERROR(fmt, args...) do{ \
+	if(RTL_LogTypeMask.ERROR&&RTL_LogErrorMask.MEM&&LOG_LIMIT)scrlog_printk("ERROR:"fmt, ## args); \
+		}while(0)
+		
+#define LOG_SKB_ERROR(fmt, args...) do{ \
+		if(RTL_LogTypeMask.ERROR&&RTL_LogErrorMask.SKB&&LOG_LIMIT)scrlog_printk("ERROR:"fmt, ## args); \
+			}while(0)
+			
+#define LOG_WARN(fmt, args...) do{ \
+		if(RTL_LogTypeMask.WARN&&LOG_LIMIT)scrlog_printk("WARN:"fmt, ## args); \
+			}while(0)
+			
+#define LOG_INFO(fmt, args...) do{ \
+		if(RTL_LogTypeMask.INFO&&LOG_LIMIT)scrlog_printk("INFO:"fmt, ## args); \
+			}while(0)
+
+#else
+
+#define LOG_ERROR(fmt, args...) 
+#define LOG_MEM_ERROR(fmt, args...) 
+#define LOG_SKB_ERROR(fmt, args...)
+#define LOG_WARN(fmt, args...)
+#define LOG_INFO(fmt, args...)
+
 #endif 
+
+#endif 
+
 

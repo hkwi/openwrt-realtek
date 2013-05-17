@@ -23,13 +23,23 @@ ifdef CONFIG_RTL_8198T
 L4_SUPPORT=1
 endif
 
-ifeq ($(CONFIG_RTL_8198),y)
-TARGET = 98
-else
-TARGET = 96C
+ifdef CONFIG_RTL_819XDT
+L4_SUPPORT=1
 endif
 
 
+ifeq ($(CONFIG_RTL_819XD),y)
+TARGET = 9xD
+endif
+ifeq ($(CONFIG_RTL_8196E),y)
+TARGET = 96E
+endif
+ifeq ($(CONFIG_RTL_8196C),y)
+TARGET = 96C
+endif
+ifeq ($(CONFIG_RTL_8198),y)
+TARGET = 98
+endif
 
 ifeq ($(CONFIG_RTK_IPTABLES_FAST_PATH),m)
 EXTRA_CFLAGS += -DCONFIG_FAST_PATH_MODULE

@@ -18,7 +18,12 @@
 #ifndef _IEEE802_MIB_H_
 #define _IEEE802_MIB_H_
 
-#define MIB_VERSION				6
+#ifdef __ECOS
+#include <pkgconf/system.h>
+#include <pkgconf/devs_eth_rltk_819x_wlan.h>
+#endif
+
+#define MIB_VERSION				15
 
 #define MAX_2G_CHANNEL_NUM		14
 #define MAX_5G_CHANNEL_NUM		196
@@ -29,6 +34,10 @@
 #define NUM_ACL					32
 #endif
 #define	NUM_GBWC				64
+
+#ifdef __ECOS
+#define NUM_WDS					RTLPKG_DEVS_ETH_RLTK_819X_WLAN_WDS_NUM
+#else
 #ifdef CONFIG_RTL8186_KB
 #define NUM_WDS					4
 #elif defined(CONFIG_RTL8196C_EC) //no WDS or only one WDS
@@ -38,6 +47,7 @@
 #define NUM_WDS					4
 #else
 #define NUM_WDS					8
+#endif
 #endif
 #endif
 
@@ -72,7 +82,8 @@ struct Dot11StationConfigEntry {
 	unsigned int	fixedTxRate;			// fix tx rate
 	int				swTkipMic;
 	int				protectionDisabled;		// force disable protection
-	int				olbcDetectDisabled;		// david, force disable olbc dection
+	int				olbcDetectDisabled;		// david, force disable olbc dection	
+	int				nmlscDetectDisabled;		// hf, force disable no member legacy station condition detection
 	int				legacySTADeny;			// deny association from legacy (11B) STA
 	int				fastRoaming;			// 1: enable fast-roaming, 0: disable
 	unsigned int	lowestMlcstRate;		// 1: use lowest basic rate to send multicast
@@ -92,7 +103,7 @@ struct StaDetectInfo {
 
 struct Dot1180211AuthEntry {
 	unsigned int	dot11AuthAlgrthm;		// 802.11 auth, could be open, shared, auto
-	unsigned int	dot11PrivacyAlgrthm;	// encryption algorithm, could be none, wep40, TKIP, CCMP, wep104
+	unsigned char	dot11PrivacyAlgrthm;	// encryption algorithm, could be none, wep40, TKIP, CCMP, wep104
 	unsigned int	dot11PrivacyKeyIndex;	// this is only valid for legendary wep, 0~3 for key id.
 	unsigned int	dot11PrivacyKeyLen;		// this could be 40 or 104
 	int				dot11EnablePSK;			// 0: disable, bit0: WPA, bit1: WPA2
@@ -107,6 +118,9 @@ struct Dot118021xAuthEntry {
 	unsigned int	dot118021xAlgrthm;		// could be null, 802.1x/PSK
 	unsigned int	dot118021xDefaultPort;	// used as AP mode for default ieee8021x control port
 	unsigned int	dot118021xcontrolport;
+	unsigned int	acct_enabled;
+	unsigned long	acct_timeout_period;
+	unsigned int	acct_timeout_throughput;
 };
 
 union Keytype {
@@ -226,7 +240,7 @@ struct Dot11OperationEntry {
 
 struct Dot11RFEntry {
 	unsigned int	dot11RFType;
-	unsigned int	dot11channel;
+	unsigned char	dot11channel;
 	unsigned int	dot11ch_low;
 	unsigned int	dot11ch_hi;
 	unsigned char	pwrlevelCCK_A[MAX_2G_CHANNEL_NUM];
@@ -246,6 +260,7 @@ struct Dot11RFEntry {
 	unsigned int	shortpreamble;
 	unsigned int	trswitch;
 	unsigned int	disable_ch14_ofdm;
+	unsigned int	disable_ch1213;
 	unsigned int	xcap;
 	unsigned int	tssi1;
 	unsigned int	tssi2;
@@ -253,15 +268,14 @@ struct Dot11RFEntry {
 	unsigned int	deltaIQK;
 	unsigned int	deltaLCK;
 	unsigned int	MIMO_TR_mode;
-	unsigned int	phyBandSelect;
-	unsigned int	macPhyMode;
+	unsigned char	phyBandSelect;
+	unsigned char	macPhyMode;
 	unsigned int	smcc;
 	unsigned int	smcc_t;
-#ifdef PHASE2_TEST
 	unsigned int	smcc_p;
-#endif
 	unsigned char	trsw_pape_C9;
 	unsigned char	trsw_pape_CC;
+	unsigned int	tx2path;
 	unsigned int	txbf;
 	unsigned int	target_pwr;
 };
@@ -294,6 +308,11 @@ struct bss_desc {
 	unsigned char	rssi;
 	unsigned char	sq;
 	unsigned char	network;
+	/*add for P2P_SUPPORT ; for sync; it exist no matter p2p enabled or not*/
+	unsigned char	p2pdevname[33];
+	unsigned char	p2prole;
+	unsigned short	p2pwscconfig;
+	unsigned char	p2paddress[MACADDRLEN];
 };
 
 struct bss_type
@@ -312,7 +331,7 @@ struct erp_mib {
 };
 
 struct wdsEntry {
-	unsigned char macAddr [MACADDRLEN] __attribute__ ((packed));
+	unsigned char macAddr [MACADDRLEN];
 	unsigned int txRate __attribute__ ((packed));
 };
 
@@ -369,6 +388,7 @@ struct MiscEntry {
 	unsigned int	groupID;
 	unsigned int	vap_enable;
 	unsigned int	rsv_txdesc;				// 1: enable "reserve tx desc for each interface" function; 0: disable.
+	unsigned int	use_txq;
 	unsigned int	func_off;
 };
 
@@ -387,6 +407,10 @@ struct Dot11QosEntry {
 	unsigned int	EDCA_STA_config;		// WMM STA, default=0, will be set when assoc AP's EDCA para have been set
 	unsigned char	WMM_IE[7];				// WMM STA, WMM IE
 	unsigned char	WMM_PARA_IE[24];		// WMM EDCA Parameter IE
+	unsigned int	UAPSD_AC_BE;
+	unsigned int	UAPSD_AC_BK;
+	unsigned int	UAPSD_AC_VI;
+	unsigned int	UAPSD_AC_VO;
 
 	struct ParaRecord STA_AC_BE_paraRecord;
 	struct ParaRecord STA_AC_BK_paraRecord;
@@ -411,10 +435,11 @@ struct WifiSimpleConfigEntry {
 };
 
 struct GroupBandWidthControl {
-	unsigned int	GBWCMode;		// 0: disable 1: inner limitation 2: outer limitation
+	unsigned int	GBWCMode;		// 0: disable 1: inner limitation 2: outer limitation 3: tx interface 4: rx interface 5: tx+rx interface
 	unsigned char	GBWCAddr[NUM_GBWC][MACADDRLEN];
 	unsigned int	GBWCNum;		// GBWC entry number, this field should be followed to GBWCAddr
-	unsigned int	GBWCThrd;		// Threshold, in unit of kbps
+	unsigned int	GBWCThrd_tx;		// Tx Threshold, in unit of kbps
+	unsigned int	GBWCThrd_rx;		// Rx Threshold, in unit of kbps	
 };
 
 struct Dot11nConfigEntry {
@@ -425,6 +450,7 @@ struct Dot11nConfigEntry {
 	unsigned int	dot11nShortGIfor20M;
 	unsigned int	dot11nShortGIfor40M;
 	unsigned int	dot11nSTBC;
+	unsigned int	dot11nLDPC;	
 	unsigned int	dot11nAMPDU;
 	unsigned int	dot11nAMSDU;
 	unsigned int	dot11nAMPDUSendSz;		// 8: 8K, 16: 16K, 32: 32K, 64: 64K, other: auto
@@ -433,6 +459,7 @@ struct Dot11nConfigEntry {
 	unsigned int	dot11nAMSDUSendNum;		// max aggregation packet number
 	unsigned int	dot11nLgyEncRstrct;		// bit0: Wep, bit1: TKIP, bit2: restrict Realtek client, bit3: forbid  N mode for legacy enc
 	unsigned int	dot11nCoexist;
+	unsigned int	dot11nTxNoAck;
 };
 
 struct ReorderControlEntry {
@@ -486,7 +513,7 @@ struct VlanConfig {
 	int vlan_id;			// 1~4090: vlan id (per-port)
 	int vlan_pri;			// 0~7: priority; (per-port)
 	int vlan_cfi;			// 0/1: cfi (per-port)
-	int forwarding;			// 0: disable 1:L2 bridged 2:NAT
+	int forwarding_rule;			// 0: disable 1:L2 bridged 2:NAT
 };
 
 /*	type define must accordint to the wapi standard	*/
@@ -538,6 +565,45 @@ typedef struct __wapiMibInfo {
 } wapiMibInfo;
 
 
+/*for P2P_SUPPORT*/
+struct P2P_Direct {
+
+	unsigned int   p2p_type;
+	unsigned int   p2p_state;
+	unsigned int   p2p_on_discovery;
+	unsigned char  p2p_intent;
+	unsigned char  p2p_listen_channel;
+	unsigned char  p2p_op_channel;
+
+	unsigned char  p2p_event_indiate;
+
+	unsigned char  p2p_device_name[33];
+	unsigned char  p2p_wsc_pin_code[9];
+	unsigned short p2p_wsc_config_method;
+
+};
+
+#define PROFILE_NUM		5 	// must reserve one for root profile. 
+
+struct ap_profile {
+	char ssid[33];		// desired SSID in string
+	int	encryption;		// 0: open, 1:wep40, 2:wep128, 3:wpa, 4:wpa2
+	int	auth_type;		// authentication type. 0: open, 1: shared, 2: auto
+	int	wpa_cipher;		// bit0-wep64, bit1-tkip, bit2-wrap,bit3-ccmp, bit4-wep128
+	unsigned char wpa_psk[65]; // wpa psk
+	int	wep_default_key;	  // wep default tx key index, 0~3
+	unsigned char wep_key1[13]; // WEP key1 in hex
+	unsigned char wep_key2[13]; // WEP key2 in hex
+	unsigned char wep_key3[13]; // WEP key3 in hex
+	unsigned char wep_key4[13]; // WEP key4 in hex	
+};
+
+struct ap_conn_profile { // ap connection profile
+	int	enable_profile;
+	int	profile_num;		// profile number, except root profile.
+	struct ap_profile profile[PROFILE_NUM];
+};
+
 // driver mib
 struct wifi_mib {
 	unsigned int					mib_version;
@@ -568,6 +634,8 @@ struct wifi_mib {
 	struct Dot1180211CountryCodeEntry	dot11dCountry;
 	struct EfuseEntry			efuseEntry;
 	struct StaDetectInfo			staDetectInfo;
+	struct P2P_Direct			p2p_mib;	// add for P2P_SUPPORT
+	struct ap_conn_profile			ap_profile;		
 };
 
 #endif // _IEEE802_MIB_H_

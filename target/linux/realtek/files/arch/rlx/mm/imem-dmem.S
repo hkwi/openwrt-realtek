@@ -1,5 +1,33 @@
 #include <asm/asmmacro.h>
 
+#if defined(CONFIG_RTK_VOIP)
+		.macro refill_dmem	sel, addr
+		.set noreorder
+		la		t0, 0xB800B808		# CTRL 
+		sw		zero, 0(t0)
+		la		t1, ( 1 << 21 )
+		sw		t1, 0(t0)
+		la		t0, 0xB800B800		# SA 
+		sw		zero, 0(t0)
+		la		t0, \addr			# EXT SA
+		la		t1, 0x1ffffffc
+		and		t1, t0, t1
+		la		t0, 0xB800B804
+		sw		t1, 0(t0)
+		la		t0, 0xB800B808		# CTRL 
+		la		t1, ( \sel << 23 ) | ( 1 << 22 ) | ( 1 << 19 ) | ( ( ( 0x1000 ) >> 2 ) & 0x3FFFF )
+		sw		t1, 0(t0)
+		la		t4, ( 1 << 20 )
+		or		t1, t1, t4
+		sw		t1, 0(t0)
+1:
+		lw		t1, 0(t0)
+		and		t1, t1, t4
+		bne		t1, zero, 1b
+		nop		
+		.endm
+
+#endif
 	.text
         LEAF(_imem_dmem_init)
         .set noreorder
@@ -32,7 +60,11 @@
         nop
 
         #--- load iram base and top
+#ifdef CONFIG_RTL_819XD
+#define IMEM0_SIZE	4096*4
+#else
 #define IMEM0_SIZE	4096
+#endif
 #define IMEM1_SIZE	4096
         la              $8,__iram
         la              $9,0x0fffc000
@@ -41,7 +73,7 @@
         nop
         nop
 #ifdef CONFIG_ARCH_CPU_RLX5281
-#ifdef CONFIG_RTL8198_REVISION_B
+#if defined(CONFIG_RTL8198_REVISION_B)
         //jasonwang0413
         li	t6,0xb8000000
 	lw	t7,0(t6)
@@ -79,6 +111,7 @@ rev_end:
         mtc0    $8, $20
         nop
         nop
+#if !defined(CONFIG_RTL_819XD)
 	#--- load iram base1 and top1
         la              $8,__iram
 #ifdef CONFIG_RTL8198_REVISION_B
@@ -107,6 +140,7 @@ rev_end:
         nop
         li              $8,0x00000010 # IRAM Fill
         mtc0    $8, $20,1
+#endif
         nop
         nop
 
@@ -120,7 +154,13 @@ rev_end:
         mtc3    $8,$4                                                           # DW bas
         nop
         nop
+#if defined(CONFIG_RTL_819XD)
+        #define DMEM0_SIZE	4096*2
+
+	addiu   $8,$8,(DMEM0_SIZE-1)
+#else
         addiu   $8,$8,0xfff
+#endif
         mtc3    $8,$5                                                           # DW top
         nop
         nop
@@ -131,19 +171,32 @@ rev_end:
         #la              $9,0x0fffe000
         add		$8,$8,1
 	#and             $8,$8,$9
+#if !defined(CONFIG_RTL_819XD)
         mtc3    $8,$6                                                           # DW bas 1
         nop
         nop
         addiu   $8,$8,0xfff
         mtc3    $8,$7                                                           # DW top 1
+#endif
         nop
         nop
-		li		$8,0x00000400	# DMEM On	// pkshih: add to enable DMEM0 and DMEM1
-        mtc0    $8, $20			# DMEM0 ON
-        mtc0    $8, $20,1		# DMEM1 ON
+#if defined(CONFIG_RTK_VOIP) && !defined(CONFIG_RTL_89xxD)
+	#--- Refill the DRAM -----
+	refill_dmem 2, __dram_start				# DMEM 0 (4k)
+	refill_dmem 3, __dram_start + 0x1000	# DMEM 1 (4k)
+#endif
+#if !defined(CONFIG_RTL_89xxD)
+		mfc0	t0, $20
+		or		t0, 0x00000400	# DMEM On	// pkshih: add to enable DMEM0 and DMEM1
+        mtc0    t0, $20			# DMEM0 ON
+#endif
+#if !defined(CONFIG_RTL_819XD)
+        mfc0	t0, $20,1
+		or		t0, 0x00000400	# DMEM On	// pkshih: add to enable DMEM0 and DMEM1
+        mtc0    t0, $20,1		# DMEM1 ON
+#endif
 		nop
 		nop
-
 
 #else
         addiu   $8,$8,0x3fff

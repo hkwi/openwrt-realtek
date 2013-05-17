@@ -317,13 +317,32 @@ static struct platform_driver ehci_rtl8652_driver = {
 		   .name = "rtl8652-ehci",
 		   },
 };
-#if defined(CONFIG_RTL_8196C)
+#if 1//defined(CONFIG_RTL_8196C)
 void SetUSBPhy(unsigned char reg, unsigned char val)
 {
 	
 	#define	USB2_PHY_DELAY	{mdelay(5);}
 	//8196C demo board: 0xE0:99, 0xE1:A8, 0xE2:98, 0xE3:C1,  0xE5:91, 	
+#if !CONFIG_RTL_819XD //8198	
 	REG32(0xb8000034) = (0x1f00 | val); USB2_PHY_DELAY;
+#else  //8196D
+	#define SYS_USB_SIE 0xb8000034
+	#define SYS_USB_PHY 0xb8000090 	
+ 	int oneportsel=(REG32(SYS_USB_SIE) & (1<<18))>>18;
+	
+	unsigned int tmp = REG32(SYS_USB_PHY);  //8672 only	
+	tmp = tmp & ~((0xff<<11)|(0xff<<0));
+
+	
+	if(oneportsel==0)
+	{	REG32(SYS_USB_PHY) = (val << 0) | tmp;   //phy 0
+	}
+	else
+	{	REG32(SYS_USB_PHY) = (val << 11) | tmp;  //phy1
+	}
+
+	USB2_PHY_DELAY;
+#endif
 	//printk("0xb8000034=%08x\n", REG32(0xb8000034));		
 	
 	unsigned char reg_h=(reg &0xf0)>>4;
@@ -461,24 +480,113 @@ static void synopsys_usb_patch(void)
 #endif
 	return;
 }
+//--------------------------------------------
+void EnableUSBPHY(int portnum)
+{
+	if(portnum==0)
+	{
+	//phy0
+	  REG32(0xb8000090) |= (1<<8);	 //USBPHY_EN=1
+	  REG32(0xb8000090) |=   (1<<9);	 //usbphy_reset=1, active high		  
+	  REG32(0xb8000090) &= ~(1<<9);	 //usbphy_reset=0, active high	  	  
+	  REG32(0xb8000090) |= (1<<10);	 //active_usbphyt=1	  
 
+	}
+	else
+	{
+	//phy1
+	  REG32(0xb8000090) |= (1<<19);	 //USBPHY_EN=1
+	  REG32(0xb8000090) |=   (1<<20);	 //usbphy_reset=1, active high	 	  
+	  REG32(0xb8000090) &= ~(1<<20);	 //usbphy_reset=0, active high	  
+	  REG32(0xb8000090) |= (1<<21);	 //active_usbphyt=1	  
+
+
+	}
+}
+//----------------------------------------------
 /*here register platform rtl8652 usb device.
   do it in kernel boot is a good choice*/
  static struct platform_device *usb_dev_host = NULL;  //wei add
  //----------------------------------------------------------------------
 static int  ehci_rtl8652_init(void)
 {
-	 REG32(0xb8000010)=REG32(0xb8000010)|0x20000;
-	/*register platform device*/
-	int retval;
-	//static struct platform_device *usb_dev_host = NULL;
+
 
 	if(usb_dev_host!=NULL)
 	{	printk("Ehci-rtl8652.c: EHCI device already init\n");
 		return -1;
 	}
 
+#if !defined(CONFIG_RTL_819XD)  //8198
+	 REG32(0xb8000010)=REG32(0xb8000010)|(1<<17);
+#else //8196D
 
+#if 0
+		extern void HangUpRes(int);
+		HangUpRes(1);
+#endif
+
+	//one port sel
+	//is 0: phy#1 connect OTG  mac, EHCI is in phy0	
+	//is 1: phy#1 connect EHCI mac
+	
+#ifdef CONFIG_RTL_USB_OTG
+	int oneportsel=0;
+	REG32(0xb8000034) &= ~(1<<18);	 //one port sel=0
+#else
+#if 1  //software force
+	int oneportsel=1;
+	if(oneportsel==1)
+	{	 REG32(0xb8000034) |= (1<<18);	 //one port sel=1
+	}
+	else
+	{	REG32(0xb8000034) &= ~(1<<18);	 //one port sel=0
+	}
+#else  //read-back decide
+	int oneportsel= (REG32(0xb8000034) & (1<<18))>>18;
+	printk("EHCI: one_port_host_sel=%d, EHCI in Port %s\n", oneportsel, (oneportsel==0) ? "0": "1");
+#endif
+#endif
+	//sie
+	 REG32(0xb8000034) |= (1<<11);	 //s_utmi_suspend0=1
+	 REG32(0xb8000034) |= (1<<12);	 //en_usbhost=1	 
+	 REG32(0xb8000034) |= (1<<17);	 //enable pgbndry_disable=1	 
+
+	 
+	 if(oneportsel==1)
+	 {
+	 	EnableUSBPHY(1);
+	 }	 
+	 else //if(oneportsel==1)
+	 {//phy0, phy1
+#ifdef CONFIG_RTL_OTGCTRL	 
+	 extern unsigned int  TurnOn_OTGCtrl_Interrupt(unsigned int);
+	unsigned int old= TurnOn_OTGCtrl_Interrupt(0);
+#endif	
+		EnableUSBPHY(0);
+		EnableUSBPHY(1);
+#ifdef CONFIG_RTL_OTGCTRL		  
+	  TurnOn_OTGCtrl_Interrupt(old);
+#endif	  
+	 }
+
+	 
+	//ip clock mgr
+	 REG32(0xb8000010) |= (1<<12)|(1<<13)|(1<<19)|(1<<20);	 //enable lx1, lx2
+	 REG32(0xb8000010) |= (1<<21);	 //enable host ip
+
+	mdelay(100);
+	 printk("b8021000=%x\n", REG32(0xb8021000) );
+	 printk("b8021054=%x\n", REG32(0xb8021054) );
+
+	 /*	b8021000=10000001
+		b8021054=200000
+	*/	
+
+#endif	 
+	/*register platform device*/
+	int retval;
+	//static struct platform_device *usb_dev_host = NULL;
 	struct resource r[2];
 	memset(&r, 0, sizeof(r));
 
@@ -500,6 +608,8 @@ static int  ehci_rtl8652_init(void)
 		usb_dev_host=NULL;  //wei add
 		goto err;
 	}
+
+#if 0 	
 #if defined(CONFIG_RTL_8198)
 #ifdef CONFIG_RTL8198_REVISION_B
 	// rock: pin_mux for USB over-current detection in rtl8198_rev_a
@@ -511,6 +621,31 @@ static int  ehci_rtl8652_init(void)
 #endif
 #else
 	synopsys_usb_patch();
+#endif
+#endif
+#if defined(CONFIG_RTL_8196C)
+	synopsys_usb_patch();
+#endif
+#if 1 //wei add
+
+//	disable Host chirp J-K
+//	SetUSBPhy(0xf4,0xe3);	GetUSBPhy(0xf4);
+	//if(oneportsel==1)
+	//SetUSBPhy(0xe6,0xb8);  //disconnect, work
+	//SetUSBPhy(0xe6,0xc8); 
+	
+	//SetUSBPhy(0xe7,0x1c);  //jwen tell
+	//dump
+	int i;
+	for(i=0xe0;i<=0xe7; i++)
+		printk("reg %x=%x\n", i,GetUSBPhy(i) );
+	for(i=0xf0;i<=0xf6; i++)
+		printk("reg %x=%x\n", i,GetUSBPhy(i) );	
+	//FPGA Patch
+	//printk("FPGA patch\n");
+	//REG32(0xb8021094)=0x80008000;  //fpga threshold
+
+	
 #endif
 
 	return 0;
@@ -530,4 +665,20 @@ void  ehci_rtl8652_cleanup(void)
 	usb_dev_host=NULL;
 	
 }
+//----------------------------------------------------------------------
+#if 0
+void ehci_autodet_probe()
+{
+	if(usb_dev_host!=NULL)
+	{ehci_rtl8652_drv_probe(usb_dev_host);	
+	}
+}
 
+void ehci_autodet_remove()
+{
+	if(usb_dev_host!=NULL)
+	{ehci_rtl8652_drv_remove(usb_dev_host);
+	}
+
+}
+#endif

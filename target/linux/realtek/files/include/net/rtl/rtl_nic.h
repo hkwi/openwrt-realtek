@@ -15,8 +15,11 @@
 #define RTL819X_PRIV_IOCTL_ENABLE 1 	/* mark_add */
 #define CONFIG_RTL_PHY_PATCH		1
 #define RTK_QUE			1
-#if defined(CONFIG_NET_WIRELESS_AGN) || defined (CONFIG_RTL8192SE) || defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192CD_MODULE)
-#define BR_SHORTCUT	1
+#if defined(CONFIG_NET_WIRELESS_AGN) || defined (CONFIG_RTL8192SE) || defined(CONFIG_RTL8192CD) || defined(CONFIG_RTL8192CD_MODULE) || defined(CONFIG_RTL8192E)
+#if !defined(CONFIG_RTL_FASTBRIDGE)
+#define BR_SHORTCUT         1
+#define BR_SHORTCUT_C2      1
+#endif
 #endif
 /*
 *#define	CONFIG_RTL_MULTI_LAN_DEV	1
@@ -106,7 +109,7 @@ struct dev_priv {
 	u32 			opened;
 	u32			irq_owner; //record which dev request IRQ
 	struct net_device_stats net_stats;
-#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(BR_SHORTCUT) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198)
+#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(BR_SHORTCUT) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
     struct timer_list expire_timer; 
 #endif
 
@@ -254,7 +257,7 @@ typedef struct _ps_drv_netif_mapping_s
 int32 rtl865x_changeOpMode(int mode);
 
 #if defined(CONFIG_RTL_ETH_PRIV_SKB)
-__MIPS16 __IRAM_FWD int is_rtl865x_eth_priv_buf(unsigned char *head);
+__MIPS16 __IRAM_FWD  int is_rtl865x_eth_priv_buf(unsigned char *head);
 void free_rtl865x_eth_priv_buf(unsigned char *head);
 #endif
 
@@ -265,10 +268,14 @@ int rtl_del_ps_drv_netif_mapping(struct net_device *dev);
 #if defined(CONFIG_RTK_VLAN_SUPPORT) && defined(CONFIG_RTK_VLAN_FOR_CABLE_MODEM)
 extern struct net_device* get_dev_by_vid(int vid);
 #endif
-extern __MIPS16 struct net_device *get_shortcut_dev(unsigned char *da);
+extern __MIPS16  struct net_device *get_shortcut_dev(unsigned char *da);
 #define CONFIG_RTL_NIC_HWSTATS
 
 int32 rtl865x_changeOpMode(int mode);
 int  rtl865x_reChangeOpMode (void);
+
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+extern int rtl_hw_vlan_ignore_tagged_mc;
+#endif
 
 #endif

@@ -13,6 +13,9 @@ Major Change History:
 	2011-07-07 Roger            Create.
 	
 --*/
+#ifdef __ECOS
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#endif
 
 #ifdef CONFIG_RTL_88E_SUPPORT
 #include "HalPwrSeqCmd.h"

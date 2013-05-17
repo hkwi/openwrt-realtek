@@ -21,7 +21,11 @@
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <asm/unistd.h>
-#include <linux/synclink.h>
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
 #endif
 
 #include "./8192cd_cfg.h"
@@ -29,6 +33,9 @@
 #include "./8192cd_hw.h"
 #include "./8192cd_headers.h"
 #include "./8192cd_debug.h"
+#ifdef CONFIG_RTL_88E_SUPPORT
+#include "Hal8188EPwrSeq.h"
+#endif
 
 #ifdef __KERNEL__
 #ifdef __LINUX_2_6__
@@ -40,16 +47,31 @@
 
 #ifdef USE_RTL8186_SDK
 #ifdef CONFIG_RTL8672
+	#ifdef USE_RLX_BSP
+	#include <bspchip.h>
+
+	#ifdef CONFIG_RTL_8196C
+	#undef CONFIG_RTL_8196C
+	#endif
+	#ifdef CONFIG_RTL8196C_REVISION_B
+	#undef CONFIG_RTL8196C_REVISION_B
+	#endif
+
+	#else
 	#include <platform.h>
+	#endif
 #else
+
 #if defined(__LINUX_2_6__)
 #include <bsp/bspchip.h>
 #else
+#ifndef __ECOS
 	#include <asm/rtl865x/platform.h>
 #endif
 #endif
+#endif
 
-#if defined(__LINUX_2_6__) && !defined(CONFIG_RTL8672)
+#if defined(__LINUX_2_6__) //&& !defined(CONFIG_RTL8672)
 #define _WDTCNR_			BSP_WDTCNR
 #else
 #define _WDTCNR_			WDTCNR
@@ -61,224 +83,23 @@
 #endif
 
 #ifdef CONFIG_NET_PCI
+#ifndef CONFIG_RTL_8198B
         #define BSP_WDTCNR 0xB800311C
+#endif
 #endif
 
 #define MAX_CONFIG_FILE_SIZE (20*1024) // for 8192, added to 20k
 
 int rtl8192cd_fileopen(const char *filename, int flags, int mode);
 void selectMinPowerIdex(struct rtl8192cd_priv *priv);
-void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel);
-void PHY_RF6052SetCCKTxPower(struct rtl8192cd_priv *priv, unsigned int channel);
+
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
 static void rtl8192cd_ReadFwHdr(struct rtl8192cd_priv * priv);
+#endif
 #ifdef CONFIG_RTL_92C_SUPPORT
 static int Load_92C_Firmware(struct rtl8192cd_priv *priv);
 #endif
 
-
-static unsigned int OFDMSwingTable[] = {
-	0x7f8001fe, // 0, +6.0dB
-	0x788001e2, // 1, +5.5dB
-	0x71c001c7, // 2, +5.0dB
-	0x6b8001ae, // 3, +4.5dB
-	0x65400195, // 4, +4.0dB
-	0x5fc0017f, // 5, +3.5dB
-	0x5a400169, // 6, +3.0dB
-	0x55400155, // 7, +2.5dB
-	0x50800142, // 8, +2.0dB
-	0x4c000130, // 9, +1.5dB
-	0x47c0011f, // 10, +1.0dB
-	0x43c0010f, // 11, +0.5dB
-	0x40000100, // 12, +0dB
-	0x3c8000f2, // 13, -0.5dB
-	0x390000e4, // 14, -1.0dB
-	0x35c000d7, // 15, -1.5dB
-	0x32c000cb, // 16, -2.0dB
-	0x300000c0, // 17, -2.5dB
-	0x2d4000b5, // 18, -3.0dB
-	0x2ac000ab, // 19, -3.5dB
-	0x288000a2, // 20, -4.0dB
-	0x26000098, // 21, -4.5dB
-	0x24000090, // 22, -5.0dB
-	0x22000088, // 23, -5.5dB
-	0x20000080, // 24, -6.0dB
-	0x1e400079, // 25, -6.5dB
-	0x1c800072, // 26, -7.0dB
-	0x1b00006c, // 27. -7.5dB
-	0x19800066, // 28, -8.0dB
-	0x18000060, // 29, -8.5dB
-	0x16c0005b, // 30, -9.0dB
-	0x15800056, // 31, -9.5dB
-	0x14400051, // 32, -10.0dB
-	0x1300004c, // 33, -10.5dB
-	0x12000048, // 34, -11.0dB
-	0x11000044, // 35, -11.5dB
-	0x10000040, // 36, -12.0dB
-};
-
-unsigned int TxPwrTrk_OFDM_SwingTbl[TxPwrTrk_OFDM_SwingTbl_Len] = {
-	/*  +6.0dB */ 0x7f8001fe,
-	/*  +5.5dB */ 0x788001e2,
-	/*  +5.0dB */ 0x71c001c7,
-	/*  +4.5dB */ 0x6b8001ae,
-	/*  +4.0dB */ 0x65400195,
-	/*  +3.5dB */ 0x5fc0017f,
-	/*  +3.0dB */ 0x5a400169,
-	/*  +2.5dB */ 0x55400155,
-	/*  +2.0dB */ 0x50800142,
-	/*  +1.5dB */ 0x4c000130,
-	/*  +1.0dB */ 0x47c0011f,
-	/*  +0.5dB */ 0x43c0010f,
-	/*   0.0dB */ 0x40000100,
-	/*  -0.5dB */ 0x3c8000f2,
-	/*  -1.0dB */ 0x390000e4,
-	/*  -1.5dB */ 0x35c000d7,
-	/*  -2.0dB */ 0x32c000cb,
-	/*  -2.5dB */ 0x300000c0,
-	/*  -3.0dB */ 0x2d4000b5,
-	/*  -3.5dB */ 0x2ac000ab,
-	/*  -4.0dB */ 0x288000a2,
-	/*  -4.5dB */ 0x26000098,
-	/*  -5.0dB */ 0x24000090,
-	/*  -5.5dB */ 0x22000088,
-	/*  -6.0dB */ 0x20000080,
-	/*  -6.5dB */ 0x1a00006c,
-	/*  -7.0dB */ 0x1c800072,
-	/*  -7.5dB */ 0x18000060,
-	/*  -8.0dB */ 0x19800066,
-	/*  -8.5dB */ 0x15800056,
-	/*  -9.0dB */ 0x26c0005b,
-	/*  -9.5dB */ 0x14400051,
-	/* -10.0dB */ 0x24400051,
-	/* -10.5dB */ 0x1300004c,
-	/* -11.0dB */ 0x12000048,
-	/* -11.5dB */ 0x11000044,
-	/* -12.0dB */ 0x10000040
-};
-
-unsigned char TxPwrTrk_CCK_SwingTbl[TxPwrTrk_CCK_SwingTbl_Len][8] = {
-	/*   0.0dB */ {0x36, 0x35, 0x2e, 0x25, 0x1c, 0x12, 0x09, 0x04},
-	/*   0.5dB */ {0x33, 0x32, 0x2b, 0x23, 0x1a, 0x11, 0x08, 0x04},
-	/*   1.0dB */ {0x30, 0x2f, 0x29, 0x21, 0x19, 0x10, 0x08, 0x03},
-	/*   1.5dB */ {0x2d, 0x2d, 0x27, 0x1f, 0x18, 0x0f, 0x08, 0x03},
-	/*   2.0dB */ {0x2b, 0x2a, 0x25, 0x1e, 0x16, 0x0e, 0x07, 0x03},
-	/*   2.5dB */ {0x28, 0x28, 0x22, 0x1c, 0x15, 0x0d, 0x07, 0x03},
-	/*   3.0dB */ {0x26, 0x25, 0x21, 0x1b, 0x14, 0x0d, 0x06, 0x03},
-	/*   3.5dB */ {0x24, 0x23, 0x1f, 0x19, 0x13, 0x0c, 0x06, 0x03},
-	/*   4.0dB */ {0x22, 0x21, 0x1d, 0x18, 0x11, 0x0b, 0x06, 0x02},
-	/*   4.5dB */ {0x20, 0x20, 0x1b, 0x16, 0x11, 0x08, 0x05, 0x02},
-	/*   5.0dB */ {0x1f, 0x1e, 0x1a, 0x15, 0x10, 0x0a, 0x05, 0x02},
-	/*   5.5dB */ {0x1d, 0x1c, 0x18, 0x14, 0x0f, 0x0a, 0x05, 0x02},
-	/*   6.0dB */ {0x1b, 0x1a, 0x17, 0x13, 0x0e, 0x09, 0x04, 0x02},
-	/*   6.5dB */ {0x1a, 0x19, 0x16, 0x12, 0x0d, 0x09, 0x04, 0x02},
-	/*   7.0dB */ {0x18, 0x17, 0x15, 0x11, 0x0c, 0x08, 0x04, 0x02},
-	/*   7.5dB */ {0x17, 0x16, 0x13, 0x10, 0x0c, 0x08, 0x04, 0x02},
-	/*   8.0dB */ {0x16, 0x15, 0x12, 0x0f, 0x0b, 0x07, 0x04, 0x01},
-	/*   8.5dB */ {0x14, 0x14, 0x11, 0x0e, 0x0b, 0x07, 0x03, 0x02},
-	/*   9.0dB */ {0x13, 0x13, 0x10, 0x0d, 0x0a, 0x06, 0x03, 0x01},
-	/*   9.5dB */ {0x12, 0x12, 0x0f, 0x0c, 0x09, 0x06, 0x03, 0x01},
-	/*  10.0dB */ {0x11, 0x11, 0x0f, 0x0c, 0x09, 0x06, 0x03, 0x01},
-	/*  10.5dB */ {0x10, 0x10, 0x0e, 0x0b, 0x08, 0x05, 0x03, 0x01},
-	/*  11.0dB */ {0x0f, 0x0f, 0x0d, 0x0b, 0x08, 0x05, 0x03, 0x01}
-};
-
-unsigned char TxPwrTrk_CCK_SwingTbl_CH14[TxPwrTrk_CCK_SwingTbl_Len][8] = {
-	/*   0.0dB */ {0x36, 0x35, 0x2e, 0x1b, 0x00, 0x00, 0x00, 0x00},
-	/*   0.5dB */ {0x33, 0x32, 0x2b, 0x19, 0x00, 0x00, 0x00, 0x00},
-	/*   1.0dB */ {0x30, 0x2f, 0x29, 0x18, 0x00, 0x00, 0x00, 0x00},
-	/*   1.5dB */ {0x2d, 0x2d, 0x27, 0x17, 0x00, 0x00, 0x00, 0x00},
-	/*   2.0dB */ {0x2b, 0x2a, 0x25, 0x15, 0x00, 0x00, 0x00, 0x00},
-	/*   2.5dB */ {0x28, 0x28, 0x22, 0x14, 0x00, 0x00, 0x00, 0x00},
-	/*   3.0dB */ {0x26, 0x25, 0x21, 0x13, 0x00, 0x00, 0x00, 0x00},
-	/*   3.5dB */ {0x24, 0x23, 0x1f, 0x12, 0x00, 0x00, 0x00, 0x00},
-	/*   4.0dB */ {0x22, 0x21, 0x1d, 0x11, 0x00, 0x00, 0x00, 0x00},
-	/*   4.5dB */ {0x20, 0x20, 0x1b, 0x10, 0x00, 0x00, 0x00, 0x00},
-	/*   5.0dB */ {0x1f, 0x1e, 0x1a, 0x0f, 0x00, 0x00, 0x00, 0x00},
-	/*   5.5dB */ {0x1d, 0x1c, 0x18, 0x0e, 0x00, 0x00, 0x00, 0x00},
-	/*   6.0dB */ {0x1b, 0x1a, 0x17, 0x0e, 0x00, 0x00, 0x00, 0x00},
-	/*   6.5dB */ {0x1a, 0x19, 0x16, 0x0d, 0x00, 0x00, 0x00, 0x00},
-	/*   7.0dB */ {0x18, 0x17, 0x15, 0x0c, 0x00, 0x00, 0x00, 0x00},
-	/*   7.5dB */ {0x17, 0x16, 0x13, 0x0b, 0x00, 0x00, 0x00, 0x00},
-	/*   8.0dB */ {0x16, 0x15, 0x12, 0x0b, 0x00, 0x00, 0x00, 0x00},
-	/*   8.5dB */ {0x14, 0x14, 0x11, 0x0a, 0x00, 0x00, 0x00, 0x00},
-	/*   9.0dB */ {0x13, 0x13, 0x10, 0x0a, 0x00, 0x00, 0x00, 0x00},
-	/*   9.5dB */ {0x12, 0x12, 0x0f, 0x09, 0x00, 0x00, 0x00, 0x00},
-	/*  10.0dB */ {0x11, 0x11, 0x0f, 0x09, 0x00, 0x00, 0x00, 0x00},
-	/*  10.5dB */ {0x10, 0x10, 0x0e, 0x08, 0x00, 0x00, 0x00, 0x00},
-	/*  11.0dB */ {0x0f, 0x0f, 0x0d, 0x08, 0x00, 0x00, 0x00, 0x00}
-};
-
-static unsigned char CCKSwingTable_Ch1_Ch13[][8] = {
-{0x36, 0x35, 0x2e, 0x25, 0x1c, 0x12, 0x09, 0x04},	// 0, +0dB
-{0x33, 0x32, 0x2b, 0x23, 0x1a, 0x11, 0x08, 0x04},	// 1, -0.5dB
-{0x30, 0x2f, 0x29, 0x21, 0x19, 0x10, 0x08, 0x03},	// 2, -1.0dB
-{0x2d, 0x2d, 0x27, 0x1f, 0x18, 0x0f, 0x08, 0x03},	// 3, -1.5dB
-{0x2b, 0x2a, 0x25, 0x1e, 0x16, 0x0e, 0x07, 0x03},	// 4, -2.0dB
-{0x28, 0x28, 0x22, 0x1c, 0x15, 0x0d, 0x07, 0x03},	// 5, -2.5dB
-{0x26, 0x25, 0x21, 0x1b, 0x14, 0x0d, 0x06, 0x03},	// 6, -3.0dB
-{0x24, 0x23, 0x1f, 0x19, 0x13, 0x0c, 0x06, 0x03},	// 7, -3.5dB
-{0x22, 0x21, 0x1d, 0x18, 0x11, 0x0b, 0x06, 0x02},	// 8, -4.0dB
-{0x20, 0x20, 0x1b, 0x16, 0x11, 0x08, 0x05, 0x02},	// 9, -4.5dB
-{0x1f, 0x1e, 0x1a, 0x15, 0x10, 0x0a, 0x05, 0x02},	// 10, -5.0dB
-{0x1d, 0x1c, 0x18, 0x14, 0x0f, 0x0a, 0x05, 0x02},	// 11, -5.5dB
-{0x1b, 0x1a, 0x17, 0x13, 0x0e, 0x09, 0x04, 0x02},	// 12, -6.0dB
-{0x1a, 0x19, 0x16, 0x12, 0x0d, 0x09, 0x04, 0x02},	// 13, -6.5dB
-{0x18, 0x17, 0x15, 0x11, 0x0c, 0x08, 0x04, 0x02},	// 14, -7.0dB
-{0x17, 0x16, 0x13, 0x10, 0x0c, 0x08, 0x04, 0x02},	// 15, -7.5dB
-{0x16, 0x15, 0x12, 0x0f, 0x0b, 0x07, 0x04, 0x01},	// 16, -8.0dB
-{0x14, 0x14, 0x11, 0x0e, 0x0b, 0x07, 0x03, 0x02},	// 17, -8.5dB
-{0x13, 0x13, 0x10, 0x0d, 0x0a, 0x06, 0x03, 0x01},	// 18, -9.0dB
-{0x12, 0x12, 0x0f, 0x0c, 0x09, 0x06, 0x03, 0x01},	// 19, -9.5dB
-{0x11, 0x11, 0x0f, 0x0c, 0x09, 0x06, 0x03, 0x01},	// 20, -10.0dB
-{0x10, 0x10, 0x0e, 0x0b, 0x08, 0x05, 0x03, 0x01},	// 21, -10.5dB
-{0x0f, 0x0f, 0x0d, 0x0b, 0x08, 0x05, 0x03, 0x01},	// 22, -11.0dB
-{0x0e, 0x0e, 0x0c, 0x0a, 0x08, 0x05, 0x02, 0x01},	// 23, -11.5dB
-{0x0d, 0x0d, 0x0c, 0x0a, 0x07, 0x05, 0x02, 0x01},	// 24, -12.0dB
-{0x0d, 0x0c, 0x0b, 0x09, 0x07, 0x04, 0x02, 0x01},	// 25, -12.5dB
-{0x0c, 0x0c, 0x0a, 0x09, 0x06, 0x04, 0x02, 0x01},	// 26, -13.0dB
-{0x0b, 0x0b, 0x0a, 0x08, 0x06, 0x04, 0x02, 0x01},	// 27, -13.5dB
-{0x0b, 0x0a, 0x09, 0x08, 0x06, 0x04, 0x02, 0x01},	// 28, -14.0dB
-{0x0a, 0x0a, 0x09, 0x07, 0x05, 0x03, 0x02, 0x01},	// 29, -14.5dB
-{0x0a, 0x09, 0x08, 0x07, 0x05, 0x03, 0x02, 0x01},	// 30, -15.0dB
-{0x09, 0x09, 0x08, 0x06, 0x05, 0x03, 0x01, 0x01},	// 31, -15.5dB
-{0x09, 0x08, 0x07, 0x06, 0x04, 0x03, 0x01, 0x01}	// 32, -16.0dB
-};
-
-static unsigned char CCKSwingTable_Ch14 [][8]= {
-{0x36, 0x35, 0x2e, 0x1b, 0x00, 0x00, 0x00, 0x00},	// 0, +0dB
-{0x33, 0x32, 0x2b, 0x19, 0x00, 0x00, 0x00, 0x00},	// 1, -0.5dB
-{0x30, 0x2f, 0x29, 0x18, 0x00, 0x00, 0x00, 0x00},	// 2, -1.0dB
-{0x2d, 0x2d, 0x17, 0x17, 0x00, 0x00, 0x00, 0x00},	// 3, -1.5dB
-{0x2b, 0x2a, 0x25, 0x15, 0x00, 0x00, 0x00, 0x00},	// 4, -2.0dB
-{0x28, 0x28, 0x24, 0x14, 0x00, 0x00, 0x00, 0x00},	// 5, -2.5dB
-{0x26, 0x25, 0x21, 0x13, 0x00, 0x00, 0x00, 0x00},	// 6, -3.0dB
-{0x24, 0x23, 0x1f, 0x12, 0x00, 0x00, 0x00, 0x00},	// 7, -3.5dB
-{0x22, 0x21, 0x1d, 0x11, 0x00, 0x00, 0x00, 0x00},	// 8, -4.0dB
-{0x20, 0x20, 0x1b, 0x10, 0x00, 0x00, 0x00, 0x00},	// 9, -4.5dB
-{0x1f, 0x1e, 0x1a, 0x0f, 0x00, 0x00, 0x00, 0x00},	// 10, -5.0dB
-{0x1d, 0x1c, 0x18, 0x0e, 0x00, 0x00, 0x00, 0x00},	// 11, -5.5dB
-{0x1b, 0x1a, 0x17, 0x0e, 0x00, 0x00, 0x00, 0x00},	// 12, -6.0dB
-{0x1a, 0x19, 0x16, 0x0d, 0x00, 0x00, 0x00, 0x00},	// 13, -6.5dB
-{0x18, 0x17, 0x15, 0x0c, 0x00, 0x00, 0x00, 0x00},	// 14, -7.0dB
-{0x17, 0x16, 0x13, 0x0b, 0x00, 0x00, 0x00, 0x00},	// 15, -7.5dB
-{0x16, 0x15, 0x12, 0x0b, 0x00, 0x00, 0x00, 0x00},	// 16, -8.0dB
-{0x14, 0x14, 0x11, 0x0a, 0x00, 0x00, 0x00, 0x00},	// 17, -8.5dB
-{0x13, 0x13, 0x10, 0x0a, 0x00, 0x00, 0x00, 0x00},	// 18, -9.0dB
-{0x12, 0x12, 0x0f, 0x09, 0x00, 0x00, 0x00, 0x00},	// 19, -9.5dB
-{0x11, 0x11, 0x0f, 0x09, 0x00, 0x00, 0x00, 0x00},	// 20, -10.0dB
-{0x10, 0x10, 0x0e, 0x08, 0x00, 0x00, 0x00, 0x00},	// 21, -10.5dB
-{0x0f, 0x0f, 0x0d, 0x08, 0x00, 0x00, 0x00, 0x00},	// 22, -11.0dB
-{0x0e, 0x0e, 0x0c, 0x07, 0x00, 0x00, 0x00, 0x00},	// 23, -11.5dB
-{0x0d, 0x0d, 0x0c, 0x07, 0x00, 0x00, 0x00, 0x00},	// 24, -12.0dB
-{0x0d, 0x0c, 0x0b, 0x06, 0x00, 0x00, 0x00, 0x00},	// 25, -12.5dB
-{0x0c, 0x0c, 0x0a, 0x06, 0x00, 0x00, 0x00, 0x00},	// 26, -13.0dB
-{0x0b, 0x0b, 0x0a, 0x06, 0x00, 0x00, 0x00, 0x00},	// 27, -13.5dB
-{0x0b, 0x0a, 0x09, 0x05, 0x00, 0x00, 0x00, 0x00},	// 28, -14.0dB
-{0x0a, 0x0a, 0x09, 0x05, 0x00, 0x00, 0x00, 0x00},	// 29, -14.5dB
-{0x0a, 0x09, 0x08, 0x05, 0x00, 0x00, 0x00, 0x00},	// 30, -15.0dB
-{0x09, 0x09, 0x08, 0x05, 0x00, 0x00, 0x00, 0x00},	// 31, -15.5dB
-{0x09, 0x08, 0x07, 0x04, 0x00, 0x00, 0x00, 0x00}	// 32, -16.0dB
-};
 
 #ifdef ADD_TX_POWER_BY_CMD
 #define ASSIGN_TX_POWER_OFFSET(offset, setting) { \
@@ -287,16 +108,7 @@ static unsigned char CCKSwingTable_Ch14 [][8]= {
 }
 #endif
 
-#define POWER_MIN_CHECK(a,b)            (((a) > (b)) ? (b) : (a))
-#define POWER_RANGE_CHECK(val)		(((val) > 0x3f)? 0x3f : ((val < 0) ? 0 : val))
-#define COUNT_SIGN_OFFSET(val, oft)	(((oft & 0x08) == 0x08)? (val - (0x10 - oft)) : (val + oft))
 
-#ifdef HW_ANT_SWITCH
-#define RXDVY_A_EN		((priv->pshare->rf_ft_var.antHw_enable && !priv->pshare->rf_ft_var.antSw_select) ? 0x80 : 0)
-#define RXDVY_B_EN		((priv->pshare->rf_ft_var.antHw_enable &&  priv->pshare->rf_ft_var.antSw_select) ? 0x80 : 0)
-#endif
-
-#ifdef MERGE_FW
 #define VAR_MAPPING(dst,src) \
 unsigned char *data_##dst##_start = &data_##src[0]; \
 unsigned char *data_##dst##_end   = &data_##src[sizeof(data_##src)]; \
@@ -310,17 +122,37 @@ unsigned char *data_##dst##_end   = &data_##src[sizeof(data_##src)]; \
 #include "data_radio_b_n.c"
 #ifdef RTL8192D_INT_PA
 #ifdef USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)
+#include "data_radio_a_intPA_GM_new.c"
+#include "data_radio_b_intPA_GM_new.c"
+#elif defined (RTL8192D_INT_PA_GAIN_TABLE_NEW1)
+#include "data_radio_a_intPA_GM_new1.c"
+#include "data_radio_b_intPA_GM_new1.c"
+#else
 #include "data_radio_a_intPA_GM.c"
 #include "data_radio_b_intPA_GM.c"
+#endif
+
+#else // USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)
+#include "data_radio_a_intPA_new.c"
+#include "data_radio_b_intPA_new.c"
 #else
 #include "data_radio_a_intPA.c"
 #include "data_radio_b_intPA.c"
 #endif
-#endif
+
+#endif // USB_POWER_SUPPORT
+#endif // RTL8192D_INT_PA
 //_TXPWR_REDEFINE
 #ifdef HIGH_POWER_EXT_PA
+#include "data_AGC_TAB_n_92d_hp.c"
+#include "data_PHY_REG_n_92d_hp.c"
 #include "data_radio_a_n_92d_hp.c"
 #include "data_radio_b_n_92d_hp.c"
+#include "data_PHY_REG_PG_92d_hp.c"
 #endif
 #include "data_PHY_REG_PG.c"
 #include "data_PHY_REG_PG_FCC.c"
@@ -329,6 +161,10 @@ unsigned char *data_##dst##_end   = &data_##src[sizeof(data_##src)]; \
 #include "data_TXPWR_LMT.c"
 #include "data_TXPWR_LMT_FCC.c"
 #include "data_TXPWR_LMT_CE.c"
+#endif
+#ifdef _TRACKING_TABLE_FILE
+#include "data_REG_TXPWR_TRK_n_92d.c"
+#include "data_REG_TXPWR_TRK_n_92d_hp.c"
 #endif
 #include "data_PHY_REG_MP_n.c"
 #include "data_MACPHY_REG.c"
@@ -341,17 +177,37 @@ VAR_MAPPING(radio_a_n, radio_a_n);
 VAR_MAPPING(radio_b_n, radio_b_n);
 #ifdef RTL8192D_INT_PA
 #ifdef USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)
+VAR_MAPPING(radio_a_intPA_GM_new, radio_a_intPA_GM_new);
+VAR_MAPPING(radio_b_intPA_GM_new, radio_b_intPA_GM_new);
+#elif defined (RTL8192D_INT_PA_GAIN_TABLE_NEW1)
+VAR_MAPPING(radio_a_intPA_GM_new1, radio_a_intPA_GM_new1);
+VAR_MAPPING(radio_b_intPA_GM_new1, radio_b_intPA_GM_new1);
+#else
 VAR_MAPPING(radio_a_intPA_GM, radio_a_intPA_GM);
 VAR_MAPPING(radio_b_intPA_GM, radio_b_intPA_GM);
+#endif
+
+#else // USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)
+VAR_MAPPING(radio_a_intPA_new, radio_a_intPA_new);
+VAR_MAPPING(radio_b_intPA_new, radio_b_intPA_new);
 #else
 VAR_MAPPING(radio_a_intPA, radio_a_intPA);
 VAR_MAPPING(radio_b_intPA, radio_b_intPA);
 #endif
-#endif
+
+#endif // USB_POWER_SUPPORT
+#endif // RTL8192D_INT_PA
 //_TXPWR_REDEFINE
 #ifdef HIGH_POWER_EXT_PA
+VAR_MAPPING(AGC_TAB_n_92d_hp, AGC_TAB_n_92d_hp);
+VAR_MAPPING(PHY_REG_n_92d_hp, PHY_REG_n_92d_hp);
 VAR_MAPPING(radio_a_n_92d_hp, radio_a_n_92d_hp);
 VAR_MAPPING(radio_b_n_92d_hp, radio_b_n_92d_hp);
+VAR_MAPPING(PHY_REG_PG_92d_hp, PHY_REG_PG_92d_hp);
 #endif
 VAR_MAPPING(PHY_REG_PG, PHY_REG_PG);
 VAR_MAPPING(PHY_REG_PG_FCC, PHY_REG_PG_FCC);
@@ -361,11 +217,14 @@ VAR_MAPPING(TXPWR_LMT, TXPWR_LMT);
 VAR_MAPPING(TXPWR_LMT_FCC, TXPWR_LMT_FCC);
 VAR_MAPPING(TXPWR_LMT_CE, TXPWR_LMT_CE);
 #endif
+#ifdef _TRACKING_TABLE_FILE
+VAR_MAPPING(REG_TXPWR_TRK_n_92d, REG_TXPWR_TRK_n_92d);
+VAR_MAPPING(REG_TXPWR_TRK_n_92d_hp, REG_TXPWR_TRK_n_92d_hp);
+#endif
 VAR_MAPPING(PHY_REG_MP_n, PHY_REG_MP_n);
 VAR_MAPPING(MACPHY_REG, MACPHY_REG);
 VAR_MAPPING(rtl8192dfw_n, rtl8192dfw_n);
-
-#endif //CONFIG_RTL_92D_SUPPORT
+#endif // CONFIG_RTL_92D_SUPPORT
 
 #ifdef CONFIG_RTL_92C_SUPPORT
 
@@ -404,6 +263,18 @@ VAR_MAPPING(rtl8192dfw_n, rtl8192dfw_n);
 #include "data_radio_b_2T_n_hp.c"
 #include "data_PHY_REG_PG_hp.c"
 #endif
+
+#ifdef _TRACKING_TABLE_FILE
+#include "data_REG_TXPWR_TRK.c"
+#include "data_REG_TXPWR_TRK_hp.c"
+#endif
+
+#ifdef TXPWR_LMT 
+#include "data_TXPWR_LMT_92c.c"
+#include "data_TXPWR_LMT_92c_FCC.c"
+#include "data_TXPWR_LMT_92c_CE.c"
+#endif
+
 
 
 #define VAR_MAPPING(dst,src) \
@@ -444,8 +315,49 @@ VAR_MAPPING(radio_a_2T_n_hp, radio_a_2T_n_hp);
 VAR_MAPPING(radio_b_2T_n_hp, radio_b_2T_n_hp);
 VAR_MAPPING(PHY_REG_PG_hp, PHY_REG_PG_hp);
 #endif
-#endif //CONFIG_RTL_92C_SUPPORT
+
+#ifdef _TRACKING_TABLE_FILE
+VAR_MAPPING(REG_TXPWR_TRK, REG_TXPWR_TRK);
+VAR_MAPPING(REG_TXPWR_TRK_hp, REG_TXPWR_TRK_hp);
 #endif
+
+#ifdef TXPWR_LMT
+VAR_MAPPING(TXPWR_LMT_92c, TXPWR_LMT_92c);
+VAR_MAPPING(TXPWR_LMT_92c_FCC, TXPWR_LMT_92c_FCC);
+VAR_MAPPING(TXPWR_LMT_92c_CE, TXPWR_LMT_92c_CE);
+#endif
+
+
+#endif // CONFIG_RTL_92C_SUPPORT
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+#include "data_PHY_REG_PG_88E.c"
+#include "data_PHY_REG_MP_88E.c"
+VAR_MAPPING(PHY_REG_PG_88E, PHY_REG_PG_88E);
+VAR_MAPPING(PHY_REG_MP_88E, PHY_REG_MP_88E);
+
+#ifndef CONFIG_MACBBRF_BY_ODM
+#include "data_AGC_TAB_1T_88E.c"
+#include "data_MAC_REG_88E.c"
+#include "data_PHY_REG_1T_88E.c"
+#include "data_radio_a_1T_88E.c"
+#ifdef SUPPORT_RTL8188E_TC
+#include "data_MAC_REG_88E_TC.c"
+#include "data_PHY_REG_1T_88E_TC.c"
+#include "data_radio_a_1T_88E_TC.c"
+#endif
+
+VAR_MAPPING(AGC_TAB_1T_88E, AGC_TAB_1T_88E);
+VAR_MAPPING(MAC_REG_88E, MAC_REG_88E);
+VAR_MAPPING(PHY_REG_1T_88E, PHY_REG_1T_88E);
+VAR_MAPPING(radio_a_1T_88E, radio_a_1T_88E);
+#ifdef SUPPORT_RTL8188E_TC
+VAR_MAPPING(MAC_REG_88E_TC, MAC_REG_88E_TC);
+VAR_MAPPING(PHY_REG_1T_88E_TC, PHY_REG_1T_88E_TC);
+VAR_MAPPING(radio_a_1T_88E_TC, radio_a_1T_88E_TC);
+#endif
+#endif
+#endif // CONFIG_RTL_88E_SUPPORT
 
 
 /*-----------------------------------------------------------------------------
@@ -652,7 +564,12 @@ void phy_RFSerialWrite(struct rtl8192cd_priv *priv, RF92CD_RADIO_PATH_E eRFPath,
 	BB_REGISTER_DEFINITION_T	*pPhyReg = &phw->PHYRegDef[eRFPath];
 	unsigned int				NewOffset;
 
-	Offset &= 0x7f;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E)
+		Offset &= 0xff;
+	else
+#endif
+		Offset &= 0x7f;
 	//
 	// Switch page for 8256 RF IC
 	//
@@ -700,7 +617,12 @@ unsigned int phy_RFSerialRead(struct rtl8192cd_priv *priv, RF92CD_RADIO_PATH_E e
 	//
 	// Make sure RF register offset is correct
 	//
-	Offset &= 0x7f;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E)
+		Offset &= 0xff;
+	else
+#endif
+		Offset &= 0x7f;
 
 	//
 	// Switch page for 8256 RF IC
@@ -719,9 +641,23 @@ unsigned int phy_RFSerialRead(struct rtl8192cd_priv *priv, RF92CD_RADIO_PATH_E e
 	delay_us(20);
 	RTL_W32(pPhyReg->rfHSSIPara2,tmplong2);
 	delay_us(20);
-	RTL_W32(rFPGA0_XA_HSSIParameter2,tmplong|bLSSIReadEdge);
-	delay_us(20);
-	RTL_W32(rFPGA0_XA_HSSIParameter2,tmplong&(~bLSSIReadEdge));
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+	if (
+#ifdef CONFIG_RTL_92C_SUPPORT
+		(GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C) 
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		|| 
+#endif
+		(GET_CHIP_VER(priv)==VERSION_8192D)
+#endif
+		) {
+		RTL_W32(rFPGA0_XA_HSSIParameter2,tmplong|bLSSIReadEdge);
+		delay_us(20);
+		RTL_W32(rFPGA0_XA_HSSIParameter2,tmplong&(~bLSSIReadEdge));
+	}
+#endif
 
 	//Read from BBreg8a0, 12 bits for 8190, 20 bits for T65 RF
 	if (((eRFPath == RF92CD_PATH_A) && (RTL_R32(0x820)&BIT(8)))
@@ -1154,7 +1090,7 @@ unsigned char *get_line(unsigned char **line)
 	return p+1;
 }
 
-#if defined(CONFIG_RTL_92D_SUPPORT) && defined(TXPWR_LMT)
+#ifdef TXPWR_LMT
 
 static int ch2idx(int ch)
 {
@@ -1217,7 +1153,7 @@ int PHY_ConfigTXLmtWithParaFile(struct rtl8192cd_priv *priv)
 	unsigned int  ch_start, ch_end, limit, target;
 	unsigned char *mem_ptr, *line_head, *next_head;
 	int	idx=0, tbl_idx[6], set_en=0, type;
-
+	
 	priv->pshare->txpwr_lmt_CCK = 0;
 	priv->pshare->txpwr_lmt_OFDM = 0;
 	priv->pshare->txpwr_lmt_HT1S = 0;
@@ -1225,17 +1161,8 @@ int PHY_ConfigTXLmtWithParaFile(struct rtl8192cd_priv *priv)
 
 	struct TxPwrLmtTable *reg_table = (struct TxPwrLmtTable *)priv->pshare->txpwr_lmt_buf;
 
-#ifndef MERGE_FW
-	int fd=0;
-	mm_segment_t  old_fs;
-	unsigned char *pFileName = "/usr/rtl8192Pci/TXPWR_LMT.txt";
-#ifndef CONFIG_X86
-	extern ssize_t sys_read(unsigned int fd, char * buf, size_t count);
-#endif
-#endif
-
-	if (GET_CHIP_VER(priv)!=VERSION_8192D) {
-		printk("[%s]NOT support! TXPWR_LMT is for RTL8192D ONLY!\n",__FUNCTION__);
+	if ((GET_CHIP_VER(priv)!=VERSION_8192D) && (GET_CHIP_VER(priv)!=VERSION_8192C) && (GET_CHIP_VER(priv)!=VERSION_8188C)) {
+		printk("[%s]NOT support! TXPWR_LMT is for RTL8192D & 92C/88C ONLY!\n",__FUNCTION__);
 		return -1;
 	}
 
@@ -1258,9 +1185,33 @@ int PHY_ConfigTXLmtWithParaFile(struct rtl8192cd_priv *priv)
 
 	memset(mem_ptr, 0, MAX_CONFIG_FILE_SIZE); // clear memory
 
-#ifdef MERGE_FW
 	printk("[%s][TXPWR_LMT]\n",__FUNCTION__);
 
+
+#ifdef CONFIG_RTL_92C_SUPPORT
+	if((GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C))
+	{
+		 if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_FCC){
+			 //printk("\nFCC LMT!!!\n");
+			 next_head = data_TXPWR_LMT_92c_FCC_start;
+			 read_bytes = (int)(data_TXPWR_LMT_92c_FCC_end - data_TXPWR_LMT_92c_FCC_start);
+		 }
+		 else if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI){
+			 //printk("\nCE LMT!!!\n");
+			 next_head = data_TXPWR_LMT_92c_CE_start;
+			 read_bytes = (int)(data_TXPWR_LMT_92c_CE_end - data_TXPWR_LMT_92c_CE_start);
+		 }
+		 else{
+			 //printk("\nOther !!!\n");
+		 next_head = data_TXPWR_LMT_92c_start;
+		 read_bytes = (int)(data_TXPWR_LMT_92c_end - data_TXPWR_LMT_92c_start);
+		 }
+	}
+#endif
+
+#ifdef CONFIG_RTL_92D_SUPPORT
+	if(GET_CHIP_VER(priv)==VERSION_8192D)
+	{
 	if(priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_FCC){
 		//printk("\nFCC LMT!!!\n");
 		next_head = data_TXPWR_LMT_FCC_start;
@@ -1276,29 +1227,10 @@ int PHY_ConfigTXLmtWithParaFile(struct rtl8192cd_priv *priv)
 	next_head = data_TXPWR_LMT_start;
 	read_bytes = (int)(data_TXPWR_LMT_end - data_TXPWR_LMT_start);
 	}
+	}
+#endif
 
 	memcpy(mem_ptr, next_head, read_bytes);
-#else
-
-old_fs = get_fs();
-set_fs(KERNEL_DS);
-
-#if	defined(CONFIG_X86)
-if ((fd = rtl8192cd_fileopen(pFileName, O_RDONLY, 0)) < 0)
-#else
-if ((fd = sys_open(pFileName, O_RDONLY, 0)) < 0)
-#endif
-{
-	printk("PHY_ConfigMACWithParaFile(): cannot open %s\n", pFileName);
-	set_fs(old_fs);
-	kfree(mem_ptr);
-	return -1;
-}
-
-read_bytes = sys_read(fd, mem_ptr, MAX_CONFIG_FILE_SIZE);
-sys_close(fd);
-set_fs(old_fs);
-#endif // MERGE_FW
 
 	next_head = mem_ptr;
 	while (1) {
@@ -1419,6 +1351,373 @@ set_fs(old_fs);
 
 #endif
 
+
+#ifdef _TRACKING_TABLE_FILE
+
+
+#ifndef TXPWR_LMT
+
+int _convert_2_pwr_tracking(char *s, int base)
+{
+	int k = 0;
+
+	k = 0;
+	if (base == 10) {
+		while (*s >= '0' && *s <= '9') {
+			k = 10 * k + (*s - '0');
+			s++;
+		}
+	}
+	else
+		return 0;
+
+	return k;
+}
+
+
+static unsigned char *get_digit_tracking(unsigned char **data)
+{
+	unsigned char *buf=*data;
+	int i=0;
+	
+	*data = &buf[i];
+
+	while(1)
+	{
+		if((buf[i] == '\n') || (buf[i] == '\r'))
+		{
+			return NULL;
+		}
+
+		if((buf[i] == ' ') || (buf[i] == '\t'))
+			break;
+
+		i++;
+	}
+
+	while(1) 
+	{		
+
+		if((buf[i] == '\n') || (buf[i] == '\r'))
+		{
+			return NULL;
+		}
+
+		if((buf[i]>= '0') && (buf[i] <= '9'))
+		{
+			//printk("found buf[i] = %c \n", buf[i]);
+			return &buf[i];
+		}
+
+		i++;
+	}
+	
+}
+
+#endif
+
+
+void input_tracking_value(struct rtl8192cd_priv *priv, int offset, int num, int value)
+{
+
+	switch (offset) {
+		case CCKA_P:
+		case CCKA_N:
+		case CCKB_P:
+		case CCKB_N:
+			offset = (offset%4);
+			priv->pshare->txpwr_tracking_2G_CCK[offset][num] = value;
+			break;
+		case A_P:
+		case A_N:
+		case B_P:
+		case B_N:
+			offset = (offset%4);
+			priv->pshare->txpwr_tracking_2G_OFDM[offset][num] = value;
+			break;
+		case LA_P:
+		case LA_N:
+		case LB_P:
+		case LB_N:
+			offset = (offset%4);
+			priv->pshare->txpwr_tracking_5GL[offset][num] = value;
+			break;
+		case MA_P:
+		case MA_N:
+		case MB_P:
+		case MB_N:
+			offset = (offset%4);
+			priv->pshare->txpwr_tracking_5GM[offset][num] = value;
+			break;
+		case HA_P:
+		case HA_N:
+		case HB_P:
+		case HB_N:
+			offset = (offset%4);
+			priv->pshare->txpwr_tracking_5GH[offset][num] = value;
+			break;
+	default:
+			break;
+
+	}
+
+
+}
+
+
+
+static int get_tracking_table(struct rtl8192cd_priv *priv, unsigned char *line_head)
+{
+	unsigned char *next, *next2;
+	int base, idx;
+	int num=0;
+	int offset = 0;
+	unsigned char *swim;
+	extern int _atoi(char *s, int base);
+
+	// remove comments
+	swim = line_head+1;
+	
+	for(offset=0; offset<TXPWR_TRACKING_NAME_NUM; offset++)
+	{
+		if(!memcmp(line_head, TXPWR_TRACKING_NAME[offset], strlen(TXPWR_TRACKING_NAME[offset])))
+			break;
+	}
+
+	if(offset >= TXPWR_TRACKING_NAME_NUM)
+		return offset;
+
+	//printk("_Eric offset = %d \n", offset);
+	//printk("_Eric line_head = %s \n", line_head);
+
+	next = get_digit_tracking(&swim);
+
+	while(1)
+	{
+		
+		if (next == NULL)
+			break;
+		
+		if (next) 
+		{
+			
+			base = 10;
+			idx = 0;
+			
+			//printk("num#%d = %d \n", num, _convert_2_pwr_tracking((char *)&next[idx], base));
+			input_tracking_value(priv, offset, num, _convert_2_pwr_tracking((char *)&next[idx], base));
+
+			num++;
+		}
+		else
+			break;
+
+		if(num >= index_mapping_NUM_MAX)
+			break;
+
+		next = get_digit_tracking(&next);
+
+	}
+
+
+	return offset;
+	
+}
+
+
+void check_tracking_table(struct rtl8192cd_priv *priv)
+{
+
+	int tmp = 0;
+	int tmp2 = 0;
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		for(tmp2 = 1; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			if(priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2] < priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2-1])
+				priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2] = priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2-1];
+		}
+	}
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		for(tmp2 = 1; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			if(priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2] < priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2-1])
+				priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2] = priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2-1];
+		}
+	}
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		for(tmp2 = 1; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			if(priv->pshare->txpwr_tracking_5GL[tmp][tmp2] < priv->pshare->txpwr_tracking_5GL[tmp][tmp2-1])
+				priv->pshare->txpwr_tracking_5GL[tmp][tmp2] = priv->pshare->txpwr_tracking_5GL[tmp][tmp2-1];
+		}
+	}
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		for(tmp2 = 1; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			if(priv->pshare->txpwr_tracking_5GM[tmp][tmp2] < priv->pshare->txpwr_tracking_5GM[tmp][tmp2-1])
+				priv->pshare->txpwr_tracking_5GM[tmp][tmp2] = priv->pshare->txpwr_tracking_5GM[tmp][tmp2-1];
+		}
+	}
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		for(tmp2 = 1; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			if(priv->pshare->txpwr_tracking_5GH[tmp][tmp2] < priv->pshare->txpwr_tracking_5GH[tmp][tmp2-1])
+				priv->pshare->txpwr_tracking_5GH[tmp][tmp2] = priv->pshare->txpwr_tracking_5GH[tmp][tmp2-1];
+		}
+	}
+
+}
+
+int PHY_ConfigTXPwrTrackingWithParaFile(struct rtl8192cd_priv *priv)
+{
+	int read_bytes, num, len=0;
+	unsigned int  ch_start, ch_end, limit, target;
+	unsigned char *mem_ptr, *line_head, *next_head;
+	int	idx=0, tbl_idx[6], set_en=0, type;
+
+	memset(priv->pshare->txpwr_tracking_2G_CCK, 0, (4*index_mapping_NUM_MAX));
+	memset(priv->pshare->txpwr_tracking_2G_OFDM, 0, (4*index_mapping_NUM_MAX));
+	memset(priv->pshare->txpwr_tracking_5GL, 0, (4*index_mapping_NUM_MAX));
+	memset(priv->pshare->txpwr_tracking_5GM, 0, (4*index_mapping_NUM_MAX));
+	memset(priv->pshare->txpwr_tracking_5GH, 0, (4*index_mapping_NUM_MAX));
+
+	if((mem_ptr = (unsigned char *)kmalloc(MAX_CONFIG_FILE_SIZE, GFP_ATOMIC)) == NULL) {
+		printk("PHY_ConfigMACWithParaFile(): not enough memory\n");
+		return -1;
+	}
+
+	memset(mem_ptr, 0, MAX_CONFIG_FILE_SIZE); // clear memory
+
+
+	if((GET_CHIP_VER(priv)== VERSION_8188C) || (GET_CHIP_VER(priv)== VERSION_8192C)) //_Eric_?? any other IC types ??
+	{
+#ifdef HIGH_POWER_EXT_PA
+		printk("[%s][REG_TXPWR_TRK_hp]\n",__FUNCTION__);
+		next_head = data_REG_TXPWR_TRK_hp_start;
+		read_bytes = (int)(data_REG_TXPWR_TRK_hp_end - data_REG_TXPWR_TRK_hp_start);
+#else
+		printk("[%s][REG_TXPWR_TRK]\n",__FUNCTION__);
+		next_head = data_REG_TXPWR_TRK_start;
+		read_bytes = (int)(data_REG_TXPWR_TRK_end - data_REG_TXPWR_TRK_start);
+#endif
+	}
+	else if(GET_CHIP_VER(priv)== VERSION_8192D)
+	{
+#ifdef HIGH_POWER_EXT_PA
+		printk("[%s][REG_TXPWR_TRK_n_92d_hp]\n",__FUNCTION__);
+		next_head = data_REG_TXPWR_TRK_n_92d_hp_start;
+		read_bytes = (int)(data_REG_TXPWR_TRK_n_92d_hp_end - data_REG_TXPWR_TRK_n_92d_hp_start);
+#else
+		printk("[%s][REG_TXPWR_TRK_n_92d]\n",__FUNCTION__);
+		next_head = data_REG_TXPWR_TRK_n_92d_start;
+		read_bytes = (int)(data_REG_TXPWR_TRK_n_92d_end - data_REG_TXPWR_TRK_n_92d_start);
+#endif
+	}
+	else
+	{
+		printk("[%s][NOT SUPPORT]\n",__FUNCTION__);
+		return -1;
+	}
+
+	memcpy(mem_ptr, next_head, read_bytes);
+
+	next_head = mem_ptr;
+	
+	while (1) {
+		line_head = next_head;
+		next_head = get_line(&line_head);
+
+		if (line_head == NULL)
+			break;
+
+		if (line_head[0] == '/')
+			continue;
+
+		num = get_tracking_table(priv, line_head);
+
+	}
+
+	check_tracking_table(priv); 
+
+#if 0
+
+{
+	int tmp = 0;
+	int tmp2 = 0;
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		printk("txpwr_tracking_2G_CCK #%d = ", tmp);
+		for(tmp2 = 0; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			printk("%d ", priv->pshare->txpwr_tracking_2G_CCK[tmp][tmp2]); 
+		}
+		printk("\n");
+	}
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		printk("txpwr_tracking_2G_OFDM #%d = ", tmp);
+		for(tmp2 = 0; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			printk("%d ", priv->pshare->txpwr_tracking_2G_OFDM[tmp][tmp2]); 
+		}
+		printk("\n");
+	}
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		printk("txpwr_tracking_5GL #%d = ", tmp);
+		for(tmp2 = 0; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			printk("%d ", priv->pshare->txpwr_tracking_5GL[tmp][tmp2]); 
+		}
+		printk("\n");
+	}
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		printk("txpwr_tracking_5GM #%d = ", tmp);
+		for(tmp2 = 0; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			printk("%d ", priv->pshare->txpwr_tracking_5GM[tmp][tmp2]); 
+		}
+		printk("\n");
+	}
+
+	for(tmp = 0; tmp<4; tmp++)
+	{
+		printk("txpwr_tracking_5GH #%d = ", tmp);
+		for(tmp2 = 0; tmp2<index_mapping_NUM_MAX; tmp2 ++)
+		{
+			printk("%d ", priv->pshare->txpwr_tracking_5GH[tmp][tmp2]); 
+		}
+		printk("\n");
+	}
+
+}
+
+#endif
+
+	kfree(mem_ptr);
+
+	return 0;
+}
+#endif
+
+
+#ifdef _DEBUG_RTL8192CD_
+
 //_TXPWR_REDEFINE
 void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number, 
 				char *MCSTxAgcOffset_A, char *MCSTxAgcOffset_B, char *OFDMTxAgcOffset_A,
@@ -1431,24 +1730,16 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 	struct MacRegTable *macreg_table=NULL;
 	unsigned short     max_len=0;
 	int                file_format=TWO_COLUMN;
-#ifndef MERGE_FW
-	int                fd=0;
-	mm_segment_t       old_fs;
-	unsigned char      *pFileName=NULL;
-	extern ssize_t     sys_read(unsigned int fd, char * buf, size_t count);
-#endif
-
 #ifdef CONFIG_RTL_92D_SUPPORT
 	int				idx=0, pg_tbl_idx=table_number, write_en=0;
 #endif
-
+#ifdef CONFIG_RTL_92D_SUPPORT	//ecos
 	int tmp_rTxAGC_A_CCK1_Mcs32= 0;
 	int tmp_rTxAGC_B_CCK5_1_Mcs32 = 0;
 	int prev_reg = 0;
+#endif
 
 	//printk("PHYREG_PG = %d\n", PHYREG_PG);
-
-#ifdef MERGE_FW
 
 	if (reg_file == PHYREG_PG) {
 		//printk("[%s][PHY_REG_PG]\n",__FUNCTION__);
@@ -1471,6 +1762,14 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 				next_head = data_PHY_REG_PG_start;
 				read_bytes = (int)(data_PHY_REG_PG_end - data_PHY_REG_PG_start);
 			}
+
+#ifdef HIGH_POWER_EXT_PA
+			if( priv->pshare->rf_ft_var.use_ext_pa) {
+				//printk("[%s][data_PHY_REG_PG_92d_hp]\n", __FUNCTION__);
+				next_head = data_PHY_REG_PG_92d_hp_start;
+				read_bytes = (int)(data_PHY_REG_PG_92d_hp_end - data_PHY_REG_PG_92d_hp_start);
+			}
+#endif
 
 		}
 #endif //CONFIG_RTL_92D_SUPPORT
@@ -1531,44 +1830,18 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 	}
 #endif
 
-#else	// !MERGE_FW
-
-	switch (reg_file) {
-	case PHYREG_PG:
-		pFileName = "/usr/rtl8192Pci/PHY_REG_PG.txt";
-		macreg_table = (struct MacRegTable *)priv->pshare->phy_reg_pg_buf;
-		max_len = PHY_REG_PG_SIZE;
-		file_format = THREE_COLUMN;
-		break;
-	}
-#endif // MERGE_FW
-
 	{
 		if((mem_ptr = (unsigned char *)kmalloc(MAX_CONFIG_FILE_SIZE, GFP_ATOMIC)) == NULL) {
 			printk("PHY_ConfigBBWithParaFile(): not enough memory\n");
+#ifdef __ECOS
+			return;
+#else
 			return -1;
+#endif
 		}
 
 		memset(mem_ptr, 0, MAX_CONFIG_FILE_SIZE); // clear memory
-
-#ifdef MERGE_FW
 		memcpy(mem_ptr, next_head, read_bytes);
-#else
-
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-
-		if ((fd = sys_open(pFileName, O_RDONLY, 0)) < 0) {
-			printk("PHY_ConfigBBWithParaFile(): cannot open %s\n", pFileName);
-			set_fs(old_fs);
-			kfree(mem_ptr);
-			return -1;
-		}
-
-		read_bytes = sys_read(fd, mem_ptr, MAX_CONFIG_FILE_SIZE);
-		sys_close(fd);
-		set_fs(old_fs);
-#endif // MERGE_FW
 
 		next_head = mem_ptr;
 		while (1) {
@@ -1586,7 +1859,7 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 					phyreg_table[len].offset = u4bRegOffset;
 					phyreg_table[len].value = u4bRegValue;
 					len++;
-#if defined(CONFIG_RTL_8198) && defined(CONFIG_RTL_92D_SUPPORT)
+#if (defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && defined(CONFIG_RTL_92D_SUPPORT)
 					//if ((len&0x7ff)==0)
 						//REG32(BSP_WDTCNR) |=  1 << 23;
 #endif
@@ -1607,7 +1880,7 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 						break;
 					if ((len * sizeof(struct MacRegTable)) > max_len)
 						break;
-#if defined(CONFIG_RTL_8198) && defined(CONFIG_RTL_92D_SUPPORT)
+#if (defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && defined(CONFIG_RTL_92D_SUPPORT)
 					//if ((len&0x7ff)==0)
 						//REG32(BSP_WDTCNR) |=  1 << 23;
 #endif
@@ -1618,12 +1891,12 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 		kfree(mem_ptr);
 
 		if ((len * sizeof(struct PhyRegTable)) > max_len) {
-#ifdef MERGE_FW
 			printk("PHY REG table buffer not large enough!\n");
+#ifdef __ECOS
+			return;
 #else
-			printk("PHY REG table buffer not large enough! (%s)\n", pFileName);
-#endif
 			return -1;
+#endif
 		}
 	}
 
@@ -1743,10 +2016,14 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 		num++;
 	}
 
+#ifdef __ECOS
+	return;
+#else
 	return 0;
+#endif
 }
 
-
+#endif
 
 /*-----------------------------------------------------------------------------
  * Function:    PHY_ConfigBBWithParaFile()
@@ -1765,28 +2042,34 @@ void Read_PG_File(struct rtl8192cd_priv *priv, int reg_file, int table_number,
 int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 {
 	int                read_bytes=0, num, len=0;
-	unsigned int       u4bRegOffset, u4bRegValue, u4bRegMask;
+	unsigned int       u4bRegOffset, u4bRegValue, u4bRegMask=0;
+	int 			   file_format=TWO_COLUMN;
 	unsigned char      *mem_ptr, *line_head, *next_head=NULL;
 	struct PhyRegTable *phyreg_table=NULL;
 	struct MacRegTable *macreg_table=NULL;
 	unsigned short     max_len=0;
-	int                file_format=TWO_COLUMN;
-#ifndef MERGE_FW
-	int                fd=0;
-	mm_segment_t       old_fs;
-	unsigned char      *pFileName=NULL;
-	extern ssize_t     sys_read(unsigned int fd, char * buf, size_t count);
-#endif
-
-#ifdef CONFIG_RTL_92D_SUPPORT
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT)
 	int				idx=0, pg_tbl_idx=BGN_2040_ALL, write_en=0;
 #endif
 
-#ifdef MERGE_FW
 	if (reg_file == AGCTAB) {
 		phyreg_table = (struct PhyRegTable *)priv->pshare->agc_tab_buf;
 #ifdef CONFIG_RTL_92D_SUPPORT
 		if (GET_CHIP_VER(priv)==VERSION_8192D) {
+#ifdef HIGH_POWER_EXT_PA //_eric_?? DMDP & SMSP ??
+				if(priv->pshare->rf_ft_var.use_ext_pa)
+				{
+					//printk("[%s][AGC_TAB_n_92d_hp]\n",__FUNCTION__);
+					next_head = data_AGC_TAB_n_92d_hp_start;
+					read_bytes = (int)(data_AGC_TAB_n_92d_hp_end - data_AGC_TAB_n_92d_hp_start);
+				}
+				else
+				{
+					//printk("[%s][AGC_TAB_n]\n",__FUNCTION__);
+					next_head = data_AGC_TAB_n_start;
+					read_bytes = (int)(data_AGC_TAB_n_end - data_AGC_TAB_n_start);
+				}
+#else //HIGH_POWER_EXT_PA
 #ifdef CONFIG_RTL_92D_DMDP
 			if (priv->pmib->dot11RFEntry.macPhyMode == DUALMAC_DUALPHY && priv->pshare->wlandev_idx==1) {
 				if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
@@ -1805,6 +2088,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 				next_head = data_AGC_TAB_n_start;
 				read_bytes = (int)(data_AGC_TAB_n_end - data_AGC_TAB_n_start);
 			}
+#endif //HIGH_POWER_EXT_PA
 		}
 #endif //CONFIG_RTL_92D_SUPPORT
 
@@ -1831,9 +2115,17 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			}
 		}
 #endif
+
+#if !defined(CONFIG_MACBBRF_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)
+		if (GET_CHIP_VER(priv) == VERSION_8188E) {
+			DEBUG_INFO("[%s][AGC_TAB_1T_88E]\n",__FUNCTION__);
+			next_head = data_AGC_TAB_1T_88E_start;
+			read_bytes = (int)(data_AGC_TAB_1T_88E_end - data_AGC_TAB_1T_88E_start);
+		}
+#endif
+
 		max_len = AGC_TAB_SIZE;
-	}
-	else if (reg_file == PHYREG_PG) {
+	} else if (reg_file == PHYREG_PG) {
 		//printk("[%s][PHY_REG_PG]\n",__FUNCTION__);
 #ifdef CONFIG_RTL_92D_SUPPORT
 		if (GET_CHIP_VER(priv) == VERSION_8192D){
@@ -1853,6 +2145,14 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			next_head = data_PHY_REG_PG_start;
 			read_bytes = (int)(data_PHY_REG_PG_end - data_PHY_REG_PG_start);
 			}
+
+#ifdef HIGH_POWER_EXT_PA
+			if( priv->pshare->rf_ft_var.use_ext_pa) {
+				//printk("[%s][data_PHY_REG_PG_92d_hp]\n", __FUNCTION__);
+				next_head = data_PHY_REG_PG_92d_hp_start;
+				read_bytes = (int)(data_PHY_REG_PG_92d_hp_end - data_PHY_REG_PG_92d_hp_start);
+			}
+#endif
 
 //_TXPWR_REDEFINE ?? Why 5G no need working channel ??
 //_TXPWR_REDEFINE in MP Tool, 3 Groups: 36-99 100-148 149-165 
@@ -1908,7 +2208,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 
 			//In Noraml Driver mode, and if mib 'pwr_by_rate' = 0 >> Use default power by rate table 
 			if( (priv->pshare->rf_ft_var.mp_specific == 0) && (priv->pshare->rf_ft_var.pwr_by_rate == 0) )
-				pg_tbl_idx = BGN_2040_ALL;
+				pg_tbl_idx=BGN_2040_ALL;
 
 			DEBUG_INFO("channel=%d pg_tbl_idx=%d\n",priv->pmib->dot11RFEntry.dot11channel, pg_tbl_idx);
 
@@ -1932,6 +2232,56 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			}
 		}
 #endif //CONFIG_RTL_92C_SUPPORT
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8188E) {
+#ifdef SUPPORT_RTL8188E_TC
+			if (IS_TEST_CHIP(priv))
+				return 0;
+#endif
+			DEBUG_INFO("[%s][PHY_REG_PG_88E]\n",__FUNCTION__);
+			next_head = data_PHY_REG_PG_88E_start;
+			read_bytes = (int)(data_PHY_REG_PG_88E_end - data_PHY_REG_PG_88E_start);
+
+			/* In Noraml Driver mode, and if mib 'pwr_by_rate' = 0 >> Use default power by rate table  */
+			if (
+#ifdef MP_TEST
+				priv->pshare->rf_ft_var.mp_specific || 
+#endif
+				priv->pshare->rf_ft_var.pwr_by_rate) {
+				if (priv->pshare->is_40m_bw == 0) {
+					if (priv->pmib->dot11RFEntry.dot11channel<=3)
+						pg_tbl_idx = BGN_20_CH1_3;
+					else if (priv->pmib->dot11RFEntry.dot11channel<=9)
+						pg_tbl_idx = BGN_20_CH4_9;
+					else
+						pg_tbl_idx = BGN_20_CH10_14;
+				} else {
+					int val = priv->pmib->dot11RFEntry.dot11channel;
+					
+					if (priv->pshare->offset_2nd_chan == 1)
+						val -= 2;
+					else
+						val += 2;
+
+					if (val<=3)
+						pg_tbl_idx = BGN_40_CH1_3;
+					else if (val<=9)
+						pg_tbl_idx = BGN_40_CH4_9;
+					else
+						pg_tbl_idx = BGN_40_CH10_14;
+				}
+			}
+
+#ifdef MP_TEST
+			if(priv->pshare->rf_ft_var.mp_specific)
+				pg_tbl_idx = 0;
+#endif
+
+			DEBUG_INFO("channel=%d pg_tbl_idx=%d\n",priv->pmib->dot11RFEntry.dot11channel, pg_tbl_idx);
+		}
+#endif
+
 		macreg_table = (struct MacRegTable *)priv->pshare->phy_reg_pg_buf;
 		max_len = PHY_REG_PG_SIZE;
 		file_format = THREE_COLUMN;
@@ -1955,9 +2305,15 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 	else if (reg_file == PHYREG) {
 		if (GET_CHIP_VER(priv)==VERSION_8192D) {
 			phyreg_table = (struct PhyRegTable *)priv->pshare->phy_reg_buf;
+#ifdef HIGH_POWER_EXT_PA
+			//printk("[%s][PHY_REG_n_92d_hp]\n",__FUNCTION__);
+			next_head = data_PHY_REG_n_92d_hp_start;
+			read_bytes = (int)(data_PHY_REG_n_92d_hp_end - data_PHY_REG_n_92d_hp_start);
+#else
 			//printk("[%s][PHY_REG_n]\n",__FUNCTION__);
 			next_head = data_PHY_REG_n_start;
 			read_bytes = (int)(data_PHY_REG_n_end - data_PHY_REG_n_start);
+#endif
 			max_len = PHY_REG_SIZE;
 		}
 	}
@@ -1982,34 +2338,61 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			max_len = PHY_REG_SIZE;
 		}
 #endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8188E){
+			phyreg_table = (struct PhyRegTable *)priv->pshare->phy_reg_mp_buf;
+			next_head = data_PHY_REG_MP_88E_start;
+			read_bytes = (int)(data_PHY_REG_MP_88E_end - data_PHY_REG_MP_88E_start);
+			max_len = PHY_REG_SIZE;
+		}
+#endif
 	}
 #endif
-#ifdef CONFIG_RTL_92C_SUPPORT
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT)
 	else if (reg_file == PHYREG_1T1R) { // PATH A
 		phyreg_table = (struct PhyRegTable *)priv->pshare->phy_reg_buf;
+#ifdef CONFIG_RTL_92C_SUPPORT
+		if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)) {
 #ifdef TESTCHIP_SUPPORT
-		if( IS_TEST_CHIP(priv) ) {
-			next_head = data_PHY_REG_1T_start;
-			read_bytes = (int)(data_PHY_REG_1T_end - data_PHY_REG_1T_start);
-		} else
+			if( IS_TEST_CHIP(priv) ) {
+				next_head = data_PHY_REG_1T_start;
+				read_bytes = (int)(data_PHY_REG_1T_end - data_PHY_REG_1T_start);
+			} else
 #endif
-		{
+			{
 
-			if (priv->pshare->rf_ft_var.use_ext_lna
+				if (priv->pshare->rf_ft_var.use_ext_lna
 #ifdef HIGH_POWER_EXT_PA
-			|| priv->pshare->rf_ft_var.use_ext_pa
+				|| priv->pshare->rf_ft_var.use_ext_pa
 #endif
-			) {
-				//printk("[%s][PHY_REG_1T_n_hp]\n", __FUNCTION__);
-				next_head = data_PHY_REG_1T_n_hp_start;
-				read_bytes = (int)(data_PHY_REG_1T_n_hp_end - data_PHY_REG_1T_n_hp_start);
-			}
-			else {
-				//printk("[%s][PHY_REG_1T_n]\n", __FUNCTION__);
-				next_head = data_PHY_REG_1T_n_start;
-				read_bytes = (int)(data_PHY_REG_1T_n_end - data_PHY_REG_1T_n_start);
+				) {
+					//printk("[%s][PHY_REG_1T_n_hp]\n", __FUNCTION__);
+					next_head = data_PHY_REG_1T_n_hp_start;
+					read_bytes = (int)(data_PHY_REG_1T_n_hp_end - data_PHY_REG_1T_n_hp_start);
+				} else {
+					//printk("[%s][PHY_REG_1T_n]\n", __FUNCTION__);
+					next_head = data_PHY_REG_1T_n_start;
+					read_bytes = (int)(data_PHY_REG_1T_n_end - data_PHY_REG_1T_n_start);
+				}
 			}
 		}
+#endif
+#if !defined(CONFIG_MACBBRF_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)	
+		if (GET_CHIP_VER(priv) == VERSION_8188E) {
+#ifdef SUPPORT_RTL8188E_TC
+			if (IS_TEST_CHIP(priv)) {
+				DEBUG_INFO("[%s][PHY_REG_1T_88E_TC]\n",__FUNCTION__);
+				next_head = data_PHY_REG_1T_88E_TC_start;
+				read_bytes = (int)(data_PHY_REG_1T_88E_TC_end - data_PHY_REG_1T_88E_TC_start);
+			} else
+#endif
+			{
+				DEBUG_INFO("[%s][PHY_REG_1T_88E]\n",__FUNCTION__);
+				next_head = data_PHY_REG_1T_88E_start;
+				read_bytes = (int)(data_PHY_REG_1T_88E_end - data_PHY_REG_1T_88E_start);
+			}
+		}
+#endif
 
 		max_len = PHY_REG_SIZE;
 #if 0
@@ -2023,6 +2406,8 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 		}
 #endif
 	}
+#endif
+#ifdef CONFIG_RTL_92C_SUPPORT
 	else if (reg_file == PHYREG_2T2R) {
 #ifdef TESTCHIP_SUPPORT
 		if (IS_TEST_CHIP(priv)) {
@@ -2053,58 +2438,6 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 	}
 #endif
 
-#else	// !MERGE_FW
-
-	switch (reg_file) {
-	case AGCTAB:
-		phyreg_table = (struct PhyRegTable *)priv->pshare->agc_tab_buf;
-		max_len = AGC_TAB_SIZE;
-		pFileName = "/usr/rtl8192Pci/AGC_TAB.txt";
-		break;
-/*
-	case PHYREG_1T2R:
-		if (priv->pshare->rf_ft_var.pathB_1T == 0)
-			pFileName = "/usr/rtl8192Pci/PHY_to1T2R.txt";
-		else
-			pFileName = "/usr/rtl8192Pci/PHY_to1T2R_b.txt";
-		macreg_table = (struct MacRegTable *)priv->pshare->phy_reg_pg_buf;
-		file_format = THREE_COLUMN;
-		max_len = PHY_REG_SIZE;
-		break;
-*/
-	case PHYREG_2T2R:
-/*
-#ifdef MP_TEST
-		if (priv->pshare->rf_ft_var.mp_specific) {
-			pFileName = "/usr/rtl8192Pci/phy_reg_mp.txt";
-			phyreg_table = (struct PhyRegTable *)priv->pshare->phy_reg_mp_buf;
-			max_len = PHY_REG_SIZE;
-		}
-		else
-#endif
-*/
-		phyreg_table = (struct PhyRegTable *)priv->pshare->phy_reg_buf;
-		max_len = PHY_REG_SIZE;
-		pFileName = "/usr/rtl8192Pci/phy_reg.txt";
-		break;
-	case PHYREG_1T1R:
-		if (priv->pshare->rf_ft_var.pathB_1T == 0)
-			pFileName = "/usr/rtl8192Pci/PHY_to1T1R.txt";
-		else
-			pFileName = "/usr/rtl8192Pci/PHY_to1T1R_b.txt";
-		macreg_table = (struct MacRegTable *)priv->pshare->phy_reg_pg_buf;
-		file_format = THREE_COLUMN;
-		max_len = PHY_REG_SIZE;
-		break;
-	case PHYREG_PG:
-		pFileName = "/usr/rtl8192Pci/PHY_REG_PG.txt";
-		macreg_table = (struct MacRegTable *)priv->pshare->phy_reg_pg_buf;
-		max_len = PHY_REG_PG_SIZE;
-		file_format = THREE_COLUMN;
-		break;
-	}
-#endif // MERGE_FW
-
 	{
 		if((mem_ptr = (unsigned char *)kmalloc(MAX_CONFIG_FILE_SIZE, GFP_ATOMIC)) == NULL) {
 			printk("PHY_ConfigBBWithParaFile(): not enough memory\n");
@@ -2112,25 +2445,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 		}
 
 		memset(mem_ptr, 0, MAX_CONFIG_FILE_SIZE); // clear memory
-
-#ifdef MERGE_FW
 		memcpy(mem_ptr, next_head, read_bytes);
-#else
-
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-
-		if ((fd = sys_open(pFileName, O_RDONLY, 0)) < 0) {
-			printk("PHY_ConfigBBWithParaFile(): cannot open %s\n", pFileName);
-			set_fs(old_fs);
-			kfree(mem_ptr);
-			return -1;
-		}
-
-		read_bytes = sys_read(fd, mem_ptr, MAX_CONFIG_FILE_SIZE);
-		sys_close(fd);
-		set_fs(old_fs);
-#endif // MERGE_FW
 
 		next_head = mem_ptr;
 		while (1) {
@@ -2148,30 +2463,51 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 					phyreg_table[len].offset = u4bRegOffset;
 					phyreg_table[len].value = u4bRegValue;
 					len++;
-#if defined(CONFIG_RTL_8198) && defined(CONFIG_RTL_92D_SUPPORT)
+#if (defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && defined(CONFIG_RTL_92D_SUPPORT)
 					if ((len&0x7ff)==0)
 						REG32(BSP_WDTCNR) |=  1 << 23;
+#elif defined (CONFIG_RTL_8198B) && defined(CONFIG_RTL_92D_SUPPORT)
+					if ((len&0x7ff)==0)
+						REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
 #endif
-					if (u4bRegOffset == 0xff)
-						break;
+#ifdef CONFIG_RTL_88E_SUPPORT
+					if (GET_CHIP_VER(priv)==VERSION_8188E) {
+						if (u4bRegOffset == 0xffff)
+							break;
+					} else
+#endif
+					{
+						if (u4bRegOffset == 0xff)
+							break;
+					}
 					if ((len * sizeof(struct PhyRegTable)) > max_len)
 						break;
 				}
-			}
-			else {
+			} else {
 				num = get_offset_mask_val(line_head, &u4bRegOffset, &u4bRegMask ,&u4bRegValue);
 				if (num > 0) {
 					macreg_table[len].offset = u4bRegOffset;
 					macreg_table[len].mask = u4bRegMask;
 					macreg_table[len].value = u4bRegValue;
 					len++;
-					if (u4bRegOffset == 0xff)
-						break;
+#ifdef CONFIG_RTL_88E_SUPPORT
+					if (GET_CHIP_VER(priv)==VERSION_8188E) {
+						if (u4bRegOffset == 0xffff)
+							break;
+					} else
+#endif
+					{
+						if (u4bRegOffset == 0xff)
+							break;
+					}
 					if ((len * sizeof(struct MacRegTable)) > max_len)
 						break;
-#if defined(CONFIG_RTL_8198) && defined(CONFIG_RTL_92D_SUPPORT)
+#if (defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && defined(CONFIG_RTL_92D_SUPPORT)
 					if ((len&0x7ff)==0)
 						REG32(BSP_WDTCNR) |=  1 << 23;
+#elif defined (CONFIG_RTL_8198B) && defined(CONFIG_RTL_92D_SUPPORT)
+					if ((len&0x7ff)==0)
+						REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
 #endif
 				}
 			}
@@ -2180,11 +2516,7 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 		kfree(mem_ptr);
 
 		if ((len * sizeof(struct PhyRegTable)) > max_len) {
-#ifdef MERGE_FW
 			printk("PHY REG table buffer not large enough!\n");
-#else
-			printk("PHY REG table buffer not large enough! (%s)\n", pFileName);
-#endif
 			return -1;
 		}
 	}
@@ -2201,11 +2533,30 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
 			u4bRegValue = phyreg_table[num].value;
 		}
 
-		if (u4bRegOffset == 0xff)
-			break;
-		else if (file_format == THREE_COLUMN){
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E) {
+			if (u4bRegOffset == 0xffff)
+				break;
+		} else
+#endif
+		{
+			if (u4bRegOffset == 0xff)
+				break;
+		}
+
+		if (file_format == THREE_COLUMN){
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT)
+			if (reg_file == PHYREG_PG && (
 #ifdef CONFIG_RTL_92D_SUPPORT
-			if (reg_file == PHYREG_PG && GET_CHIP_VER(priv)==VERSION_8192D) {
+				(GET_CHIP_VER(priv)==VERSION_8192D) 
+#endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+#ifdef CONFIG_RTL_92D_SUPPORT
+				|| 
+#endif
+				(GET_CHIP_VER(priv)==VERSION_8188E)
+#endif
+				)) {
 				if (u4bRegOffset==0xe00){
 					if (idx == pg_tbl_idx)
 						write_en=1;
@@ -2249,23 +2600,12 @@ int PHY_ConfigBBWithParaFile(struct rtl8192cd_priv *priv, int reg_file)
  * Note:		Delay may be required for RF configuration
  *---------------------------------------------------------------------------*/
 int PHY_ConfigRFWithParaFile(struct rtl8192cd_priv *priv,
-#ifdef MERGE_FW
 				unsigned char *start, int read_bytes,
-#else
-				unsigned char *pFileName,
-#endif
 				RF92CD_RADIO_PATH_E eRFPath)
 {
 	int           num;
-#ifndef MERGE_FW
-	int           fd=0, read_bytes;
-	mm_segment_t  old_fs;
-#endif
 	unsigned int  u4bRegOffset, u4bRegValue;
 	unsigned char *mem_ptr, *line_head, *next_head;
-#if !defined(NOT_RTK_BSP) && !defined(MERGE_FW)
-	extern ssize_t sys_read(unsigned int fd, char * buf, size_t count);
-#endif
 
 	if ((mem_ptr = (unsigned char *)kmalloc(MAX_CONFIG_FILE_SIZE, GFP_ATOMIC)) == NULL) {
 		printk("PHY_ConfigRFWithParaFile(): not enough memory\n");
@@ -2273,29 +2613,7 @@ int PHY_ConfigRFWithParaFile(struct rtl8192cd_priv *priv,
 	}
 
 	memset(mem_ptr, 0, MAX_CONFIG_FILE_SIZE); // clear memory
-
-#ifdef MERGE_FW
 	memcpy(mem_ptr, start, read_bytes);
-#else
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-#if	defined(NOT_RTK_BSP)
-	if ((fd = rtl8192cd_fileopen(pFileName, O_RDONLY, 0)) < 0)
-#else
-	if ((fd = sys_open(pFileName, O_RDONLY, 0)) < 0)
-#endif
-	{
-		printk("PHY_ConfigRFWithParaFile(): cannot open %s\n", pFileName);
-		set_fs(old_fs);
-		kfree(mem_ptr);
-		return -1;
-	}
-
-	read_bytes = sys_read(fd, mem_ptr, MAX_CONFIG_FILE_SIZE);
-	sys_close(fd);
-	set_fs(old_fs);
-#endif // MERGE_FW
 
 	next_head = mem_ptr;
 	while (1) {
@@ -2309,17 +2627,33 @@ int PHY_ConfigRFWithParaFile(struct rtl8192cd_priv *priv,
 
 		num = get_offset_val(line_head, &u4bRegOffset, &u4bRegValue);
 		if (num > 0) {
-			if (u4bRegOffset == 0xff)
-				break;
-			else if (u4bRegOffset == 0xfe)
-				delay_ms(50);	// Delay 50 ms. Only RF configuration require delay
-			else if (num == 2) {
-				PHY_SetRFReg(priv, eRFPath, u4bRegOffset, bMask20Bits, u4bRegValue);
-				delay_ms(1);
+#ifdef CONFIG_RTL_88E_SUPPORT
+			if (GET_CHIP_VER(priv) == VERSION_8188E) {
+				if (u4bRegOffset == 0xffff) {
+					break;
+				} else if (u4bRegOffset == 0xffe) {
+					delay_ms(50);	// Delay 50 ms. Only RF configuration require delay
+				} else if (num == 2) {
+					PHY_SetRFReg(priv, eRFPath, u4bRegOffset, bMask20Bits, u4bRegValue);
+					delay_ms(1);
+				}
+			} else
+#endif
+			{
+				if (u4bRegOffset == 0xff) {
+					break;
+				} else if (u4bRegOffset == 0xfe) {
+					delay_ms(50);	// Delay 50 ms. Only RF configuration require delay
+				} else if (num == 2) {
+					PHY_SetRFReg(priv, eRFPath, u4bRegOffset, bMask20Bits, u4bRegValue);
+					delay_ms(1);
+				}
 			}
 		}
-#if defined(CONFIG_RTL_8198) && defined(CONFIG_RTL_92D_SUPPORT)
+#if (defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && defined(CONFIG_RTL_92D_SUPPORT)
 		REG32(BSP_WDTCNR) |=  1 << 23;
+#elif defined (CONFIG_RTL_8198B) && defined(CONFIG_RTL_92D_SUPPORT)
+		REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
 #endif
 	}
 
@@ -2328,20 +2662,13 @@ int PHY_ConfigRFWithParaFile(struct rtl8192cd_priv *priv,
 	return 0;
 }
 
+#if !defined(CONFIG_MACBBRF_BY_ODM) || !defined(CONFIG_RTL_88E_SUPPORT)	
 
 int PHY_ConfigMACWithParaFile(struct rtl8192cd_priv *priv)
 {
 	int read_bytes, num, len=0;
 	unsigned int  u4bRegOffset, u4bRegValue;
 	unsigned char *mem_ptr, *line_head, *next_head;
-#ifndef MERGE_FW
-	int fd=0;
-	mm_segment_t  old_fs;
-	unsigned char *pFileName = "/usr/rtl8192Pci/MACPHY_REG.txt";
-#ifndef NOT_RTK_BSP
-	extern ssize_t sys_read(unsigned int fd, char * buf, size_t count);
-#endif
-#endif
 	struct PhyRegTable *reg_table = (struct PhyRegTable *)priv->pshare->mac_reg_buf;
 
 	{
@@ -2352,7 +2679,6 @@ int PHY_ConfigMACWithParaFile(struct rtl8192cd_priv *priv)
 
 		memset(mem_ptr, 0, MAX_CONFIG_FILE_SIZE); // clear memory
 
-#ifdef MERGE_FW
 #ifdef CONFIG_RTL_92D_SUPPORT
 		if (GET_CHIP_VER(priv)==VERSION_8192D) {
 			printk("[%s][MACPHY_REG]\n",__FUNCTION__);
@@ -2367,27 +2693,22 @@ int PHY_ConfigMACWithParaFile(struct rtl8192cd_priv *priv)
 			memcpy(mem_ptr, data_MACPHY_REG_92C_start, read_bytes);
 		}
 #endif
-#else
-
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-
-#if	defined(NOT_RTK_BSP)
-		if ((fd = rtl8192cd_fileopen(pFileName, O_RDONLY, 0)) < 0)
-#else
-		if ((fd = sys_open(pFileName, O_RDONLY, 0)) < 0)
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8188E) {
+#ifdef SUPPORT_RTL8188E_TC
+			if (IS_TEST_CHIP(priv)) {
+				DEBUG_INFO("[%s][MAC_REG_88E_TC]\n",__FUNCTION__);
+				read_bytes = (int)(data_MAC_REG_88E_TC_end - data_MAC_REG_88E_TC_start);
+				memcpy(mem_ptr, data_MAC_REG_88E_TC_start, read_bytes);
+			} else
 #endif
-		{
-			printk("PHY_ConfigMACWithParaFile(): cannot open %s\n", pFileName);
-			set_fs(old_fs);
-			kfree(mem_ptr);
-			return -1;
+			{
+				DEBUG_INFO("[%s][MAC_REG_88E]\n",__FUNCTION__);
+				read_bytes = (int)(data_MAC_REG_88E_end - data_MAC_REG_88E_start);
+				memcpy(mem_ptr, data_MAC_REG_88E_start, read_bytes);
+			}
 		}
-
-		read_bytes = sys_read(fd, mem_ptr, MAX_CONFIG_FILE_SIZE);
-		sys_close(fd);
-		set_fs(old_fs);
-#endif // MERGE_FW
+#endif
 
 		next_head = mem_ptr;
 		while (1) {
@@ -2404,13 +2725,26 @@ int PHY_ConfigMACWithParaFile(struct rtl8192cd_priv *priv)
 				reg_table[len].offset = u4bRegOffset;
 				reg_table[len].value = u4bRegValue;
 				len++;
-				if (u4bRegOffset == 0xff)
-					break;
+#ifdef CONFIG_RTL_88E_SUPPORT
+				if (GET_CHIP_VER(priv)==VERSION_8188E) {
+					if (u4bRegOffset == 0xffff)
+						break;
+				} else
+#endif
+				{
+					if (u4bRegOffset == 0xff)
+						break;
+				}
 				if ((len * sizeof(struct MacRegTable)) > MAC_REG_SIZE)
 					break;
 			}
 		}
-		reg_table[len].offset = 0xff;
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E)
+			reg_table[len].offset = 0xffff;
+		else
+#endif
+			reg_table[len].offset = 0xff;
 
 		kfree(mem_ptr);
 
@@ -2425,16 +2759,24 @@ int PHY_ConfigMACWithParaFile(struct rtl8192cd_priv *priv)
 		u4bRegOffset = reg_table[num].offset;
 		u4bRegValue = reg_table[num].value;
 
-		if (u4bRegOffset == 0xff)
-			break;
-		else
-			RTL_W8(u4bRegOffset, u4bRegValue);
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E) {
+			if (u4bRegOffset == 0xffff)
+				break;
+		} else
+#endif
+		{
+			if (u4bRegOffset == 0xff)
+				break;
+		}
+
+		RTL_W8(u4bRegOffset, u4bRegValue);
 		num++;
 	}
 
 	return 0;
 }
-
+#endif
 
 #ifdef UNIVERSAL_REPEATER
 static struct rtl8192cd_priv *get_another_interface_priv(struct rtl8192cd_priv *priv)
@@ -2520,8 +2862,18 @@ void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset)
 			val += 14;
 
 	for(eRFPath = RF92CD_PATH_A; eRFPath < curMaxRFPath; eRFPath++)	{
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT)
+	if (
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C))
+		(GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)
+#endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		||
+#endif
+		(GET_CHIP_VER(priv) == VERSION_8188E)
+#endif
+		)
 		PHY_SetRFReg(priv, eRFPath, rRfChannel, 0xff, val);
 #endif
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -2578,6 +2930,7 @@ void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset)
 		SetIMR_n(priv, val);
 
 		Update92DRFbyChannel(priv, val);
+
 	}
 #endif
 
@@ -2589,10 +2942,12 @@ void SwChnl(struct rtl8192cd_priv *priv, unsigned char channel, int offset)
 
 	priv->pshare->working_channel = val;
 
-#ifdef TXPWR_LMT	
+#ifdef TXPWR_LMT
+{	
 	if (!priv->pshare->rf_ft_var.disable_txpwrlmt){
 		find_pwr_limit(priv);
 	}
+}
 #endif
 
 	PHY_RF6052SetOFDMTxPower(priv, val);
@@ -2700,6 +3055,11 @@ switch_OFDM_end:
 
 void enable_hw_LED(struct rtl8192cd_priv *priv, unsigned int led_type)
 {
+
+#if defined(HW_ANT_SWITCH) || defined(SW_ANT_SWITCH)
+	int b23 = RTL_R32(LEDCFG) & BIT(23);
+#endif
+
 	switch (led_type) {
 	case LEDTYPE_HW_TX_RX:
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -2722,6 +3082,11 @@ void enable_hw_LED(struct rtl8192cd_priv *priv, unsigned int led_type)
 	default:
 		break;
 	}
+
+#if defined(HW_ANT_SWITCH) || defined(SW_ANT_SWITCH)
+	RTL_W32(LEDCFG, b23 | RTL_R32(LEDCFG));
+#endif
+
 }
 
 
@@ -2817,41 +3182,56 @@ void phy_InitBBRFRegisterDefinition(struct rtl8192cd_priv *priv)
 
 void check_chipID_MIMO(struct rtl8192cd_priv *priv)
 {
-	unsigned int val32;
-	val32 = RTL_R32(SYS_CFG);
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E)	{
+		priv->pshare->phw->MIMO_TR_hw_support = MIMO_1T1R;
+		goto exit_func;
+	}
+#endif
+
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv) == VERSION_8192D) {
 		if (priv->pmib->dot11RFEntry.macPhyMode == DUALMAC_DUALPHY)
 			priv->pshare->phw->MIMO_TR_hw_support = MIMO_1T1R;
 		else
-		priv->pshare->phw->MIMO_TR_hw_support = MIMO_2T2R;
-	} else
+			priv->pshare->phw->MIMO_TR_hw_support = MIMO_2T2R;
+		goto exit_func;
+	}
 #endif
-	if (val32 & BIT(27)) {
-		priv->pshare->version_id = VERSION_8192C;
-		priv->pshare->phw->MIMO_TR_hw_support = MIMO_2T2R;
-	} else {
-		priv->pshare->version_id = VERSION_8188C;
-		priv->pshare->phw->MIMO_TR_hw_support = MIMO_1T1R;
 
-		if ((0x3 &(RTL_R32(0xec)>>22))== 0x01 )
-			priv->pshare->version_id |= 0x200;		// 88RE
-	}
-
-	if (val32 & BIT(23)) {
-		priv->pshare->version_id |= 0x100;
-	}
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)){
-		if (val32 & BIT(19)) {
-			priv->pshare->version_id |= 0x400;			// UMC
-			priv->pshare->version_id |= (0xf0 & (val32>>8));	//	0:  a-cut
+	{
+		unsigned int val32;
+		val32 = RTL_R32(SYS_CFG);
+		if (val32 & BIT(27)) {
+			priv->pshare->version_id = VERSION_8192C;
+			priv->pshare->phw->MIMO_TR_hw_support = MIMO_2T2R;
+		} else {
+			priv->pshare->version_id = VERSION_8188C;
+			priv->pshare->phw->MIMO_TR_hw_support = MIMO_1T1R;
+
+			if ((0x3 &(RTL_R32(0xec)>>22))== 0x01)
+				priv->pshare->version_id |= 0x200;		// 88RE
 		}
-		if( ((0x0f & (val32>>16)) ==0 ) && ((0x0f & (val32>>12)) ==1 ) ) {		//6195B
-			priv->pshare->version_id |= 0x400;
-			priv->pshare->version_id |= 0x10;					//	0x10:	b-cut
+
+		if (val32 & BIT(23)) {
+			priv->pshare->version_id |= 0x100;
 		}
-    }
+		if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)) {
+			if (val32 & BIT(19)) {
+				priv->pshare->version_id |= 0x400;			// UMC
+				priv->pshare->version_id |= (0xf0 & (val32>>8));	//	0:  a-cut
+			}
+			if(((0x0f & (val32>>16)) ==0) && ((0x0f & (val32>>12)) ==1)) {		//6195B
+				priv->pshare->version_id |= 0x400;
+				priv->pshare->version_id |= 0x10;					//	0x10:	b-cut
+			}
+		}
+	}
+#endif
+
+#if defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+exit_func:
 #endif
 	return;
 }
@@ -2861,7 +3241,9 @@ void selectMinPowerIdex(struct rtl8192cd_priv *priv)
 	int i=0,idx, pwr_min = 0xff;
 	unsigned int val32;
 	unsigned int pwr_regA[] = {0xe00,0xe04,0xe08,0x86c,0xe10,0xe14,0xe18,0xe1c};
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
 	unsigned int pwr_regB[] = {0x830,0x834,0x838,0x86c,0x83c,0x848,0x84c,0x868};
+#endif
 
 	for (idx=0 ; idx < 8 ; idx++)
 	{
@@ -2883,10 +3265,23 @@ void selectMinPowerIdex(struct rtl8192cd_priv *priv)
 		}
 	}
 
-	if (GET_CHIP_VER(priv) != VERSION_8188C)
-	{
-		for (idx=0 ; idx < 8 ; idx++)
-		{
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+	if (
+#ifdef CONFIG_RTL_92C_SUPPORT
+		(GET_CHIP_VER(priv) == VERSION_8192C) 
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		|| 
+#endif
+		((GET_CHIP_VER(priv) == VERSION_8192D)
+#ifdef CONFIG_RTL_92D_DMDP
+		&& (priv->pmib->dot11RFEntry.macPhyMode == SINGLEMAC_SINGLEPHY)
+#endif
+		)
+#endif
+		) {
+		for (idx=0 ; idx < 8 ; idx++) {
 			val32 = RTL_R32(pwr_regB[idx]);
 			switch (pwr_regB[idx]) {
 			case 0x86c:
@@ -2905,6 +3300,7 @@ void selectMinPowerIdex(struct rtl8192cd_priv *priv)
 			}
 		}
 	}
+#endif
 
 	priv->pshare->rf_ft_var.min_pwr_idex = pwr_min;
 }
@@ -2930,11 +3326,29 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 	unsigned char offset_6dBm;
 	char base_6dBm;
 #endif
+#ifdef CONFIG_RTL_92D_SUPPORT
 	unsigned int ori_channel = channel; //Keep the original channel setting
+#endif
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+	/* for testchip only */
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+#ifdef MP_TEST
+		if ((priv->pshare->rf_ft_var.mp_specific) && priv->pshare->mp_txpwr_patha)
+			defValue = priv->pshare->mp_txpwr_patha;
+		else
+#endif
+		defValue =0x21;
+
+#ifdef CALIBRATE_BY_ODM
+		defValue += ODMPTR->RFCalibrateInfo.PowerIndexOffset;
+#endif
+	}
+#endif
 
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8192D) {
-#ifdef CONFIG_RTL_8198
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
 		if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G)
 			defValue=0x28;
 		else
@@ -2963,18 +3377,18 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 			pwrdiffHT40_2S = priv->pmib->dot11RFEntry.pwrdiff5GHT40_2S[channel-1];
 			pwrdiffHT20 = priv->pmib->dot11RFEntry.pwrdiff5GHT20[channel-1];
 			pwrdiffOFDM = priv->pmib->dot11RFEntry.pwrdiff5GOFDM[channel-1];
-			}
+		}
 
 #ifdef USB_POWER_SUPPORT
 //_TXPWR_REDEFINE
 //MCS 8 - 15: No Power By Rate
 //Others: Power by Rate (Add Power)
 //Remove PWR_5G_DIFF
-			
+
 //?? phyBandSelect will auto swtich or 2G | 5G ??
 		{
 			int i;
-
+			
 			if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
 				pwrlevelHT40_6dBm_1S_A = priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_A[channel];
 				pwrlevelHT40_6dBm_1S_B = priv->pmib->dot11RFEntry.pwrlevel5GHT40_1S_B[channel];
@@ -2990,7 +3404,7 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 			}
 		}
 #endif
-
+			
 
 #ifdef CONFIG_RTL_92D_DMDP
 		if (priv->pmib->dot11RFEntry.macPhyMode==DUALMAC_DUALPHY &&
@@ -3012,6 +3426,10 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 #endif
 
 		channel = ori_channel; //_TXPWR_REDEFINE Restore the channel setting
+
+	}
+#endif
+
 
 #ifdef TXPWR_LMT
 		if (!priv->pshare->rf_ft_var.disable_txpwrlmt){
@@ -3064,10 +3482,15 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 			}
 		}
 #endif
-	}
-#endif
 
-	if (pwrlevelHT40_1S_A == 0) {	// use default value
+
+	if ((pwrlevelHT40_1S_A == 0)
+#if defined(MP_TEST) && defined(CONFIG_RTL_88E_SUPPORT) && defined(CALIBRATE_BY_ODM)
+			|| ((priv->pshare->rf_ft_var.mp_specific) || (OPMODE & WIFI_MP_STATE))
+#endif
+	   )
+	{
+		// use default value
 
 #ifdef HIGH_POWER_EXT_PA
 		if (priv->pshare->rf_ft_var.use_ext_pa)
@@ -3086,8 +3509,8 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 
 #ifdef USB_POWER_SUPPORT
 //_TXPWR_REDEFINE, pwrlevelHT40_1S_A == 0 >> No 6dBm Power >> default value >> so USB = def - 14
-		writeVal = POWER_RANGE_CHECK(defValue - USB_HT_2S_DIFF);
-		writeVal |= (writeVal<<24)|(writeVal<<16)|(writeVal<<8);
+			writeVal = POWER_RANGE_CHECK(defValue - USB_HT_2S_DIFF);
+			writeVal |= (writeVal<<24)|(writeVal<<16)|(writeVal<<8);
 #endif
 		RTL_W32(rTxAGC_A_Mcs11_Mcs08, writeVal);
 		RTL_W32(rTxAGC_A_Mcs15_Mcs12, writeVal);
@@ -3150,13 +3573,13 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 
 //_TXPWR_REDEFINE
 #ifdef USB_POWER_SUPPORT
-		byte0 = byte1 = byte2 = byte3 = -USB_HT_2S_DIFF;
+			byte0 = byte1 = byte2 = byte3 = -USB_HT_2S_DIFF;
 #else
-		byte0 = byte1 = byte2 = byte3 = 0;
-		ASSIGN_TX_POWER_OFFSET(byte0, priv->pshare->rf_ft_var.txPowerPlus_mcs_11);
-		ASSIGN_TX_POWER_OFFSET(byte1, priv->pshare->rf_ft_var.txPowerPlus_mcs_10);
-		ASSIGN_TX_POWER_OFFSET(byte2, priv->pshare->rf_ft_var.txPowerPlus_mcs_9);
-		ASSIGN_TX_POWER_OFFSET(byte3, priv->pshare->rf_ft_var.txPowerPlus_mcs_8);
+			byte0 = byte1 = byte2 = byte3 = 0;
+			ASSIGN_TX_POWER_OFFSET(byte0, priv->pshare->rf_ft_var.txPowerPlus_mcs_11);
+			ASSIGN_TX_POWER_OFFSET(byte1, priv->pshare->rf_ft_var.txPowerPlus_mcs_10);
+			ASSIGN_TX_POWER_OFFSET(byte2, priv->pshare->rf_ft_var.txPowerPlus_mcs_9);
+			ASSIGN_TX_POWER_OFFSET(byte3, priv->pshare->rf_ft_var.txPowerPlus_mcs_8);
 #endif
 
 		byte0 = POWER_RANGE_CHECK(base + byte0);
@@ -3169,13 +3592,13 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 
 //_TXPWR_REDEFINE
 #ifdef USB_POWER_SUPPORT
-		byte0 = byte1 = byte2 = byte3 = -USB_HT_2S_DIFF;
+			byte0 = byte1 = byte2 = byte3 = -USB_HT_2S_DIFF;
 #else
-		byte0 = byte1 = byte2 = byte3 = 0;
-		ASSIGN_TX_POWER_OFFSET(byte0, priv->pshare->rf_ft_var.txPowerPlus_mcs_15);
-		ASSIGN_TX_POWER_OFFSET(byte1, priv->pshare->rf_ft_var.txPowerPlus_mcs_14);
-		ASSIGN_TX_POWER_OFFSET(byte2, priv->pshare->rf_ft_var.txPowerPlus_mcs_13);
-		ASSIGN_TX_POWER_OFFSET(byte3, priv->pshare->rf_ft_var.txPowerPlus_mcs_12);
+			byte0 = byte1 = byte2 = byte3 = 0;
+			ASSIGN_TX_POWER_OFFSET(byte0, priv->pshare->rf_ft_var.txPowerPlus_mcs_15);
+			ASSIGN_TX_POWER_OFFSET(byte1, priv->pshare->rf_ft_var.txPowerPlus_mcs_14);
+			ASSIGN_TX_POWER_OFFSET(byte2, priv->pshare->rf_ft_var.txPowerPlus_mcs_13);
+			ASSIGN_TX_POWER_OFFSET(byte3, priv->pshare->rf_ft_var.txPowerPlus_mcs_12);
 #endif
 
 		byte0 = POWER_RANGE_CHECK(base + byte0);
@@ -3200,6 +3623,10 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 	}
 #endif	
 	base = COUNT_SIGN_OFFSET(base, offset);
+#if defined(CONFIG_RTL_88E_SUPPORT) && defined(CALIBRATE_BY_ODM)
+	if (GET_CHIP_VER(priv) == VERSION_8188E)
+		base += ODMPTR->RFCalibrateInfo.PowerIndexOffset;
+#endif
 
 	byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->OFDMTxAgcOffset_A[0]);
 	byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->OFDMTxAgcOffset_A[1]);
@@ -3226,6 +3653,10 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 #endif	
 		base = COUNT_SIGN_OFFSET(base, offset);
 	}
+#if defined(CONFIG_RTL_88E_SUPPORT) && defined(CALIBRATE_BY_ODM)
+	if (GET_CHIP_VER(priv) == VERSION_8188E)
+		base += ODMPTR->RFCalibrateInfo.PowerIndexOffset;
+#endif
 
 	byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[0]);
 	byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[1]);
@@ -3241,7 +3672,7 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 	writeVal = (byte0<<24) | (byte1<<16) |(byte2<<8) | byte3;
 	RTL_W32(rTxAGC_A_Mcs07_Mcs04, writeVal);
 
-	offset = (pwrdiffHT40_2S & 0x0f);
+	offset = (pwrdiffHT40_2S & 0x0f);	
 #if defined(CONFIG_RTL_92D_SUPPORT)&& defined(CONFIG_RTL_92D_DMDP)
 //_TXPWR_REDEFINE??
 	if (priv->pmib->dot11RFEntry.macPhyMode==DUALMAC_DUALPHY && priv->pshare->wlandev_idx == 1) {
@@ -3281,17 +3712,17 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 	if ((pwrlevelHT40_6dBm_1S_A != 0) && (pwrlevelHT40_6dBm_1S_A != pwrlevelHT40_1S_A))
 		byte0 = byte1 = byte2 = byte3 =	base_6dBm;
 	else if((base - USB_HT_2S_DIFF) > 0)
-		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(base - USB_HT_2S_DIFF);
+		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(base -USB_HT_2S_DIFF);
 	else
 		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(defValue - USB_HT_2S_DIFF);
 
 
 #else
 //_TXPWR_REDEFINE ?? MCS 8 - 11, shall NOT add power by rate even NOT USB power ??
-	byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[8]);
-	byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[9]);
-	byte2 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[10]);
-	byte3 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[11]);
+		byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[8]);
+		byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[9]);
+		byte2 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[10]);
+		byte3 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[11]);
 #endif
 
 	writeVal = (byte0<<24) | (byte1<<16) |(byte2<<8) | byte3;
@@ -3305,15 +3736,15 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 	if ((pwrlevelHT40_6dBm_1S_A != 0) && (pwrlevelHT40_6dBm_1S_A != pwrlevelHT40_1S_A))
 		byte0 = byte1 = byte2 = byte3 =	base_6dBm;
 	else if((base - USB_HT_2S_DIFF) > 0)
-		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(base - USB_HT_2S_DIFF);
+		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(base -USB_HT_2S_DIFF);
 	else
 		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(defValue - USB_HT_2S_DIFF);
 
 #else
-	byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[12]);
-	byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[13]);
-	byte2 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[14]);
-	byte3 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[15]);
+		byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[12]);
+		byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[13]);
+		byte2 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[14]);
+		byte3 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_A[15]);
 #endif
 
 	writeVal = (byte0<<24) | (byte1<<16) |(byte2<<8) | byte3;
@@ -3375,15 +3806,15 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 	if (( pwrlevelHT40_6dBm_1S_B != 0 ) && (pwrlevelHT40_6dBm_1S_B != pwrlevelHT40_1S_B))
 		byte0 = byte1 = byte2 = byte3 = base_6dBm;
 	else if((base - USB_HT_2S_DIFF) > 0)
-		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(base - USB_HT_2S_DIFF);
+		byte0 = byte1 = byte2 = byte3 = POWER_RANGE_CHECK(base -USB_HT_2S_DIFF);
 	else
 		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(defValue - USB_HT_2S_DIFF);
 
 #else
-	byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[8]);
-	byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[9]);
-	byte2 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[10]);
-	byte3 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[11]);
+		byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[8]);
+		byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[9]);
+		byte2 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[10]);
+		byte3 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[11]);
 #endif
 
 	writeVal = (byte0<<24) | (byte1<<16) |(byte2<<8) | byte3;
@@ -3394,15 +3825,15 @@ void PHY_RF6052SetOFDMTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 	if (( pwrlevelHT40_6dBm_1S_B != 0 ) && (pwrlevelHT40_6dBm_1S_B != pwrlevelHT40_1S_B))
 		byte0 = byte1 = byte2 = byte3 = base_6dBm;
 	else if((base - USB_HT_2S_DIFF) > 0)
-		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(base - USB_HT_2S_DIFF);
+		byte0 = byte1 = byte2 = byte3 = POWER_RANGE_CHECK(base -USB_HT_2S_DIFF);
 	else
 		byte0 = byte1 = byte2 = byte3 =	POWER_RANGE_CHECK(defValue - USB_HT_2S_DIFF);
 
 #else
-	byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[12]);
-	byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[13]);
-	byte2 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[14]);
-	byte3 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[15]);
+		byte0 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[12]);
+		byte1 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[13]);
+		byte2 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[14]);
+		byte3 = POWER_RANGE_CHECK(base + priv->pshare->phw->MCSTxAgcOffset_B[15]);
 #endif
 
 	writeVal = (byte0<<24) | (byte1<<16) |(byte2<<8) | byte3;
@@ -3440,15 +3871,16 @@ void PHY_RF6052SetCCKTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 
 		for (i=0; i<=3; i++) {
 			priv->pshare->phw->CCKTxAgc_A[i] = POWER_MIN_CHECK(priv->pshare->phw->CCKTxAgc_A[i], max_idx);
-			priv->pshare->phw->CCKTxAgc_A[i] = POWER_MIN_CHECK(priv->pshare->phw->CCKTxAgc_A[i], max_idx);
+			priv->pshare->phw->CCKTxAgc_B[i] = POWER_MIN_CHECK(priv->pshare->phw->CCKTxAgc_B[i], max_idx);
 			//printk("priv->pshare->phw->CCKTxAgc_A[%d]=%x\n",i, priv->pshare->phw->CCKTxAgc_A[i]);
-			//printk("priv->pshare->phw->CCKTxAgc_A[%d]=%x\n",i, priv->pshare->phw->CCKTxAgc_A[i]);
+			//printk("priv->pshare->phw->CCKTxAgc_B[%d]=%x\n",i, priv->pshare->phw->CCKTxAgc_B[i]);
 		}
 	}
 #endif
 
 	if (priv->pshare->rf_ft_var.cck_pwr_max) {
-		byte = POWER_RANGE_CHECK(priv->pshare->rf_ft_var.cck_pwr_max);
+		//byte = POWER_RANGE_CHECK(priv->pshare->rf_ft_var.cck_pwr_max);
+		byte = (priv->pshare->rf_ft_var.cck_pwr_max > 0x3f)? 0x3f : priv->pshare->rf_ft_var.cck_pwr_max;
 		writeVal = byte;
 		PHY_SetBBReg(priv, rTxAGC_A_CCK1_Mcs32, 0x0000ff00, writeVal);
 		writeVal = (byte << 16) | (byte << 8) | byte;
@@ -3458,13 +3890,30 @@ void PHY_RF6052SetCCKTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 		return;
 	}
 
-	if (pwrlevelCCK_A == 0) {	// use default value
+	if ((pwrlevelCCK_A == 0)
+#if defined(MP_TEST) && defined(CONFIG_RTL_88E_SUPPORT) && defined(CALIBRATE_BY_ODM)
+			|| ((priv->pshare->rf_ft_var.mp_specific) || (OPMODE & WIFI_MP_STATE))
+#endif
+	   ) {
+		// use default value
 #ifdef HIGH_POWER_EXT_PA
 		if (priv->pshare->rf_ft_var.use_ext_pa)
 			byte = HP_CCK_POWER_DEFAULT;
 		else
 #endif
 			byte = 0x24;
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+	/* for testchip only */
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+#ifdef MP_TEST
+		if ((priv->pshare->rf_ft_var.mp_specific) && priv->pshare->mp_txpwr_patha)
+			byte = priv->pshare->mp_txpwr_patha;
+		else
+#endif			
+		byte =0x21;
+	}
+#endif
 
 #ifndef ADD_TX_POWER_BY_CMD
 		writeVal = byte;
@@ -3503,6 +3952,11 @@ void PHY_RF6052SetCCKTxPower(struct rtl8192cd_priv *priv, unsigned int channel)
 		return; // use default
 	}
 
+	if ((get_rf_mimo_mode(priv) == MIMO_2T2R) && (pwrlevelCCK_B == 0)) {
+		pwrlevelCCK_B = pwrlevelCCK_A +
+			priv->pmib->dot11RFEntry.pwrlevelHT40_1S_B[channel-1] - priv->pmib->dot11RFEntry.pwrlevelHT40_1S_A[channel-1];
+	}
+
 	writeVal = POWER_RANGE_CHECK(pwrlevelCCK_A + priv->pshare->phw->CCKTxAgc_A[3]);
 	PHY_SetBBReg(priv, rTxAGC_A_CCK1_Mcs32, 0x0000ff00, writeVal);
 	writeVal = (POWER_RANGE_CHECK(pwrlevelCCK_B + priv->pshare->phw->CCKTxAgc_B[1]) << 16) |
@@ -3530,17 +3984,48 @@ static int phy_BB8192CD_Config_ParaFile(struct rtl8192cd_priv *priv)
 	RTL_W16(REG_SYS_FUNC_EN, val16|BIT(13)|BIT(0)|BIT(1));
 
 	// 20090923 Joseph: Advised by Steven and Jenyu. Power sequence before init RF.
-	RTL_W8(REG_AFE_PLL_CTRL, 0x83);
-	RTL_W8(REG_AFE_PLL_CTRL+1, 0xdb);
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+	if (
+#ifdef CONFIG_RTL_92C_SUPPORT
+		(GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C) 
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		|| 
+#endif
+		(GET_CHIP_VER(priv)==VERSION_8192D)
+#endif
+		) {
+		RTL_W8(REG_AFE_PLL_CTRL, 0x83);
+		RTL_W8(REG_AFE_PLL_CTRL+1, 0xdb);
+	}
+#endif
 	RTL_W8(REG_RF_CTRL, RF_EN|RF_RSTB|RF_SDMRSTB);
 	//RTL_W8(REG_SYS_FUNC_EN, FEN_PPLL|FEN_PCIEA|FEN_DIO_PCIE|FEN_USBA|FEN_BB_GLB_RST|FEN_BBRSTB);
 	//RTL_W8(REG_LDOHCI12_CTRL, 0x1f);
-	RTL_W8(REG_AFE_XTAL_CTRL+1, 0x80);
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+	if (
+#ifdef CONFIG_RTL_92C_SUPPORT
+		(GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C) 
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		|| 
+#endif
+		(GET_CHIP_VER(priv)==VERSION_8192D)
+#endif
+		)
+		RTL_W8(REG_AFE_XTAL_CTRL+1, 0x80);
+#endif
 
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) != VERSION_8188E)
+#endif
+	{
 	val32 = RTL_R32(REG_AFE_XTAL_CTRL);
 	val32 = (val32 & (~(BIT(11) | BIT(14)))) | (BIT(18) | BIT(19) | BIT(21) | BIT(22));
 	RTL_W32(REG_AFE_XTAL_CTRL, val32);
-
+	}
 	/*----Check chip ID and hw TR MIMO config----*/
 //	check_chipID_MIMO(priv);
 
@@ -3558,13 +4043,31 @@ static int phy_BB8192CD_Config_ParaFile(struct rtl8192cd_priv *priv)
 			rtStatus = PHY_ConfigBBWithParaFile(priv, PHYREG_1T1R);
 	}
 #endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E)
+#if defined(CONFIG_MACBBRF_BY_ODM)
+		rtStatus = ODM_ConfigBBWithHeaderFile(ODMPTR, ODM_BaseBand_Config_PHY_REG);
+#else
+		rtStatus = PHY_ConfigBBWithParaFile(priv, PHYREG_1T1R);
+#endif
+#endif
 
 #ifdef MP_TEST
-	if ((priv->pshare->rf_ft_var.mp_specific) && (!IS_TEST_CHIP(priv)
-#ifdef CONFIG_RTL_92D_SUPPORT
-		|| (GET_CHIP_VER(priv)==VERSION_8192D)
+	if ((priv->pshare->rf_ft_var.mp_specific)
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+		&& (
+#ifdef CONFIG_RTL_92C_SUPPORT
+		!IS_TEST_CHIP(priv)
 #endif
-		)) {
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		|| 
+#endif
+		(GET_CHIP_VER(priv)==VERSION_8192D)
+#endif
+		)
+#endif
+		) {
 		delay_ms(10);
 		rtStatus |= PHY_ConfigBBWithParaFile(priv, PHYREG_MP);
 	}
@@ -3588,7 +4091,12 @@ static int phy_BB8192CD_Config_ParaFile(struct rtl8192cd_priv *priv)
     if (GET_CHIP_VER(priv)==VERSION_8192D)
 	PHY_SetBBReg(priv, rFPGA0_RFMOD, bOFDMEn | bCCKEn, 0);
 #endif
+
+#if defined(CONFIG_MACBBRF_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)
+	rtStatus = ODM_ConfigBBWithHeaderFile(ODMPTR, ODM_BaseBand_Config_AGC_TAB);
+#else
 	rtStatus = PHY_ConfigBBWithParaFile(priv, AGCTAB);
+#endif
 
 	PHY_SetBBReg(priv, rFPGA0_RFMOD, bOFDMEn, 1);
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -3623,6 +4131,7 @@ static int phy_BB8192CD_Config_ParaFile(struct rtl8192cd_priv *priv)
 	return 0;
 }
 
+#if !defined(CONFIG_MACBBRF_BY_ODM) || !defined(CONFIG_RTL_88E_SUPPORT)	
 
 int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 {
@@ -3636,7 +4145,12 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 		priv->pshare->phw->NumTotalRFPath = 1;
 	else
 #endif
-	priv->pshare->phw->NumTotalRFPath = 2;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E)
+		priv->pshare->phw->NumTotalRFPath = 1;
+	else
+#endif
+		priv->pshare->phw->NumTotalRFPath = 2;
 
 	for (eRFPath = RF92CD_PATH_A; eRFPath<priv->pshare->phw->NumTotalRFPath; eRFPath++)
 	{
@@ -3669,7 +4183,6 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 #ifdef CONFIG_RTL_92D_SUPPORT
 		if (GET_CHIP_VER(priv)==VERSION_8192D) {
 		  	switch (eRFPath) {
-#ifdef MERGE_FW
 			case RF92CD_PATH_A:
 #ifdef CONFIG_RTL_92D_DMDP
 				if ((priv->pmib->dot11RFEntry.macPhyMode == DUALMAC_DUALPHY) &&
@@ -3677,14 +4190,34 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 #ifdef RTL8192D_INT_PA
 					if (priv->pshare->rf_ft_var.use_intpa92d){
 #ifdef USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)
+						printk("[%s][radio_b_intPA_GM_new]\n",__FUNCTION__);
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_GM_new_start,
+							(int)(data_radio_b_intPA_GM_new_end - data_radio_b_intPA_GM_new_start), eRFPath);										
+#elif defined (RTL8192D_INT_PA_GAIN_TABLE_NEW1)
+						printk("[%s][radio_b_intPA_GM_new1]\n",__FUNCTION__);
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_GM_new1_start,
+							(int)(data_radio_b_intPA_GM_new1_end - data_radio_b_intPA_GM_new1_start), eRFPath);						
+#else
 						printk("[%s][radio_b_intPA_GM]\n",__FUNCTION__);
 						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_GM_start,
 							(int)(data_radio_b_intPA_GM_end - data_radio_b_intPA_GM_start), eRFPath);
+#endif
+						
+#else //USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)
+						printk("[%s][radio_b_intPA_new]\n",__FUNCTION__);
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_new_start,
+							(int)(data_radio_b_intPA_new_end - data_radio_b_intPA_new_start), eRFPath);
 #else
 						printk("[%s][radio_b_intPA]\n",__FUNCTION__);
 						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_start,
 							(int)(data_radio_b_intPA_end - data_radio_b_intPA_start), eRFPath);
 #endif
+
+#endif //USB_POWER_SUPPORT
 
 					} else
 #endif
@@ -3711,14 +4244,36 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 					if (priv->pshare->rf_ft_var.use_intpa92d)
 					{
 #ifdef USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)	
+						printk("[%s][radio_a_intPA_GM_new]\n",__FUNCTION__);
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_intPA_GM_new_start,
+							(int)(data_radio_a_intPA_GM_new_end - data_radio_a_intPA_GM_new_start), eRFPath);						
+#elif defined (RTL8192D_INT_PA_GAIN_TABLE_NEW1)
+						printk("[%s][radio_a_intPA_GM_new1]\n",__FUNCTION__);
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_intPA_GM_new1_start,
+							(int)(data_radio_a_intPA_GM_new1_end - data_radio_a_intPA_GM_new1_start), eRFPath);						
+#else
 						printk("[%s][radio_a_intPA_GM]\n",__FUNCTION__);
 						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_intPA_GM_start,
 							(int)(data_radio_a_intPA_GM_end - data_radio_a_intPA_GM_start), eRFPath);
+#endif
+
+#else //USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)
+
+						printk("[%s][radio_a_intPA_new]\n",__FUNCTION__);
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_intPA_new_start,
+							(int)(data_radio_a_intPA_new_end - data_radio_a_intPA_new_start), eRFPath);
+
 #else
 						printk("[%s][radio_a_intPA]\n",__FUNCTION__);
 						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_intPA_start,
 							(int)(data_radio_a_intPA_end - data_radio_a_intPA_start), eRFPath);
 #endif
+
+#endif //USB_POWER_SUPPORT
 					} else
 #endif
 					{
@@ -3743,15 +4298,36 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 			case RF92CD_PATH_B:
 #ifdef RTL8192D_INT_PA
 				if (priv->pshare->rf_ft_var.use_intpa92d){
-#ifdef USB_POWER_SUPPORT 
+#ifdef USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)	
+					printk("[%s][radio_b_intPA_GM_new]\n",__FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_GM_new_start,
+						(int)(data_radio_b_intPA_GM_new_end - data_radio_b_intPA_GM_new_start), eRFPath);					
+#elif defined (RTL8192D_INT_PA_GAIN_TABLE_NEW1)
+					printk("[%s][radio_b_intPA_GM_new1]\n",__FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_GM_new1_start,
+						(int)(data_radio_b_intPA_GM_new1_end - data_radio_b_intPA_GM_new1_start), eRFPath);					
+#else
 					printk("[%s][radio_b_intPA_GM]\n",__FUNCTION__);
 					rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_GM_start,
 						(int)(data_radio_b_intPA_GM_end - data_radio_b_intPA_GM_start), eRFPath);
+#endif
+
+
+#else //USB_POWER_SUPPORT
+
+#if defined (RTL8192D_INT_PA_GAIN_TABLE_NEW)	
+					printk("[%s][radio_b_intPA_new]\n",__FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_new_start,
+						(int)(data_radio_b_intPA_new_end - data_radio_b_intPA_new_start), eRFPath);
 #else
 					printk("[%s][radio_b_intPA]\n",__FUNCTION__);
 					rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_intPA_start,
 						(int)(data_radio_b_intPA_end - data_radio_b_intPA_start), eRFPath);
 #endif
+
+#endif //USB_POWER_SUPPORT
 				} else
 #endif
 				{
@@ -3771,14 +4347,6 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 					}
 				}
 				break;
-#else
-			case RF92CD_PATH_A:
-				rtStatus = PHY_ConfigRFWithParaFile(priv, "/usr/rtl8192Pci/radio_a.txt", eRFPath);
-				break;
-			case RF92CD_PATH_B:
-				rtStatus = PHY_ConfigRFWithParaFile(priv, "/usr/rtl8192Pci/radio_b.txt", eRFPath);
-				break;
-#endif
 			default:
 				break;
 		  	}
@@ -3788,7 +4356,6 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 	if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)) {
 		switch (eRFPath)
 		{
-#ifdef MERGE_FW
 		case RF92CD_PATH_A:
 			if (get_rf_mimo_mode(priv) == MIMO_2T2R) {
 #ifdef TESTCHIP_SUPPORT
@@ -3808,18 +4375,18 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 					else
 #endif
 					{
-						if (priv->pshare->rf_ft_var.use_ext_lna)
+					if (priv->pshare->rf_ft_var.use_ext_lna)
 						{
 							//printk("[%s][data_radio_a_2T_n_lna]\n", __FUNCTION__);
-							rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_2T_n_lna_start,
-											(int)(data_radio_a_2T_n_lna_end - data_radio_a_2T_n_lna_start), eRFPath);
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_2T_n_lna_start,
+										(int)(data_radio_a_2T_n_lna_end - data_radio_a_2T_n_lna_start), eRFPath);
 						}
-						else
+					else
 						{
 							//printk("[%s][data_radio_a_2T_n]\n", __FUNCTION__);
-							rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_2T_n_start,
-											(int)(data_radio_a_2T_n_end - data_radio_a_2T_n_start), eRFPath);
-						}
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_2T_n_start,
+										(int)(data_radio_a_2T_n_end - data_radio_a_2T_n_start), eRFPath);
+				}
 					}
 				}
 			} else if (get_rf_mimo_mode(priv) == MIMO_1T1R)	{
@@ -3867,36 +4434,55 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 					else
 #endif
 					{
-						if (priv->pshare->rf_ft_var.use_ext_lna)
+					if (priv->pshare->rf_ft_var.use_ext_lna)
 						{
 							//printk("[%s][data_radio_b_2T_n_lna]\n", __FUNCTION__);
-							rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_2T_n_lna_start,
-											(int)(data_radio_b_2T_n_lna_end - data_radio_b_2T_n_lna_start), eRFPath);
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_2T_n_lna_start,
+										(int)(data_radio_b_2T_n_lna_end - data_radio_b_2T_n_lna_start), eRFPath);
 						}
-						else
+					else
 						{
 							//printk("[%s][data_radio_b_2T_n]\n", __FUNCTION__);
-							rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_2T_n_start,
-										(int)(data_radio_b_2T_n_end - data_radio_b_2T_n_start), eRFPath);
-						}
+						rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_b_2T_n_start,
+									(int)(data_radio_b_2T_n_end - data_radio_b_2T_n_start), eRFPath);
+				}
 					}
 				}
 			} else if (get_rf_mimo_mode(priv) == MIMO_1T1R)
 				rtStatus=0;
 			break;
-#else
-		case RF92CD_PATH_A:
-			rtStatus = PHY_ConfigRFWithParaFile(priv, "/usr/rtl8192Pci/radio_a.txt", eRFPath);
-			break;
-		case RF92CD_PATH_B:
-			rtStatus = PHY_ConfigRFWithParaFile(priv, "/usr/rtl8192Pci/radio_b.txt", eRFPath);
-			break;
-#endif
 		default:
 			break;
 		}
 	}
 #endif
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E) {
+		switch (eRFPath) {
+		case RF92CD_PATH_A:
+			if (get_rf_mimo_mode(priv) == MIMO_1T1R) {
+#ifdef SUPPORT_RTL8188E_TC
+				if (IS_TEST_CHIP(priv)) {
+					DEBUG_INFO("[%s][radio_a_1T_88E_TC]\n",__FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_1T_88E_TC_start,
+					(int)(data_radio_a_1T_88E_TC_end - data_radio_a_1T_88E_TC_start), eRFPath);
+				} else
+#endif
+				{
+					DEBUG_INFO("[%s][radio_a_1T_88E]\n",__FUNCTION__);
+					rtStatus = PHY_ConfigRFWithParaFile(priv, data_radio_a_1T_88E_start,
+					(int)(data_radio_a_1T_88E_end - data_radio_a_1T_88E_start), eRFPath);
+				}
+			}
+			break;
+		default:
+			DEBUG_ERR("%s Line %d, wrong Ant settings\n", __FUNCTION__, __LINE__);
+			break;
+		}
+	}
+#endif
+
 		/*----Restore RFENV control type----*/;
 		switch(eRFPath)
 		{
@@ -3915,7 +4501,7 @@ int phy_RF6052_Config_ParaFile(struct rtl8192cd_priv *priv)
 
 	return rtStatus;
 }
-
+#endif
 
 //
 // Description:
@@ -3945,13 +4531,26 @@ static void LLT_table_init(struct rtl8192cd_priv *priv)
 	unsigned txpktbufSz, bufBd;
 #ifdef CONFIG_RTL_92D_DMDP
 	if (priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY) {
-		txpktbufSz = 120; 
+		txpktbufSz = 120; //0x7C
 		bufBd = 127;
 	} else
 #endif
 	{
-		txpktbufSz = 246; 
-		bufBd = 255;
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E) {
+#ifdef DRVMAC_LB
+			txpktbufSz = 83; // 0x53
+			bufBd = 87;
+#else
+			txpktbufSz = 171; // 0xAB
+			bufBd = 175;
+#endif
+		} else
+#endif
+		{
+			txpktbufSz = 246; // 0xF6
+			bufBd = 255;
+		}
 	}
 #else
 	unsigned txpktbufSz = 252; //174(0xAE) 120(0x78) 252(0xFC)
@@ -4022,18 +4621,40 @@ static void LLT_table_init(struct rtl8192cd_priv *priv)
 #ifdef CONFIG_RTL_92D_DMDP
 	if (priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY )
 	{
-		RTL_W8(RQPN_NPQ, 0x10);
-		//RTL_W32(RQPN, 0x80501010);
-		//RTL_W32(RQPN, 0x80630410);
-		RTL_W32(RQPN, 0x80600404);
+		if (priv->pmib->dot11OperationEntry.wifi_specific == 1) {
+			RTL_W8(RQPN_NPQ, 0x29);
+			RTL_W32(RQPN, 0x802f1c04);
+		} else {
+			//RTL_W32(RQPN, 0x80501010);
+			RTL_W8(RQPN_NPQ, 0x10);
+			//RTL_W32(RQPN, 0x80630410);
+			RTL_W32(RQPN, 0x80600404);
+		}
 	}
 	else
 #endif
 	{
-		RTL_W8(RQPN_NPQ, 0x29);
-		//RTL_W32(RQPN, 0x809f2929);
-		//RTL_W32(RQPN, 0x80a82029);
-		RTL_W32(RQPN, 0x80a92004);
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E) {
+			//RTL_W8(RQPN_NPQ, 4);
+			RTL_W8(RQPN_NPQ, 0x29);
+#ifdef DRVMAC_LB
+			RTL_W32(RQPN, 0x80460404);
+#else
+			//RTL_W32(RQPN, 0x805d2029);
+			if (priv->pmib->dot11OperationEntry.wifi_specific == 1)
+				RTL_W32(RQPN, 0x805d2004);
+			else
+				RTL_W32(RQPN, 0x807d0004);
+#endif
+		} else
+#endif
+		{
+			RTL_W8(RQPN_NPQ, 0x29);
+			//RTL_W32(RQPN, 0x809f2929);
+			//RTL_W32(RQPN, 0x80a82029);
+			RTL_W32(RQPN, 0x80a92004);
+		}
 	}
 #else
 	if(txpktbufSz == 120)
@@ -4061,10 +4682,44 @@ static void LLT_table_init(struct rtl8192cd_priv *priv)
 
 static void MacInit(struct rtl8192cd_priv *priv)
 {
-	unsigned int bytetmp, retry;
+	volatile unsigned char bytetmp;
+	unsigned short retry;
+
 	DEBUG_INFO("CP: MacInit===>>");
 
 	RTL_W8(RSV_CTRL0, 0x00);
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+		//if(RTL_R8(RSV_CTRL0) == 0)
+		//	RTL_W8(SPS0_CTRL, (RTL_R8(SPS0_CTRL) & 0xc3) | 0x10);   // b[5:2] = 4
+		//else
+		//	panic_printk("MAC reg unlock fail\n");
+
+		if (!HalPwrSeqCmdParsing(priv, PWR_CUT_ALL_MSK, PWR_FAB_ALL_MSK, 
+				PWR_INTF_PCI_MSK, rtl8188E_card_enable_flow))
+			{
+				unsigned long flags;
+				panic_printk("%s %d, HalPwrSeqCmdParsing init fail!!!\n", __FUNCTION__, __LINE__);
+					#if 1
+						SAVE_INT_AND_CLI(flags);
+			
+						#ifndef NOT_RTK_BSP
+						#ifdef CONFIG_RTL_8198B
+							REG32(BSP_WDTCTRLR) = BSP_WDT_ENABLE;
+						#else
+							*(volatile unsigned long *)(0xB800311c) = 0; /* enable watchdog reset now */
+						#endif
+						#endif
+							   for(;;)
+								;
+				   #endif
+			}
+#ifdef SUPPORT_RTL8188E_TC
+		check_RTL8188E_testChip(priv);
+#endif
+	}
+#endif
 
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8192D) {
@@ -4076,20 +4731,52 @@ static void MacInit(struct rtl8192cd_priv *priv)
 		/* advise by MAC team */
 		RTL_W8(LDOHCI12_CTRL, 0x1f);
 
-#ifndef CONFIG_RTL_8198
-		/* temp modifying, for 96c pocket ap better performance */
-		bytetmp = REG32(0xb8000048);
-		bytetmp &= ~(BIT(10) | BIT(8));
-		bytetmp |= BIT(19);
-		REG32(0xb8000048) = bytetmp;
+#if !defined(CONFIG_RTL_8198) && !defined(CONFIG_RTL_819XD) && !defined(CONFIG_RTL_8196E) && !defined(CONFIG_RTL_8198B)
+		{
+			/* temp modifying, for 96c pocket ap better performance */
+			volatile unsigned int Qbytetmp;
+			Qbytetmp = REG32(0xb8000048);
+			Qbytetmp &= ~(BIT(10) | BIT(8));
+			Qbytetmp |= BIT(19);
+			REG32(0xb8000048) = Qbytetmp;
+		}
 #endif
 	}
 
 #endif
 
 	// Power on when re-enter from IPS/Radio off/card disable
-	RTL_W8(AFE_XTAL_CTRL, 0x0d);	// enable XTAL		// clk inverted
-	RTL_W8(SPS0_CTRL, 0x2b);		// enable SPS into PWM
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+		volatile unsigned int Qbytetmp;
+		RTL_W8(AFE_XTAL_CTRL, RTL_R8(AFE_XTAL_CTRL) | BIT(0));
+
+		Qbytetmp = RTL_R16(APS_FSMCO);
+		Qbytetmp &= 0xE7ff;
+		Qbytetmp |= 0x0800;
+		RTL_W16(APS_FSMCO, Qbytetmp);
+
+		while (!((Qbytetmp = RTL_R32(APS_FSMCO)) & 0x00020000));
+
+		Qbytetmp = RTL_R16(APS_FSMCO);
+		Qbytetmp &= 0x7FFF;
+		RTL_W16(APS_FSMCO, Qbytetmp);
+
+		Qbytetmp = RTL_R16(APS_FSMCO);
+		Qbytetmp &= 0xE7ff;
+		Qbytetmp |= 0x0000;
+		RTL_W16(APS_FSMCO, Qbytetmp);
+	} else
+#endif
+	{
+#ifdef CONFIG_RTL8672
+		RTL_W8(AFE_XTAL_CTRL, RTL_R8(AFE_XTAL_CTRL) | BIT(0));	// enable XTAL
+#else
+		/* just don't change BIT(1),Crystal engine setting refine*/ 
+		//RTL_W8(AFE_XTAL_CTRL, 0x0d);	// enable XTAL		// clk inverted
+#endif
+		RTL_W8(SPS0_CTRL, 0x2b);		// enable SPS into PWM
+	}
 	delay_ms(1);
 	
 #if 0
@@ -4159,12 +4846,29 @@ static void MacInit(struct rtl8192cd_priv *priv)
 		DEBUG_ERR("%s ERROR: auto enable WLAN failed!!(0x%02X)\n", __FUNCTION__, bytetmp);
 	}
 	
-	// Enable Radio off, GPIO, and LED function
-	RTL_W16(APS_FSMCO, 0x1012);			// when enable HWPDN
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E) 
+		RTL_W16(SYS_FUNC_EN, RTL_R16(SYS_FUNC_EN) & ~FEN_CPUEN);
+	else		/*Enable Radio off, GPIO, and LED function*/
+#endif
+		RTL_W16(APS_FSMCO, 0x1012);			// when enable HWPDN
 	
 	// release RF digital isolation
-	RTL_W8(SYS_ISO_CTRL+1, 0x82);
-	
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+	if (
+#ifdef CONFIG_RTL_92C_SUPPORT
+		(GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C) 
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		|| 
+#endif
+		(GET_CHIP_VER(priv)==VERSION_8192D)
+#endif
+		)
+		RTL_W8(SYS_ISO_CTRL+1, 0x82);
+#endif
+
 	delay_us(2);
 #endif
 
@@ -4176,30 +4880,34 @@ static void MacInit(struct rtl8192cd_priv *priv)
 	LLT_table_init(priv);
 
 	// Clear interrupt and enable interrupt
-	RTL_W32(HISR, 0xFFFFFFFF);
-	RTL_W16(HISRE, 0xFFFF);
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+		RTL_W32(REG_88E_HISR, 0xFFFFFFFF);
+		RTL_W32(REG_88E_HISRE, 0xFFFFFFFF);
+	} else
+#endif
+	{
+		RTL_W32(HISR, 0xFFFFFFFF);
+		RTL_W16(HISRE, 0xFFFF);
+	}
 
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8192D) {
-		unsigned char reg;
-		reg = MAC_PHY_CTRL_MP;
 
 		switch(priv->pmib->dot11RFEntry.macPhyMode) {
 		case SINGLEMAC_SINGLEPHY:
-#if 0			
-			RTL_W8(reg, 0xf4); //enable super mac
-#else
-			RTL_W8(reg, 0xfc); //enable super mac
 			RTL_W8(MAC_PHY_CTRL_T, 0xfc); 
-#endif
+			RTL_W8(MAC_PHY_CTRL_MP, 0xfc); //enable super mac
 			RTL_W32(AGGLEN_LMT, 0xb972a841);
 			break;
 		case DUALMAC_SINGLEPHY:
-			RTL_W8(reg, 0xf1); //enable supermac
+			RTL_W8(MAC_PHY_CTRL_T, 0xf1); 			
+			RTL_W8(MAC_PHY_CTRL_MP, 0xf1); //enable supermac
 			RTL_W32(AGGLEN_LMT, 0x54325521);
 			break;
 		case DUALMAC_DUALPHY:
-			RTL_W8(reg, 0xf3); //DMDP
+			RTL_W8(MAC_PHY_CTRL_T, 0xf3); 
+			RTL_W8(MAC_PHY_CTRL_MP, 0xf3); //DMDP
 			RTL_W32(AGGLEN_LMT, 0x54325521);
 			break;
 		default:
@@ -4215,16 +4923,19 @@ static void MacInit(struct rtl8192cd_priv *priv)
 #endif
 			RTL_W32(TRXFF_BNDY, (RTL_R32(TRXFF_BNDY)&0x0000FFFF)|(0x27ff&RXFF0_BNDY_Mask)<<RXFF0_BNDY_SHIFT);
 
-	}
-	else
+	} else
+#endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+		RTL_W32(TRXFF_BNDY, (RTL_R32(TRXFF_BNDY)&0x0000FFFF)|(0x25ff&RXFF0_BNDY_Mask)<<RXFF0_BNDY_SHIFT);
+	} else
+#endif
 	{
+		// Set Rx FF0 boundary : 9K/10K
 		RTL_W32(TRXFF_BNDY, (RTL_R32(TRXFF_BNDY)&0x0000FFFF)|(0x27FF&RXFF0_BNDY_Mask)<<RXFF0_BNDY_SHIFT);
 	}
 
-#else
-	// Set Rx FF0 boundary : 9K/10K
-	RTL_W32(TRXFF_BNDY, (RTL_R32(TRXFF_BNDY)&0x0000FFFF)|(0x27FF&RXFF0_BNDY_Mask)<<RXFF0_BNDY_SHIFT);
-
+#ifdef CONFIG_RTL_92C_SUPPORT
 	if (IS_TEST_CHIP(priv)) {
 		// Set High priority queue select : HPQ:BC/H/VO/VI/MG, LPQ:BE/BK
 		// [5]:H, [4]:MG, [3]:BK, [2]:BE, [1]:VI, [0]:VO
@@ -4237,8 +4948,23 @@ static void MacInit(struct rtl8192cd_priv *priv)
 	} else
 #endif
 	{
-		//RTL_W16(TRXDMA_CTRL, (0xB770 | RXSHFT_EN | RXDMA_ARBBW_EN));
-		RTL_W16(TRXDMA_CTRL, (0x5660 | RXSHFT_EN | RXDMA_ARBBW_EN));
+#if 0//def CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E)
+			RTL_W16(TRXDMA_CTRL, (/*0xF5B1*/ 0xB5B1 | RXSHFT_EN | RXDMA_ARBBW_EN));
+		else
+#endif
+			//RTL_W16(TRXDMA_CTRL, (0xB770 | RXSHFT_EN | RXDMA_ARBBW_EN));
+
+		#if defined(CONFIG_RTL_ULINKER_BRSC)
+			RTL_W16(TRXDMA_CTRL, (0x5660 | RXDMA_ARBBW_EN)); //disable IP(layer3) auto aligne to 4bytes
+		#else
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E && priv->pmib->dot11OperationEntry.wifi_specific != 1)
+			RTL_W16(TRXDMA_CTRL, (0x56a0 | RXSHFT_EN | RXDMA_ARBBW_EN));
+		else
+#endif
+			RTL_W16(TRXDMA_CTRL, (0x5660 | RXSHFT_EN | RXDMA_ARBBW_EN));
+		#endif
 	}
 
 
@@ -4282,37 +5008,31 @@ static void MacInit(struct rtl8192cd_priv *priv)
 	// CCK rate will be filtered out only when associated AP does not support it.
 	// Only enable ACK rate to OFDM 24M
 #ifdef CONFIG_RTL_92D_SUPPORT
-
 	if (GET_CHIP_VER(priv)==VERSION_8192D) {
-	/*
-	 *	Set RRSR at here before MACPHY_REG.txt is ready
-	 */
-	if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
 		/*
-		 *	PHY_BAND_5G
+		 *	Set RRSR at here before MACPHY_REG.txt is ready
 		 */
-		RTL_W16(RRSR, 0x150);
-	} else{
-		/*
-		 *	PHY_BAND_2G
-		 */
-		RTL_W16(RRSR, 0x15D);
-	}
-	RTL_W8(RRSR+2, 0);
+		if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
+			/*
+			 *	PHY_BAND_5G
+			 */
+			RTL_W16(RRSR, 0x150);
+		} else{
+			/*
+			 *	PHY_BAND_2G
+			 */
+			RTL_W16(RRSR, 0x15F); //Set 0x15F for NDSi Client Connection Issue
+		}
+		RTL_W8(RRSR+2, 0);
 
-	RTL_W8(RCR, 0x0e);		//follow 92c MACPHY_REG
-	RTL_W8(RCR+1, 0x2a); 	//follow 92c MACPHY_REG
-        }
-	else
+		RTL_W8(RCR, 0x0e);		//follow 92c MACPHY_REG
+		RTL_W8(RCR+1, 0x2a); 	//follow 92c MACPHY_REG
+	} else 
+#endif
 	{
 		RTL_W16(RRSR, 0xFFFF);
 		RTL_W8(RRSR+2, 0xFF);
-
 	}
-#else
-	RTL_W16(RRSR, 0xFFFF);
-	RTL_W8(RRSR+2, 0xFF);
-#endif
 
 	// Set Spec SIFS (used in NAV)
 	// Joseph test
@@ -4328,19 +5048,27 @@ static void MacInit(struct rtl8192cd_priv *priv)
 	RTL_W16(SIFS_OFDM, (0x0A&SIFS_TRX_Mask)<<SIFS_TRX_SHIFT|(0x0A&SIFS_CTX_Mask)<<SIFS_CTX_SHIFT);
 
 	// Set retry limit
-	// Joseph test
-	priv->pshare->RLShort = 0x10;//0x30;
-	priv->pshare->RLLong = 0x10; //0x30;
-
-#ifdef CLIENT_MODE
-    if (priv->pmib->dot11OperationEntry.opmode & WIFI_STATION_STATE)
-    {
-        priv->pshare->RLShort = 0x30;
-        priv->pshare->RLLong = 0x30;
-    }
-#endif
-
-	RTL_W16(RL, (priv->pshare->RLShort&SRL_Mask)<<SRL_SHIFT|(priv->pshare->RLLong&LRL_Mask)<<LRL_SHIFT);
+	if (priv->pmib->dot11OperationEntry.dot11LongRetryLimit)
+		priv->pshare->RL_setting = priv->pmib->dot11OperationEntry.dot11LongRetryLimit & 0xff;
+	else {
+#ifdef CLIENT_MODE 
+	    if (priv->pmib->dot11OperationEntry.opmode & WIFI_STATION_STATE) 
+			priv->pshare->RL_setting = 0x30;
+		else
+#endif 
+			priv->pshare->RL_setting = 0x10;
+	}
+	if (priv->pmib->dot11OperationEntry.dot11ShortRetryLimit)
+		priv->pshare->RL_setting |= ((priv->pmib->dot11OperationEntry.dot11ShortRetryLimit & 0xff) << 8);
+	else {
+#ifdef CLIENT_MODE 
+	    if (priv->pmib->dot11OperationEntry.opmode & WIFI_STATION_STATE) 
+			priv->pshare->RL_setting |= (0x30 << 8);
+		else
+#endif 
+			priv->pshare->RL_setting |= (0x10 << 8);
+	}
+	RTL_W16(RL, priv->pshare->RL_setting);
 
 	//Set Desc Address
 	RTL_W32(BCNQ_DESA, priv->pshare->phw->tx_ringB_addr);
@@ -4363,8 +5091,8 @@ static void MacInit(struct rtl8192cd_priv *priv)
 			|(0x03&MAX_TXDMA_Mask)<<MAX_TXDMA_SHIFT | BCNQSTOP);
 	else
 #endif
-	RTL_W32(PCIE_CTRL_REG, RTL_R32(PCIE_CTRL_REG)|(0x07&MAX_RXDMA_Mask)<<MAX_RXDMA_SHIFT
-		|(0x07&MAX_TXDMA_Mask)<<MAX_TXDMA_SHIFT | BCNQSTOP);
+		RTL_W32(PCIE_CTRL_REG, RTL_R32(PCIE_CTRL_REG)|(0x07&MAX_RXDMA_Mask)<<MAX_RXDMA_SHIFT
+			|(0x07&MAX_TXDMA_Mask)<<MAX_TXDMA_SHIFT | BCNQSTOP);
 
 	// 20090928 Joseph
 	// Reconsider when to do this operation after asking HWSD.
@@ -4385,32 +5113,32 @@ static void MacInit(struct rtl8192cd_priv *priv)
 	if (GET_CHIP_VER(priv)==VERSION_8192D){
 		RTL_W16(TCR, RTL_R16(TCR) | WMAC_TCR_ERRSTEN3 | WMAC_TCR_ERRSTEN2
  	                         | WMAC_TCR_ERRSTEN1 | WMAC_TCR_ERRSTEN0);
-/*
- *	For 92DE,Mac0 and Mac1 power off.
- *	0x1F	BIT6: 0 mac0 off, 1: mac0 on
- *		BIT7: 0 mac1 off, 1: mac1 on.
- */
+	/*
+	 *	For 92DE,Mac0 and Mac1 power off.
+	 *	0x1F	BIT6: 0 mac0 off, 1: mac0 on
+	 *		BIT7: 0 mac1 off, 1: mac1 on.
+	 */
 #ifdef CONFIG_RTL_92D_DMDP
- 	 if (priv->pshare->wlandev_idx == 0)
+	 	 if (priv->pshare->wlandev_idx == 0)
 #endif
-	{
-		RTL_W8(RSV_MAC0_CTRL, RTL_R8(RSV_MAC0_CTRL)|MAC0_EN);
+		{
+			RTL_W8(RSV_MAC0_CTRL, RTL_R8(RSV_MAC0_CTRL)|MAC0_EN);
 
-		if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
-			RTL_W8(RSV_MAC0_CTRL, RTL_R8(RSV_MAC0_CTRL) & (~BAND_STAT));
-		else
-			RTL_W8(RSV_MAC0_CTRL, RTL_R8(RSV_MAC0_CTRL) | BAND_STAT);
-	}
+			if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
+				RTL_W8(RSV_MAC0_CTRL, RTL_R8(RSV_MAC0_CTRL) & (~BAND_STAT));
+			else
+				RTL_W8(RSV_MAC0_CTRL, RTL_R8(RSV_MAC0_CTRL) | BAND_STAT);
+		}
 
 #ifdef CONFIG_RTL_92D_DMDP
-	if (priv->pshare->wlandev_idx ==1)
-	{
-		RTL_W8(RSV_MAC1_CTRL, RTL_R8(RSV_MAC1_CTRL)|MAC1_EN);
-		if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
-			RTL_W8(RSV_MAC1_CTRL, RTL_R8(RSV_MAC1_CTRL) & (~BAND_STAT));
-		else
-			RTL_W8(RSV_MAC1_CTRL, RTL_R8(RSV_MAC1_CTRL) | BAND_STAT);
-	}
+		if (priv->pshare->wlandev_idx ==1)
+		{
+			RTL_W8(RSV_MAC1_CTRL, RTL_R8(RSV_MAC1_CTRL)|MAC1_EN);
+			if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
+				RTL_W8(RSV_MAC1_CTRL, RTL_R8(RSV_MAC1_CTRL) & (~BAND_STAT));
+			else
+				RTL_W8(RSV_MAC1_CTRL, RTL_R8(RSV_MAC1_CTRL) | BAND_STAT);
+		}
 #endif
 	}
 #endif //CONFIG_RTL_92D_SUPPORT
@@ -4421,7 +5149,9 @@ static void MacInit(struct rtl8192cd_priv *priv)
 
 static void MacConfig(struct rtl8192cd_priv *priv)
 {
-	RTL_W8(INIRTS_RATE_SEL, 0x8); // 24M
+	//RTL_W8(INIRTS_RATE_SEL, 0x8); // 24M
+	priv->pshare->phw->RTSInitRate_Candidate = priv->pshare->phw->RTSInitRate = 0x8; // 24M
+	RTL_W8(INIRTS_RATE_SEL, priv->pshare->phw->RTSInitRate);
 
 	// 2007/02/07 Mark by Emily becasue we have not verify whether this register works
 	//For 92C,which reg?
@@ -4454,24 +5184,46 @@ static void MacConfig(struct rtl8192cd_priv *priv)
 	RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) | DIS_TXOP_CFE);
 
 #ifdef CONFIG_RTL_92D_SUPPORT
-	RTL_W8(MAC_SEL, 0);
-	RTL_W8(0x526, 0xff);		/* enable all MBID interface beacon */
+	if (GET_CHIP_VER(priv)==VERSION_8192D) {
+		RTL_W8(MAC_SEL, 0);
+		RTL_W8(0x526, 0xff);		/* enable all MBID interface beacon */
 
-	/*
-	 *	Protection mode control for hw RTS
-	 */
-	RTL_W16(PROT_MODE_CTRL, 0xff0D);
+		/*
+		 *	Protection mode control for hw RTS
+		 */
+		RTL_W16(PROT_MODE_CTRL, 0xff0D);
+	}
 #endif
 
 	/*
 	 *	RA try rate aggr limit
 	 */
-	RTL_W8(RA_TRY_RATE_AGG_LMT, 2);
+	RTL_W8(RA_TRY_RATE_AGG_LMT, 0);
 
 	/*
 	 *	Max mpdu number per aggr
 	 */
 	RTL_W16(PROT_MODE_CTRL+2, 0x0909);
+
+#if (defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT)) && defined(TX_EARLY_MODE)
+	if (
+#ifdef CONFIG_RTL_92D_SUPPORT
+       (GET_CHIP_VER(priv) == VERSION_8192D)
+#endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+#ifdef CONFIG_RTL_92D_SUPPORT
+       ||
+#endif
+       (GET_CHIP_VER(priv) == VERSION_8188E)
+#endif
+	)
+		disable_em(priv);
+#endif
+
+#if defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)
+	if (GET_CHIP_VER(priv)==VERSION_8188E)
+		RTL8188E_EnableTxReport(priv);
+#endif
 }
 
 
@@ -4509,6 +5261,21 @@ unsigned int get_mean_of_2_close_value(unsigned int *val_array)
 }
 
 #ifdef CONFIG_RTL_92C_SUPPORT
+
+void PHY_APCalibrate(struct rtl8192cd_priv *priv)
+{
+#ifdef HIGH_POWER_EXT_PA
+	if (!priv->pshare->rf_ft_var.use_ext_pa)
+#endif
+	if(!IS_TEST_CHIP(priv)) {
+		if(GET_CHIP_VER(priv) == VERSION_8192C)
+			APK_MAIN(priv, 1);
+		else if(GET_CHIP_VER(priv) == VERSION_8188C)
+			APK_MAIN(priv, 0);
+	}
+}
+
+#ifdef CONFIG_RTL_92C_SUPPORT
 #ifndef CONFIG_RTL_NEW_IQK
 static void IQK_92CD(struct rtl8192cd_priv *priv)
 {
@@ -4536,6 +5303,15 @@ static void IQK_92CD(struct rtl8192cd_priv *priv)
 	unsigned int temp_edc = RTL_R32(0xedc);
 	unsigned int temp_ee0 = RTL_R32(0xee0);
 	unsigned int temp_eec = RTL_R32(0xeec);
+
+#ifdef MP_TEST
+	if (!priv->pshare->rf_ft_var.mp_specific)
+#endif
+	{
+		if (priv->pshare->iqk_2g_done)
+			return;
+		priv->pshare->iqk_2g_done = 1;
+	}
 
 printk(">> %s \n",__FUNCTION__);
 
@@ -4829,6 +5605,15 @@ static void IQK_88C(struct rtl8192cd_priv *priv)
 	unsigned int temp_ee0 = RTL_R32(0xee0);
 	unsigned int temp_eec = RTL_R32(0xeec);
 
+#ifdef MP_TEST
+	if (!priv->pshare->rf_ft_var.mp_specific)
+#endif
+	{
+		if (priv->pshare->iqk_2g_done)
+			return;
+		priv->pshare->iqk_2g_done = 1;
+	}
+
 #ifdef HIGH_POWER_EXT_PA
 	if (priv->pshare->rf_ft_var.use_ext_pa) {
 		temp_870 = RTL_R32(0x870);
@@ -4988,1004 +5773,7 @@ static void IQK_88C(struct rtl8192cd_priv *priv)
 	RTL_W32(0xeec, temp_eec);
 }	// IQK
 #endif
-
-void _PHY_SaveADDARegisters(struct rtl8192cd_priv *priv, unsigned int* ADDAReg,	unsigned int* ADDABackup, unsigned int RegisterNum)
-{
-	unsigned int	i;
-	for( i = 0 ; i < RegisterNum ; i++){
-		ADDABackup[i] = PHY_QueryBBReg(priv, ADDAReg[i], bMaskDWord);
-	}
-}
-
-void _PHY_SaveMACRegisters(struct rtl8192cd_priv *priv, unsigned int* MACReg, unsigned int* MACBackup)
-{
-	unsigned int	i;
-	for( i = 0 ; i < (IQK_MAC_REG_NUM - 1); i++){
-		MACBackup[i] = RTL_R8(MACReg[i]);
-	}
-	MACBackup[i] = RTL_R32( MACReg[i]);
-}
-
-void _PHY_ReloadADDARegisters(struct rtl8192cd_priv *priv, unsigned int* ADDAReg, unsigned int*	ADDABackup, unsigned int RegiesterNum)
-{
-	unsigned int	i;
-	for(i = 0 ; i < RegiesterNum; i++){
-		PHY_SetBBReg(priv, ADDAReg[i], bMaskDWord, ADDABackup[i]);
-	}
-}
-
-void _PHY_ReloadMACRegisters(struct rtl8192cd_priv *priv,unsigned int* MACReg, unsigned int*	 MACBackup)
-{
-	unsigned int	i;
-	for(i = 0 ; i < (IQK_MAC_REG_NUM - 1); i++){
-		RTL_W8( MACReg[i], (unsigned char)MACBackup[i]);
-	}
-	RTL_W32( MACReg[i], MACBackup[i]);
-}
-
-void _PHY_MACSettingCalibration(struct rtl8192cd_priv *priv, unsigned int* MACReg, unsigned int* MACBackup)
-{
-	unsigned int	i = 0;
-	RTL_W8(MACReg[i], 0x3F);
-	for(i = 1 ; i < (IQK_MAC_REG_NUM - 1); i++){
-		RTL_W8( MACReg[i], (unsigned char)(MACBackup[i]&(~ BIT(3))));
-	}
-	RTL_W8( MACReg[i], (unsigned char)(MACBackup[i]&(~ BIT(5))));
-}
-
-void _PHY_PathAStandBy(struct rtl8192cd_priv *priv)
-{
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x0);
-	PHY_SetBBReg(priv, 0x840, bMaskDWord, 0x00010000);
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x80800000);
-}
-
-void _PHY_PathADDAOn(struct rtl8192cd_priv *priv, unsigned int* ADDAReg, char isPathAOn, char is2T)
-{
-	unsigned int	pathOn;
-	unsigned int	i;
-
-	pathOn = isPathAOn ? 0x04db25a4 : 0x0b1b25a4;
-	if(FALSE == is2T){
-		pathOn = 0x0bdb25a0;
-		PHY_SetBBReg(priv, ADDAReg[0], bMaskDWord, 0x0b1b25a0);
-	}
-	else{
-		PHY_SetBBReg(priv, ADDAReg[0], bMaskDWord, pathOn);
-	}
-
-	for( i = 1 ; i < IQK_ADDA_REG_NUM ; i++){
-		PHY_SetBBReg(priv, ADDAReg[i], bMaskDWord, pathOn);
-	}
-
-}
-
-/*
- *	PA Analog Pre-distortion Calibration R06
- */
-static void APK_MAIN(struct rtl8192cd_priv *priv, unsigned int is2T)
-{
-	unsigned int regD[PATH_NUM];
-	unsigned int tmpReg, index, offset, path, i=0, pathbound = PATH_NUM, apkbound=6;
-	unsigned int BB_backup[APK_BB_REG_NUM];
-	unsigned int BB_REG[APK_BB_REG_NUM] = {0x904, 0xc04, 0x800, 0xc08, 0x874};
-	unsigned int BB_AP_MODE[APK_BB_REG_NUM] = {0x00000020, 0x00a05430, 0x02040000, 0x000800e4, 0x00204000};
-	unsigned int BB_normal_AP_MODE[APK_BB_REG_NUM] = {0x00000020, 0x00a05430, 0x02040000, 0x000800e4, 0x22204000};
-	unsigned int AFE_backup[APK_AFE_REG_NUM];
-	unsigned int AFE_REG[APK_AFE_REG_NUM] = {	0x85c, 0xe6c, 0xe70, 0xe74, 0xe78, 0xe7c, 0xe80, 0xe84,
-											0xe88, 0xe8c, 0xed0, 0xed4, 0xed8, 0xedc, 0xee0, 0xeec};
-	unsigned int MAC_backup[IQK_MAC_REG_NUM];
-	unsigned int MAC_REG[IQK_MAC_REG_NUM] = {0x522, 0x550, 0x551, 0x040};
-	unsigned int APK_RF_init_value[PATH_NUM][APK_BB_REG_NUM] = {{0x0852c, 0x1852c, 0x5852c, 0x1852c, 0x5852c},
-																{0x2852e, 0x0852e, 0x3852e, 0x0852e, 0x0852e}};
-	unsigned int APK_normal_RF_init_value[PATH_NUM][APK_BB_REG_NUM] =
-							{	{0x0852c, 0x0a52c, 0x3a52c, 0x5a52c, 0x5a52c},	//path settings equal to path b settings
-								{0x0852c, 0x0a52c, 0x5a52c, 0x5a52c, 0x5a52c}	};
-
-	unsigned int		APK_RF_value_0[PATH_NUM][APK_BB_REG_NUM] =
-							{	{0x52019, 0x52014, 0x52013, 0x5200f, 0x5208d},
-															{0x5201a, 0x52019, 0x52016, 0x52033, 0x52050}};
-
-	unsigned int APK_normal_RF_value_0[PATH_NUM][APK_BB_REG_NUM] =
-							{	{0x52019, 0x52017, 0x52010, 0x5200d, 0x5206a},	//path settings equal to path b settings
-								{0x52019, 0x52017, 0x52010, 0x5200d, 0x5206a}	};
-
-	unsigned int AFE_on_off[PATH_NUM] = {0x04db25a4, 0x0b1b25a4};	//path A on path B off / path A off path B on
-	unsigned int APK_offset[PATH_NUM] = {0xb68, 0xb6c};
-	unsigned int APK_normal_offset[PATH_NUM] = {0xb28, 0xb98};
-	unsigned int APK_value[PATH_NUM] = {0x92fc0000, 0x12fc0000};
-	unsigned int APK_normal_value[PATH_NUM] = {0x92680000, 0x12680000};
-	char	APK_delta_mapping[APK_BB_REG_NUM][13] = {{-4, -3, -2, -2, -1, -1, 0, 1, 2, 3, 4, 5, 6},
-													{-4, -3, -2, -2, -1, -1, 0, 1, 2, 3, 4, 5, 6},
-													{-6, -4, -2, -2, -1, -1, 0, 1, 2, 3, 4, 5, 6},
-													{-1, -1, -1, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6},
-													{-11, -9, -7, -5, -3, -1, 0, 0, 0, 0, 0, 0, 0}};
-	unsigned int APK_normal_setting_value_1[13] =
-		{	0x01017018, 0xf7ed8f84, 0x1b1a1816, 0x2522201e, 0x322e2b28,
-			0x433f3a36, 0x5b544e49, 0x7b726a62, 0xa69a8f84, 0xdfcfc0b3,
-			0x12680000, 0x00880000, 0x00880000		};
-	unsigned int APK_normal_setting_value_2[16] =
-		{	0x01c7021d, 0x01670183, 0x01000123, 0x00bf00e2, 0x008d00a3,
-			0x0068007b, 0x004d0059, 0x003a0042, 0x002b0031, 0x001f0025,
-			0x0017001b, 0x00110014, 0x000c000f, 0x0009000b, 0x00070008,
-			0x00050006	};
-
-
-	unsigned int APK_normal_RF_init_value_old[PATH_NUM][APK_BB_REG_NUM] =
-			{{0x0852c, 0x5a52c, 0x0a52c, 0x5a52c, 0x4a52c}, //path settings equal to path b settings
-			 {0x0852c, 0x5a52c, 0x0a52c, 0x5a52c, 0x4a52c}};
-	unsigned int APK_normal_RF_value_0_old[PATH_NUM][APK_BB_REG_NUM] =
-			{{0x52019, 0x52017, 0x52010, 0x5200d, 0x5200a}, //path settings equal to path b settings
-			 {0x52019, 0x52017, 0x52010, 0x5200d, 0x5200a}};
-	unsigned int APK_normal_setting_value_1_old[13] =
-			{0x01017018, 0xf7ed8f84, 0x40372d20, 0x5b554e48, 0x6f6a6560,
-												0x807c7873, 0x8f8b8884, 0x9d999693, 0xa9a6a3a0, 0xb5b2afac,
-												0x12680000, 0x00880000, 0x00880000};
-	unsigned int APK_normal_setting_value_2_old[16] =
-			{0x00810100, 0x00400056, 0x002b0032, 0x001f0024, 0x0019001c,
-												0x00150017, 0x00120013, 0x00100011, 0x000e000f, 0x000c000d,
-												0x000b000c, 0x000a000b, 0x0009000a, 0x00090009, 0x00080008,
-												0x00080008};
-	unsigned int AP_curve[PATH_NUM][APK_CURVE_REG_NUM];
-
-	unsigned int APK_result[PATH_NUM][APK_BB_REG_NUM];	//val_1_1a, val_1_2a, val_2a, val_3a, val_4a
-	unsigned int ThermalValue = 0;
-	int BB_offset, delta_V, delta_offset;
-	int newVerAPK = (IS_UMC_A_CUT_88C(priv)) ? 1 : 0;
-	unsigned int *pAPK_normal_setting_value_1 = APK_normal_setting_value_1, *pAPK_normal_setting_value_2 = APK_normal_setting_value_2 ;
-#ifdef HIGH_POWER_EXT_PA
-	unsigned int tmp0x870=0, tmp0x860=0, tmp0x864=0;
-
-	if(priv->pshare->rf_ft_var.use_ext_pa)
-		newVerAPK = 1;
 #endif
-
-	if(!newVerAPK) {
-		apkbound = 12;
-		pAPK_normal_setting_value_1 = APK_normal_setting_value_1_old;
-		pAPK_normal_setting_value_2 = APK_normal_setting_value_2_old;
-	}
-
-	if(!is2T)
-		pathbound = 1;
-
-	for(index = 0; index < PATH_NUM; index ++) {
-		APK_offset[index] = APK_normal_offset[index];
-		APK_value[index] = APK_normal_value[index];
-		AFE_on_off[index] = 0x6fdb25a4;
-	}
-
-	for(index = 0; index < APK_BB_REG_NUM; index ++) {
-		for(path = 0; path < pathbound; path++) {
-			if(newVerAPK) {
-			APK_RF_init_value[path][index] = APK_normal_RF_init_value[path][index];
-			APK_RF_value_0[path][index] = APK_normal_RF_value_0[path][index];
-			} else {
-				APK_RF_init_value[path][index] = APK_normal_RF_init_value_old[path][index];
-				APK_RF_value_0[path][index] = APK_normal_RF_value_0_old[path][index];
-			}
-
-		}
-		BB_AP_MODE[index] = BB_normal_AP_MODE[index];
-	}
-
-	/*
-	 *	save BB default value
-	 */
-	for(index = 1; index < APK_BB_REG_NUM ; index++)
-		BB_backup[index] = PHY_QueryBBReg(priv, BB_REG[index], bMaskDWord);
-
-#ifdef HIGH_POWER_EXT_PA
-	if (priv->pshare->rf_ft_var.use_ext_pa) {
-		tmp0x870 = PHY_QueryBBReg(priv, 0x870, bMaskDWord);
-		tmp0x860 = PHY_QueryBBReg(priv, 0x860, bMaskDWord);
-		tmp0x864 = PHY_QueryBBReg(priv, 0x864, bMaskDWord);
-	}
-#endif
-
-		//save MAC default value
-	_PHY_SaveMACRegisters(priv, MAC_REG, MAC_backup);
-
-	//save AFE default value
-	_PHY_SaveADDARegisters(priv, AFE_REG, AFE_backup, APK_AFE_REG_NUM);
-
-	for(path = 0; path < pathbound; path++) {
-		/*
-		 *	save old AP curve
-		 */
-		if(path == RF92CD_PATH_A) {
-			/*
-			 *	path A APK
-			 *	load APK setting
-			 *	path-A
-			 */
-			offset = 0xb00;
-			for(index = 0; index < 11; index ++) {
-				PHY_SetBBReg(priv, offset, bMaskDWord, pAPK_normal_setting_value_1[index]);
-				offset += 0x04;
-			}
-			PHY_SetBBReg(priv, 0xb98, bMaskDWord, 0x12680000);
-
-			offset = 0xb68;
-			for(; index < 13; index ++) {
-				PHY_SetBBReg(priv, offset, bMaskDWord, pAPK_normal_setting_value_1[index]);
-				offset += 0x04;
-			}
-
-			/*
-			 *	page-B1
-			 */
-			PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x40000000);
-
-			/*
-			 *path A
-			 */
-			offset = 0xb00;
-			for(index = 0; index < 16; index++) {
-				PHY_SetBBReg(priv, offset, bMaskDWord, pAPK_normal_setting_value_2[index]);
-				offset += 0x04;
-			}
-			PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x00000000);
-		} else if(path == RF92CD_PATH_B) {
-			/*
-			 *	path B APK
-			 *	load APK setting
-			 *	path-B
-			 */
-			offset = 0xb70;
-			for(index = 0; index < 10; index ++) {
-				PHY_SetBBReg(priv, offset, bMaskDWord, pAPK_normal_setting_value_1[index]);
-				offset += 0x04;
-			}
-			PHY_SetBBReg(priv, 0xb28, bMaskDWord, 0x12680000);
-			PHY_SetBBReg(priv, 0xb98, bMaskDWord, 0x12680000);
-
-			offset = 0xb68;
-			index = 11;
-			for(; index < 13; index ++) {
-				//offset 0xb68, 0xb6c
-				PHY_SetBBReg(priv, offset, bMaskDWord, pAPK_normal_setting_value_1[index]);
-				offset += 0x04;
-			}
-
-			/*
-			 *	page-B1
-			 */
-			PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x40000000);
-
-			/*
-			 *	path B
-			 */
-			offset = 0xb60;
-			for(index = 0; index < 16; index++) {
-				PHY_SetBBReg(priv, offset, bMaskDWord, pAPK_normal_setting_value_2[index]);
-				offset += 0x04;
-			}
-			PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x00000000);
-		}
-
-		if(!newVerAPK) {
-		tmpReg = PHY_QueryRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0x3, bMaskDWord, 1);
-
-		AP_curve[path][0] = tmpReg & 0x1F;				//[4:0]
-
-		tmpReg = PHY_QueryRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0x4, bMaskDWord, 1);
-		AP_curve[path][1] = (tmpReg & 0xF8000) >> 15; 	//[19:15]
-		AP_curve[path][2] = (tmpReg & 0x7C00) >> 10;	//[14:10]
-		AP_curve[path][3] = (tmpReg & 0x3E0) >> 5;		//[9:5]
-		}
-
-		/*
-		 *	save RF default value
-		 */
-		regD[path] = PHY_QueryRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0xd, bMaskDWord, 1);
-
-		/*
-		 *	Path A AFE all on, path B AFE All off or vise versa
-		 */
-		for(index = 0; index < APK_AFE_REG_NUM ; index++)
-			PHY_SetBBReg(priv, AFE_REG[index], bMaskDWord, AFE_on_off[path]);
-
-		/*
-		 *	BB to AP mode
-		 */
-		if(path == RF92CD_PATH_A) {
-			for(index = 1; index < APK_BB_REG_NUM ; index++)
-				PHY_SetBBReg(priv, BB_REG[index], bMaskDWord, BB_AP_MODE[index]);
-		}
-
-#ifdef HIGH_POWER_EXT_PA
-		if (priv->pshare->rf_ft_var.use_ext_pa) {
-			PHY_SetBBReg(priv, 0x870, BIT(10), 1);
-			PHY_SetBBReg(priv, 0x870, BIT(26), 1);
-			PHY_SetBBReg(priv, 0x860, BIT(10), 0);
-			PHY_SetBBReg(priv, 0x864, BIT(10), 0);
-		}
-#endif
-
-		if(newVerAPK) {
-			if(path == RF92CD_PATH_A) {
-				PHY_SetBBReg(priv, 0xe30 , bMaskDWord, 0x01008c00);
-				PHY_SetBBReg(priv, 0xe34 , bMaskDWord, 0x01008c00);
-			} else if(path == RF92CD_PATH_B) {
-				PHY_SetBBReg(priv, 0xe50 , bMaskDWord, 0x01008c00);
-				PHY_SetBBReg(priv, 0xe54 , bMaskDWord, 0x01008c00);
-			}
-		}
-
-		//MAC settings
-		_PHY_MACSettingCalibration(priv, MAC_REG, MAC_backup);
-
-
-		if(path == RF92CD_PATH_A) {
-			//Path B to standby mode
-			PHY_SetRFReg(priv, RF92CD_PATH_B, 0x0, bMaskDWord, 0x10000);
-		} else {
-			//Path A to standby mode
-			PHY_SetRFReg(priv, RF92CD_PATH_A, 0x00, bMaskDWord, 0x10000);
-			PHY_SetRFReg(priv, RF92CD_PATH_A, 0x10, bMaskDWord, 0x1000f);
-			PHY_SetRFReg(priv, RF92CD_PATH_A, 0x11, bMaskDWord, 0x20103);
-		}
-
-		/*
-		 *	Check Thermal value delta
-		 */
-		 if (priv->pmib->dot11RFEntry.ther) {
-			ThermalValue = PHY_QueryRFReg(priv, RF92CD_PATH_A, 0x24, 0x1f, 1) & 0xff;
-			 ThermalValue -= priv->pmib->dot11RFEntry.ther;
-		 }
-
-		 delta_offset = ((ThermalValue+14)/2);
-		 if(delta_offset < 0)
-			 delta_offset = 0;
-		 else if (delta_offset > 12)
-			 delta_offset = 12;
-
-		//AP calibration
-		for(index = 1; index < APK_BB_REG_NUM; index++) {
-			tmpReg = APK_RF_init_value[path][index];
-			if (priv->pmib->dot11RFEntry.ther) {
-				BB_offset = (tmpReg & 0xF0000) >> 16;
-
-				if(!(tmpReg & BIT(15))) //sign bit 0
-					BB_offset = -BB_offset;
-				delta_V = APK_delta_mapping[index][delta_offset];
-				BB_offset += delta_V;
-
-				if(BB_offset < 0) {
-					tmpReg = tmpReg & (~BIT(15));
-					BB_offset = -BB_offset;
-				} else {
-					tmpReg = tmpReg | BIT(15);
-				}
-				tmpReg = (tmpReg & 0xFFF0FFFF) | (BB_offset << 16);
-			}
-
-			if(newVerAPK)
-				PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0xc, bMaskDWord, 0x8992e);
-			else
-			PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0xc, bMaskDWord, 0x8992f);
-
-			PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0x0, bMaskDWord, APK_RF_value_0[path][index]);
-			PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0xd, bMaskDWord, tmpReg);
-
-			/*
-			 *	PA11+PAD01111, one shot
-			 */
-			i = 0;
-			do {
-				PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x80000000);
-				PHY_SetBBReg(priv, APK_offset[path], bMaskDWord, APK_value[0]);
-				delay_ms(3);
-				PHY_SetBBReg(priv, APK_offset[path], bMaskDWord, APK_value[1]);
-				delay_ms(20);
-				PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x00000000);
-
-				if(!newVerAPK) {
-				tmpReg = PHY_QueryRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0xb, bMaskDWord, 1);
-				tmpReg = (tmpReg & 0x3E00) >> 9;
-				} else {
-					if(path == RF92CD_PATH_A)
-						tmpReg = PHY_QueryBBReg(priv, 0xbd8, 0x03E00000);
-					else
-						tmpReg = PHY_QueryBBReg(priv, 0xbd8, 0xF8000000);
-				}
-				i++;
-			} while((tmpReg > apkbound) && i < 4);
-
-			APK_result[path][index] = tmpReg;
-		}
-	}
-
-	/*
-	 *	reload MAC default value
-	 */
-	_PHY_ReloadMACRegisters(priv, MAC_REG, MAC_backup);
-
-	/*
-	 *	reload BB default value
-	 */
-	for(index = 1; index < APK_BB_REG_NUM ; index++)
-		PHY_SetBBReg(priv, BB_REG[index], bMaskDWord, BB_backup[index]);
-
-#ifdef HIGH_POWER_EXT_PA
-	if (priv->pshare->rf_ft_var.use_ext_pa) {
-		PHY_SetBBReg(priv, 0x870, bMaskDWord, tmp0x870);
-		PHY_SetBBReg(priv, 0x860, bMaskDWord, tmp0x860);
-		PHY_SetBBReg(priv, 0x864, bMaskDWord, tmp0x864);
-	}
-#endif
-
-	/*
-	 *	reload AFE default value
-	 */
-	_PHY_ReloadADDARegisters(priv, AFE_REG, AFE_backup, 16);
-
-
-	/*
-	 *	reload RF path default value
-	 */
-	for(path = 0; path < pathbound; path++) {
-		PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0xd, bMaskDWord, regD[path]);
-		if(path == RF92CD_PATH_B) {
-			PHY_SetRFReg(priv, RF92CD_PATH_A, 0x10, bMaskDWord, 0x1000f);
-			PHY_SetRFReg(priv, RF92CD_PATH_A, 0x11, bMaskDWord, 0x20101);
-		}
-
-		if(newVerAPK) {
-			if (APK_result[path][1] > 6)
-				APK_result[path][1] = 6;
-		} else {
-			if(APK_result[path][1] < 1)
-				APK_result[path][1] = 1;
-			else if (APK_result[path][1] > 5)
-				APK_result[path][1] = 5;
-
-			if(APK_result[path][2] < 2)
-				APK_result[path][2] = 2;
-			else if (APK_result[path][2] > 6)
-				APK_result[path][2] = 6;
-
-			if(APK_result[path][3] < 2)
-				APK_result[path][3] = 2;
-			else if (APK_result[path][3] > 6)
-				APK_result[path][3] = 6;
-
-			if(APK_result[path][4] < 5)
-				APK_result[path][4] = 5;
-			else if (APK_result[path][4] > 9)
-				APK_result[path][4] = 9;
-		}
-	}
-
-	for(path = 0; path < pathbound; path++) {
-		PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0x3, bMaskDWord,
-		((APK_result[path][1] << 15) | (APK_result[path][1] << 10) | (APK_result[path][1] << 5) | APK_result[path][1]));
-		if(newVerAPK) {
-			if(path == RF92CD_PATH_A)
-				PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0x4, bMaskDWord,
-				((APK_result[path][1] << 15) | (APK_result[path][1] << 10) | (0x00 << 5) | 0x05));
-			else
-				PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0x4, bMaskDWord,
-				((APK_result[path][1] << 15) | (APK_result[path][1] << 10) | (0x02 << 5) | 0x05));
-			PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0xe, bMaskDWord,
-			((0x08 << 15) | (0x08 << 10) | (0x08 << 5) | 0x08));
-		} else {
-			PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0x4, bMaskDWord,
-			((APK_result[path][1] << 15) | (APK_result[path][1] << 10) | (APK_result[path][2] << 5) | APK_result[path][3]));
-			PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)path, 0xe, bMaskDWord,
-			((APK_result[path][4] << 15) | (APK_result[path][4] << 10) | (APK_result[path][4] << 5) | APK_result[path][4]));
-		}
-	}
-}
-
-
-
-/*
-return FALSE => do IQK again
-*/
-char _PHY_SimularityCompare(struct rtl8192cd_priv *priv, int result[][8], unsigned char c1, unsigned char c2)
-{
-	unsigned int		i, j, diff, SimularityBitMap, bound = 0;
-	unsigned char		final_candidate[2] = {0xFF, 0xFF};	//for path A and path B
-	char				bResult = TRUE, is2T = (GET_CHIP_VER(priv) == VERSION_8192C ? 1 : 0);
-
-	bound = (is2T) ? 8 : 4;
-	SimularityBitMap = 0;
-
-	for( i = 0; i < bound; i++ )	{
-		diff = (result[c1][i] > result[c2][i]) ? (result[c1][i] - result[c2][i]) : (result[c2][i] - result[c1][i]);
-		if (diff > MAX_TOLERANCE)		{
-			if((i == 2 || i == 6) && !SimularityBitMap)		{
-				if( result[c1][i]+ result[c1][i+1] == 0)
-					final_candidate[(i>>2)] = c2;
-				else if (result[c2][i]+result[c2][i+1] == 0)
-					final_candidate[(i>>2)] = c1;
-				else
-					 SimularityBitMap |= (1<<i);
-			}
-			else
-				SimularityBitMap |= (1<<i);
-		}
-	}
-
-	if ( SimularityBitMap == 0)	{
-		for( i = 0; i < (bound>>2); i++ )		{
-			if(final_candidate[i] != 0xFF) 			{
-				for( j = (i<<2); j < ((i+1)<<2)-2; j++)
-					result[3][j] = result[final_candidate[i]][j];
-				bResult = FALSE;
-			}
-		}
-		return bResult;
-	}
-	else if (!(SimularityBitMap & 0x0F)) {			//path A OK
-		for(i = 0; i < 4; i++)
-			result[3][i] = result[c1][i];
-		return FALSE;
-	}
-	else if (!(SimularityBitMap & 0xF0) && is2T) {	//path B OK
-		for(i = 4; i < 8; i++)
-			result[3][i] = result[c1][i];
-		return FALSE;
-	}
-	else
-		return FALSE;
-
-}
-
-
-//bit0 = 1 => Tx OK, bit1 = 1 => Rx OK
-unsigned char _PHY_PathA_IQK(struct rtl8192cd_priv *priv, char	configPathB)
-{
-	unsigned int regEAC, regE94, regE9C, regEA4;
-	unsigned char result = 0x00;
-
-	//path-A IQK setting
-//	RTPRINT(FINIT, INIT_IQK, ("Path-A IQK setting!\n"));
-	PHY_SetBBReg(priv, 0xe30, bMaskDWord, 0x10008c1f);
-	PHY_SetBBReg(priv, 0xe34, bMaskDWord, 0x10008c1f);
-	PHY_SetBBReg(priv, 0xe38, bMaskDWord, 0x82140102);
-	PHY_SetBBReg(priv, 0xe3c, bMaskDWord, ((configPathB |IS_UMC_B_CUT_88C(priv)) ? 0x28160202 : 0x28160502));
-
-#if 1
-	//path-B IQK setting
-	if(configPathB)	{
-		PHY_SetBBReg(priv, 0xe50, bMaskDWord, 0x10008c22);
-		PHY_SetBBReg(priv, 0xe54, bMaskDWord, 0x10008c22);
-		PHY_SetBBReg(priv, 0xe58, bMaskDWord, 0x82140102);
-		PHY_SetBBReg(priv, 0xe5c, bMaskDWord, 0x28160202);
-	}
-#endif
-	//LO calibration setting
-	PHY_SetBBReg(priv, 0xe4c, bMaskDWord, 0x001028d1);
-
-	//One shot, path A LOK & IQK
-	PHY_SetBBReg(priv, 0xe48, bMaskDWord, 0xf9000000);
-	PHY_SetBBReg(priv, 0xe48, bMaskDWord, 0xf8000000);
-
-	// delay x ms
-	delay_ms(IQK_DELAY_TIME);
-
-	// Check failed
-	regEAC = PHY_QueryBBReg(priv, 0xeac, bMaskDWord);
-	regE94 = PHY_QueryBBReg(priv, 0xe94, bMaskDWord);
-	regE9C= PHY_QueryBBReg(priv, 0xe9c, bMaskDWord);
-	regEA4= PHY_QueryBBReg(priv, 0xea4, bMaskDWord);
-
-	if(!(regEAC & BIT(28)) &&
-		(((regE94 & 0x03FF0000)>>16) != 0x142) &&
-		(((regE9C & 0x03FF0000)>>16) != 0x42) )
-		result |= 0x01;
-	else							//if Tx not OK, ignore Rx
-		return result;
-
-	if(!(regEAC & BIT(27)) &&		//if Tx is OK, check whether Rx is OK
-		(((regEA4 & 0x03FF0000)>>16) != 0x132) &&
-		(((regEAC & 0x03FF0000)>>16) != 0x36))
-		result |= 0x02;
-	else {
-//		RTPRINT(FINIT, INIT_IQK, ("Path A Rx IQK fail!!\n"));
-	}
-
-	return result;
-}
-
-//bit0 = 1 => Tx OK, bit1 = 1 => Rx OK
-unsigned char _PHY_PathB_IQK(struct rtl8192cd_priv *priv)
-{
-	unsigned int regEAC, regEB4, regEBC, regEC4, regECC;
-	unsigned char	result = 0x00;
-#if 0
-	//path-B IQK setting
-	RTPRINT(FINIT, INIT_IQK, ("Path-B IQK setting!\n"));
-	PHY_SetBBReg(pAdapter, 0xe50, bMaskDWord, 0x10008c22);
-	PHY_SetBBReg(pAdapter, 0xe54, bMaskDWord, 0x10008c22);
-	PHY_SetBBReg(pAdapter, 0xe58, bMaskDWord, 0x82140102);
-	PHY_SetBBReg(pAdapter, 0xe5c, bMaskDWord, 0x28160202);
-
-	//LO calibration setting
-	RTPRINT(FINIT, INIT_IQK, ("LO calibration setting!\n"));
-	PHY_SetBBReg(pAdapter, 0xe4c, bMaskDWord, 0x001028d1);
-#endif
-	//One shot, path B LOK & IQK
-//	RTPRINT(FINIT, INIT_IQK, ("One shot, path A LOK & IQK!\n"));
-	PHY_SetBBReg(priv, 0xe60, bMaskDWord, 0x00000002);
-	PHY_SetBBReg(priv, 0xe60, bMaskDWord, 0x00000000);
-
-	// delay x ms
-	delay_ms(IQK_DELAY_TIME);
-
-	// Check failed
-	regEAC = PHY_QueryBBReg(priv, 0xeac, bMaskDWord);
-	regEB4 = PHY_QueryBBReg(priv, 0xeb4, bMaskDWord);
-	regEBC= PHY_QueryBBReg(priv, 0xebc, bMaskDWord);
-	regEC4= PHY_QueryBBReg(priv, 0xec4, bMaskDWord);
-	regECC= PHY_QueryBBReg(priv, 0xecc, bMaskDWord);
-
-	if(!(regEAC & BIT(31)) &&
-		(((regEB4 & 0x03FF0000)>>16) != 0x142) &&
-		(((regEBC & 0x03FF0000)>>16) != 0x42))
-		result |= 0x01;
-	else
-		return result;
-
-	if(!(regEAC & BIT(30)) &&
-		(((regEC4 & 0x03FF0000)>>16) != 0x132) &&
-		(((regECC & 0x03FF0000)>>16) != 0x36))
-		result |= 0x02;
-	else {
-//		RTPRINT(FINIT, INIT_IQK, ("Path B Rx IQK fail!!\n"));
-	}
-
-	return result;
-
-}
-
-void _PHY_PathAFillIQKMatrix(struct rtl8192cd_priv *priv, char bIQKOK, int	result[][8], unsigned char final_candidate, char bTxOnly)
-{
-	int	Oldval_0, X, TX0_A, reg;
-	int	Y, TX0_C;
-
-	if(final_candidate == 0xFF)
-		return;
-
-	else if(bIQKOK) 	{
-		Oldval_0 = (PHY_QueryBBReg(priv, rOFDM0_XATxIQImbalance, bMaskDWord) >> 22) & 0x3FF;
-
-		X = result[final_candidate][0];
-		if ((X & 0x00000200) != 0)
-			X = X | 0xFFFFFC00;
-		TX0_A = (X * Oldval_0) >> 8;
-		PHY_SetBBReg(priv, rOFDM0_XATxIQImbalance, 0x3FF, TX0_A);
-		PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(31), ((X* Oldval_0>>7) & 0x1));
-
-		Y = result[final_candidate][1];
-		if ((Y & 0x00000200) != 0)
-			Y = Y | 0xFFFFFC00;
-		TX0_C = (Y * Oldval_0) >> 8;
-		PHY_SetBBReg(priv, rOFDM0_XCTxAFE, 0xF0000000, ((TX0_C&0x3C0)>>6));
-		PHY_SetBBReg(priv, rOFDM0_XATxIQImbalance, 0x003F0000, (TX0_C&0x3F));
-		PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(29), ((Y* Oldval_0>>7) & 0x1));
-
-		if(bTxOnly)		{
-//			RTPRINT(FINIT, INIT_IQK, ("_PHY_PathAFillIQKMatrix only Tx OK\n"));
-			return;
-		}
-
-		reg = result[final_candidate][2];
-		PHY_SetBBReg(priv, rOFDM0_XARxIQImbalance, 0x3FF, reg);
-
-		reg = result[final_candidate][3] & 0x3F;
-		PHY_SetBBReg(priv, rOFDM0_XARxIQImbalance, 0xFC00, reg);
-
-		reg = (result[final_candidate][3] >> 6) & 0xF;
-		PHY_SetBBReg(priv, 0xca0, 0xF0000000, reg);
-	}
-}
-
-
-void _PHY_PathBFillIQKMatrix(struct rtl8192cd_priv *priv, char bIQKOK, int	result[][8], unsigned char final_candidate, char bTxOnly)
-{
-	int	Oldval_1, X, TX1_A, reg;
-	int	Y, TX1_C;
-
-	//RTPRINT(FINIT, INIT_IQK, ("Path B IQ Calibration %s !\n",(bIQKOK)?"Success":"Failed"));
-
-	if(final_candidate == 0xFF)
-		return;
-
-	else if(bIQKOK)
-	{
-		Oldval_1 = (PHY_QueryBBReg(priv, rOFDM0_XBTxIQImbalance, bMaskDWord) >> 22) & 0x3FF;
-
-		X = result[final_candidate][4];
-		if ((X & 0x00000200) != 0)
-			X = X | 0xFFFFFC00;
-		TX1_A = (X * Oldval_1) >> 8;
-		PHY_SetBBReg(priv, rOFDM0_XBTxIQImbalance, 0x3FF, TX1_A);
-		PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(27), ((X* Oldval_1>>7) & 0x1));
-
-		Y = result[final_candidate][5];
-		if ((Y & 0x00000200) != 0)
-			Y = Y | 0xFFFFFC00;
-		TX1_C = (Y * Oldval_1) >> 8;
-		PHY_SetBBReg(priv, rOFDM0_XDTxAFE, 0xF0000000, ((TX1_C&0x3C0)>>6));
-		PHY_SetBBReg(priv, rOFDM0_XBTxIQImbalance, 0x003F0000, (TX1_C&0x3F));
-		PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(25), ((Y* Oldval_1>>7) & 0x1));
-
-		if(bTxOnly)
-			return;
-
-		reg = result[final_candidate][6];
-		PHY_SetBBReg(priv, rOFDM0_XBRxIQImbalance, 0x3FF, reg);
-
-		reg = result[final_candidate][7] & 0x3F;
-		PHY_SetBBReg(priv, rOFDM0_XBRxIQImbalance, 0xFC00, reg);
-
-		reg = (result[final_candidate][7] >> 6) & 0xF;
-		PHY_SetBBReg(priv, rOFDM0_AGCRSSITable, 0x0000F000, reg);
-	}
-}
-
-void _PHY_IQCalibrate(struct rtl8192cd_priv *priv, int result[][8], unsigned char t, char is2T)
-{
-	unsigned int	i;
-	unsigned char	PathAOK, PathBOK;
-	unsigned int	ADDA_REG[IQK_ADDA_REG_NUM] = {	0x85c, 0xe6c, 0xe70, 0xe74,
-													0xe78, 0xe7c, 0xe80, 0xe84,
-													0xe88, 0xe8c, 0xed0, 0xed4,
-													0xed8, 0xedc, 0xee0, 0xeec };
-	unsigned int	IQK_MAC_REG[IQK_MAC_REG_NUM] = {0x522, 0x550,	0x551,	0x040};
-
-	char isNormal = IS_TEST_CHIP(priv) ? 0 : 1;
-	unsigned int	retryCount = 2;
-
-#ifdef MP_TEST
-	if(priv->pshare->rf_ft_var.mp_specific)
-		retryCount = 9;
-#endif
-
-	if(t==0)	{
-	 	// Save ADDA parameters, turn Path A ADDA on
-	 	_PHY_SaveADDARegisters(priv, ADDA_REG, priv->pshare->ADDA_backup, APK_AFE_REG_NUM);
-		_PHY_SaveMACRegisters(priv, IQK_MAC_REG, priv->pshare->IQK_MAC_backup);
-	}
-
- 	_PHY_PathADDAOn(priv, ADDA_REG, TRUE, is2T);
-
-	if(t==0)	{
-	 	// Store 0xC04, 0xC08, 0x874 vale
-	 	priv->pshare->RegC04 = PHY_QueryBBReg(priv, 0xc04, bMaskDWord);
-	 	priv->pshare->RegC08 = PHY_QueryBBReg(priv, 0xc08, bMaskDWord);
-	 	priv->pshare->Reg874 = PHY_QueryBBReg(priv, 0x874, bMaskDWord);
-	}
-
-	PHY_SetBBReg(priv, 0x800, bMaskDWord, (PHY_QueryBBReg(priv, 0x800, bMaskDWord)& ~ BIT(24)));
-	PHY_SetBBReg(priv, 0xc04, bMaskDWord, 0x03a05600);
-	PHY_SetBBReg(priv, 0xc08, bMaskDWord, 0x000800e4);
-	PHY_SetBBReg(priv, 0x874, bMaskDWord, 0x22204000);
-
-	PHY_SetBBReg(priv, 0x870, BIT(10), 1);
-	PHY_SetBBReg(priv, 0x870, BIT(26), 1);
-	PHY_SetBBReg(priv, 0x860, BIT(10), 0);
-	PHY_SetBBReg(priv, 0x864, BIT(10), 0);
-
-	if(is2T) {
-		PHY_SetBBReg(priv, 0x840, bMaskDWord, 0x00010000);
-		PHY_SetBBReg(priv, 0x844, bMaskDWord, 0x00010000);
-	}
-
-	//MAC settings
-	_PHY_MACSettingCalibration(priv, IQK_MAC_REG, priv->pshare->IQK_MAC_backup);
-
-	//Page B init
-	if(isNormal)
-		PHY_SetBBReg(priv, 0xb68, bMaskDWord, 0x00080000);
-	else
-		PHY_SetBBReg(priv, 0xb68, bMaskDWord, 0x0f600000);
-
-	if(is2T)	{
-		if(isNormal)
-			PHY_SetBBReg(priv, 0xb6c, bMaskDWord, 0x00080000);
-		else
-			PHY_SetBBReg(priv, 0xb6c, bMaskDWord, 0x0f600000);
-	}
-
-	// IQ calibration setting
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0x80800000);
-	PHY_SetBBReg(priv, 0xe40, bMaskDWord, 0x01007c00);
-	PHY_SetBBReg(priv, 0xe44, bMaskDWord, 0x01004800);
-
-	for(i = 0 ; i < retryCount ; i++){
-		PathAOK = _PHY_PathA_IQK(priv, is2T);
-		if(PathAOK == 0x03){
-				result[t][0] = (PHY_QueryBBReg(priv, 0xe94, bMaskDWord)&0x3FF0000)>>16;
-				result[t][1] = (PHY_QueryBBReg(priv, 0xe9c, bMaskDWord)&0x3FF0000)>>16;
-				result[t][2] = (PHY_QueryBBReg(priv, 0xea4, bMaskDWord)&0x3FF0000)>>16;
-				result[t][3] = (PHY_QueryBBReg(priv, 0xeac, bMaskDWord)&0x3FF0000)>>16;
-			break;
-		}
-		else if (i == (retryCount-1) && PathAOK == 0x01)	//Tx IQK OK
-		{
-			result[t][0] = (PHY_QueryBBReg(priv, 0xe94, bMaskDWord)&0x3FF0000)>>16;
-			result[t][1] = (PHY_QueryBBReg(priv, 0xe9c, bMaskDWord)&0x3FF0000)>>16;
-		}
-	}
-
-	if(0x00 == PathAOK){
-//		RTPRINT(FINIT, INIT_IQK, ("Path A IQK failed!!\n"));
-	}
-
-	if(is2T){
-		_PHY_PathAStandBy(priv);
-
-		// Turn Path B ADDA on
-		_PHY_PathADDAOn(priv, ADDA_REG, FALSE, is2T);
-
-		for(i = 0 ; i < retryCount ; i++){
-			PathBOK = _PHY_PathB_IQK(priv);
-			if(PathBOK == 0x03){
-//				RTPRINT(FINIT, INIT_IQK, ("Path B IQK Success!!\n"));
-				result[t][4] = (PHY_QueryBBReg(priv, 0xeb4, bMaskDWord)&0x3FF0000)>>16;
-				result[t][5] = (PHY_QueryBBReg(priv, 0xebc, bMaskDWord)&0x3FF0000)>>16;
-				result[t][6] = (PHY_QueryBBReg(priv, 0xec4, bMaskDWord)&0x3FF0000)>>16;
-				result[t][7] = (PHY_QueryBBReg(priv, 0xecc, bMaskDWord)&0x3FF0000)>>16;
-				break;
-			}
-			else if (i == (retryCount - 1) && PathBOK == 0x01)	//Tx IQK OK
-			{
-//				RTPRINT(FINIT, INIT_IQK, ("Path B Only Tx IQK Success!!\n"));
-				result[t][4] = (PHY_QueryBBReg(priv, 0xeb4, bMaskDWord)&0x3FF0000)>>16;
-				result[t][5] = (PHY_QueryBBReg(priv, 0xebc, bMaskDWord)&0x3FF0000)>>16;
-			}
-		}
-
-		if(0x00 == PathBOK){
-//			RTPRINT(FINIT, INIT_IQK, ("Path B IQK failed!!\n"));
-		}
-	}
-
-	//Back to BB mode, load original value
-//	RTPRINT(FINIT, INIT_IQK, ("IQK:Back to BB mode, load original value!\n"));
-	PHY_SetBBReg(priv, 0xc04, bMaskDWord, priv->pshare->RegC04);
-	PHY_SetBBReg(priv, 0x874, bMaskDWord, priv->pshare->Reg874);
-	PHY_SetBBReg(priv, 0xc08, bMaskDWord, priv->pshare->RegC08);
-
-	PHY_SetBBReg(priv, 0xe28, bMaskDWord, 0);
-
-	// Restore RX initial gain
-	PHY_SetBBReg(priv, 0x840, bMaskDWord, 0x00032ed3);
-
-	if(is2T)
-		PHY_SetBBReg(priv, 0x844, bMaskDWord, 0x00032ed3);
-
-	if(t!=0) {
-	 	// Reload ADDA power saving parameters
-	 	_PHY_ReloadADDARegisters(priv, ADDA_REG, priv->pshare->ADDA_backup, 16);
-
-		// Reload MAC parameters
-		_PHY_ReloadMACRegisters(priv, IQK_MAC_REG, priv->pshare->IQK_MAC_backup);
-	}
-}
-
-
-void PHY_IQCalibrate_new(struct rtl8192cd_priv *priv)
-{
-	int				result[4][8];	//last is final result
-	unsigned char	i, final_candidate;
-	char			bPathAOK, bPathBOK;
-	int				RegE94, RegE9C, RegEA4, RegEAC, RegEB4, RegEBC, RegEC4, RegECC, RegTmp = 0;
-	char			is12simular, is13simular, is23simular;
-	unsigned int 	temp_870, temp_860, temp_864, temp_800;
-
-	temp_870 = PHY_QueryBBReg(priv, 0x870, bMaskDWord);
-	temp_860 = PHY_QueryBBReg(priv, 0x860, bMaskDWord);
-	temp_864 = PHY_QueryBBReg(priv, 0x864, bMaskDWord);
-	temp_800 = PHY_QueryBBReg(priv, 0x800, bMaskDWord);
-
-	memset(result, 0, sizeof(result));
-
-	final_candidate = 0xff;
-	bPathAOK = FALSE;
-	bPathBOK = FALSE;
-	is12simular = FALSE;
-	is23simular = FALSE;
-	is13simular = FALSE;
-
-	for (i=0; i<3; i++)	{
-		 _PHY_IQCalibrate(priv, result, i, (GET_CHIP_VER(priv) == VERSION_8192C ? 1 : 0));
-
-		if(i == 1)	{
-			is12simular = _PHY_SimularityCompare(priv, result, 0, 1);
-			if(is12simular) 			{
-				final_candidate = 0;
-				break;
-			}
-		}
-
-		if(i == 2) 		{
-			is13simular = _PHY_SimularityCompare(priv, result, 0, 2);
-			if(is13simular)		{
-				final_candidate = 0;
-				break;
-			}
-
-			is23simular = _PHY_SimularityCompare(priv, result, 1, 2);
-			if(is23simular)
-				final_candidate = 1;
-			else
-			{
-				for(i = 0; i < 8; i++)
-					RegTmp += result[3][i];
-
-				if(RegTmp != 0)
-					final_candidate = 3;
-				else
-					final_candidate = 0xFF;
-			}
-		}
-	}
-
-
-	RTL_W32(0x870, temp_870);
-	RTL_W32(0x860, temp_860);
-	RTL_W32(0x864, temp_864);
-	RTL_W32(0x800, temp_800);
-
-	//load 0xe30 IQC default value
-	if(GET_CHIP_VER(priv) == VERSION_8188C) {
-		RTL_W32(0xe30, 0x01008c00);
-		RTL_W32(0xe34, 0x01008c00);
-	}
-
-	for (i=0; i<4; i++)	{
-		RegE94 = result[i][0];
-		RegE9C = result[i][1];
-		RegEA4 = result[i][2];
-		RegEAC = result[i][3];
-		RegEB4 = result[i][4];
-		RegEBC = result[i][5];
-		RegEC4 = result[i][6];
-		RegECC = result[i][7];
-		DEBUG_INFO("IQK: RegE94=%lx RegE9C=%lx RegEA4=%lx RegEAC=%lx RegEB4=%lx RegEBC=%lx RegEC4=%lx RegECC=%lx\n ", RegE94, RegE9C, RegEA4, RegEAC, RegEB4, RegEBC, RegEC4, RegECC);
-	}
-
-	if(final_candidate != 0xff)	{
-		priv->pshare->RegE94 = RegE94 = result[final_candidate][0];
-		priv->pshare->RegE9C = RegE9C = result[final_candidate][1];
-		RegEA4 = result[final_candidate][2];
-		RegEAC = result[final_candidate][3];
-		priv->pshare->RegEB4 = RegEB4 = result[final_candidate][4];
-		priv->pshare->RegEBC = RegEBC = result[final_candidate][5];
-		RegEC4 = result[final_candidate][6];
-		RegECC = result[final_candidate][7];
-		DEBUG_INFO ("IQK: final_candidate is %x\n",final_candidate);
-		DEBUG_INFO ("IQK: RegE94=%lx RegE9C=%lx RegEA4=%lx RegEAC=%lx RegEB4=%lx RegEBC=%lx RegEC4=%lx RegECC=%lx\n ", RegE94, RegE9C, RegEA4, RegEAC, RegEB4, RegEBC, RegEC4, RegECC);
-		bPathAOK = bPathBOK = TRUE;
-	}
-	else 	{
-		priv->pshare->RegE94 = priv->pshare->RegEB4 = 0x100;	//X default value
-		priv->pshare->RegE9C = priv->pshare->RegEBC = 0x0;		//Y default value
-	}
-
-	if((RegE94 != 0)/*&&(RegEA4 != 0)*/)
-		_PHY_PathAFillIQKMatrix(priv, bPathAOK, result, final_candidate, (RegEA4 == 0)? 1 :0);
-	if(GET_CHIP_VER(priv) == VERSION_8192C){
-		if((RegEB4 != 0)/*&&(RegEC4 != 0)*/)
-		_PHY_PathBFillIQKMatrix(priv, bPathBOK, result, final_candidate, (RegEC4 == 0)? 1 :0);
-	}
-}
-
-void PHY_APCalibrate(struct rtl8192cd_priv *priv)
-{
-#ifdef HIGH_POWER_EXT_PA
-	if (!priv->pshare->rf_ft_var.use_ext_pa)
-#endif
-	if(!IS_TEST_CHIP(priv))
-		APK_MAIN(priv, (GET_CHIP_VER(priv) == VERSION_8192C ? 1 : 0));
-
-}
 
 #endif
 
@@ -6029,439 +5817,35 @@ void PHY_IQCalibrate(struct rtl8192cd_priv *priv)
 	}
 #endif
 #ifdef CONFIG_RTL_92C_SUPPORT
-if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)){
+	if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)) {
 #ifdef CONFIG_RTL_NEW_IQK
-		PHY_IQCalibrate_new(priv);
+		PHY_IQCalibrate_92C(priv);
 #else
-	if( IS_UMC_A_CUT_88C(priv)
+		if( IS_UMC_A_CUT_88C(priv)
 #ifdef HIGH_POWER_EXT_PA
-		||(priv->pshare->rf_ft_var.use_ext_pa)
+			||(priv->pshare->rf_ft_var.use_ext_pa)
 #endif
-	) {
-		 PHY_IQCalibrate_new(priv);
-	} else {
-		if (GET_CHIP_VER(priv) == VERSION_8192C)
-			IQK_92CD(priv);
-		else
-			IQK_88C(priv);
-	}
-#endif
-}
-#endif
-}
-
-
-static void PHY_LCCalibrate(struct rtl8192cd_priv *priv)
-{
-	unsigned char tmpReg, value_IGI;
-	unsigned int LC_Cal;
-	int isNormal;
-
-#ifdef TESTCHIP_SUPPORT
-	isNormal = (IS_TEST_CHIP(priv)? 0 : 1);
-#else
-	isNormal = 1;
-#endif
-
-	/* Check continuous TX and Packet TX */
-	tmpReg = RTL_R8(0xd03);
-
-	if ((tmpReg & 0x70) != 0)			/* Deal with contisuous TX case */
-		RTL_W8(0xd03, tmpReg&0x8F);	/* disable all continuous TX */
-	else								/* Deal with Packet TX case */
-		RTL_W8(0x522, 0xFF);			/* block all queues */
-
-	/* 2. Set RF mode = standby mode */
-	if ((tmpReg & 0x70) != 0) {
-		/* Path-A */
-		PHY_SetRFReg(priv, RF92CD_PATH_A, 0x00, bMask20Bits, 0x10000);
-
-		/* Path-B */
-		if (get_rf_mimo_mode(priv) != MIMO_1T1R)
-			PHY_SetRFReg(priv, RF92CD_PATH_B, 0x00, bMask20Bits, 0x10000);
-	}
-
-	/* 3. Read RF reg18 */
-	LC_Cal = PHY_QueryRFReg(priv, RF92CD_PATH_A, 0x18, bMask12Bits, 1);
-
-	/* 4. Set LC calibration begin */
-	PHY_SetRFReg(priv, RF92CD_PATH_A, 0x18, bMask12Bits, LC_Cal|0x08000);
-
-#if defined(CONFIG_RTL_8198) && defined(CONFIG_RTL_92D_SUPPORT)
-	if (GET_CHIP_VER(priv)==VERSION_8192D)
-		REG32(BSP_WDTCNR) |=  1 << 23;
-#endif
-
-	if (isNormal)
-		delay_ms(100);
-	else
-		delay_ms(3);
-
-	/* Restore original situation */
-	if ((tmpReg & 0x70) != 0) {
-		/* Deal with contisuous TX case */
-
-		/* Path-A */
-		RTL_W8(0xd03, tmpReg);
-
-		/* Restore RF mdoe & RF gain by change IGI to trigger HW tristate */
-		value_IGI = (RTL_R8(0xc50) & 0x7F);
-		RTL_W8(0xc50, ((value_IGI!=0x30)?0x30:0x31));
-		RTL_W8(0xc50, value_IGI);
-
-		/* Path-B */
-		if (get_rf_mimo_mode(priv) != MIMO_1T1R) {
-			/* Restore RF mdoe & RF gain by change IGI to trigger HW tristate */
-			value_IGI = (RTL_R8(0xc58) & 0x7F);
-			RTL_W8(0xc58, ((value_IGI!=0x30)?0x30:0x31));
-			RTL_W8(0xc58, value_IGI);
-		}
-	} else {
-		/* Deal with Packet TX case */
-
-		RTL_W8(0x522, 0x00);
-	}
-}
-
-
-const int OFDM_TABLE_SIZE= sizeof(OFDMSwingTable)/sizeof(int);
-const int CCK_TABLE_SIZE= sizeof(CCKSwingTable_Ch1_Ch13) >>3;
-
-
-int get_CCK_swing_index(struct rtl8192cd_priv *priv)
-{
-	int TempCCk, index=12, i;
-	short channel;
-#ifdef MP_TEST
-	if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific)
-		channel=priv->pshare->working_channel;
-	else
-#endif
-		channel = (priv->pmib->dot11RFEntry.dot11channel);
-
-	//Query CCK default setting From 0xa24
-	TempCCk = PHY_QueryBBReg(priv, rCCK0_TxFilter2, bMaskDWord)&bMaskCCK;
-	TempCCk = cpu_to_le32(TempCCk);
-	for(i=0 ; i<CCK_TABLE_SIZE ; i++)		{
-		if(channel==14) {
-			if(memcmp((void*)&TempCCk, (void*)&CCKSwingTable_Ch14[i][2], 4)==0) {
-				index = i;
-				break;
-			}
+		) {
+		 PHY_IQCalibrate_92C(priv);
 		} else {
-			if(memcmp((void*)&TempCCk, (void*)&CCKSwingTable_Ch1_Ch13[i][2], 4)==0) {
-				index = i;
-				break;
-			}
+			if (GET_CHIP_VER(priv) == VERSION_8192C)
+				IQK_92CD(priv);
+			else
+				IQK_88C(priv);
 		}
-	}
-	DEBUG_INFO("Initial reg0x%x = 0x%lx, CCK_index=0x%x, ch %d\n",
-							rCCK0_TxFilter2, TempCCk, index, channel);
-	return index;
-}
-
-void set_CCK_swing_index(struct rtl8192cd_priv *priv, short CCK_index)
-{
-	short channel;
-#ifdef MP_TEST
-	if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific)
-		channel=priv->pshare->working_channel;
-	else
 #endif
-		channel = (priv->pmib->dot11RFEntry.dot11channel);
-
-	if(channel !=14) {
-		RTL_W8( 0xa22, CCKSwingTable_Ch1_Ch13[CCK_index][0]);
-		RTL_W8( 0xa23, CCKSwingTable_Ch1_Ch13[CCK_index][1]);
-		RTL_W8( 0xa24, CCKSwingTable_Ch1_Ch13[CCK_index][2]);
-		RTL_W8( 0xa25, CCKSwingTable_Ch1_Ch13[CCK_index][3]);
-		RTL_W8( 0xa26, CCKSwingTable_Ch1_Ch13[CCK_index][4]);
-		RTL_W8( 0xa27, CCKSwingTable_Ch1_Ch13[CCK_index][5]);
-		RTL_W8( 0xa28, CCKSwingTable_Ch1_Ch13[CCK_index][6]);
-		RTL_W8( 0xa29, CCKSwingTable_Ch1_Ch13[CCK_index][7]);
 	}
-	else{
-		RTL_W8( 0xa22, CCKSwingTable_Ch14[CCK_index][0]);
-		RTL_W8( 0xa23, CCKSwingTable_Ch14[CCK_index][1]);
-		RTL_W8( 0xa24, CCKSwingTable_Ch14[CCK_index][2]);
-		RTL_W8( 0xa25, CCKSwingTable_Ch14[CCK_index][3]);
-		RTL_W8( 0xa26, CCKSwingTable_Ch14[CCK_index][4]);
-		RTL_W8( 0xa27, CCKSwingTable_Ch14[CCK_index][5]);
-		RTL_W8( 0xa28, CCKSwingTable_Ch14[CCK_index][6]);
-		RTL_W8( 0xa29, CCKSwingTable_Ch14[CCK_index][7]);
-	}
-}
-
-#ifdef HIGH_POWER_EXT_PA
-void swingIndexRemap(int *a, int b)
-{
-	int d = (RTL_ABS(*a, b) *3)>>1;
-	if(*a < b )
-		*a = b - d;
-	else
-		*a = b + d;
-}
 #endif
 
-unsigned char getThermalValue(struct rtl8192cd_priv *priv)
-{
-	unsigned char	ThermalValue;
-	int sum=0, i=0;
-	PHY_SetRFReg(priv, RF92CD_PATH_A, RF_T_METER, bMask20Bits, 0x60);
-	ThermalValue =(unsigned char)PHY_QueryRFReg(priv, RF92CD_PATH_A, RF_T_METER, bMask20Bits, 1) & 0x01f;
-	priv->pshare->Thermal_idx = (priv->pshare->Thermal_idx+1)%8;
-	priv->pshare->Thermal_log[ priv->pshare->Thermal_idx ] = ThermalValue;
-	for(i=0; i<8; i++) {
-		if(!priv->pshare->Thermal_log[i])
-			return ThermalValue;
-		sum += priv->pshare->Thermal_log[i];
-	}
-	return (sum+4)>>3;
-}
-void tx_power_tracking(struct rtl8192cd_priv *priv)
-{
-	unsigned char	ThermalValue = 0, delta, delta_LCK, delta_IQK;
-	int 			ele_A, ele_D, value32, X, Y, ele_C;
-	int			OFDM_index[2]={0,0}, CCK_index;
-	int	    		i = 0;
-	char			is2T = ((GET_CHIP_VER(priv) == VERSION_8192C) ?1 :0);
-	unsigned char		TxPwrLevel[2];
-	unsigned char 		channel, OFDM_min_index = 6, rf=1; //OFDM BB Swing should be less than +3.0dB, which is required by Arthur
-#ifdef MP_TEST
-	if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific) {
-		channel=priv->pshare->working_channel;
-		if(priv->pshare->mp_txpwr_tracking == FALSE)
-			return;
-	} else
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8188E) 
+#ifdef USE_OUT_SRC
+			PHY_IQCalibrate_8188E(ODMPTR, FALSE);
+#else
+			PHY_IQCalibrate_8188E(priv, FALSE);
 #endif
-	{
-		channel = (priv->pmib->dot11RFEntry.dot11channel);
-	}
-
-	ThermalValue = getThermalValue(priv);
-
-	rf += is2T;
-	if(ThermalValue)	{
-
-		if(!priv->pshare->ThermalValue)	{
-			priv->pshare->ThermalValue = priv->pmib->dot11RFEntry.ther;
-			priv->pshare->ThermalValue_LCK = ThermalValue;
-			priv->pshare->ThermalValue_IQK = ThermalValue;
-
-			//Query OFDM path A default setting
-			ele_D = PHY_QueryBBReg(priv, rOFDM0_XATxIQImbalance, bMaskDWord)&bMaskOFDM_D;
-			for(i=0; i<OFDM_TABLE_SIZE; i++)	{
-				if(ele_D == (OFDMSwingTable[i]&bMaskOFDM_D))	{
-					priv->pshare->OFDM_index[0] = i;
-					priv->pshare->OFDM_index0[0] = i;
-					break;
-				}
-			}
-
-			//Query OFDM path B default setting
-			if(is2T)	{
-				ele_D = PHY_QueryBBReg(priv, rOFDM0_XBTxIQImbalance, bMaskDWord)&bMaskOFDM_D;
-				for(i=0; i<OFDM_TABLE_SIZE; i++)			{
-					if(ele_D == (OFDMSwingTable[i]&bMaskOFDM_D))	{
-						priv->pshare->OFDM_index[1] = i;
-						priv->pshare->OFDM_index0[1] = i;
-						break;
-					}
-				}
-			}
-			priv->pshare->CCK_index = get_CCK_swing_index(priv);
-			priv->pshare->CCK_index0 = priv->pshare->CCK_index;
-
-		}
-
-		delta     = RTL_ABS(ThermalValue, priv->pshare->ThermalValue);
-		delta_LCK = RTL_ABS(ThermalValue, priv->pshare->ThermalValue_LCK);
-		delta_IQK = RTL_ABS(ThermalValue, priv->pshare->ThermalValue_IQK);
-
-//		printk("Readback Thermal Meter = 0x%lx pre thermal meter 0x%lx EEPROMthermalmeter 0x%lx delta 0x%lx delta_LCK 0x%lx delta_IQK 0x%lx\n",
-//			ThermalValue, priv->pshare->ThermalValue, priv->pmib->dot11RFEntry.ther, delta, delta_LCK, delta_IQK);
-
-		if(delta_LCK > 1)	{
-			priv->pshare->ThermalValue_LCK = ThermalValue;
-			PHY_LCCalibrate(priv);
-		}
-
-		if(delta > 0)	{
-			if(ThermalValue > priv->pshare->ThermalValue)	{
-				for(i = 0; i < rf; i++)
-				 	priv->pshare->OFDM_index[i] -= delta;
-				priv->pshare->CCK_index -= delta;
-			} else {
-				for(i = 0; i < rf; i++)
-					priv->pshare->OFDM_index[i] += delta;
-				priv->pshare->CCK_index += delta;
-			}
-			if(ThermalValue > priv->pmib->dot11RFEntry.ther)	{
-				for(i = 0; i < rf; i++)
-					OFDM_index[i] = priv->pshare->OFDM_index[i]+1;
-				CCK_index = priv->pshare->CCK_index+1;
-			} else {
-				for(i = 0; i < rf; i++)
-					OFDM_index[i] = priv->pshare->OFDM_index[i];
-				CCK_index = priv->pshare->CCK_index;
-			}
-#ifdef MP_TEST
-			if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific) {
-				TxPwrLevel[0] = priv->pshare->mp_txpwr_patha;
-				TxPwrLevel[1] = priv->pshare->mp_txpwr_pathb;
-			} else
 #endif
-			{
-				TxPwrLevel[0] = priv->pmib->dot11RFEntry.pwrlevelHT40_1S_A[channel-1];
-				TxPwrLevel[1] = priv->pmib->dot11RFEntry.pwrlevelHT40_1S_B[channel-1];
 
-				if (priv->pshare->CurrentChannelBW == HT_CHANNEL_WIDTH_20) {
-					unsigned char offset = (priv->pmib->dot11RFEntry.pwrdiffHT20[channel-1] & 0x0f);
-					TxPwrLevel[0] = COUNT_SIGN_OFFSET(TxPwrLevel[0], offset);
-					offset = ((priv->pmib->dot11RFEntry.pwrdiffOFDM[channel-1] & 0xf0) >> 4);
-					TxPwrLevel[1] = COUNT_SIGN_OFFSET(TxPwrLevel[1], offset);
-				}
-			}
-
-//			printk("TxPwrLevel[0]=%d, TxPwrLevel[1]=%d\n", TxPwrLevel[0], TxPwrLevel[1]);
-			for(i = 0; i < rf; i++)		{
-				if(/*TxPwrLevel[i] >=0 &&*/ TxPwrLevel[i] <=26)	{
-					if(ThermalValue > priv->pmib->dot11RFEntry.ther) {
-						if (delta < 5)
-							OFDM_index[i] -= 1;
-						else
-							OFDM_index[i] -= 2;
-					} else if(delta > 5 && ThermalValue < priv->pmib->dot11RFEntry.ther) {
-						OFDM_index[i] += 1;
-					}
-				} else if (TxPwrLevel[i] >= 27 && TxPwrLevel[i] <= 32 && ThermalValue > priv->pmib->dot11RFEntry.ther) {
-					if (delta < 5)
-						OFDM_index[i] -= 1;
-					else
-						OFDM_index[i] -= 2;
-				} else if (TxPwrLevel[i] >= 32 && TxPwrLevel[i] <= 38 && ThermalValue > priv->pmib->dot11RFEntry.ther && delta > 5) {
-					OFDM_index[i] -= 1;
-				}
-#ifdef HIGH_POWER_EXT_PA
-				if (priv->pshare->rf_ft_var.use_ext_pa) {
-					OFDM_index[i] = priv->pshare->OFDM_index[i];
-					swingIndexRemap(&OFDM_index[i], priv->pshare->OFDM_index0[i]);
-				}
-#endif
-				if(OFDM_index[i] > OFDM_TABLE_SIZE-1)
-					OFDM_index[i] = OFDM_TABLE_SIZE-1;
-				else if (OFDM_index[i] < OFDM_min_index)
-					OFDM_index[i] = OFDM_min_index;
-			}
-			i=0;
-			{
-				if(/*TxPwrLevel[i] >=0 &&*/ TxPwrLevel[i] <=26)		{
-					if(ThermalValue > priv->pmib->dot11RFEntry.ther)	{
-						if (delta < 5)
-							CCK_index -= 1;
-						else
-							CCK_index -= 2;
-					} else if(delta > 5 && ThermalValue < priv->pmib->dot11RFEntry.ther) {
-						CCK_index += 1;
-					}
-				} else if (TxPwrLevel[i] >= 27 && TxPwrLevel[i] <= 32 && ThermalValue > priv->pmib->dot11RFEntry.ther) {
-					if (delta < 5)
-						CCK_index -= 1;
-					else
-						CCK_index -= 2;
-				} else if (TxPwrLevel[i] >= 32 && TxPwrLevel[i] <= 38 && ThermalValue > priv->pmib->dot11RFEntry.ther && delta > 5) {
-					CCK_index -= 1;
-				}
-
-#ifdef HIGH_POWER_EXT_PA
-				if (priv->pshare->rf_ft_var.use_ext_pa) {
-					CCK_index = priv->pshare->CCK_index;
-					swingIndexRemap( &CCK_index, priv->pshare->CCK_index0);
-				}
-#endif
-				if(CCK_index > CCK_TABLE_SIZE-1)
-					CCK_index = CCK_TABLE_SIZE-1;
-				else if (CCK_index < 0)
-					CCK_index = 0;
-			}
-
-			//Adujst OFDM Ant_A according to IQK result
-			ele_D = (OFDMSwingTable[(unsigned int)OFDM_index[0]] & 0xFFC00000)>>22;
-			X = priv->pshare->RegE94;
-			Y = priv->pshare->RegE9C;
-
-			if(X != 0)		{
-				if ((X & 0x00000200) != 0)
-					X = X | 0xFFFFFC00;
-				ele_A = ((X * ele_D)>>8)&0x000003FF;
-
-				//new element C = element D x Y
-				if ((Y & 0x00000200) != 0)
-					Y = Y | 0xFFFFFC00;
-				ele_C = ((Y * ele_D)>>8)&0x000003FF;
-
-				//wirte new elements A, C, D to regC80 and regC94, element B is always 0
-				value32 = (ele_D<<22)|((ele_C&0x3F)<<16)|ele_A;
-				PHY_SetBBReg(priv, rOFDM0_XATxIQImbalance, bMaskDWord, value32);
-
-				value32 = (ele_C&0x000003C0)>>6;
-				PHY_SetBBReg(priv, rOFDM0_XCTxAFE, bMaskH4Bits, value32);
-
-				value32 = ((X * ele_D)>>7)&0x01;
-				PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(24), value32);
-
-			}	else	{
-				PHY_SetBBReg(priv, rOFDM0_XATxIQImbalance, bMaskDWord, OFDMSwingTable[(unsigned int)OFDM_index[0]]);
-				PHY_SetBBReg(priv, rOFDM0_XCTxAFE, bMaskH4Bits, 0x00);
-				PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(24), 0x00);
-			}
-
-
-			set_CCK_swing_index(priv, CCK_index);
-
-
-			if(is2T) {
-				ele_D = (OFDMSwingTable[(unsigned int)OFDM_index[1]] & 0xFFC00000)>>22;
-				X = priv->pshare->RegEB4;
-				Y = priv->pshare->RegEBC;
-
-				if(X != 0){
-					if ((X & 0x00000200) != 0)	//consider minus
-						X = X | 0xFFFFFC00;
-					ele_A = ((X * ele_D)>>8)&0x000003FF;
-
-					//new element C = element D x Y
-					if ((Y & 0x00000200) != 0)
-						Y = Y | 0xFFFFFC00;
-					ele_C = ((Y * ele_D)>>8)&0x00003FF;
-
-					//wirte new elements A, C, D to regC88 and regC9C, element B is always 0
-					value32=(ele_D<<22)|((ele_C&0x3F)<<16) |ele_A;
-					PHY_SetBBReg(priv, rOFDM0_XBTxIQImbalance, bMaskDWord, value32);
-
-					value32 = (ele_C&0x000003C0)>>6;
-					PHY_SetBBReg(priv, rOFDM0_XDTxAFE, bMaskH4Bits, value32);
-
-					value32 = ((X * ele_D)>>7)&0x01;
-					PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(28), value32);
-
-				} else{
-					PHY_SetBBReg(priv, rOFDM0_XBTxIQImbalance, bMaskDWord, OFDMSwingTable[(unsigned int)OFDM_index[1]]);
-					PHY_SetBBReg(priv, rOFDM0_XDTxAFE, bMaskH4Bits, 0x00);
-					PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(28), 0x00);
-				}
-			}
-		}
-
-		if(delta_IQK > 3) {
-			priv->pshare->ThermalValue_IQK = ThermalValue;
-			PHY_IQCalibrate(priv);
-		}
-
-		//update thermal meter value
-		priv->pshare->ThermalValue = ThermalValue;
-
-	}
 }
 
 
@@ -6538,7 +5922,7 @@ void reload_txpwr_pg(struct rtl8192cd_priv *priv)
 {
 	PHY_ConfigBBWithParaFile(priv, PHYREG_PG);
 
-#ifdef HIGH_POWER_EXT_PA
+#if 0 //def HIGH_POWER_EXT_PA
 	if (!priv->pshare->rf_ft_var.use_ext_pa)
 #endif
 	{
@@ -6552,6 +5936,19 @@ void reload_txpwr_pg(struct rtl8192cd_priv *priv)
 	*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[4]) = cpu_to_be32(RTL_R32(rTxAGC_A_Rate54_24));
 	*(unsigned int *)(&priv->pshare->phw->CCKTxAgc_A[0]) = cpu_to_be32((RTL_R32(rTxAGC_A_CCK11_2_B_CCK11) & 0xffffff00)
 		| RTL_R8(rTxAGC_A_CCK1_Mcs32 + 1));
+	
+#if defined(CONFIG_RTL_92D_SUPPORT)&& defined(CONFIG_RTL_92D_DMDP)
+	if (priv->pmib->dot11RFEntry.macPhyMode==DUALMAC_DUALPHY && priv->pshare->wlandev_idx == 1) {
+		*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[0])	= cpu_to_be32(RTL_R32(rTxAGC_B_Mcs03_Mcs00));
+		*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[4])	= cpu_to_be32(RTL_R32(rTxAGC_B_Mcs07_Mcs04));
+		*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[8])	= cpu_to_be32(RTL_R32(rTxAGC_B_Mcs11_Mcs08));
+		*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[12]) = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs15_Mcs12));
+		*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[0]) = cpu_to_be32(RTL_R32(rTxAGC_B_Rate18_06));
+		*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[4]) = cpu_to_be32(RTL_R32(rTxAGC_B_Rate54_24));
+		*(unsigned int *)(&priv->pshare->phw->CCKTxAgc_A[0]) = cpu_to_be32((RTL_R8(rTxAGC_A_CCK11_2_B_CCK11) << 24)
+			| (RTL_R32(rTxAGC_B_CCK5_1_Mcs32) >> 8));
+	}
+#endif	
 
 	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[0])	= cpu_to_be32(RTL_R32(rTxAGC_B_Mcs03_Mcs00));
 	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[4])	= cpu_to_be32(RTL_R32(rTxAGC_B_Mcs07_Mcs04));
@@ -6568,6 +5965,211 @@ void reload_txpwr_pg(struct rtl8192cd_priv *priv)
 #endif
 }
 
+#ifdef USE_OUT_SRC
+
+void ODM_software_init(struct rtl8192cd_priv *priv)
+{	
+	unsigned long ability;
+	priv->pshare->_dmODM.priv = priv;
+
+	//
+	// Init Value
+	//
+	// 1. u1Byte SupportPlatform
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_PLATFORM, ODM_AP);
+
+	// 2. u4Byte SupportAbility
+	ability =	\
+			ODM_BB_DIG				|
+			ODM_BB_RA_MASK		|
+			ODM_BB_FA_CNT			|
+			ODM_BB_RATE_ADAPTIVE	|
+			ODM_MAC_EDCA_TURBO	|
+			ODM_RF_RX_GAIN_TRACK	|
+			ODM_RF_CALIBRATION		|
+			ODM_BB_DYNAMIC_TXPWR	|
+			ODM_RF_TX_PWR_TRACK |
+			0;
+
+	if(GET_CHIP_VER(priv)!=VERSION_8188E)
+		ability |= ODM_BB_DYNAMIC_TXPWR;
+	
+#if defined(HW_ANT_SWITCH)
+	if (priv->pshare->rf_ft_var.antHw_enable)
+		ability |= ODM_BB_ANT_DIV;
+#endif
+#if defined(SW_ANT_SWITCH) 
+	if (priv->pshare->rf_ft_var.antSw_enable)
+		ability |= ODM_BB_ANT_DIV;
+#endif
+#ifdef TX_EARLY_MODE
+	ability |= ODM_MAC_EARLY_MODE;
+#endif
+		
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_ABILITY, ability);
+	ODM_CmnInfoUpdate(ODMPTR, ODM_CMNINFO_ABILITY, ability);
+
+
+	// 3. u1Byte SupportInterface
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_INTERFACE, ODM_ITRF_PCIE);
+
+	// 4. u4Byte SupportICType
+	if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C))
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_IC_TYPE, ODM_RTL8192C);
+	else if (GET_CHIP_VER(priv) == VERSION_8192D)
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_IC_TYPE, ODM_RTL8192D);	
+	else if (GET_CHIP_VER(priv) == VERSION_8188E)
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_IC_TYPE, ODM_RTL8188E);	
+
+	// 5. u1Byte CutVersion
+	if (GET_CHIP_VER(priv) == VERSION_8188E)  {
+		if(IS_TEST_CHIP(priv) ) {
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_CUT_VER, ODM_CUT_TEST);
+		}
+		else {
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_CUT_VER, ODM_CUT_A);
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_MP_TEST_CHIP, 1);
+		}
+	}
+	else {
+#ifdef CONFIG_RTL_92C_SUPPORT		
+		if(IS_UMC_B_CUT_88C(priv))
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_CUT_VER, ODM_CUT_B);
+		else
+			ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_CUT_VER, ODM_CUT_A);
+#endif		
+	}
+
+	// 6. u1Byte FabVersion
+#ifdef CONFIG_RTL_92C_SUPPORT		
+	if(IS_UMC_A_CUT_88C(priv) || IS_UMC_B_CUT_88C(priv))
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_FAB_VER, ODM_UMC);
+	else
+#endif		
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_FAB_VER, ODM_TSMC);
+
+	// 7. u1Byte RFType
+	if(get_rf_mimo_mode(priv)== MIMO_2T2R)
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_RF_TYPE, ODM_2T2R);
+	else
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_RF_TYPE, ODM_1T1R);
+
+	// 8. u1Byte BoardType
+#ifdef HIGH_POWER_EXT_PA		
+	if(priv->pshare->rf_ft_var.use_ext_pa) {
+		priv->pmib->dot11RFEntry.trswitch=1;
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_BOARD_TYPE, ODM_BOARD_HIGHPWR);
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_EXT_PA, priv->pshare->rf_ft_var.use_ext_pa);		
+	} else 
+#endif
+	{
+		ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_BOARD_TYPE, ODM_BOARD_NORMAL );
+	}
+
+	// 9. u1Byte ExtLNA
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_EXT_LNA, priv->pshare->rf_ft_var.use_ext_lna);
+
+	// 10. u1Byte ExtPA
+
+	// 11. u1Byte ExtTRSW, ODM_CMNINFO_EXT_TRSW:
+	// follows variable "trswitch" which is modified in rtl8192cd_init_hw_PCI().
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_EXT_TRSW, priv->pmib->dot11RFEntry.trswitch);
+
+	// 12. u1Byte PatchID
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_PATCH_ID, 0);
+
+	// 13. BOOLEAN bInHctTest
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_BINHCT_TEST, FALSE);
+
+	// 14. BOOLEAN bWIFITest
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_BWIFI_TEST, (priv->pmib->dot11OperationEntry.wifi_specific>0));
+
+	// 15. BOOLEAN bDualMacSmartConcurrent
+	ODM_CmnInfoInit(ODMPTR, ODM_CMNINFO_SMART_CONCURRENT, FALSE);
+
+
+	//
+	// Dynamic Value
+	//
+
+	// 1. u1Byte *pMacPhyMode
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_MAC_PHY_MODE, &priv->pmib->dot11RFEntry.macPhyMode);
+
+	// 2. u8Byte *pNumTxBytesUnicast
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_TX_UNI, &priv->pshare->NumTxBytesUnicast);
+
+	// 3. u8Byte *pNumRxBytesUnicast
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_RX_UNI, &priv->pshare->NumRxBytesUnicast);
+
+	// 4. u1Byte *pWirelessMode
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_WM_MODE, &priv->pmib->dot11BssType.net_work_type);
+
+	// 5. u1Byte *pBandType
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_BAND, &priv->pmib->dot11RFEntry.phyBandSelect);
+
+	// 6. u1Byte *pSecChOffset
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_SEC_CHNL_OFFSET, &priv->pshare->offset_2nd_chan);
+
+	// 7. u1Byte *pSecurity
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_SEC_MODE, &priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm);
+
+	// 8. u1Byte *pBandWidth
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_BW, &priv->pshare->CurrentChannelBW);
+
+	// 9. u1Byte *pChannel
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_CHNL, &priv->pshare->working_channel);
+
+
+	// 10. BOOLEAN *pbMasterOfDMSP
+//	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_DMSP_IS_MASTER, NULL);
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_DMSP_IS_MASTER, &priv->pshare->dummy);	
+
+	
+	// 11. BOOLEAN *pbGetValueFromOtherMac
+//	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_DMSP_GET_VALUE, NULL);
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_DMSP_GET_VALUE, &priv->pshare->dummy);	
+	
+	// 12. PADAPTER *pBuddyAdapter
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_BUDDY_ADAPTOR, NULL);
+
+
+	// 13. BOOLEAN *pbBTOperation
+//	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_BT_OPERATION, NULL);
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_BT_OPERATION, &priv->pshare->dummy);	
+	
+	// 14. BOOLEAN *pbBTDisableEDCATurbo
+//	ODM_CmnInfoHook(pOdm, ODM_CMNINFO_BT_DISABLE_EDCA, NULL);
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_BT_DISABLE_EDCA, &priv->pshare->dummy);	
+
+
+	// 15. BOOLEAN *pbScanInProcess
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_SCAN, &priv->pshare->bScanInProcess);	
+
+
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_POWER_SAVING, &priv->pshare->dummy);	
+
+
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_ONE_PATH_CCA, &priv->pshare->rf_ft_var.one_path_cca);	
+
+
+
+// dummy
+
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_DRV_STOP, &priv->pshare->dummy);	
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_PNP_IN, &priv->pshare->dummy);	
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_INIT_ON, &priv->pshare->dummy);	
+	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_BT_BUSY, &priv->pshare->dummy);	
+//	ODM_CmnInfoHook(ODMPTR, ODM_CMNINFO_ANT_DIV, &priv->pshare->dummy);	
+	
+
+// DM parameters init
+//	ODM_DMInit(ODMPTR);
+
+	ODM_InitAllTimers(ODMPTR);
+
+}
+
+#endif
 
 int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 {
@@ -6576,29 +6178,14 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	unsigned long val32;
 	unsigned short val16;
 	int i;
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
 	unsigned int fwStatus=0, dwnRetry=5;
+#endif
 
 	pmib = GET_MIB(priv);
 	opmode = priv->pmib->dot11OperationEntry.opmode;
 
 	DBFENTER;
-
-#if 0	// ==========>> later
-//#ifdef DW_FW_BY_MALLOC_BUF
-	if ((priv->pshare->fw_IMEM_buf = kmalloc(FW_IMEM_SIZE, GFP_ATOMIC)) == NULL) {
-		DEBUG_ERR("alloc fw_IMEM_buf failed!\n");
-		return -1;
-	}
-	if ((priv->pshare->fw_EMEM_buf = kmalloc(FW_EMEM_SIZE, GFP_ATOMIC)) == NULL) {
-		DEBUG_ERR("alloc fw_EMEM_buf failed!\n");
-		return -1;
-	}
-	if ((priv->pshare->fw_DMEM_buf = kmalloc(FW_DMEM_SIZE, GFP_ATOMIC)) == NULL) {
-		DEBUG_ERR("alloc fw_DMEM_buf failed!\n");
-		return -1;
-	}
-#endif
-
 
 //1 For Test, Firmware Downloading
 
@@ -6644,6 +6231,11 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		return -1;
 	}
 #endif
+
+#ifdef USE_OUT_SRC
+	ODM_software_init(priv);
+#endif
+
 #ifdef SMART_CONCURRENT_92D
 	if (priv->pmib->dot11RFEntry.smcc==1 && priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY
 		&& (priv->pshare->wlandev_idx == 0)
@@ -6664,7 +6256,13 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	//
 	// 2. Initialize MAC/PHY Config by MACPHY_reg.txt
 	//
+
+#if defined(CONFIG_MACBBRF_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)
+	ODM_ConfigMACWithHeaderFile(ODMPTR);
+#else
 	PHY_ConfigMACWithParaFile(priv);
+#endif
+
 
 	//
 	// 3. Initialize BB After MAC Config PHY_reg.txt, AGC_Tab.txt
@@ -6683,6 +6281,15 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		if(priv->pmib->dot11RFEntry.xcap != 0xff) {
 			PHY_SetBBReg(priv, 0x24, 0xF0, priv->pmib->dot11RFEntry.xcap & 0x0F);
 			PHY_SetBBReg(priv, 0x28, 0xF0000000, ((priv->pmib->dot11RFEntry.xcap & 0xF0) >> 4));
+		}
+	}
+#endif
+
+#ifdef CONFIG_RTL_88E_SUPPORT 
+	if(GET_CHIP_VER(priv) == VERSION_8188E){
+		if(priv->pmib->dot11RFEntry.xcap > 0 && priv->pmib->dot11RFEntry.xcap < 0x3F) {
+			PHY_SetBBReg(priv, 0x24, BIT(11)|BIT(12)|BIT(13)|BIT(14)|BIT(15)|BIT(16), priv->pmib->dot11RFEntry.xcap & 0x3F);
+			PHY_SetBBReg(priv, 0x24, BIT(17)|BIT(18)|BIT(19)|BIT(20)|BIT(21)|BIT(22), priv->pmib->dot11RFEntry.xcap & 0x3F);
 		}
 	}
 #endif
@@ -6782,10 +6389,20 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			)
 #endif
 		{
+
+#if defined(CONFIG_MACBBRF_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)	
+			if (GET_CHIP_VER(priv)==VERSION_8188E) {
+				priv->pshare->phw->NumTotalRFPath = 1;
+				val32 = ODM_ConfigRFWithHeaderFile(ODMPTR, ODM_RF_PATH_A, ODM_RF_PATH_A);
+			}
+#else
 			val32 = phy_RF6052_Config_ParaFile(priv);
+#endif
+
 			if (val32)
 				return -1;
 
+#ifdef CONFIG_RTL_92C_SUPPORT
 			if(IS_UMC_A_CUT_88C(priv))	{
 				PHY_SetRFReg(priv, RF92CD_PATH_A, RF_RX_G1, bMask20Bits, 0x30255);
 				PHY_SetRFReg(priv, RF92CD_PATH_A, RF_RX_G2, bMask20Bits, 0x50a00);
@@ -6793,41 +6410,15 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 
 				PHY_SetRFReg(priv, RF92CD_PATH_A, 0x1e, bMask20Bits, 0x03 |(PHY_QueryRFReg(priv, RF92CD_PATH_A, 0x1e, bMaskDWord, 1)&0xff0f0));
 				PHY_SetRFReg(priv, RF92CD_PATH_A, 0x1f, bMask20Bits, 0x200|(PHY_QueryRFReg(priv, RF92CD_PATH_A, 0x1f, bMaskDWord, 1)&0xff0ff));
-
+#if 0
 				PHY_SetRFReg(priv, RF92CD_PATH_A, 0x0c, bMask20Bits, 0x0008992f);
 				PHY_SetRFReg(priv, RF92CD_PATH_A, 0x0a, bMask20Bits, 0x0001aef1);
 				PHY_SetRFReg(priv, RF92CD_PATH_A, 0x15, bMask20Bits, 0x0008f425);
-
+#endif
 			}
-
+#endif
 		}
 	}
-
-#ifdef DW_FW_BY_MALLOC_BUF
-	kfree(priv->pshare->fw_IMEM_buf);
-	kfree(priv->pshare->fw_EMEM_buf);
-	kfree(priv->pshare->fw_DMEM_buf);
-#endif
-
-/*
-	{
-		// for test, switch to 40Mhz mode
-		unsigned int val_read;
-		val_read = PHY_QueryRFReg(priv, 0, 18, bMask20Bits, 1);
-		val_read &= ~(BIT(10)|BIT(11));
-		PHY_SetRFReg(priv, 0, 18, bMask20Bits, val_read);
-		val_read = PHY_QueryRFReg(priv, 1, 18, bMask20Bits, 1);
-		val_read &= ~(BIT(10)|BIT(11));
-		PHY_SetRFReg(priv, 1, 18, bMask20Bits, val_read);
-
-		RTL_W8(0x800,RTL_R8(0x800)|0x1);
-		RTL_W8(0x800,RTL_R8(0x900)|0x1);
-
-		RTL_W8(0xc04 , 0x33);
-		RTL_W8(0xd04, 0x33);
-
-	}
-*/
 
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv) == VERSION_8192D) {
@@ -6953,8 +6544,9 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		RTL_W8(SLOT_TIME, 0x14);
 	}
 */
+#ifndef USE_OUT_SRC
 	init_EDCA_para(priv, pmib->dot11BssType.net_work_type);
-
+#endif
 
 	// we don't have EEPROM yet, Mark this for FPGA Platform
 //	RTL_W8(_9346CR_, CR9346_CFGRW);
@@ -7130,7 +6722,6 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #endif
 	//here add if legacy WEP
 	// if 1x is enabled, do not set default key, david
-//#if 0	// marked by victoryman, use pairwise key at present, 20070627
 #ifdef USE_WEP_DEFAULT_KEY
 #ifdef MBSSID
 	if (!(OPMODE & WIFI_AP_STATE) || !priv->pmib->miscEntry.vap_enable)
@@ -7157,7 +6748,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 //	delay_ms(1);
 //	while(RTL_R32(0x2A0) != 0){};
 	//RTL_W16(TBTT_PROHIBIT, 0xc804);
-	if (GET_ROOT(priv)->pmib->miscEntry.vap_enable)
+	if ((GET_ROOT(priv)->pmib->miscEntry.vap_enable) || (priv->pmib->dot11StationConfigEntry.dot11BeaconPeriod <= 40))
 		RTL_W32(TBTT_PROHIBIT, 0x1df04);
 	else
 		RTL_W32(TBTT_PROHIBIT, 0x40004);
@@ -7172,7 +6763,13 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #endif
 		RTL_W8(DRVERLYINT, 10);
 	RTL_W8(BCNDMATIM, 1);
-	RTL_W16(ATIMWND, 5);
+/*
+	if (priv->pshare->rf_ft_var.bcast_to_dzq)
+		RTL_W16(ATIMWND, 0x0a);
+	else
+		RTL_W16(ATIMWND, 5);
+*/
+	RTL_W16(ATIMWND, 1);
 /*
 	if (!((OPMODE & WIFI_AP_STATE)
 #if defined(WDS) && defined(CONFIG_RTK_MESH)
@@ -7195,6 +6792,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		RTL_W8(DRVERLYINT, 6);
 #endif
 
+#ifdef CONFIG_RTL_92C_SUPPORT
 	if (IS_TEST_CHIP(priv) && ((GET_CHIP_VER(priv)==VERSION_8188C) || (GET_CHIP_VER(priv)==VERSION_8192C))) {
 		RTL_W8(BCN_CTRL, 0);
 		RTL_W8(0x553, 1);
@@ -7206,7 +6804,9 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		if (OPMODE & WIFI_ADHOC_STATE)
 			RTL_W8(BCN_MAX_ERR, 0xff);
 #endif
-	} else {
+	} else 
+#endif
+	{
 		RTL_W8(BCN_CTRL, DIS_TSF_UPDATE_N|  DIS_SUB_STATE_N  );
 		RTL_W8(BCN_MAX_ERR, 0xff);
 		RTL_W16(0x518, 0);
@@ -7214,10 +6814,12 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		if(OPMODE & WIFI_STATION_STATE)
 			RTL_W8(0x422, RTL_R8(0x422)^BIT(6));
 
+		if((priv->pmib->dot11WdsInfo.wdsPure == 0)
 #ifdef MP_TEST
-		if (!priv->pshare->rf_ft_var.mp_specific)
+			&& (!priv->pshare->rf_ft_var.mp_specific)
 #endif
-		RTL_W8(BCN_CTRL, RTL_R8(BCN_CTRL) | EN_BCN_FUNCTION | EN_TXBCN_RPT  );
+  		)
+		RTL_W8(BCN_CTRL, RTL_R8(BCN_CTRL) | EN_BCN_FUNCTION | EN_TXBCN_RPT);
 	}
 
 
@@ -7226,7 +6828,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 // By H.Y. advice
 //	RTL_W16(_BCNTCFG_, 0x060a);
 	if (OPMODE & WIFI_AP_STATE)
-		RTL_W16(BCNTCFG, 0x0001);
+		RTL_W16(BCNTCFG, 0x000a);
 	else
 // for debug
 //	RTL_W16(_BCNTCFG_, 0x060a);
@@ -7247,18 +6849,46 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	IMR_BcnInt/* | IMR_TXFOVW*/ /*| IMR_TBDOK | IMR_TBDER*/);// IMR_ROK | IMR_BcnInt | IMR_RDU | IMR_RXFOVW | IMR_RXCMDOK;
 #endif
 	//priv->pshare->InterruptMask = HIMR_ROK | HIMR_BCNDMA0 | HIMR_RDU | HIMR_RXFOVW;
-	priv->pshare->InterruptMask = HIMR_ROK | HIMR_BCNDMA0 | HIMR_RXFOVW;
-#ifdef MP_TEST
-	if (priv->pshare->rf_ft_var.mp_specific)
-		priv->pshare->InterruptMask	|= HIMR_BEDOK;
-#endif
-	priv->pshare->InterruptMaskExt = 0;
 
-	if (opmode & WIFI_AP_STATE)
-		priv->pshare->InterruptMask |= HIMR_BCNDOK0 | HIMR_TXBCNERR;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+		priv->pshare->InterruptMask = HIMR_88E_ROK | HIMR_88E_HISR1_IND_INT;
+		priv->pshare->InterruptMaskExt = HIMRE_88E_RXFOVW;
+	} else
+#endif
+	{
+		priv->pshare->InterruptMask = HIMR_ROK | HIMR_BCNDMA0 | HIMR_RXFOVW;
+		priv->pshare->InterruptMaskExt = 0;
+	}
+
+#ifdef MP_TEST
+	if (priv->pshare->rf_ft_var.mp_specific) {
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E)
+			priv->pshare->InterruptMask |= HIMR_88E_BEDOK;
+		else
+#endif
+			priv->pshare->InterruptMask	|= HIMR_BEDOK;
+	}
+#endif
+
+	if (opmode & WIFI_AP_STATE) {
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E)
+			priv->pshare->InterruptMask |= HIMR_88E_BcnInt | HIMR_88E_TBDOK | HIMR_88E_TBDER;
+		else
+#endif
+			priv->pshare->InterruptMask |= HIMR_BCNDOK0 | HIMR_TXBCNERR;
+	}
 #ifdef CLIENT_MODE
-	else if (opmode & WIFI_ADHOC_STATE)
-		priv->pshare->InterruptMaskExt |= (HIMR_TXBCNERR | HIMR_TXBCNOK);
+	else if (opmode & WIFI_ADHOC_STATE) {
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E)
+			priv->pshare->InterruptMaskExt |= HIMR_88E_BcnInt | HIMR_88E_TBDOK | HIMR_88E_TBDER;
+		else
+#endif
+			priv->pshare->InterruptMaskExt |= (HIMR_TXBCNERR | HIMR_TXBCNOK);
+	}
 #endif
 
 #endif
@@ -7277,37 +6907,50 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			LoadPktSize, PCI_DMA_TODEVICE);
 */
 
-	/* currently need not to download fw	*/
-	rtl8192cd_ReadFwHdr(priv);
-
-	while(dwnRetry-- && !fwStatus) {
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+	if (
+#ifdef CONFIG_RTL_92C_SUPPORT
+		(GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)
+#endif
 #ifdef CONFIG_RTL_92D_SUPPORT
-		if (GET_CHIP_VER(priv)==VERSION_8192D)
-			fwStatus = Load_92D_Firmware(priv);
+#ifdef CONFIG_RTL_92C_SUPPORT
+		||
+#endif
+		(GET_CHIP_VER(priv)==VERSION_8192D)
+#endif
+		) {
+		/* currently need not to download fw	*/
+		rtl8192cd_ReadFwHdr(priv);
+
+		while(dwnRetry-- && !fwStatus) {
+#ifdef CONFIG_RTL_92D_SUPPORT
+			if (GET_CHIP_VER(priv)==VERSION_8192D)
+				fwStatus = Load_92D_Firmware(priv);
 #endif
 #ifdef CONFIG_RTL_92C_SUPPORT
-		if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C))
-			fwStatus = Load_92C_Firmware(priv);
+			if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C))
+				fwStatus = Load_92C_Firmware(priv);
 #endif
-		delay_ms(20);
-	};
-	if(fwStatus) {
-		DEBUG_INFO("Load firmware successful!\n");
-	}
-	else {
-		DEBUG_INFO("Load firmware check!\n");
+			delay_ms(20);
+		};
+		if(fwStatus) {
+			DEBUG_INFO("Load firmware successful!\n");
+		} else {
+			DEBUG_INFO("Load firmware check!\n");
 #ifdef PCIE_POWER_SAVING
-		priv->pshare->rf_ft_var.power_save &= ~( L1_en|L2_en);
+			priv->pshare->rf_ft_var.power_save &= ~( L1_en|L2_en);
 #endif
 #ifdef CONFIG_RTL_92D_SUPPORT
-		if (GET_CHIP_VER(priv)==VERSION_8192D){
-			if (RTL_R8(0x1c5)==0xE0){
-				DEBUG_INFO("RTL8192D part number failed!!\n");
-				return -1;
+			if (GET_CHIP_VER(priv)==VERSION_8192D){
+				if (RTL_R8(0x1c5)==0xE0){
+					DEBUG_INFO("RTL8192D part number failed!!\n");
+					return -1;
+				}
 			}
-		}
 #endif
+		}
 	}
+#endif
 
 /*
 	MacConfigAfterFwDownload(priv);
@@ -7333,6 +6976,12 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		} while (delay_count);
 	}
 
+#ifdef P2P_SUPPORT
+	if(OPMODE&WIFI_P2P_SUPPORT){
+		P2P_DEBUG("managment frame G only \n");
+		set_RATid_cmd(priv, 0, ARFR_G_ONLY, val32);	// under P2P mode
+	}else
+#endif
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8192D) {
 		if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
@@ -7344,13 +6993,18 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		else
 			set_RATid_cmd(priv, 0, ARFR_BMC, val32);
 	}
+#ifdef CONFIG_RTL_92C_SUPPORT
 	else if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)){
                  set_RATid_cmd(priv, 0, ARFR_BMC, val32);
         }
-        else
-
 #endif
+        else
+#endif
+	{
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)	
 		set_RATid_cmd(priv, 0, ARFR_BMC, val32);
+#endif
+	}
 
 //	kfree(priv->pshare->txcmd_buf);
 
@@ -7366,7 +7020,15 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	}
 
 	//enable interrupt
-	RTL_W32(HIMR, priv->pshare->InterruptMask);
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+		RTL_W32(REG_88E_HIMR, priv->pshare->InterruptMask);
+		RTL_W32(REG_88E_HIMRE, priv->pshare->InterruptMaskExt);
+	} else
+#endif
+	{
+		RTL_W32(HIMR, priv->pshare->InterruptMask);
+	}
 //	RTL_W32(IMR+4, priv->pshare->InterruptMaskExt);
 //	RTL_W32(IMR, 0xffffffff);
 //	RTL_W8(IMR+4, 0x3f);
@@ -7385,29 +7047,46 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			priv->pshare->CurrentChannelBW = HT_CHANNEL_WIDTH_20;
 	}
 
-#ifdef HIGH_POWER_EXT_PA
-	if (!priv->pshare->rf_ft_var.use_ext_pa)
+#ifdef SUPPORT_RTL8188E_TC
+	if (!((GET_CHIP_VER(priv)==VERSION_8188E) && IS_TEST_CHIP(priv)))
 #endif
 	{
-	// get default Tx AGC offset
-	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[0])  = cpu_to_be32(RTL_R32(rTxAGC_A_Mcs03_Mcs00));
-	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[4])  = cpu_to_be32(RTL_R32(rTxAGC_A_Mcs07_Mcs04));
-	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[8])  = cpu_to_be32(RTL_R32(rTxAGC_A_Mcs11_Mcs08));
-	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[12]) = cpu_to_be32(RTL_R32(rTxAGC_A_Mcs15_Mcs12));
-	*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[0]) = cpu_to_be32(RTL_R32(rTxAGC_A_Rate18_06));
-	*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[4]) = cpu_to_be32(RTL_R32(rTxAGC_A_Rate54_24));
-	*(unsigned int *)(&priv->pshare->phw->CCKTxAgc_A[0]) = cpu_to_be32((RTL_R32(rTxAGC_A_CCK11_2_B_CCK11) & 0xffffff00)
-		| RTL_R8(rTxAGC_A_CCK1_Mcs32 + 1));
+#ifdef HIGH_POWER_EXT_PA
+		if (!priv->pshare->rf_ft_var.use_ext_pa)
+#endif
+		{
+			// get default Tx AGC offset
+			*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[0])  = cpu_to_be32(RTL_R32(rTxAGC_A_Mcs03_Mcs00));
+			*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[4])  = cpu_to_be32(RTL_R32(rTxAGC_A_Mcs07_Mcs04));
+			*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[8])  = cpu_to_be32(RTL_R32(rTxAGC_A_Mcs11_Mcs08));
+			*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[12]) = cpu_to_be32(RTL_R32(rTxAGC_A_Mcs15_Mcs12));
+			*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[0]) = cpu_to_be32(RTL_R32(rTxAGC_A_Rate18_06));
+			*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[4]) = cpu_to_be32(RTL_R32(rTxAGC_A_Rate54_24));
+			*(unsigned int *)(&priv->pshare->phw->CCKTxAgc_A[0]) = cpu_to_be32((RTL_R32(rTxAGC_A_CCK11_2_B_CCK11) & 0xffffff00)
+				| RTL_R8(rTxAGC_A_CCK1_Mcs32 + 1));
 
-	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[0])  = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs03_Mcs00));
-	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[4])  = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs07_Mcs04));
-	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[8])  = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs11_Mcs08));
-	*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[12]) = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs15_Mcs12));
-	*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_B[0]) = cpu_to_be32(RTL_R32(rTxAGC_B_Rate18_06));
-	*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_B[4]) = cpu_to_be32(RTL_R32(rTxAGC_B_Rate54_24));
-	*(unsigned int *)(&priv->pshare->phw->CCKTxAgc_B[0]) = cpu_to_be32((RTL_R8(rTxAGC_A_CCK11_2_B_CCK11) << 24)
-		| (RTL_R32(rTxAGC_B_CCK5_1_Mcs32) >> 8));
+#if defined(CONFIG_RTL_92D_SUPPORT)&& defined(CONFIG_RTL_92D_DMDP)
+			if (priv->pmib->dot11RFEntry.macPhyMode==DUALMAC_DUALPHY && priv->pshare->wlandev_idx == 1) {
+				*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[0])	= cpu_to_be32(RTL_R32(rTxAGC_B_Mcs03_Mcs00));
+				*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[4])	= cpu_to_be32(RTL_R32(rTxAGC_B_Mcs07_Mcs04));
+				*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[8])	= cpu_to_be32(RTL_R32(rTxAGC_B_Mcs11_Mcs08));
+				*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_A[12]) = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs15_Mcs12));
+				*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[0]) = cpu_to_be32(RTL_R32(rTxAGC_B_Rate18_06));
+				*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_A[4]) = cpu_to_be32(RTL_R32(rTxAGC_B_Rate54_24));
+				*(unsigned int *)(&priv->pshare->phw->CCKTxAgc_A[0]) = cpu_to_be32((RTL_R8(rTxAGC_A_CCK11_2_B_CCK11) << 24)
+					| (RTL_R32(rTxAGC_B_CCK5_1_Mcs32) >> 8));
+			}
+#endif	
 
+			*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[0])  = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs03_Mcs00));
+			*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[4])  = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs07_Mcs04));
+			*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[8])  = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs11_Mcs08));
+			*(unsigned int *)(&priv->pshare->phw->MCSTxAgcOffset_B[12]) = cpu_to_be32(RTL_R32(rTxAGC_B_Mcs15_Mcs12));
+			*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_B[0]) = cpu_to_be32(RTL_R32(rTxAGC_B_Rate18_06));
+			*(unsigned int *)(&priv->pshare->phw->OFDMTxAgcOffset_B[4]) = cpu_to_be32(RTL_R32(rTxAGC_B_Rate54_24));
+			*(unsigned int *)(&priv->pshare->phw->CCKTxAgc_B[0]) = cpu_to_be32((RTL_R8(rTxAGC_A_CCK11_2_B_CCK11) << 24)
+				| (RTL_R32(rTxAGC_B_CCK5_1_Mcs32) >> 8));
+		}
 	}
 #ifdef ADD_TX_POWER_BY_CMD
 	assign_txpwr_offset(priv);
@@ -7418,7 +7097,20 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		PHY_ConfigTXLmtWithParaFile(priv);
 #endif
 
+#ifdef _TRACKING_TABLE_FILE
+		PHY_ConfigTXPwrTrackingWithParaFile(priv);
+#endif
 
+
+#ifdef CONFIG_RTL_88E_SUPPORT //for 88e tx power tracking
+	if(GET_CHIP_VER(priv) == VERSION_8188E){
+		if ((priv->pmib->dot11RFEntry.ther < 0x07) || (priv->pmib->dot11RFEntry.ther > 0x32)) {
+			DEBUG_ERR("TPT: unreasonable target ther %d, disable tpt\n", priv->pmib->dot11RFEntry.ther);
+			priv->pmib->dot11RFEntry.ther = 0;
+		}
+	}
+	else
+#endif
 	if ((priv->pmib->dot11RFEntry.ther < 0x07) || (priv->pmib->dot11RFEntry.ther > 0x1d)) {
 		DEBUG_ERR("TPT: unreasonable target ther %d, disable tpt\n", priv->pmib->dot11RFEntry.ther);
 		priv->pmib->dot11RFEntry.ther = 0;
@@ -7450,16 +7142,31 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8192D) {
+#ifdef DPK_92D		
+		if (((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific) 
+			&& priv->pmib->dot11RFEntry.phyBandSelect==PHY_BAND_5G && !priv->pshare->rf_ft_var.dpk_on) {
+			panic_printk(">>> DPK ON!!!");
+			priv->pshare->rf_ft_var.dpk_on = 1;
+		}
+#endif		
 #ifdef SW_LCK_92D
 		PHY_LCCalibrate_92D(priv);
 #endif
 		SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
 		SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
 
+		if (priv->pmib->dot11RFEntry.macPhyMode == SINGLEMAC_SINGLEPHY) 			
+			clnt_ss_check_band(priv, priv->pmib->dot11RFEntry.dot11channel);			
+
 	/*
 	 *	IQK
 	 */
 		PHY_IQCalibrate(priv);
+
+#ifdef DPK_92D
+		if (priv->pmib->dot11RFEntry.phyBandSelect==PHY_BAND_5G && priv->pshare->rf_ft_var.dpk_on)
+			PHY_DPCalibrate(priv);
+#endif
 
 #ifdef SMART_CONCURRENT_92D
 		if (priv->pmib->dot11RFEntry.smcc==1 && priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY){
@@ -7509,18 +7216,46 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	}
 #endif // CONFIG_RTL_92D_SUPPORT
 
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT)
+	if (
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)) {
-		PHY_IQCalibrate(priv);		// IQK_92C IQK_88c
+		(GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)
+#endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		||
+#endif
+		(GET_CHIP_VER(priv) == VERSION_8188E)
+#endif
+		) {
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if(GET_CHIP_VER(priv) == VERSION_8188E) {
+			// switch to channel 7 before doing IQK
+			printk("Switch to channel 7 before doing 88E IQK\n");
+			SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
+			SwChnl(priv, 7, priv->pshare->offset_2nd_chan);
+		}
+#endif
+		PHY_IQCalibrate(priv);		// IQK_92C IQK_88c IQK_88e
 
 #if defined(__LINUX_2_6__) && !defined(NOT_RTK_BSP)
+#ifdef CONFIG_RTL_8198B
+		REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#else
 		REG32(_WDTCNR_) |=  1 << 23;
+#endif
 #endif
 
 		//Do NOT perform APK fot RF team's request
 		//PHY_APCalibrate(priv);		// APK_92C  APK_88C
-
-		PHY_LCCalibrate(priv);
+#ifdef CALIBRATE_BY_ODM
+		if(GET_CHIP_VER(priv) == VERSION_8188E) {
+			PHY_LCCalibrate_8188E(ODMPTR);
+		} else
+#endif			
+		{
+			PHY_LCCalibrate(priv);
+		}
 
 		SwBWMode(priv, priv->pshare->CurrentChannelBW, priv->pshare->offset_2nd_chan);
 		SwChnl(priv, priv->pmib->dot11RFEntry.dot11channel, priv->pshare->offset_2nd_chan);
@@ -7530,10 +7265,11 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 		 */
 		if (priv->pmib->dot11BssType.net_work_type & (WIRELESS_11G |WIRELESS_11N)) {
 			if ((priv->pmib->dot11StationConfigEntry.autoRate) || !(priv->pmib->dot11StationConfigEntry.fixedTxRate & 0xf)) {
-
+#ifdef CONFIG_RTL_92C_SUPPORT
 				if( IS_UMC_A_CUT_88C(priv) || GET_CHIP_VER(priv) == VERSION_8192C )
 					PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x4f000);
 				else
+#endif
 					PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x4f200);
 
 //				RTL_W32(RRSR, RTL_R32(RRSR) & ~(0x0c));
@@ -7544,7 +7280,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 			PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x0f400);
 		}
 	}
-#endif // CONFIG_RTL_92C_SUPPORT
+#endif // CONFIG_RTL_92C_SUPPORT || CONFIG_RTL_88E_SUPPORT
 /*
 	if(priv->pshare->rf_ft_var.ofdm_1ss_oneAnt == 1){// use one PATH for ofdm and 1SS
 		Switch_1SS_Antenna(priv, 2);
@@ -7553,7 +7289,11 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 */
 
 #if defined(__LINUX_2_6__)
+#ifdef CONFIG_RTL_8198B
+		REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#else
 		REG32(_WDTCNR_) |=  1 << 23;
+#endif
 #endif
 	delay_ms(100);
 
@@ -7574,6 +7314,15 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	priv->pshare->digDeadPoint = 0;
 	priv->pshare->digDeadPointHitCount = 0;
 
+#ifdef INTERFERENCE_CONTROL
+	set_DIG_state(priv, 1);		// DIG on
+
+	if (priv->pshare->rf_ft_var.nbi_filter_enable) {
+		priv->pshare->phw->nbi_filter_on = 1;
+		RTL_W16(rOFDM0_RxDSP, RTL_R16(rOFDM0_RxDSP) | BIT(9));		// NBI on
+	}
+#endif
+
 // CCK path A Tx
 #ifdef CONFIG_POCKET_ROUTER_SUPPORT
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -7585,7 +7334,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	}
 #endif
 
-#ifdef CONFIG_RTL_8198
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) || defined(CONFIG_RTL_8198B)
 	RTL_W8(AGGR_BK_TIME, 0x18);
 	RTL_W16(0x4ca, 0x0a0a);
 //	RTL_W32(RESP_SIFS_CCK, 0x0e0e0a0a);
@@ -7599,12 +7348,16 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 	//CBN debug
 	if (GET_CHIP_VER(priv)==VERSION_8192D) {
 #ifndef SMART_CONCURRENT_92D
-		RTL_W32(RD_CTRL, RTL_R32(RD_CTRL)|BIT(13)); // enable force tx beacon
+//		RTL_W32(RD_CTRL, RTL_R32(RD_CTRL)|BIT(13)); // enable force tx beacon
 		RTL_W8(BCN_MAX_ERR, 0); // tx beacon error threshold
 #endif
-		RTL_W16(EIFS, 0x0040);	// eifs < tbtt_prohibit
+//		RTL_W16(EIFS, 0x0040);	// eifs < tbtt_prohibit
+		if (opmode & WIFI_AP_STATE)
+			RTL_W16(rFPGA0_RFTiming1, 0x5388);
 	}
 #endif
+
+	RTL_W16(EIFS, 0x0040);	// eifs = 40 us
 
 	RTL_W32(0x350, RTL_R32(0x350) | BIT(26));	// tx status check
 
@@ -7620,7 +7373,7 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
 #endif
 
 #if defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)
-	priv->pmib->dot11RFEntry.trswitch = 1;
+//	priv->pmib->dot11RFEntry.trswitch = 1;
 #endif
 
 	if (priv->pmib->dot11RFEntry.trswitch)
@@ -7636,12 +7389,68 @@ int rtl8192cd_init_hw_PCI(struct rtl8192cd_priv *priv)
         }
 #endif
 
+	if (get_rf_mimo_mode(priv) == MIMO_2T2R)
+	{
+		if (priv->pmib->dot11RFEntry.tx2path)
+		{
+			RTL_W32(0x90C, 0x83321333);
+			RTL_W32(0x80C, RTL_R32(0x80C) & ~BIT(31));
+			RTL_W8(0x6D8, RTL_R8(0x6D8) | 0x3F);
+
+			RTL_W8(0xA07, 0xC1);
+			RTL_W8(0xA11, RTL_R8(0xA11) & ~BIT(5));
+			RTL_W8(0xA20, (RTL_R8(0xA20) & ~BIT(5)) | BIT(4));
+			RTL_W8(0xA2E, RTL_R8(0xA2E) | BIT(3) | BIT(2));
+			RTL_W8(0xA2F, (RTL_R8(0xA2F) & ~BIT(5)) | BIT(4));
+			RTL_W8(0xA75, RTL_R8(0xA75) | BIT(0));
+			RTL_W32(0xC8C, 0xa0240000);
+			RTL_W8(0x800, RTL_R8(0x800) & ~BIT(1));
+		}
+
+		// TX Beamforming
+		if (priv->pmib->dot11RFEntry.txbf)
+			PHY_SetBBReg(priv, 0x90C, BIT(30), 1);
+		else
+			PHY_SetBBReg(priv, 0x90C, BIT(30), 0);
+	}
+	else {
+		if (priv->pmib->dot11RFEntry.tx2path) {
+			DEBUG_INFO("Not 2T2R, disable tx2path\n");
+			priv->pmib->dot11RFEntry.tx2path = 0;
+		}
+		if (priv->pmib->dot11RFEntry.txbf) {
+			DEBUG_INFO("Not 2T2R, disable txbf\n");
+			priv->pmib->dot11RFEntry.txbf = 0;
+		}
+	}
+
+#ifdef USE_OUT_SRC
+	ODM_DMInit(ODMPTR);			// DM parameters init
+#endif
+
+	{
+		//Set 0x55d=0 except ADHOC Mode for all IC (BCN_MAX_ERR)
+#ifdef CLIENT_MODE
+		if (OPMODE & WIFI_ADHOC_STATE)
+			RTL_W8(0x55d, 0xff);
+		else
+#endif
+		if(OPMODE & WIFI_AP_STATE) {
+			if((GET_CHIP_VER(priv) == VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C))
+				RTL_W8(0x55d, 0xA);
+			else
+				RTL_W8(0x55d, 0x0); //Always Tx Beacon within PIFS
+		}
+	}
+
 	DBFEXIT;
 
 	return 0;
 
 }
 
+
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
 static void rtl8192cd_ReadFwHdr(struct rtl8192cd_priv *priv)
 {
 	struct __RTL8192C_FW_HDR__ *pFwHdr = NULL;
@@ -7651,10 +7460,15 @@ static void rtl8192cd_ReadFwHdr(struct rtl8192cd_priv *priv)
 	if (priv->pshare->rf_ft_var.mp_specific)
 		return;
 #endif
-
+#ifdef __ECOS
+	unsigned char hdr_buf[RT_8192CD_FIRMWARE_HDR_SIZE];
+	swap_arr = hdr_buf;
+#endif
+#ifdef __KERNEL__
 	swap_arr = kmalloc(RT_8192CD_FIRMWARE_HDR_SIZE, GFP_ATOMIC);
 	if (swap_arr == NULL)
 		return;
+#endif
 
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8192D){
@@ -7694,7 +7508,9 @@ static void rtl8192cd_ReadFwHdr(struct rtl8192cd_priv *priv)
 	priv->pshare->fw_date_day	= pFwHdr->day;
 	priv->pshare->fw_date_hour	= pFwHdr->hour;
 	priv->pshare->fw_date_minute	= pFwHdr->minute;
+#ifdef __KERNEL__
 	kfree(swap_arr);
+#endif
 /*
 	printk("fw_signature: ");
 	if (priv->pshare->fw_signature == RTL8192C_TEST_CHIP)
@@ -7738,6 +7554,8 @@ static void rtl8192cd_ReadFwHdr(struct rtl8192cd_priv *priv)
 		priv->pshare->fw_date_hour, priv->pshare->fw_date_minute);
 */
 }
+#endif
+
 
 #ifdef CONFIG_RTL_92C_SUPPORT
 static int Load_92C_Firmware(struct rtl8192cd_priv *priv)
@@ -7895,10 +7713,18 @@ static int Load_92C_Firmware(struct rtl8192cd_priv *priv)
 	} while (FALSE);									\
 }
 
+void Unlock_MCU(struct rtl8192cd_priv *priv)
+{
+	// 1. To clear C2H
+	RTL_W8(C2H_SYNC_BYTE, 0x0);
+	// 2. Unlock Overall MCU while(1)
+	RTL_W8(MCU_UNLOCK, 0xFF);
+}
+
 void FirmwareSelfReset(struct rtl8192cd_priv *priv)
 {
 	unsigned char u1bTmp;
-	unsigned char  Delay = 100;
+	unsigned int  Delay = 1000;
 	if(priv->pshare->fw_version > 0x21
 #ifdef CONFIG_RTL_92D_SUPPORT
 		|| GET_CHIP_VER(priv) == VERSION_8192D
@@ -7913,10 +7739,13 @@ void FirmwareSelfReset(struct rtl8192cd_priv *priv)
 		  	if(Delay == 0)
 		   		break;
 		  	delay_us(50);
+			Unlock_MCU(priv);
 		  	u1bTmp = RTL_R8( REG_SYS_FUNC_EN+1);
 		}
-		if((u1bTmp& BIT(2)) && (Delay == 0)) {
-			DEBUG_ERR("FirmwareSelfReset fail: 0x03 = %x\n", u1bTmp);
+		// restore MCU internal while(1) loop
+		RTL_W8(MCU_UNLOCK, 0);
+		if(u1bTmp& BIT(2)) {
+			DEBUG_ERR("FirmwareSelfReset fail: 0x03=%02x, 0x1EB=0x%02x\n", u1bTmp, RTL_R8(0x1EB));
 		}else{
 			DEBUG_INFO("FirmwareSelfReset success: 0x03 = %x\n", u1bTmp);
 		}
@@ -7924,24 +7753,55 @@ void FirmwareSelfReset(struct rtl8192cd_priv *priv)
 }
 
 //Return Value:
-//	1: Exception Case. Previous Operation is not terminated.
-//	0: Correct Case.
-int CheckNoResetHwExceptionCase(struct rtl8192cd_priv *priv)
+//	1: MAC I/O Registers Enable
+//	0: MAC I/O Registers Disable
+int check_MAC_IO_Enable(struct rtl8192cd_priv *priv)
 {
 	//Check PON register to decide
 	return ( (RTL_R16(SYS_FUNC_EN) & (FEN_MREGEN|FEN_DCORE))==(FEN_MREGEN|FEN_DCORE) );
 }
+#ifdef CONFIG_RTL8672
+extern unsigned char clk_src_40M;
+#endif
 
 int rtl8192cd_stop_hw(struct rtl8192cd_priv *priv)
 {
-	RTL_W32(HIMR, 0);
-	RTL_W16(HIMRE, 0);
-	RTL_W16(HIMRE+2, 0);
-	RTL_W32(CR, (RTL_R32(CR) & ~(NETYPE_Mask << NETYPE_SHIFT)) | ((NETYPE_NOLINK & NETYPE_Mask) << NETYPE_SHIFT));
-	
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+#ifdef TXREPORT
+		RTL8188E_DisableTxReport(priv);
+#endif
+		RTL_W32(REG_88E_HIMR, 0);
+		RTL_W32(REG_88E_HIMRE, 0);
+		HalPwrSeqCmdParsing(priv, PWR_CUT_ALL_MSK, PWR_FAB_ALL_MSK, 
+			PWR_INTF_PCI_MSK, rtl8188E_leave_lps_flow);
+	} else
+#endif
+	{
+		RTL_W32(HIMR, 0);
+		RTL_W16(HIMRE, 0);
+		RTL_W16(HIMRE+2, 0);
+		RTL_W32(CR, (RTL_R32(CR) & ~(NETYPE_Mask << NETYPE_SHIFT)) | ((NETYPE_NOLINK & NETYPE_Mask) << NETYPE_SHIFT));
+	}
+
 	RTL_W8(RCR, 0);
-	RTL_W8(TXPAUSE, 0xff);
-	RTL_W8(CR, RTL_R8(CR) & ~(MACTXEN|MACRXEN));
+	RTL_W8(TXPAUSE, 0xff);								// Pause MAC TX queue
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+	if (
+#ifdef CONFIG_RTL_92C_SUPPORT
+		(GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C)
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		|| 
+#endif
+		(GET_CHIP_VER(priv)==VERSION_8192D)
+#endif
+		) {
+		//	RTL_W8(CR, RTL_R8(CR) & ~(MACTXEN|MACRXEN));
+			RTL_W8(CR, 0);
+		}
+#endif
 
 #ifdef CONFIG_RTL_92D_DMDP
 	if (priv->pshare->wlandev_idx == 0)
@@ -7954,61 +7814,103 @@ int rtl8192cd_stop_hw(struct rtl8192cd_priv *priv)
 	} else
 #endif
 	{
-		//3 2.) ==== RF Off Sequence ====
-		phy_InitBBRFRegisterDefinition(priv);		// preparation for read/write RF register
-		
-		RTL_W8(TXPAUSE, 0xff);								// Pause MAC TX queue
-		PHY_SetRFReg(priv, RF92CD_PATH_A, 0x00, bMask20Bits, 0x00);	// disable RF
-		RTL_W8(RF_CTRL, 0x00);
-		RTL_W8(APSD_CTRL, 0x40);
-		RTL_W8(SYS_FUNC_EN, 0xe2);		// reset BB state machine
-		RTL_W8(SYS_FUNC_EN, 0xe0);		// reset BB state machine
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+		if (
+#ifdef CONFIG_RTL_92C_SUPPORT
+			(GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C)
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+			|| 
+#endif
+			(GET_CHIP_VER(priv)==VERSION_8192D)
+#endif
+			) {
+			//3 2.) ==== RF Off Sequence ====
+			phy_InitBBRFRegisterDefinition(priv);		// preparation for read/write RF register
+			
+			PHY_SetRFReg(priv, RF92CD_PATH_A, 0x00, bMask20Bits, 0x00);	// disable RF
+			RTL_W8(RF_CTRL, 0x00);
+			RTL_W8(APSD_CTRL, 0x40);
+			RTL_W8(SYS_FUNC_EN, 0xe2);		// reset BB state machine
+			RTL_W8(SYS_FUNC_EN, 0xe0);		// reset BB state machine
 
 
 
-		//3 3.) ==== Reset digital sequence ====
-		if (RTL_R8(MCUFWDL) & BIT(1)) {
-			//Make sure that Host Recovery Interrupt is handled by 8051 ASAP.
-			RTL_W32(FSIMR, 0);				// clear FSIMR
-			RTL_W32(FWIMR, 0x20);			// clear FWIMR except HRCV_INT
-			RTL_W32(FTIMR, 0);				// clear FTIMR			
-			FirmwareSelfReset(priv);
+			//3 3.) ==== Reset digital sequence ====
+			if (RTL_R8(MCUFWDL) & BIT(1)) {
+				//Make sure that Host Recovery Interrupt is handled by 8051 ASAP.
+				RTL_W32(FSIMR, 0);				// clear FSIMR
+				RTL_W32(FWIMR, 0x20);			// clear FWIMR except HRCV_INT
+				RTL_W32(FTIMR, 0);				// clear FTIMR
+				FirmwareSelfReset(priv);
 
-			//Clear FWIMR to guarantee if 8051 runs in ROM, it is impossible to run FWISR Interrupt handler
-			RTL_W32(FWIMR, 0x0);			// clear All FWIMR
-		} else {
-			//Critical Error.
-			//the operation that reset 8051 is necessary to be done by 8051
-			DEBUG_ERR("%s %d ERROR: (RTL_R8(MCUFWDL) & BIT(1))=0\n", __FUNCTION__, __LINE__);
-			DEBUG_ERR("%s %d ERROR: the operation that reset 8051 is necessary to be done by 8051,%d\n", __FUNCTION__, __LINE__, RTL_R8(MCUFWDL));
+				//Clear FWIMR to guarantee if 8051 runs in ROM, it is impossible to run FWISR Interrupt handler
+				RTL_W32(FWIMR, 0x0);			// clear All FWIMR
+			} else {
+				//Critical Error.
+				//the operation that reset 8051 is necessary to be done by 8051
+				DEBUG_ERR("%s %d ERROR: (RTL_R8(MCUFWDL) & BIT(1))=0\n", __FUNCTION__, __LINE__);
+				DEBUG_ERR("%s %d ERROR: the operation that reset 8051 is necessary to be done by 8051,%d\n", __FUNCTION__, __LINE__, RTL_R8(MCUFWDL));
+			}
 		}
+#endif
 
 		// ==== Reset digital sequence ====
-		RTL_W8(SYS_FUNC_EN+1, 0x51);								// reset MCU, MAC register, DCORE
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E)
+			RTL_W8(SYS_FUNC_EN+1, RTL_R8(SYS_FUNC_EN+1) & ~BIT(2));
+		else			
+#endif
+			RTL_W8(SYS_FUNC_EN+1, 0x51);								// reset MCU, MAC register, DCORE
 		RTL_W8(MCUFWDL, 0);											// reset MCU ready status
 
-		//3 4.) ==== Disable analog sequence ====
-		RTL_W8(AFE_PLL_CTRL, 0x80);			// disable PLL
-
-#if defined(CONFIG_RTL_92C_SUPPORT) && defined(CONFIG_RTL_92D_SUPPORT)
-		if (GET_CHIP_VER(priv) != VERSION_8192D)
-			RTL_W8(SPS0_CTRL, 0x2b);
-		else
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E) {
+			HalPwrSeqCmdParsing(priv, PWR_CUT_ALL_MSK, PWR_FAB_ALL_MSK, PWR_INTF_PCI_MSK, rtl8188E_card_disable_flow);
+		} else
 #endif
 		{
-			if(IS_UMC_B_CUT_88C(priv))
+			//3 4.) ==== Disable analog sequence ====
+			RTL_W8(AFE_PLL_CTRL, 0x80);			// disable PLL
+
+#if defined(CONFIG_RTL_92C_SUPPORT) && defined(CONFIG_RTL_92D_SUPPORT)
+			if (GET_CHIP_VER(priv) == VERSION_8192C) {
 				RTL_W8(SPS0_CTRL, 0x2b);
-			else		
-				RTL_W8(SPS0_CTRL, 0x23);
+			} else
+#endif
+			{
+#ifdef CONFIG_RTL_92C_SUPPORT
+				if(IS_UMC_B_CUT_88C(priv))
+					RTL_W8(SPS0_CTRL, 0x2b);
+				else	
+#endif
+					RTL_W8(SPS0_CTRL, 0x23);
+			}
 		}
 #ifdef CONFIG_RTL8672
+		if (!clk_src_40M)
 		RTL_W8(AFE_XTAL_CTRL, RTL_R8(AFE_XTAL_CTRL)&~BIT(0));		// only for ADSL platform because 40M crystal is only used by WiFi chip // disable XTAL, if No BT COEX
 #endif
-		RTL_W8(APS_FSMCO+1, 0x10);
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv)==VERSION_8188E) {
+			// Reset MCU IO Wrapper
+			RTL_W8(RSV_CTRL0+1, RTL_R8(RSV_CTRL0+1) & ~BIT(3));
+			RTL_W8(RSV_CTRL0+1, RTL_R8(RSV_CTRL0+1) | BIT(3));
+		} else
+#endif
+		{
+			RTL_W8(APS_FSMCO+1, 0x10);
+		}
 		RTL_W8(RSV_CTRL0, 0x0e);				// lock ISO/CLK/Power control register
 
 		//3 5.) ==== interface into suspend ====
 //		RTL_W16(APS_FSMCO, (RTL_R16(APS_FSMCO) & 0x00ff) | (0x18 << 8));	// PCIe suspend mode
+
+#ifdef CONFIG_RTL8672
+		// 6.) Switch to XTAL_BSEL: NAND
+		RTL_W8(AFE_XTAL_CTRL, RTL_R8(AFE_XTAL_CTRL) & ~ BIT(1));
+#endif
 	}
 	return SUCCESS;
 }
@@ -8070,11 +7972,13 @@ void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 #ifdef CONFIG_RTL_92D_SUPPORT
 		if (GET_CHIP_VER(priv)==VERSION_8192D) {
 			PHY_SetBBReg(priv, rFPGA0_AnalogParameter2, BIT(11) | BIT(10), 3);// SET BIT10 BIT11  for receive cck
-		} else
+		}
 #endif
-		{
+#ifdef CONFIG_RTL_92C_SUPPORT
+		if ((GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C)) {
 			PHY_SetBBReg(priv, rFPGA0_AnalogParameter2, BIT(10), 1);
 		}
+#endif
 		break;
 	case HT_CHANNEL_WIDTH_20_40:
 		PHY_SetBBReg(priv, rFPGA0_RFMOD, bRFMOD, 0x1);
@@ -8085,11 +7989,13 @@ void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 #ifdef CONFIG_RTL_92D_SUPPORT
 		if (GET_CHIP_VER(priv)==VERSION_8192D) {
 			PHY_SetBBReg(priv, rFPGA0_AnalogParameter2, BIT(11) | BIT(10), 0);// SET BIT10 BIT11  for receive cck
-		} else
+		}
 #endif
-		{
+#ifdef CONFIG_RTL_92C_SUPPORT
+		if ((GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C)) {
 			PHY_SetBBReg(priv, rFPGA0_AnalogParameter2, BIT(10), 0);
 		}
+#endif
 		PHY_SetBBReg(priv, 0x818, (BIT(26)|BIT(27)), (nCur40MhzPrimeSC==2)?1:2);
 		break;
 	default:
@@ -8102,7 +8008,14 @@ void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 	switch (bandwidth)
 	{
 	case HT_CHANNEL_WIDTH_20:
+	{
+#ifdef CONFIG_RTL_88E_SUPPORT		
+		if (GET_CHIP_VER(priv) == VERSION_8188E)		
+		val = 3;
+		else
+#endif	
 		val = 1;
+	}
 		break;
 	case HT_CHANNEL_WIDTH_20_40:
 		val = 0;
@@ -8126,6 +8039,11 @@ void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 			//PHY_SetRFReg(priv, eRFPath, rRfChannel, (BIT(11)|BIT(10)), val);
 		}
 #endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8188E) {
+			PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)eRFPath, rRfChannel, (BIT(11)|BIT(10)), val);
+		}
+#endif
 	}
 
 #if 0
@@ -8133,184 +8051,6 @@ void SwBWMode(struct rtl8192cd_priv *priv, unsigned int bandwidth, int offset)
 		PHY_SetRFReg(priv, RF90_PATH_C, 0x2c, 0x60, 0);
 #endif
 }
-
-
-void init_EDCA_para(struct rtl8192cd_priv *priv, int mode)
-{
-	static unsigned int slot_time, VO_TXOP, VI_TXOP, sifs_time;
-
-     struct ParaRecord EDCA[4];
-#ifdef RTL_MANUAL_EDCA
-     //unsigned char acm_bitmap;
-#endif
-
-	slot_time = 20;
-	sifs_time = 10;
-
-	if (mode & WIRELESS_11N)
-		sifs_time = 16;
-
-#ifdef RTL_MANUAL_EDCA
-	 if( priv->pmib->dot11QosEntry.ManualEDCA ) {
-		 memset(EDCA, 0, 4*sizeof(struct ParaRecord));
-		 if( OPMODE & WIFI_AP_STATE )
-			 memcpy(EDCA, priv->pmib->dot11QosEntry.AP_manualEDCA, 4*sizeof(struct ParaRecord));
-		 else
-			 memcpy(EDCA, priv->pmib->dot11QosEntry.STA_manualEDCA, 4*sizeof(struct ParaRecord));
-
-
-		if ((mode & WIRELESS_11N) ||
-			(mode & WIRELESS_11G)) {
-			slot_time = 9;
-		}
-
-
-		RTL_W32(EDCA_VO_PARA, (EDCA[VO].TXOPlimit << 16) | (EDCA[VO].ECWmax << 12) | (EDCA[VO].ECWmin << 8) | (sifs_time + EDCA[VO].AIFSN * slot_time));
-#ifdef WIFI_WMM
-		if (QOS_ENABLE)
-			RTL_W32(EDCA_VI_PARA, (EDCA[VI].TXOPlimit << 16) | (EDCA[VI].ECWmax << 12) | (EDCA[VI].ECWmin << 8) | (sifs_time + EDCA[VI].AIFSN * slot_time));
-		else
-#endif
-			RTL_W32(EDCA_VI_PARA, (EDCA[BE].TXOPlimit << 16) | (EDCA[BE].ECWmax << 12) | (EDCA[BE].ECWmin << 8) | (sifs_time + EDCA[VI].AIFSN * slot_time));
-
-		RTL_W32(EDCA_BE_PARA, (EDCA[BE].TXOPlimit << 16) | (EDCA[BE].ECWmax << 12) | (EDCA[BE].ECWmin << 8) | (sifs_time + EDCA[BE].AIFSN * slot_time));
-
-		RTL_W32(EDCA_BK_PARA, (EDCA[BK].TXOPlimit << 16) | (EDCA[BK].ECWmax << 12) | (EDCA[BK].ECWmin << 8) | (sifs_time + EDCA[BK].AIFSN * slot_time));
-	}else
-#endif //RTL_MANUAL_EDCA
-	{
-		 memset(EDCA, 0, 4*sizeof(struct ParaRecord));
-		 /* copy BE, BK from static data */
-		 if( OPMODE & WIFI_AP_STATE )
-				 memcpy(EDCA, rtl_ap_EDCA, 2*sizeof(struct ParaRecord));
-		 else
-				 memcpy(EDCA, rtl_sta_EDCA, 2*sizeof(struct ParaRecord));
-
-		 /* VI, VO apply settings in AG by default */
-		 if( OPMODE & WIFI_AP_STATE )
-				 memcpy(&EDCA[2], &rtl_ap_EDCA[VI_AG], 2*sizeof(struct ParaRecord));
-		 else
-				 memcpy(&EDCA[2], &rtl_sta_EDCA[VI_AG], 2*sizeof(struct ParaRecord));
-
-		 if ((mode & WIRELESS_11N) ||
-				 (mode & WIRELESS_11G)) {
-				 slot_time = 9;
-		 } else {
-				 /* replace with settings in B */
-				 if( OPMODE & WIFI_AP_STATE )
-						 memcpy(&EDCA[2], &rtl_ap_EDCA[VI], 2*sizeof(struct ParaRecord));
-				 else
-						 memcpy(&EDCA[2], &rtl_sta_EDCA[VI], 2*sizeof(struct ParaRecord));
-		 }
-		 VO_TXOP = EDCA[VO].TXOPlimit;
-		 VI_TXOP = EDCA[VI].TXOPlimit;
-
-		 RTL_W32(EDCA_VO_PARA, (VO_TXOP << 16) | (EDCA[VO].ECWmax << 12) | (EDCA[VO].ECWmin << 8) | (sifs_time + EDCA[VO].AIFSN * slot_time));
-#ifdef WIFI_WMM
-		 if (QOS_ENABLE)
-				 RTL_W32(EDCA_VI_PARA, (VI_TXOP << 16) | (EDCA[VI].ECWmax << 12) | (EDCA[VI].ECWmin << 8) | (sifs_time + EDCA[VI].AIFSN * slot_time));
-		 else
-#endif
-				 RTL_W32(EDCA_VI_PARA, (EDCA[BK].ECWmax << 12) | (EDCA[BK].ECWmin << 8) | (sifs_time + EDCA[VI].AIFSN * slot_time));
-
-		 RTL_W32(EDCA_BE_PARA, ((EDCA[BE].ECWmax) << 12) | (EDCA[BE].ECWmin << 8) | (sifs_time + EDCA[BE].AIFSN * slot_time));
-		 RTL_W32(EDCA_BK_PARA, (EDCA[BK].ECWmax << 12) | (EDCA[BK].ECWmin << 8) | (sifs_time + EDCA[BK].AIFSN * slot_time));
-
-
-		RTL_W8(ACMHWCTRL, 0x00);
-	}
-
-	priv->pshare->iot_mode_enable = 0;
-	priv->pshare->iot_mode_VO_exist = 0;
-}
-
-
-#ifdef WIFI_WMM
-void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
-{
-	unsigned int slot_time = 20, sifs_time = 10, BE_TXOP = 47, VI_TXOP = 94;
-	unsigned int vi_cw_max = 4, vi_cw_min = 3, vi_aifs;
-
-	if (!(!priv->pmib->dot11OperationEntry.wifi_specific ||
-		((OPMODE & WIFI_AP_STATE) && (priv->pmib->dot11OperationEntry.wifi_specific == 2))))
-		return;
-
-	if ((mode & WIRELESS_11N) && (priv->pshare->ht_sta_num
-#ifdef WDS
-		|| ((OPMODE & WIFI_AP_STATE) && priv->pmib->dot11WdsInfo.wdsEnabled && priv->pmib->dot11WdsInfo.wdsNum)
-#endif
-		))
-		sifs_time = 16;
-
-	if ((mode & WIRELESS_11N) || (mode & WIRELESS_11G)) {
-		slot_time = 9;
-	} else {
-		BE_TXOP = 94;
-		VI_TXOP = 188;
-	}
-
-	if ((OPMODE & WIFI_AP_STATE) && priv->pmib->dot11OperationEntry.wifi_specific) {
-		if (priv->pshare->iot_mode_VO_exist) {
-			vi_cw_max = 6;
-			vi_cw_min = 4;
-			vi_aifs = 0x2b;
-		} else {
-			vi_aifs = (sifs_time + ((OPMODE & WIFI_AP_STATE)?1:2) * slot_time);
-		}
-
-		RTL_W32(EDCA_VI_PARA, ((VI_TXOP*(1-priv->pshare->iot_mode_VO_exist)) << 16)
-			| (vi_cw_max << 12) | (vi_cw_min << 8) | vi_aifs);
-	}
-
-	if (!enable) {
-		RTL_W32(EDCA_BE_PARA, (((OPMODE & WIFI_AP_STATE)?6:10) << 12) | (4 << 8)
-				| (sifs_time + 3 * slot_time));
-	} else {
-		if (priv->pshare->ht_sta_num
-#ifdef WDS
-			|| ((OPMODE & WIFI_AP_STATE) && (mode & WIRELESS_11N) &&
-			priv->pmib->dot11WdsInfo.wdsEnabled && priv->pmib->dot11WdsInfo.wdsNum)
-#endif
-			) {
-/*
-			if (priv->pshare->txop_enlarge == 0xf) {
-				// is 8192S client
-				RTL_W32(EDCA_BE_PARA, ((BE_TXOP*2) << 16) |
-							(6 << 12) | (4 << 8) | (sifs_time + slot_time+ 0xf)); // 0xf is 92s circuit delay
-				priv->pshare->txop_enlarge = 2;
-			}
-			else
-*/
-			if (priv->pshare->txop_enlarge == 0xe) {
-				// is intel client, use a different edca value
-				RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (6 << 12) | (4 << 8) | 0x1f);
-				priv->pshare->txop_enlarge = 2;
-			} else if (priv->pshare->txop_enlarge == 0xd) {
-				// is intel ralink, use a different edca value
-				RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (4 << 12) | (3 << 8) | 0x19);
-				priv->pshare->txop_enlarge = 2;
-			} else {
-				if (get_rf_mimo_mode(priv) == MIMO_2T2R)
-				RTL_W32(EDCA_BE_PARA, ((BE_TXOP*priv->pshare->txop_enlarge) << 16) |
-						(6 << 12) | (4 << 8) | (sifs_time + 3 * slot_time));
-				else
-				RTL_W32(EDCA_BE_PARA, ((BE_TXOP*priv->pshare->txop_enlarge) << 16) |
-						(5 << 12) | (3 << 8) | (sifs_time + 2 * slot_time));
-			}
-		} else {
-			RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (6 << 12) | (4 << 8) | (sifs_time + 3 * slot_time));
-		}
-/*
-		if (priv->pmib->dot11OperationEntry.wifi_specific == 2) {
-			RTL_W16(NAV_PROT_LEN, 0x01C0);
-			RTL_W8(CFEND_TH, 0xFF);
-			set_fw_reg(priv, 0xfd000ab0, 0, 0);
-		}
-*/
-	}
-}
-#endif
-
 
 #ifdef SMART_CONCURRENT_92D
 void setup_timer1(struct rtl8192cd_priv *priv, int timeout)
@@ -8349,643 +8089,6 @@ void cancel_timer2(struct rtl8192cd_priv *priv)
 }
 #endif
 
-
-void check_EDCCA(struct rtl8192cd_priv *priv, short rssi)
-{
-	if ((priv->pshare->rf_ft_var.edcca_thd) && (priv->pmib->dot11RFEntry.dot11channel==14
-		|| priv->pshare->is_40m_bw
-#if defined(CONFIG_RTL_92D_SUPPORT)
-		||  (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G)
-#endif
-	)) {
-		if((rssi > priv->pshare->rf_ft_var.edcca_thd) && (priv->pshare->phw->EDCCA_on == 0)) {
-			RTL_W32(rOFDM0_ECCAThreshold, 0xfc03fd);
-#if defined(CONFIG_RTL_92D_SUPPORT)
-			if (GET_CHIP_VER(priv)==VERSION_8192D)
-				RTL_W32(RD_CTRL, RTL_R32(RD_CTRL)& ~(BIT(13)));
-#endif
-			priv->pshare->phw->EDCCA_on =1;
-		} else if( (rssi < priv->pshare->rf_ft_var.edcca_thd-5) && priv->pshare->phw->EDCCA_on) {
-			RTL_W32(rOFDM0_ECCAThreshold, 0x7f037f);
-#if defined(CONFIG_RTL_92D_SUPPORT)
-			if (GET_CHIP_VER(priv)==VERSION_8192D)
-				RTL_W32(RD_CTRL, RTL_R32(RD_CTRL)|BIT(13));
-#endif
-			priv->pshare->phw->EDCCA_on =0;
-		}
-	}
-	if ((!priv->pshare->rf_ft_var.edcca_thd) && priv->pshare->phw->EDCCA_on) {
-		RTL_W32(0xc4c, 0x7f037f);
-#if defined(CONFIG_RTL_92D_SUPPORT)
-		if (GET_CHIP_VER(priv)==VERSION_8192D)
-			RTL_W32(RD_CTRL, RTL_R32(RD_CTRL)|BIT(13));
-#endif
-		priv->pshare->phw->EDCCA_on = 0;
-	}	
-}
-
-
-/*
- * FA statistic functions
- */
-#if !defined(CONFIG_RTL_NEW_AUTOCH)
-static
-#endif
-void reset_FA_reg(struct rtl8192cd_priv *priv)
-{
-#if !defined(CONFIG_RTL_NEW_AUTOCH)
-	unsigned char value8;
-
-	value8 = RTL_R8(0xd03);
-	RTL_W8(0xd03, value8 | 0x08);	// regD00[27]=1 to reset these OFDM FA counters
-	value8 = RTL_R8(0xd03);
-	RTL_W8(0xd03, value8 & 0xF7);	// regD00[27]=0 to start counting
-	value8 = RTL_R8(0xa2d);
-	RTL_W8(0xa2d, value8 & 0x3F);	// regA2D[7:6]=00 to disable counting
-	value8 = RTL_R8(0xa2d);
-	RTL_W8(0xa2d, value8 | 0x80);	// regA2D[7:6]=10 to enable counting
-#else
-	/* cck CCA */
-	PHY_SetBBReg(priv, 0xa2c, BIT(13) | BIT(12), 0);
-	PHY_SetBBReg(priv, 0xa2c, BIT(13) | BIT(12), 2);
-	/* cck FA*/
-	PHY_SetBBReg(priv, 0xa2c, BIT(15) | BIT(14), 0);
-	PHY_SetBBReg(priv, 0xa2c, BIT(15) | BIT(14), 2);
-	/* ofdm */
-	PHY_SetBBReg(priv, 0xd00, BIT(27), 1);
-	PHY_SetBBReg(priv, 0xd00, BIT(27), 0);
-
-#endif
-
-#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_NOISE_CONTROL)
-	if (GET_CHIP_VER(priv) == VERSION_8192D){
-		PHY_SetBBReg(priv, 0xf14, BIT(16),1);
-		PHY_SetBBReg(priv, 0xf14, BIT(16),0);
-		RTL_W32(RXERR_RPT, RTL_R32(RXERR_RPT)|BIT(27));
-		RTL_W32(RXERR_RPT, RTL_R32(RXERR_RPT)&(~BIT(27)));
-	}
-#endif
-
-}
-
-#if defined(CONFIG_RTL_NEW_AUTOCH)
-void hold_CCA_FA_counter(struct rtl8192cd_priv *priv)
-{
-	/* hold cck CCA & FA counter */
-	PHY_SetBBReg(priv, 0xa2c, BIT(12), 1);
-	PHY_SetBBReg(priv, 0xa2c, BIT(14), 1);
-
-	/* hold ofdm CCA & FA counter */
-	PHY_SetBBReg(priv, 0xc00, BIT(31), 1);
-	PHY_SetBBReg(priv, 0xd00, BIT(31), 1);
-}
-
-void release_CCA_FA_counter(struct rtl8192cd_priv *priv)
-{
-	/* release cck CCA & FA counter */
-	PHY_SetBBReg(priv, 0xa2c, BIT(12), 0);
-	PHY_SetBBReg(priv, 0xa2c, BIT(14), 0);
-
-	/* release ofdm CCA & FA counter */
-	PHY_SetBBReg(priv, 0xc00, BIT(31), 0);
-	PHY_SetBBReg(priv, 0xd00, BIT(31), 0);
-}
-
-
-void _FA_statistic(struct rtl8192cd_priv *priv)
-{
-	// read OFDM FA counters
-	priv->pshare->ofdm_FA_cnt1 = RTL_R16(0xda2);
-	priv->pshare->ofdm_FA_cnt2 = RTL_R16(0xda4);
-	priv->pshare->ofdm_FA_cnt3 = RTL_R16(0xda6);
-	priv->pshare->ofdm_FA_cnt4 = RTL_R16(0xda8);
-
-	priv->pshare->cck_FA_cnt = (RTL_R8(0xa5b) << 8) + RTL_R8(0xa5c);
-
-	priv->pshare->FA_total_cnt = priv->pshare->ofdm_FA_cnt1 + priv->pshare->ofdm_FA_cnt2 +
-	                             priv->pshare->ofdm_FA_cnt3 + priv->pshare->ofdm_FA_cnt4 +
-	                             priv->pshare->cck_FA_cnt + RTL_R16(0xcf0) + RTL_R16(0xcf2);
-}
-#endif
-
-void FA_statistic(struct rtl8192cd_priv *priv)
-{
-
-#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_NOISE_CONTROL)
-	if (GET_CHIP_VER(priv) == VERSION_8192D){
-//		priv->pshare->F90_cnt = PHY_QueryBBReg(priv, 0xf90, bMaskHWord);
-		priv->pshare->F94_cnt = PHY_QueryBBReg(priv, 0xf94, bMaskHWord);
-		priv->pshare->F94_cntOK = PHY_QueryBBReg(priv, 0xf94, bMaskLWord);
-		RTL_W32(RXERR_RPT,(RTL_R32(RXERR_RPT)&0x0fffffff)|0x70000000);
-		priv->pshare->Reg664_cnt = RTL_R32(RXERR_RPT) & 0xfffff;
-		RTL_W32(RXERR_RPT,(RTL_R32(RXERR_RPT)&0x0fffffff)|0x60000000);
-		priv->pshare->Reg664_cntOK = RTL_R32(RXERR_RPT) & 0xfffff;
-	}
-#endif
-
-#if !defined(CONFIG_RTL_NEW_AUTOCH)
-	signed char value8;
-
-	// read OFDM FA counters
-	priv->pshare->ofdm_FA_cnt1 = RTL_R16(0xda2);
-	priv->pshare->ofdm_FA_cnt2 = RTL_R16(0xda4);
-	priv->pshare->ofdm_FA_cnt3 = RTL_R16(0xda6);
-	priv->pshare->ofdm_FA_cnt4 = RTL_R16(0xda8);
-
-	// read the CCK FA counters
-	value8 = RTL_R8(0xa2d);
-	RTL_W8(0xa2d, value8 | 0x40);	// regA2D[6]=1 to hold and read the CCK FA counters
-	priv->pshare->cck_FA_cnt = RTL_R8(0xa5b);
-	priv->pshare->cck_FA_cnt = priv->pshare->cck_FA_cnt << 8;
-	priv->pshare->cck_FA_cnt += RTL_R8(0xa5c);
-
-	priv->pshare->FA_total_cnt = priv->pshare->ofdm_FA_cnt1 + priv->pshare->ofdm_FA_cnt2 +
-	                             priv->pshare->ofdm_FA_cnt3 + priv->pshare->ofdm_FA_cnt4 +
-	                             priv->pshare->cck_FA_cnt + RTL_R16(0xcf0) + RTL_R16(0xcf2);
-
-	if (priv->pshare->rf_ft_var.rssi_dump)
-		priv->pshare->CCA_total_cnt = ((RTL_R8(0xa60)<<8)|RTL_R8(0xa61)) + RTL_R16(0xda0);
-#else
-	hold_CCA_FA_counter(priv);
-	_FA_statistic(priv);
-
-	if (priv->pshare->rf_ft_var.rssi_dump)
-		priv->pshare->CCA_total_cnt = ((RTL_R8(0xa60)<<8)|RTL_R8(0xa61)) + RTL_R16(0xda0);
-
-	release_CCA_FA_counter(priv);
-#endif
-
-	reset_FA_reg(priv);
-
-#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_NOISE_CONTROL)
-	if (GET_CHIP_VER(priv) == VERSION_8192D){
-		if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G  && !(OPMODE & WIFI_SITE_MONITOR)) {
-			if (priv->pshare->DNC_on == 0){
-				//if ((priv->pshare->F94_cnt + priv->pshare->F90_cnt)> 3000){
-				/* Reg 664: x > y && x > 1000
-				    Reg F94: x > 0.75*y && x > 1000 */
-				if (((priv->pshare->Reg664_cnt>priv->pshare->Reg664_cntOK) && (priv->pshare->Reg664_cnt > 1000))||
-					((priv->pshare->F94_cnt > ((priv->pshare->Reg664_cntOK*3)>>2)) && (priv->pshare->F94_cnt > 1000))) {
-					priv->ext_stats.tp_average_pre = (priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage)>>17;
-					priv->pshare->DNC_on = 1;
-					priv->pshare->DNC_chk_cnt = 1;
-					priv->pshare->DNC_chk = 2; // 0: don't check, 1; check, 2: just entering DNC
-					//PHY_SetBBReg(priv, 0xb30, bMaskDWord, 0x00a00000);
-					PHY_SetBBReg(priv, 0x870, bMaskDWord, 0x07600760);
-					PHY_SetBBReg(priv, 0xc50, bMaskByte0, 0x20);
-					PHY_SetBBReg(priv, 0xc58, bMaskByte0, 0x20);
-					//printk("Dynamic Noise Control ON\n");
-				}
-			} else {
-				if ((priv->pshare->DNC_chk_cnt % 5)==0){ // check every 5*2=10 seconds
-					unsigned long tp_now = (priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage)>>17;
-					priv->pshare->DNC_chk_cnt = 0;
-
- 					if ((priv->pshare->DNC_chk == 2) && (tp_now < priv->ext_stats.tp_average_pre+5)){
-						//no advantage, leave DNC state
-						priv->pshare->DNC_on = 0;
-						priv->pshare->DNC_chk = 0;
-						//PHY_SetBBReg(priv, 0xb30, bMaskDWord, 0);
-						PHY_SetBBReg(priv, 0x870, bMaskDWord, 0x07000700);
-					}
-					else
-					{
-						priv->pshare->DNC_chk = 0;
-
-						/* If TP < 20M or TP varies more than 5M. Start Checking...*/
-						if ((tp_now < 20) || ((tp_now < (priv->ext_stats.tp_average_pre-5))|| (tp_now > (priv->ext_stats.tp_average_pre+5)))){
-							priv->pshare->DNC_chk = 1;
-							//PHY_SetBBReg(priv, 0xb30, bMaskDWord, 0);
-							PHY_SetBBReg(priv, 0x870, bMaskDWord, 0x07000700);
-							if (!timer_pending(&priv->dnc_timer)) {
-								//printk("... Start Check Noise ...\n");
-								mod_timer(&priv->dnc_timer, jiffies + 10);	// 100 ms
-							}
-						}
-					}
-
-					priv->ext_stats.tp_average_pre = tp_now;
-
-				} else if ((priv->pshare->DNC_chk_cnt % 5)==1 && priv->pshare->DNC_chk == 1) {
-					priv->pshare->DNC_chk = 0;
-					//if ((priv->pshare->F94_cnt + priv->pshare->F90_cnt) < 120) {
-					if ((priv->pshare->F94_cnt + priv->pshare->Reg664_cnt) < 120) {
-						priv->pshare->DNC_on = 0;
-						//PHY_SetBBReg(priv, 0xb30, bMaskDWord, 0);
-						PHY_SetBBReg(priv, 0x870, bMaskDWord, 0x07000700);
-						//printk("Dynamic Noise Control OFF\n");
-					}
-				}
-				priv->pshare->DNC_chk_cnt++;
-			}
-		}
-	}
-#endif
-}
-
-
-/*
- *
- * DIG related functions
- *
- */
-
-int getIGIFor1RCCA(int value_IGI)
-{
-	#define ONERCCA_LOW_TH		0x30
-	#define ONERCCA_LOW_DIFF	8
-
-	if (value_IGI < ONERCCA_LOW_TH) {
-		if ((ONERCCA_LOW_TH - value_IGI) < ONERCCA_LOW_DIFF)
-			return ONERCCA_LOW_TH;
-		else
-			return value_IGI + ONERCCA_LOW_DIFF;
-	} else {
-		return value_IGI;
-	}
-}
-
-
-void set_DIG_state(struct rtl8192cd_priv *priv, int state)
-{
-	int value_IGI;
-
-	if (state) {
-		priv->pshare->DIG_on = 1;
-		priv->pshare->restore = 0;
-	}
-	else {
-		priv->pshare->DIG_on = 0;
-		if (priv->pshare->restore == 0) {
-			if (priv->pshare->rf_ft_var.use_ext_lna == 1)
-				value_IGI = 0x30;
-			else
-				value_IGI = 0x20;
-
-#if defined(HW_ANT_SWITCH)
-			// wirte new initial gain index into regC50/C58
-			if (priv->pshare->rf_ft_var.one_path_cca == 0)	{
-				RTL_W8(0xc50, value_IGI | RXDVY_A_EN);
-				RTL_W8(0xc58, value_IGI | RXDVY_B_EN);
-			} else if (priv->pshare->rf_ft_var.one_path_cca == 1) {
-				RTL_W8(0xc50, value_IGI | RXDVY_A_EN);
-				RTL_W8(0xc58, getIGIFor1RCCA(value_IGI) | RXDVY_B_EN);
-			} else if (priv->pshare->rf_ft_var.one_path_cca == 2) {
-				RTL_W8(0xc50, getIGIFor1RCCA(value_IGI) | RXDVY_A_EN);
-				RTL_W8(0xc58, value_IGI | RXDVY_B_EN);
-			}
-#else
-			// Write IGI into HW
-			if (priv->pshare->rf_ft_var.one_path_cca == 0) 	{
-				RTL_W8(0xc50, value_IGI);
-				RTL_W8(0xc58, value_IGI);
-			} else if (priv->pshare->rf_ft_var.one_path_cca == 1) {
-				RTL_W8(0xc50, value_IGI);
-				RTL_W8(0xc58, getIGIFor1RCCA(value_IGI));
-			} else if (priv->pshare->rf_ft_var.one_path_cca == 2) {
-				RTL_W8(0xc50, getIGIFor1RCCA(value_IGI));
-				RTL_W8(0xc58, value_IGI);
-			}
-#endif
-			priv->pshare->restore = 1;
-		}
-	}
-}
-
-
-void DIG_process(struct rtl8192cd_priv *priv)
-{
-	#define DEAD_POINT_TH		10000
-	#define DOWN_IG_HIT_TH		5
-	#define DEAD_POINT_HIT_TH	3
-
-	unsigned char value_IGI;
-	signed char value8;
-
-	if (priv->pshare->DIG_on == 1)
-	{
-		if (priv->pshare->rf_ft_var.use_ext_lna == 1) {
-			priv->pshare->FA_upper = 0x42;
-			priv->pshare->FA_lower = 0x30;
-		} else {
-			// Reset initial gain upper & lower bounds
-#ifdef DFS
-                        if (!priv->pmib->dot11DFSEntry.disable_DFS &&
-                                (OPMODE & WIFI_AP_STATE) &&
-                                (((priv->pmib->dot11RFEntry.dot11channel >= 52) &&
-                                (priv->pmib->dot11RFEntry.dot11channel <= 64)) ||
-                                ((priv->pmib->dot11RFEntry.dot11channel >= 100) &&
-                                (priv->pmib->dot11RFEntry.dot11channel <= 140))))
-                                priv->pshare->FA_upper = 0x24;
-                        else
-#endif
-			priv->pshare->FA_upper = 0x32;
-			priv->pshare->FA_lower = 0x20;
-
-			if (priv->pshare->rssi_min > 30)
-				priv->pshare->FA_lower = 0x24;
-			else if (priv->pshare->rssi_min > 25)
-				priv->pshare->FA_lower = 0x22;
-		}
-
-		// determine a new initial gain index according to the sumation of all FA counters as well as upper & lower bounds
-		value8 = RTL_R8(0xc50);
-		value_IGI = (value8 & 0x7F);
-
-#if  defined(CONFIG_RTL_NOISE_CONTROL_92C)
-	if(priv->pshare->rf_ft_var.dnc_enable)
-	if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)){
-		unsigned long tp_now = (priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage)>>17;
-		if(priv->pshare->rf_ft_var.use_ext_lna) {
-			if( (priv->pshare->rssi_min > 50)  )  {
-				if((!priv->pshare->DNC_on) && (value_IGI >= priv->pshare->FA_upper) && (priv->pshare->FA_total_cnt > priv->pshare->threshold2)) {
-					priv->pshare->DNC_on = 1;
-					priv->ext_stats.tp_average_pre = tp_now;
-					priv->pshare->FA_lower = 0x20;
-					PHY_SetBBReg(priv, 0x870, bMaskDWord, RTL_R32(0x870)|BIT(5)|BIT(6)|BIT(21)|BIT(22));
-
-#ifdef HW_ANT_SWITCH
-					PHY_SetBBReg(priv, 0xc50, bMaskByte0, priv->pshare->FA_lower | RXDVY_A_EN);
-					PHY_SetBBReg(priv, 0xc58, bMaskByte0, priv->pshare->FA_lower | RXDVY_B_EN);
-#else
-					PHY_SetBBReg(priv, 0xc50, bMaskByte0, priv->pshare->FA_lower);
-					PHY_SetBBReg(priv, 0xc58, bMaskByte0, priv->pshare->FA_lower);
-#endif
-
-				} else if(priv->pshare->DNC_on ==1)  {
-					if(tp_now < priv->ext_stats.tp_average_pre + 2) {
-						priv->pshare->DNC_on = 0;
-					}
-					else {
-						priv->pshare->DNC_on =2;
-						priv->ext_stats.tp_average_pre = tp_now;
-					}
-				} else if(priv->pshare->DNC_on >= 2 ) {
-					if(( tp_now+10 < priv->ext_stats.tp_average_pre ) || (tp_now < 1) ) {
-							priv->pshare->DNC_on = 0;
-					} else if(priv->pshare->DNC_on<5) {
-						priv->ext_stats.tp_average_pre = tp_now;
-						++priv->pshare->DNC_on;
-					}
-				}
-			 }else {
-				priv->pshare->DNC_on = 0;
-			}
-
-			if(	priv->pshare->DNC_on )
-				return;
-			else
-				PHY_SetBBReg(priv, 0x870, bMaskDWord, RTL_R32(0x870)&  ~(BIT(5)|BIT(6)|BIT(21)|BIT(22)));
-
-		} else {
-			if( (priv->pshare->rssi_min > 40) && (value_IGI >= priv->pshare->FA_upper) )  {
-//				unsigned long tp_now = (priv->ext_stats.tx_avarage+priv->ext_stats.rx_avarage)>>17;
-				if((!priv->pshare->DNC_on) && (priv->pshare->FA_total_cnt > priv->pshare->threshold2)) {
-					priv->pshare->DNC_on = 1;
-					priv->ext_stats.tp_average_pre = tp_now;
-				} else if(priv->pshare->DNC_on ==1)  {
-					if(tp_now < priv->ext_stats.tp_average_pre + 2) {
-						priv->pshare->DNC_on = 0;
-					}
-					else {
-						priv->pshare->DNC_on = 2;
-						priv->ext_stats.tp_average_pre = tp_now;
-					}
-				} else if(priv->pshare->DNC_on >= 2 ) {
-					if((tp_now +10 < priv->ext_stats.tp_average_pre )
-						|| ((priv->ext_stats.tp_average_pre < 10) && (priv->pshare->FA_total_cnt < priv->pshare->threshold1))) {
-						priv->pshare->DNC_on = 0;
-					} else 	if(priv->pshare->DNC_on<6) {
-						priv->ext_stats.tp_average_pre = tp_now;
-						++priv->pshare->DNC_on;
-					}
-				}
-				if(priv->pshare->DNC_on) {
-					priv->pshare->FA_upper = 0x3e;
-				}
-			}else {
-				priv->pshare->DNC_on = 0;
-			}
-		}
-	}
-#endif
-
-		if ((priv->pshare->digDeadPoint == 0) && (priv->pshare->FA_total_cnt > DEAD_POINT_TH)) {
-			if ((priv->pshare->digDeadPointHitCount > 0) && (priv->pshare->digDeadPointCandidate == value_IGI)) {
-				priv->pshare->digDeadPointHitCount++;
-				if (priv->pshare->digDeadPointHitCount == DEAD_POINT_HIT_TH) {
-					priv->pshare->digDeadPoint = priv->pshare->digDeadPointCandidate;
-				}
-			} else {
-				priv->pshare->digDeadPointCandidate = value_IGI;
-				priv->pshare->digDeadPointHitCount = 1;
-			}
-		}
-
-		if (priv->pshare->FA_total_cnt < priv->pshare->threshold0) {
-			priv->pshare->digDownCount++;
-			if (priv->pshare->digDownCount > DOWN_IG_HIT_TH) {
-				// Reset deadpoint hit count
-				if ((priv->pshare->digDeadPoint == 0) && (priv->pshare->digDeadPointHitCount > 0) && (value_IGI == priv->pshare->digDeadPointCandidate))
-					priv->pshare->digDeadPointHitCount = 0;
-
-				value_IGI--;
-
-				// Check if the new value is dead point
-				if ((priv->pshare->digDeadPoint > 0) && (value_IGI == priv->pshare->digDeadPoint))
-					value_IGI++;
-			}
-		} else if (priv->pshare->FA_total_cnt < priv->pshare->threshold1) {
-			value_IGI += 0;
-			priv->pshare->digDownCount = 0;
-		} else if (priv->pshare->FA_total_cnt < priv->pshare->threshold2) {
-			value_IGI++;
-			priv->pshare->digDownCount = 0;
-		} else if (priv->pshare->FA_total_cnt >= priv->pshare->threshold2) {
-			value_IGI += 2;
-			priv->pshare->digDownCount = 0;
-		} else {
-			priv->pshare->digDownCount = 0;
-		}
-
-		if (value_IGI > priv->pshare->FA_upper)
-			value_IGI = priv->pshare->FA_upper;
-		else if (value_IGI < priv->pshare->FA_lower)
-			value_IGI = priv->pshare->FA_lower;
-
-#if defined(HW_ANT_SWITCH)
-		// wirte new initial gain index into regC50/C58
-		if (priv->pshare->rf_ft_var.one_path_cca == 0)	{
-			RTL_W8(0xc50, value_IGI | RXDVY_A_EN);
-			RTL_W8(0xc58, value_IGI | RXDVY_B_EN);
-		} else if (priv->pshare->rf_ft_var.one_path_cca == 1)	{
-			RTL_W8(0xc50, value_IGI | RXDVY_A_EN);
-			RTL_W8(0xc58, getIGIFor1RCCA(value_IGI) | RXDVY_B_EN);
-		} else if (priv->pshare->rf_ft_var.one_path_cca == 2)		{
-			RTL_W8(0xc50, getIGIFor1RCCA(value_IGI) | RXDVY_A_EN);
-			RTL_W8(0xc58, value_IGI| RXDVY_B_EN);
-		}
-#else
-		// Write IGI into HW
-		if (priv->pshare->rf_ft_var.one_path_cca == 0) {
-			RTL_W8(0xc50, value_IGI);
-			RTL_W8(0xc58, value_IGI);
-		} else if (priv->pshare->rf_ft_var.one_path_cca == 1) {
-			RTL_W8(0xc50, value_IGI);
-			RTL_W8(0xc58, getIGIFor1RCCA(value_IGI));
-		} else if (priv->pshare->rf_ft_var.one_path_cca == 2) {
-			RTL_W8(0xc50, getIGIFor1RCCA(value_IGI));
-			RTL_W8(0xc58, value_IGI);
-		}
-#endif
-
-	}
-}
-
-
-void check_DIG_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength)
-{
-	unsigned int dig_on = 0;
-
-	if (OPMODE & WIFI_SITE_MONITOR)
-		return;
-
-	if ((rssi_strength > priv->pshare->rf_ft_var.digGoUpperLevel)
-		&& (rssi_strength < HP_LOWER+1) && (priv->pshare->phw->signal_strength != 2)) {
-#ifndef CONFIG_RTL_92D_SUPPORT
-		if (priv->pshare->is_40m_bw)
-			// RTL_W8(0xc87, (RTL_R8(0xc87) & 0xf) | 0x30); 92D
-			RTL_W8(0xc87, 0x30);
-		else
-			RTL_W8(0xc30, 0x44);
-#endif
-
-		if (priv->pshare->phw->signal_strength != 3)
-			dig_on++;
-
-		priv->pshare->phw->signal_strength = 2;
-	}
-	else if ((rssi_strength > HP_LOWER+5) && (priv->pshare->phw->signal_strength != 3)) {
-#ifndef CONFIG_RTL_92D_SUPPORT
-		if (priv->pshare->is_40m_bw)
-			// RTL_W8(0xc87, (RTL_R8(0xc87) & 0xf) | 0x30); 92D
-			RTL_W8(0xc87, 0x30);
-		else
-			RTL_W8(0xc30, 0x44);
-#endif
-
-		if (priv->pshare->phw->signal_strength != 2)
-			dig_on++;
-
-		priv->pshare->phw->signal_strength = 3;
-	}
-	else if (((rssi_strength < priv->pshare->rf_ft_var.digGoLowerLevel)
-		&& (priv->pshare->phw->signal_strength != 1)) || !priv->pshare->phw->signal_strength) {
-		// DIG off
-#ifndef CONFIG_RTL8672
-		set_DIG_state(priv, 0);
-#endif
-
-#ifndef CONFIG_RTL_92D_SUPPORT
-		if (priv->pshare->is_40m_bw)
-			//RTL_W8(0xc87, (RTL_R8(0xc87) & 0xf) | 0x30); 92D
-			RTL_W8(0xc87, 0x30);
-		else
-			RTL_W8(0xc30, 0x44);
-#endif
-
-		priv->pshare->phw->signal_strength = 1;
-	}
-
-	if (dig_on) {
-		// DIG on
-		set_DIG_state(priv, 1);
-	}
-
-	//check_DC_TH_by_rssi(priv, rssi_strength);
-}
-
-
-void DIG_for_site_survey(struct rtl8192cd_priv *priv, int do_ss)
-{
-	if (do_ss) {
-		// DIG off
-		set_DIG_state(priv, 0);
-	}
-	else {
-		// DIG on
-		if (priv->pshare->phw->signal_strength > 1) {
-			set_DIG_state(priv, 1);
-		}
-	}
-}
-
-
-/*
- * dynamic CCK CCA enhance by rssi
- */
-void CCK_CCA_dynamic_enhance(struct rtl8192cd_priv *priv, unsigned char rssi_strength)
-{
-#if 1
-	unsigned int cck_fa = priv->pshare->FA_total_cnt;
-	int rssi_thd = 30;
-
-	if (rssi_strength == 0xff) {
-		if (cck_fa < 1000) {
-			if (priv->pshare->phw->CCK_CCA_enhanced != 2) {
-				RTL_W8(0xa0a, 0x40);
-				priv->pshare->phw->CCK_CCA_enhanced = 2;
-			}
-		} else {
-			if (priv->pshare->phw->CCK_CCA_enhanced != 1) {
-				RTL_W8(0xa0a, 0x83);
-				priv->pshare->phw->CCK_CCA_enhanced = 1;
-			}
-		}
-		return;
-	}
-
-	if (rssi_strength > rssi_thd+5) {
-		if (priv->pshare->phw->CCK_CCA_enhanced != 0) {
-			RTL_W8(0xa0a, 0xcd);
-			priv->pshare->phw->CCK_CCA_enhanced = 0;
-		}
-	} else if (rssi_strength< rssi_thd) {
-		if ((rssi_strength > 9) || (priv->assoc_num >1)) {
-			if (priv->pshare->phw->CCK_CCA_enhanced != 1) {
-				RTL_W8(0xa0a, 0x83);
-				priv->pshare->phw->CCK_CCA_enhanced = 1;
-			}
-		} else {
-			if(cck_fa<1000) {
-				if (priv->pshare->phw->CCK_CCA_enhanced != 2) {
-					RTL_W8(0xa0a, 0x40);
-					priv->pshare->phw->CCK_CCA_enhanced = 2;
-				}
-			} else {
-				if (priv->pshare->phw->CCK_CCA_enhanced != 1) {
-					RTL_W8(0xa0a, 0x83);
-					priv->pshare->phw->CCK_CCA_enhanced = 1;
-				}
-			}
-		}
-	}
-
-#else
-
-	if (rssi_strength == 0xff)
-		return;
-
-	if (!priv->pshare->phw->CCK_CCA_enhanced && (rssi_strength < 30)) {
-		priv->pshare->phw->CCK_CCA_enhanced = TRUE;
-		RTL_W8(0xa0a, 0x83);
-	}
-	else if (priv->pshare->phw->CCK_CCA_enhanced && (rssi_strength > 35)) {
-		priv->pshare->phw->CCK_CCA_enhanced = FALSE;
-		RTL_W8(0xa0a, 0xcd);
-	}
-#endif
-}
 
 
 #if 0
@@ -9260,108 +8363,6 @@ void rtl8192cd_tpt_timer(unsigned long task_priv)
 }
 #endif
 
-#ifdef HIGH_POWER_EXT_PA
-void tx_power_control(struct rtl8192cd_priv *priv)
-{
-	unsigned long x;
-
-	int pwr_value = 0x10101010;
-	if( priv->pshare->phw->signal_strength == 3 && priv->pshare->phw->lower_tx_power== 0) {
-		SAVE_INT_AND_CLI(x);
-		priv->pshare->phw->power_backup[0x00] = RTL_R32(rTxAGC_A_Rate18_06);
-		priv->pshare->phw->power_backup[0x01] = RTL_R32(rTxAGC_A_Rate54_24);
-		priv->pshare->phw->power_backup[0x02] = RTL_R32(rTxAGC_B_Rate18_06);
-		priv->pshare->phw->power_backup[0x03] = RTL_R32(rTxAGC_B_Rate54_24);
-		priv->pshare->phw->power_backup[0x04] = RTL_R32(rTxAGC_A_Mcs03_Mcs00);
-		priv->pshare->phw->power_backup[0x05] = RTL_R32(rTxAGC_A_Mcs07_Mcs04);
-		priv->pshare->phw->power_backup[0x06] = RTL_R32(rTxAGC_A_Mcs11_Mcs08);
-		priv->pshare->phw->power_backup[0x07] = RTL_R32(rTxAGC_A_Mcs15_Mcs12);
-		priv->pshare->phw->power_backup[0x08] = RTL_R32(rTxAGC_B_Mcs03_Mcs00);
-		priv->pshare->phw->power_backup[0x09] = RTL_R32(rTxAGC_B_Mcs07_Mcs04);
-		priv->pshare->phw->power_backup[0x0a] = RTL_R32(rTxAGC_B_Mcs11_Mcs08);
-		priv->pshare->phw->power_backup[0x0b] = RTL_R32(rTxAGC_B_Mcs15_Mcs12);
-		priv->pshare->phw->power_backup[0x0c] = RTL_R32(rTxAGC_A_CCK11_2_B_CCK11);
-		priv->pshare->phw->power_backup[0x0d] = RTL_R32(rTxAGC_A_CCK1_Mcs32);
-		priv->pshare->phw->power_backup[0x0e] = RTL_R32(rTxAGC_B_CCK5_1_Mcs32);
-		RTL_W32(rTxAGC_A_Rate18_06, pwr_value);
-		RTL_W32(rTxAGC_A_Rate54_24, pwr_value);
-		RTL_W32(rTxAGC_B_Rate18_06, pwr_value);
-		RTL_W32(rTxAGC_B_Rate54_24, pwr_value);
-		RTL_W32(rTxAGC_A_Mcs03_Mcs00, pwr_value);
-		RTL_W32(rTxAGC_A_Mcs07_Mcs04, pwr_value);
-		RTL_W32(rTxAGC_A_Mcs11_Mcs08, pwr_value);
-		RTL_W32(rTxAGC_A_Mcs15_Mcs12, pwr_value);
-		RTL_W32(rTxAGC_B_Mcs03_Mcs00, pwr_value);
-		RTL_W32(rTxAGC_B_Mcs07_Mcs04, pwr_value);
-		RTL_W32(rTxAGC_B_Mcs11_Mcs08, pwr_value);
-		RTL_W32(rTxAGC_B_Mcs15_Mcs12, pwr_value);
-		RTL_W32(rTxAGC_A_CCK11_2_B_CCK11, pwr_value);
-		RTL_W32(rTxAGC_A_CCK1_Mcs32, (pwr_value & 0x0000ff00) | (priv->pshare->phw->power_backup[0x0d] &0xffff00ff));
-		RTL_W32(rTxAGC_B_CCK5_1_Mcs32, (pwr_value & 0xffffff00) | (priv->pshare->phw->power_backup[0x0e] &0x000000ff));
-		priv->pshare->phw->lower_tx_power = 1;
-		RESTORE_INT(x);
-	}
-	else if( priv->pshare->phw->signal_strength != 3 && priv->pshare->phw->lower_tx_power) {
-		SAVE_INT_AND_CLI(x);
-		RTL_W32(rTxAGC_A_Rate18_06, priv->pshare->phw->power_backup[0x00]);
-		RTL_W32(rTxAGC_A_Rate54_24, priv->pshare->phw->power_backup[0x01]);
-		RTL_W32(rTxAGC_B_Rate18_06, priv->pshare->phw->power_backup[0x02]);
-		RTL_W32(rTxAGC_B_Rate54_24, priv->pshare->phw->power_backup[0x03]);
-		RTL_W32(rTxAGC_A_Mcs03_Mcs00, priv->pshare->phw->power_backup[0x04]);
-		RTL_W32(rTxAGC_A_Mcs07_Mcs04, priv->pshare->phw->power_backup[0x05]);
-		RTL_W32(rTxAGC_A_Mcs11_Mcs08, priv->pshare->phw->power_backup[0x06]);
-		RTL_W32(rTxAGC_A_Mcs15_Mcs12, priv->pshare->phw->power_backup[0x07]);
-		RTL_W32(rTxAGC_B_Mcs03_Mcs00, priv->pshare->phw->power_backup[0x08]);
-		RTL_W32(rTxAGC_B_Mcs07_Mcs04, priv->pshare->phw->power_backup[0x09]);
-		RTL_W32(rTxAGC_B_Mcs11_Mcs08, priv->pshare->phw->power_backup[0x0a]);
-		RTL_W32(rTxAGC_B_Mcs15_Mcs12, priv->pshare->phw->power_backup[0x0b]);
-		RTL_W32(rTxAGC_A_CCK11_2_B_CCK11, priv->pshare->phw->power_backup[0x0c]);
-		RTL_W32(rTxAGC_A_CCK1_Mcs32,  priv->pshare->phw->power_backup[0x0d]);
-		RTL_W32(rTxAGC_B_CCK5_1_Mcs32,  priv->pshare->phw->power_backup[0x0e]);
-		priv->pshare->phw->lower_tx_power = 0;
-		RESTORE_INT(x);
-	}
-}
-#endif
-
-#ifdef WIFI_WMM
-void check_NAV_prot_len(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned int disassoc)
-{
-	if ((priv->pmib->dot11BssType.net_work_type & WIRELESS_11N) && pstat
-		&& pstat->ht_cap_len && pstat->is_intel_sta) {
-		if (!disassoc && (pstat->MIMO_ps & _HT_MIMO_PS_DYNAMIC_)) {
-#ifdef STA_EXT
-			if (pstat->aid <= FW_NUM_STAT)
-				priv->pshare->mimo_ps_dynamic_sta |= BIT(pstat->aid - 1);
-			else
-				priv->pshare->mimo_ps_dynamic_sta_ext |= BIT(pstat->aid - 1 - FW_NUM_STAT);
-#else
-			priv->pshare->mimo_ps_dynamic_sta |= BIT(pstat->aid -1);
-#endif
-		} else {
-#ifdef STA_EXT
-			if (pstat->aid <= FW_NUM_STAT)
-				priv->pshare->mimo_ps_dynamic_sta &= ~BIT(pstat->aid - 1);
-			else
-				priv->pshare->mimo_ps_dynamic_sta_ext &= ~BIT(pstat->aid - 1 - FW_NUM_STAT);
-#else
-			priv->pshare->mimo_ps_dynamic_sta &= ~BIT(pstat->aid -1);
-#endif
-		}
-
-		if (priv->pshare->mimo_ps_dynamic_sta
-#ifdef STA_EXT
-			|| priv->pshare->mimo_ps_dynamic_sta_ext
-#endif
-			) {
-			RTL_W8(NAV_PROT_LEN, 0x40);
-		} else {
-			RTL_W8(NAV_PROT_LEN, 0x20);
-		}
-	}
-}
-#endif
-
 
 /*
  *
@@ -9388,6 +8389,27 @@ static UCHAR CAM_find_usable(struct rtl8192cd_priv *priv)
 	unsigned long command = 0, content = 0;
 	unsigned char index;
 	int for_begin = 4;
+
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E) {
+		for_begin = 3;
+
+#ifdef MBSSID
+		if (GET_ROOT(priv)->pmib->miscEntry.vap_enable)
+			for_begin = 0;
+#endif
+#ifdef UNIVERSAL_REPEATER
+		if (IS_VXD_INTERFACE(priv)) {
+			for_begin = 0;
+		} else {
+			if (IS_ROOT_INTERFACE(priv)) {
+				if (IS_DRV_OPEN(GET_VXD_PRIV(priv)))
+					for_begin = 0;
+			}
+		}
+#endif
+	}
+#endif
 
 	for (index=for_begin; index<TOTAL_CAM_ENTRY; index++) {
 		// polling bit, and No Write enable, and address
@@ -9466,36 +8488,37 @@ int CamAddOneEntry(struct rtl8192cd_priv *priv,unsigned char *pucMacAddr, unsign
 {
 	unsigned char retVal = 0, camIndex = 0, wpaContent = 0;
 	unsigned short usConfig = 0;
+	unsigned int set_dk_margin = 4;
 
     //use Hardware Polling to check the valid bit.
     //in reality it should be done by software link-list
 	if ((!memcmp(pucMacAddr, "\xff\xff\xff\xff\xff\xff", 6)) || (useDK
 #if defined(CONFIG_RTL_HW_WAPI_SUPPORT)
-	&&((encAlg>>2)!=DOT11_ENC_WAPI)
+		&& ((encAlg>>2) != DOT11_ENC_WAPI)
 #endif
 		))
 		camIndex = keyId;
 	else
 		camIndex = CAM_find_usable(priv);
 
-    if (camIndex==TOTAL_CAM_ENTRY)
+    if (camIndex == TOTAL_CAM_ENTRY)
     	return retVal;
 
 	usConfig = usConfig|CFG_VALID|((USHORT)(encAlg))|(UCHAR)keyId;
 
-	#if defined(CONFIG_RTL_HW_WAPI_SUPPORT)
-	if((encAlg>>2) == DOT11_ENC_WAPI)
+#if defined(CONFIG_RTL_HW_WAPI_SUPPORT)
+	if ((encAlg>>2) == DOT11_ENC_WAPI)
 	{
 		//ulUseDK is used to diff Parwise and Group
-		if(camIndex<4) //is group key
+		if (camIndex < 4) // is group key
 			usConfig |= BIT(6);
 
-		if(useDK==1)  // ==0 sec key; == 1mic key
+		if (useDK == 1)  // ==0 sec key; == 1 mic key
 			usConfig |= BIT(5);
 
 		useDK = 0;
 	}
-	#endif
+#endif
 
     CAM_program_entry(priv, camIndex, pucMacAddr, pKey, usConfig);
 
@@ -9505,7 +8528,28 @@ int CamAddOneEntry(struct rtl8192cd_priv *priv,unsigned char *pucMacAddr, unsign
 		RTL_W16(SECCFG, RTL_R16(SECCFG) | RXDEC | TXENC | wpaContent | NOSKMC | CHK_KEYID);
 	}
 
-	if (camIndex < 4)
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E) {
+		set_dk_margin = 3;
+
+#ifdef MBSSID
+		if (GET_ROOT(priv)->pmib->miscEntry.vap_enable)
+			set_dk_margin = 0;
+#endif
+#ifdef UNIVERSAL_REPEATER
+		if (IS_VXD_INTERFACE(priv)) {
+			set_dk_margin = 0;
+		} else {
+			if (IS_ROOT_INTERFACE(priv)) {
+				if (IS_DRV_OPEN(GET_VXD_PRIV(priv)))
+					set_dk_margin = 0;
+			}
+		}
+#endif
+	}
+#endif
+
+	if (camIndex < set_dk_margin)
 		RTL_W16(SECCFG, (RTL_R16(SECCFG) & ~NOSKMC) | (RXBCUSEDK | TXBCUSEDK));
 
     return 1;
@@ -9597,12 +8641,12 @@ int CamDeleteOneEntry(struct rtl8192cd_priv *priv, unsigned char *pMacAddr, unsi
 	unsigned char ucIndex;
 	unsigned char ucTempMAC[6];
 	unsigned short usTempConfig=0;
-	int for_begin=0;
+	int for_begin=4;
 
 	// group key processing
 	if ((!memcmp(pMacAddr, "\xff\xff\xff\xff\xff\xff", 6)) || (useDK)) {
 		CAM_read_mac_config(priv, keyId, ucTempMAC, &usTempConfig);
-		if (usTempConfig&CFG_VALID) {
+		if (usTempConfig & CFG_VALID) {
 			CAM_empty_entry(priv, keyId);
 			if (priv->pshare->CamEntryOccupied == 1)
 				RTL_W16(SECCFG, 0);
@@ -9612,7 +8656,26 @@ int CamDeleteOneEntry(struct rtl8192cd_priv *priv, unsigned char *pMacAddr, unsi
 			return 0;
 	}
 
-	for_begin = 4;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E) {
+		for_begin = 3;
+
+#ifdef MBSSID
+		if (GET_ROOT(priv)->pmib->miscEntry.vap_enable)
+			for_begin = 0;
+#endif
+#ifdef UNIVERSAL_REPEATER
+		if (IS_VXD_INTERFACE(priv)) {
+			for_begin = 0;
+		} else {
+			if (IS_ROOT_INTERFACE(priv)) {
+				if (IS_DRV_OPEN(GET_VXD_PRIV(priv)))
+					for_begin = 0;
+			}
+		}
+#endif
+	}
+#endif
 
 	// unicast key processing
 	// key processing for RTL818X(B) series
@@ -9621,7 +8684,7 @@ int CamDeleteOneEntry(struct rtl8192cd_priv *priv, unsigned char *pMacAddr, unsi
 		if(!memcmp(pMacAddr, ucTempMAC, 6)) {
 
 #if defined(CONFIG_RTL_HW_WAPI_SUPPORT)
-			if((((usTempConfig & 0x1c) >> 2) == DOT11_ENC_WAPI)&&((usTempConfig & 0x3) != keyId))
+			if ((((usTempConfig & 0x1c) >> 2) == DOT11_ENC_WAPI) && ((usTempConfig & 0x3) != keyId))
 				continue;
 #endif
 			CAM_empty_entry(priv, ucIndex);	// reset MAC address, david+2007-1-15
@@ -10048,13 +9111,13 @@ int PCIE_PowerDown(struct rtl8192cd_priv *priv, unsigned char *data)
 
 	if(mode==0xc1)	{
 //		PHY_ConfigBBWithParaFile(priv,	PATHB_OFF);
-		switch_to_1x1(priv, IN);
+		switch_to_1x1(priv, PWR_STATE_IN);
 
 	}
 
 	 if(mode==0xc2)	 {
 //		 PHY_ConfigBBWithParaFile(priv,  PATHB_ON);
-		switch_to_1x1(priv, OUT);
+		switch_to_1x1(priv, PWR_STATE_OUT);
  	}
 
 	 if(mode==0xb)	 {
@@ -10091,7 +9154,7 @@ int PCIE_PowerDown(struct rtl8192cd_priv *priv, unsigned char *data)
 		signin_h2c_cmd(priv,cmd, 0 );
 		printk("sign in h2c cmd:%x, 0x284=%x\n", cmd, RTL_R32(0x284));
 
-#ifdef CONFIG_RTL_8198
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 		REG32(0xb8003000) |= BIT(16);		// GIMR
 #else
 		REG32(0xb8003000) |= BIT(9);		// GIMR
@@ -10111,13 +9174,34 @@ int PCIE_PowerDown(struct rtl8192cd_priv *priv, unsigned char *data)
 
 	 if(mode==0xa3) {
 		unsigned char tmp;
+#ifdef RTL8676_WAKE_GPIO
+				int gpio_num, irq_num;
+		
+				get_wifi_wake_pin(&gpio_num);
+				irq_num = gpioGetBspIRQNum(gpio_num);
+				
+				gpioConfig(gpio_num, GPIO_FUNC_INPUT);
+				gpioSetIMR(gpio_num, EN_FALL_EDGE_ISR); 	// enable interrupt in falling-edge
+				REG32(BSP_GIMR) |= BIT(irq_num);
+		
+#else
 
-#ifdef CONFIG_RTL_8198
-		REG32(0xb8000044) |= BIT(24);		//LEDPHASE4
-		REG32(0xb8003500) &= ~(BIT(20));	//PABCD_CNR , gpio pin
-		REG32(0xb8003508) &= ~(BIT(20));	//PABCD_DIR
-		REG32(0xb8003518) &= (~(0x03 << 8));
-		REG32(0xb8003518) |= (0x01 << 8);	// PCD_IMR		// enable interrupt in falling-edge
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+
+     if(GET_CHIP_VER(priv) == VERSION_8192D) {
+        REG32(0xb8000044) |= BIT(16)| BIT(17);                  //LEDPHASE1
+        REG32(0xb8003500) &= ~(BIT(17));                        //PABCD_CNR , gpio pin
+        REG32(0xb8003508) &= ~(BIT(17));                        //PABCD_DIR
+        REG32(0xb8003518) &= (~(0x03 << 2));
+        REG32(0xb8003518) |= (0x01 << 2);                       // PCD_IMR       
+      } else {
+        REG32(0xb8000044) |= BIT(24);                           //LEDPHASE4
+        REG32(0xb8003500) &= ~(BIT(20));                        //PABCD_CNR , gpio pin
+        REG32(0xb8003508) &= ~(BIT(20));                        //PABCD_DIR
+        REG32(0xb8003518) &= (~(0x03 << 8));
+        REG32(0xb8003518) |= (0x01 << 8);                       // PCD_IMR      
+      }
+
 		REG32(0xb8003000) |= BIT(16);		// GIMR
 #else
 		REG32(0xb8000040) |= 0x0c00;		//LEDPHASE1 :GPIOB7
@@ -10126,6 +9210,7 @@ int PCIE_PowerDown(struct rtl8192cd_priv *priv, unsigned char *data)
 		REG32(0xb8003514) &= (~(0x03 << 30));
 		REG32(0xb8003514) |= (0x01 << 30);	// PAB_IMR		// enable interrupt in falling-edge
 		REG32(0xb8003000) |= BIT(9);		// GIMR
+#endif
 
 #endif
 		// clear wake pin status
@@ -10133,15 +9218,15 @@ int PCIE_PowerDown(struct rtl8192cd_priv *priv, unsigned char *data)
 		Sw_PCIE_Func2(priv->pshare->wlandev_idx);
 #endif
 
-		REG32(0xb8b10044) = 0x8108;
+		REG32(saddr+0x44) = 0x8108;
 		tmp = RTL_R8(0x690);
 		if(tmp&1)		{
 			tmp ^=0x1;
 			RTL_W8(0x690, tmp);
 		}
-		dprintf("0xb8b10044=%x,690=%x,3000=%x, 3514=%x\n",	REG32(0xb8b10044), RTL_R8(0x690), REG32(0xb8003000),REG32(0xb8003514) );
+		dprintf("0xb8b10044=%x,690=%x,3000=%x, 3514=%x\n",	REG32(saddr+0x44), RTL_R8(0x690), REG32(0xb8003000),REG32(0xb8003514) );
 		RTL_W8(0x690, tmp |0x1 );
-		dprintf("0xb8b10044=%x,690=%x\n",	REG32(0xb8b10044), RTL_R8(0x690) );
+		dprintf("0xb8b10044=%x,690=%x\n",	REG32(saddr+0x44), RTL_R8(0x690) );
 	 }
 
 	if(mode==0x5a)
@@ -10202,7 +9287,7 @@ return 0;
 void switch_to_1x1(struct rtl8192cd_priv *priv, int mode)
 {
 
-	if(mode==IN) 	{
+	if(mode==PWR_STATE_IN) 	{
 
 		priv->pshare->rf_phy_bb_backup[21]= RTL_R32(0x88c);
 
@@ -10309,15 +9394,14 @@ void switch_to_1x1(struct rtl8192cd_priv *priv, int mode)
 			
 			PHY_SetBBReg(priv, 0x804, 0x000000f , 0x1);
 		}
-	} else if(mode==OUT)	 {
+	} else if(mode==PWR_STATE_OUT)	 {
 
-#ifdef CONFIG_RTL_92D_SUPPORT
-		 if (!(GET_CHIP_VER(priv)==VERSION_8192D))		 
-#endif
-		 {
+#ifdef CONFIG_RTL_92C_SUPPORT
+		 if (GET_CHIP_VER(priv)==VERSION_8192C) {
 		 	PHY_SetBBReg(priv, 0x88c, bMaskDWord, priv->pshare->rf_phy_bb_backup[21]);
 		 	PHY_SetBBReg(priv, 0x844, bMaskDWord, priv->pshare->rf_phy_bb_backup[0]);
 		 }		 
+#endif
 		 PHY_SetBBReg(priv, 0x85c, bMaskDWord, priv->pshare->rf_phy_bb_backup[1]);
 		 PHY_SetBBReg(priv, 0xe6c, bMaskDWord, priv->pshare->rf_phy_bb_backup[2]);
 
@@ -10344,10 +9428,10 @@ void switch_to_1x1(struct rtl8192cd_priv *priv, int mode)
 		 PHY_SetBBReg(priv, 0x90c, bMaskDWord , priv->pshare->rf_phy_bb_backup[19]);
 		 PHY_SetBBReg(priv, 0xa04, bMaskDWord , priv->pshare->rf_phy_bb_backup[22]);
 		 
-#ifdef CONFIG_RTL_92D_SUPPORT
-	  	if (!(GET_CHIP_VER(priv)==VERSION_8192D)) 	  
+#ifdef CONFIG_RTL_92C_SUPPORT
+	  	if (GET_CHIP_VER(priv)==VERSION_8192C) 	  
+			PHY_SetBBReg(priv, 0x804, bMaskDWord , priv->pshare->rf_phy_bb_backup[20]);
 #endif
-		 PHY_SetBBReg(priv, 0x804, bMaskDWord , priv->pshare->rf_phy_bb_backup[20]);
  	}
 }
 
@@ -10494,14 +9578,68 @@ int request_irq_for_wakeup_pin(struct net_device *dev)
 	else
 		saddr = CFG_92C_SLOTS;
 
-#ifdef CONFIG_RTL_8198
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+
+	#if defined(CONFIG_RTL_ULINKER)
+	{
+		// GPIO B5, b8000044 [10:9] = 2'b 11
+		REG32(0xb8000044) = (REG32(0xb8000044) & ~0x600) | 0x600;       //LEDPHASE1
+		REG32(0xb8003500) &= ~(BIT(13));			//PABCD_CNR , gpio pin
+		REG32(0xb8003508) &= ~(BIT(13));			//PABCD_DIR
+		REG32(0xb8003514) &= (~(0x03 << 26));
+		REG32(0xb8003514) |= (0x01 << 26);			// enable interrupt in falling-edge
+		REG32(PABCD_ISR) = BIT(13) ;				// clear int status
+	}
+	#else
+
+#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_8197D)
+	if(GET_CHIP_VER(priv) == VERSION_8192D) {
+		// GPIO B7, b8000044 [17:15] =3'b 100
+		REG32(0xb8000044) = (REG32(0xb8000044) & ~0x00038000) | BIT(17);       //LEDPHASE1
+		REG32(0xb8003500) &= ~(BIT(15));			//PABCD_CNR , gpio pin
+		REG32(0xb8003508) &= ~(BIT(15));			//PABCD_DIR
+		REG32(0xb8003514) &= (~(0x03 << 30));
+		REG32(0xb8003514) |= (0x01 << 30);			// enable interrupt in falling-edge
+		REG32(PABCD_ISR) = BIT(15) ;				// clear int status
+		
+	} else 
+#endif
+	{
+		// GPIO A4, b8000040 [2:0] = 3'b 110
+		REG32(0xb8000040) = (REG32(0xb8000040) & ~0x7) | 0x6;                //JTAG_TMS
+		REG32(0xb8003500) &= ~(BIT(4));			//PABCD_CNR , gpio pin
+		REG32(0xb8003508) &= ~(BIT(4));			//PABCD_DIR
+		REG32(0xb8003514) &= (~(0x03 << 8));
+		REG32(0xb8003514) |= (0x01 << 8);			// enable interrupt in falling-edge
+		REG32(PABCD_ISR) = BIT(4) ;					// clear int status
+	}
+	#endif /* #if defined(CONFIG_RTL_ULINKER) */
+
+  	REG32(0xb8003000) |= BIT(16);                   // GIMR
+
+#elif defined(CONFIG_RTL_8198)
+#ifdef CONFIG_RTL_92D_SUPPORT
+	if(GET_CHIP_VER(priv) == VERSION_8192D) {
+// GPIO C1
+		REG32(0xb8000044) |= BIT(16)|BIT(17);       //LEDPHASE1
+		REG32(0xb8003500) &= ~(BIT(17));			//PABCD_CNR , gpio pin
+		REG32(0xb8003508) &= ~(BIT(17));			//PABCD_DIR
+		REG32(0xb8003518) &= (~(0x03 << 2));
+		REG32(0xb8003518) |= (0x01 << 2);			// enable interrupt in falling-edge
+		REG32(PABCD_ISR) = BIT(17) ;				// clear int status
+		
+	} else 
+#endif
+	{
 // GPIO C4
-	REG32(0xb8000044) |= BIT(24);				//LEDPHASE4
-	REG32(0xb8003500) &= ~(BIT(20));			//PABCD_CNR , gpio pin
-	REG32(0xb8003508) &= ~(BIT(20));			//PABCD_DIR
-	REG32(0xb8003518) &= (~(0x03 << 8));
-	REG32(0xb8003518) |= (0x01 << 8);			// PCD_IMR		// enable interrupt in falling-edge
-	REG32(0xb8003000) |= BIT(16);				// GIMR
+		REG32(0xb8000044) |= BIT(24);                //LEDPHASE4
+		REG32(0xb8003500) &= ~(BIT(20));			//PABCD_CNR , gpio pin
+		REG32(0xb8003508) &= ~(BIT(20));			//PABCD_DIR
+		REG32(0xb8003518) &= (~(0x03 << 8));
+		REG32(0xb8003518) |= (0x01 << 8);			// enable interrupt in falling-edge
+		REG32(PABCD_ISR) = BIT(20) ;					// clear int status
+	}
+  	REG32(0xb8003000) |= BIT(16);                   // GIMR
 #else
 // GPIO B7
 	REG32(0xb8000040) |= 0x0c00;				//LEDPHASE1 :GPIOB7
@@ -10510,6 +9648,8 @@ int request_irq_for_wakeup_pin(struct net_device *dev)
 	REG32(0xb8003514) &= (~(0x03 << 30));
 	REG32(0xb8003514) |= (0x01 << 30);			// PAB_IMR		// enable interrupt in falling-edge
 	REG32(0xb8003000) |= BIT(9);				// GIMR
+
+	REG32(PABCD_ISR) = BIT(15) ;		// clear int status
 #endif
 
 #ifdef CONFIG_RTL_92D_DMDP
@@ -10517,7 +9657,6 @@ int request_irq_for_wakeup_pin(struct net_device *dev)
 #endif	
 
 	REG32(saddr+0x44) = 0x8108; 						// clear pme status
-	REG32(PABCD_ISR) = REG32(PABCD_ISR) ;		// clear int status
 
 #ifdef CONFIG_RTL_92D_DMDP
 	Sw_PCIE_Func2(0);
@@ -10528,6 +9667,7 @@ int request_irq_for_wakeup_pin(struct net_device *dev)
 #else
 	return request_irq(1, gpio_wakeup_isr, SA_SHIRQ, "rtl_gpio", dev);
 #endif
+
 }
 #endif
 
@@ -10540,7 +9680,7 @@ void init_pcie_power_saving(struct rtl8192cd_priv *priv)
 		saddr = CFG_92D_SLOTS;
 	else
 		saddr = CFG_92C_SLOTS;
-
+	
 // Jason : clk req
 #if 0
 		REG32(0xb9000354)=8;
@@ -10574,7 +9714,9 @@ void init_pcie_power_saving(struct rtl8192cd_priv *priv)
 #endif
 
 	REG32(saddr+ 0x80)|= 0x0100;
+#ifdef ASPM_ENABLE
 	REG32(saddr+ 0x80)|= 0x43;
+#endif
 	REG32(saddr+ 0x0778)|= BIT(5)<<8;
 
 #ifdef CONFIG_RTL_92C_SUPPORT
@@ -10595,13 +9737,18 @@ void init_pcie_power_saving(struct rtl8192cd_priv *priv)
 //	RTL_W16(0x558, 0x040a);
 //	RTL_W16(0x100 , RTL_R16(0x100) | BIT(8));		// enable sw beacon
 
+#ifdef CONFIG_RTL_92C_SUPPORT
 	if (IS_TEST_CHIP(priv)) {
 		priv->pshare->rf_ft_var.power_save &= (~ L2_en);
 		priv->pshare->rf_ft_var.power_save &= (~ASPM_en);
-	} else {
+	} else 
+#endif
+	{
 		RTL_W8(0x08, RTL_R8(0x08) | BIT(3));		// WAKEPAN_EN
+#ifdef CONFIG_RTL_92C_SUPPORT		
 		if(IS_UMC_A_CUT_88C(priv))
 			priv->pshare->rf_ft_var.power_save &= (~ASPM_en);
+#endif			
 
 	}
 #ifdef ASPM_ENABLE
@@ -10609,7 +9756,7 @@ void init_pcie_power_saving(struct rtl8192cd_priv *priv)
 #endif
 
 #ifdef CONFIG_RTL_92D_DMDP
-	Sw_PCIE_Func2(0);
+	Sw_PCIE_Func2(1);
 #endif
 
 }
@@ -10649,7 +9796,11 @@ int isPSConditionMatch(struct rtl8192cd_priv *priv)
 
 }
 
+#ifdef __KERNEL__
 void PCIe_power_save_timer(unsigned long task_priv)
+#elif defined(__ECOS)
+void PCIe_power_save_timer(void *task_priv)
+#endif
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	char force;
@@ -10690,7 +9841,7 @@ void PCIe_power_save_timer(unsigned long task_priv)
 						tasklet_schedule(&priv->pshare->ps_tasklet);
 				} else {
 					priv->offload_ctrl = 1;
-					RTL_W16(0x100 , RTL_R16(0x100) | BIT(8));		// enable sw beacon
+					RTL_W16(CR , RTL_R16(CR) | ENSWBCN);		// enable sw beacon
 					mod_timer(&priv->ps_timer, jiffies + RTL_SECONDS_TO_JIFFIES(1));
 					return;
 				}
@@ -10734,39 +9885,38 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	char in_out, L1_L2;
-	unsigned int tmp32=0,status=0,portnum=0, page=0, ctr;
+	unsigned int tmp32=0,status=0,portnum=0, page=0, ctr, i;
 	unsigned long flags;
 
-
 	unsigned int saddr, haddr;
+#ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv) == VERSION_8192D) {
 		saddr = CFG_92D_SLOTS;
 		haddr = CFG_92D_SLOTH;
 
-	} else {
+		portnum = RTL_USED_PCIE_SLOT;
+	} else 
+#endif
+	{
 		saddr = CFG_92C_SLOTS;
 		haddr = CFG_92C_SLOTH;
 	}
-
-#if defined(CONFIG_RTL_92D_SUPPORT)
-	portnum = RTL_USED_PCIE_SLOT;
-#endif
 
 	priv->ps_ctrl &= 0x7f;
 	in_out = priv->ps_ctrl & 0xf;
 	L1_L2 = (priv->ps_ctrl>>4) & 0x7;
 
 #if defined(CONFIG_RTL_92D_DMDP)
-	if((in_out== IN) && (priv->pshare->wlandev_idx ==0) && (priv->pmib->dot11RFEntry.macPhyMode == DUALMAC_DUALPHY)) {
+	if((in_out== PWR_STATE_IN) && (priv->pshare->wlandev_idx ==0) && (priv->pmib->dot11RFEntry.macPhyMode == DUALMAC_DUALPHY)) {
 		struct rtl8192cd_priv *priv1 = ((struct rtl8192cd_priv *)if_priv[1]);
 		priv1->ps_ctrl = priv->ps_ctrl;
 		PCIe_power_save_tasklet((unsigned long )priv1);		
 	}
 #endif
 
-	DEBUG_INFO("%s, %s, L%d\n", __FUNCTION__, (in_out==IN ? "in" : "out") , L1_L2);
+	DEBUG_INFO("%s, %s, L%d\n", __FUNCTION__, (in_out==PWR_STATE_IN ? "in" : "out") , L1_L2);
 
-	if( in_out == IN) 	{
+	if( in_out == PWR_STATE_IN) 	{
 		SAVE_INT_AND_CLI(flags);
 
 #ifdef CONFIG_RTL_92D_DMDP
@@ -10779,7 +9929,7 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 			  REG32(saddr+0x80) &= ~(0x3);
 			}
 #endif			
-			RTL_W8(0x302, 0x2);   // sw L123
+			RTL_W8(PCIE_CTRL_REG+2, 0x2);   // sw L123
 			RTL_W16(PCIE_CTRL_REG, 0xff00 );
 			REG32(saddr+0x44) |= 0x8108;
 
@@ -10794,7 +9944,6 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 			return;
 		}
 #endif
-		RTL_W8(0x286,  4);
 
 #ifdef ASPM_ENABLE
 		if( priv->pwr_state==ASPM_L0s_L1) {
@@ -10804,16 +9953,39 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 #endif
 
 //		RTL_W8(0x286,  4);
-		RTL_W8(0x302, 0x2);   // sw L123
+		RTL_W8(PCIE_CTRL_REG+2, 0x2);   // sw L123
 		REG32(saddr+0x44) |= 0x8108; 		// clear pme status
 
-		RTL_W16(0x4dc, priv->pshare->phw->seq);
-		RTL_W8(0x423, 0x7f);			// mac seq
+		RTL_W16(NQOS_SEQ, priv->pshare->phw->seq);
+		RTL_W8(HWSEQ_CTRL, 0x7f);			// mac seq
 
-		if(priv->pshare->rf_ft_var.power_save&stop_dma_en) {
-				RTL_W16(PCIE_CTRL_REG, 0xff00 );
-				delay_ms(1);
+		ctr=3000;
+		do {
+			  delay_us(100);
+			if(!RTL_R8(PCIE_CTRL_REG)) {
+				RTL_W8(PCIE_CTRL_REG+1, 0xfe );
+				break;
+			}
+		} while(--ctr);
+		if(!ctr) {
+			status = 1;
 		}
+		ctr=3000;
+		do {
+			  delay_us(100);
+			if( ((RTL_R32(0x200) ^ RTL_R32(0x204))==0) && 
+				(((RTL_R32(VOQ_INFO) |RTL_R32(VIQ_INFO)|RTL_R32(BEQ_INFO)|RTL_R32(BKQ_INFO)
+				|RTL_R32(MGQ_INFO)|RTL_R32(HIQ_INFO))&0xffff00)==0)
+				) { 				
+				break;
+			}
+		} while(--ctr); 
+		if(!ctr) {
+			status = 1;
+		}
+		RTL_W8(TXPAUSE, 0x2f);
+		delay_ms(1);
+
 #ifdef PCIE_L2_ENABLE
 		if (L1_L2 == L2) {
 			int 	tx_head, tx_tail, q_num;
@@ -10825,7 +9997,7 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 				while (tx_tail != tx_head) {
 					pdesc	  = phdesc + (tx_tail);
 					pdesc->Dword0 &= set_desc(~TX_OWN);
-					tx_tail = (tx_tail + 1) % NUM_TX_DESC;
+					tx_tail = (tx_tail + 1) % CURRENT_NUM_TX_DESC;
 				}
 			}
 #ifdef SMP_SYNC
@@ -10840,9 +10012,12 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 		}
 #endif
 		if ((get_rf_mimo_mode(priv) == MIMO_2T2R) && (priv->pshare->rf_ft_var.power_save&_1x1_en))
-			switch_to_1x1(priv,	IN);
+			switch_to_1x1(priv,	PWR_STATE_IN);
 
 		page = ((priv->offload_ctrl)>>7)&0xff;
+		RTL_W16(RCR, RTL_R16(RCR) & ~(BIT(11)|BIT(12)|BIT(13)));
+		RTL_W16(RXFLTMAP0, RTL_R16(RXFLTMAP0) |BIT(11)|BIT(4));
+
 		if(priv->pshare->rf_ft_var.power_save&offload_en)  {
 
 			if(GET_CHIP_VER(priv) != VERSION_8192D)
@@ -10851,6 +10026,9 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 				status |= signin_h2c_cmd(priv, _RSVDPAGE_CMD_ | BIT(7) | (page<<8), (page<<8)| (page) );
 
 			status |= signin_h2c_cmd(priv, _AP_OFFLOAD_CMD_ | (1<<8) |(HIDDEN_AP<<16) | ((GET_MIB(priv))->dot11OperationEntry.deny_any)<<24, 0 );
+#if defined(__LINUX_2_6__)
+			RTL_W32(HIMR, 0);
+#endif
 			DEBUG_INFO("%s, LINE:%d, h2c %x, %x, %x\n", __FUNCTION__, __LINE__,
 				(_RSVDPAGE_CMD_ | page<<8), (_RSVDPAGE_CMD_ | BIT(7) | (page<<8), (page<<8)| (page)),
 				(_AP_OFFLOAD_CMD_ | (1<<8) |(HIDDEN_AP<<16) | ((GET_MIB(priv))->dot11OperationEntry.deny_any)<<24)
@@ -10858,21 +10036,33 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 				ctr=3000;
 				do {
 					  delay_us(10);
-					page = RTL_R8(0x286) ;
-					if(page & 4)
+					page = RTL_R8(RXPKT_NUM+2)&6 ;
+					if(page==6)
 						break;
-				} while(ctr--);
-			if(status || !(page&4)) {
-				DEBUG_INFO("signin_h2c_cmd fail(ap offload), 286=%x\n", page);
+				} while(--ctr);
+				
+			if(status || (page!=6)) {
+				DEBUG_INFO("signin_h2c_cmd fail(ap offload), 286=%x\n", page);				
+#if defined(__LINUX_2_6__)
+			RTL_W32(HIMR, priv->pshare->InterruptMask);
+#endif
 				if ((get_rf_mimo_mode(priv) == MIMO_2T2R) && (priv->pshare->rf_ft_var.power_save&_1x1_en))
-					switch_to_1x1(priv, OUT);
-				RTL_W16(PCIE_CTRL_REG, 0xff);
-				RTL_W8(0x423, 0x0); 		// mac seq disable
-				RTL_W8(0x286, 0);
+					switch_to_1x1(priv, PWR_STATE_OUT);
+				RTL_W8(HWSEQ_CTRL, 0x0); 		// mac seq disable
+				RTL_W8(RXPKT_NUM+2, 0);
+
+				RTL_W16(RCR, RTL_R16(RCR) | (BIT(11)|BIT(13)));
+				RTL_W16(RXFLTMAP0, RTL_R16(RXFLTMAP0) & ~(BIT(11)|BIT(4))); 
+
+				RTL_W8(PCIE_CTRL_REG+1, 0x00);	// enable DMA
+				RTL_W8(TXPAUSE, 0x0);
+
+				priv->offload_ctrl =0;
 				RESTORE_INT(flags);
 				return;
 			}
 		}
+		RTL_W16(CR , RTL_R16(CR) | ENSWBCN);		// enable sw beacon
 
 		if( L1_L2 == L1){
   		
@@ -10920,13 +10110,13 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 			printk("PME turn off -> L2\n");		  
 		}
 #endif
-#ifdef CONFIG_RTL_8198
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 		REG32(0xb8003000) |= BIT(16);		// GIMR
 #else
 		REG32(0xb8003000) |= BIT(9);		// GIMR
 #endif
 	}
-	else if(in_out==OUT) {
+	else if(in_out==PWR_STATE_OUT) {
 #ifdef PCIE_L2_ENABLE
 		if( L1_L2 == L2){
 
@@ -10959,8 +10149,8 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 			 if( priv->pwr_state == L1) {
 			 
 #ifdef CONFIG_RTL_92D_DMDP
-				for(page=0; page<2; page++) {
-					Sw_PCIE_Func2(page);
+				for(i=0; i<2; i++) {
+					Sw_PCIE_Func2(i);
 #endif
 					ctr=3000;
 #if 0 //saving more power, leave L1 write
@@ -10974,13 +10164,13 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 						status = REG32(haddr+0x728)&0x1f;
 						if(status == 0x11)
 							break;
-					} while(ctr--);
+					} while(--ctr);
 
 					if(status != 0x11)
 						panic_printk("change to L0 fail!!!, status=%x, MAC0\n", status);
 					else
 #ifdef CONFIG_RTL_92D_DMDP
-					((struct rtl8192cd_priv *)if_priv[page])->pwr_state = L0;
+					((struct rtl8192cd_priv *)if_priv[i])->pwr_state = L0;
 				}
 #else
 			  priv->pwr_state = L0;
@@ -10996,12 +10186,16 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 #endif		
 
 		if(priv->pshare->rf_ft_var.power_save&offload_en) {
+			
+#if defined(__LINUX_2_6__)
+		RTL_W32(HIMR, priv->pshare->InterruptMask);
+#endif
 			signin_h2c_cmd(priv, _AP_OFFLOAD_CMD_ , 0 );		// offload
-			delay_ms(1);
+			delay_ms(2);		
 		}
 
 		if ((get_rf_mimo_mode(priv) == MIMO_2T2R) &&(priv->pshare->rf_ft_var.power_save&_1x1_en))
-			switch_to_1x1(priv,	OUT);
+			switch_to_1x1(priv,	PWR_STATE_OUT);
 #ifdef PCIE_L2_ENABLE
 		if( L1_L2 == L2) {
 			priv->pshare->phw->cur_rx =0;
@@ -11019,23 +10213,24 @@ void PCIe_power_save_tasklet(unsigned long task_priv)
 			RTL_W32(RX_DESA, priv->pshare->phw->ring_dma_addr);
 		}
 #endif
-		if(priv->pshare->rf_ft_var.power_save&stop_dma_en) {
-			RTL_W16(PCIE_CTRL_REG, 0xff);
-		}
-
 		// wait until FW stop parsing packet
 		ctr = 1000;
 		do {
 			if(!(RTL_R8(FWIMR) & FWIMR_RXDONE))
 				break;
-			delay_us(100);
-		} while(ctr--) ;
+			delay_us(200);
+		} while(--ctr) ;
 		if(!ctr)
 			DEBUG_ERR("stop offload fail\n");
 
-		RTL_W8(0x423, 0x0); 		// mac seq disable
-		RTL_W8(0x286, 0);			// RW_RELEASE_ENABLE
-		RTL_W8(0x302, 0x3);			// sw L123
+		RTL_W8(HWSEQ_CTRL, 0x0); 		// mac seq disable
+		RTL_W8(RXPKT_NUM+2, 0);			// RW_RELEASE_ENABLE
+		RTL_W16(RCR, RTL_R16(RCR) | (BIT(11)|BIT(13)));
+		RTL_W16(RXFLTMAP0, RTL_R16(RXFLTMAP0) & ~(BIT(11)|BIT(4)));	
+		RTL_W8(PCIE_CTRL_REG+1, 0x00);	// enable DMA
+		RTL_W8(PCIE_CTRL_REG+2, 0x3);	// sw L123		
+		RTL_W8(TXPAUSE, 0x0);
+		RTL_W16(CR , RTL_R16(CR) & ~ENSWBCN);
 
 #ifdef CONFIG_RTL_92D_DMDP
 		if((priv->pshare->wlandev_idx ==0) && (priv->pmib->dot11RFEntry.macPhyMode == DUALMAC_DUALPHY)) {
@@ -11080,12 +10275,15 @@ void PCIeWakeUp(struct rtl8192cd_priv *priv, unsigned int expTime)
 		} else 
 #endif
 		{
-			priv->ps_ctrl = 0x82 | (priv->pwr_state<<4);
+			priv->ps_ctrl = 0x02 | (priv->pwr_state<<4);
 			PCIe_power_save_tasklet((unsigned long)priv);
 		}
 		
 		mod_timer(&priv->ps_timer, jiffies + expTime);
 		priv->offload_ctrl =0;
+#ifdef CONFIG_RTL_92D_DMDP	
+		((struct rtl8192cd_priv *)if_priv[priv->pshare->wlandev_idx^1])->offload_ctrl = 0;
+#endif
 	}
 	RESTORE_INT(flags);
 }
@@ -11101,22 +10299,47 @@ gpio_wakeup_isr(int irq, void *dev_instance, struct pt_regs *regs)
 	struct rtl8192cd_priv *priv = NULL;
 
 	unsigned int saddr;
+
+	dev = (struct net_device *)dev_instance;
+	priv = (struct rtl8192cd_priv *)dev->priv;
+
 	if (GET_CHIP_VER(priv) == VERSION_8192D) {
 		saddr = CFG_92D_SLOTS;
 	} else {
 		saddr = CFG_92C_SLOTS;
 	}
 
-	dev = (struct net_device *)dev_instance;
-	priv = (struct rtl8192cd_priv *)dev->priv;
-
 #ifdef CONFIG_RTL_92D_DMDP
 	Sw_PCIE_Func2(priv->pshare->wlandev_idx);
 #endif
 
 	DEBUG_INFO("%s, PABCD_ISR=%x\t", dev->name, REG32(PABCD_ISR));
-	REG32(PABCD_ISR) = REG32(PABCD_ISR) ;
-	DEBUG_INFO("\nPABCD_ISR=%x,0xb8100044=%x\n", REG32(PABCD_ISR), REG32(saddr+0x44));
+	
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+
+	#if defined(CONFIG_RTL_ULINKER)
+		REG32(PABCD_ISR) = BIT(13) ; 	// clear int status
+	#else
+#if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_8197D)
+	if(GET_CHIP_VER(priv) == VERSION_8192D)		
+		REG32(PABCD_ISR) = BIT(15) ;
+	else 
+#endif
+		REG32(PABCD_ISR) = BIT(4) ;		// clear int status
+	#endif /* #if defined(CONFIG_RTL_ULINKER) */
+
+#elif defined(CONFIG_RTL_8198)
+#ifdef CONFIG_RTL_92D_SUPPORT
+	if(GET_CHIP_VER(priv) == VERSION_8192D)		
+		REG32(PABCD_ISR) = BIT(17) ;
+	else 
+#endif
+		REG32(PABCD_ISR) = BIT(20) ;		// clear int status
+#else
+	REG32(PABCD_ISR) = BIT(15) ;			// clear int status
+#endif
+
+	DEBUG_INFO(", PABCD_ISR=%x,0xb8100044=%x\n", REG32(PABCD_ISR), REG32(saddr+0x44));
 
 #ifdef GPIO_WAKEPIN
 #ifdef PCIE_POWER_SAVING_DEBUG
@@ -11126,7 +10349,7 @@ gpio_wakeup_isr(int irq, void *dev_instance, struct pt_regs *regs)
 		del_timer_sync(&priv->ps_timer);
 
 	if( priv->pwr_state == L1 || priv->pwr_state == L2) {
-		priv->ps_ctrl = 0x82 | (priv->pwr_state<<4);
+		priv->ps_ctrl = 0x02 | (priv->pwr_state<<4);
 		PCIe_power_save_tasklet((unsigned long)priv);
 	}		
 	
@@ -11152,6 +10375,7 @@ void radio_off(struct rtl8192cd_priv *priv)
 
 
 #ifdef EN_EFUSE
+#define VOLTAGE_V25		0x03
 /*-----------------------------------------------------------------------------
  * Function:	efuse_PowerSwitch
  *
@@ -11170,7 +10394,7 @@ void radio_off(struct rtl8192cd_priv *priv)
  * 11/17/2008 	MHC		Create Version 0.
  *
  *---------------------------------------------------------------------------*/
-static void efuse_PowerSwitch(struct rtl8192cd_priv *priv, unsigned char PwrState)
+static	void efuse_PowerSwitch(struct rtl8192cd_priv *priv, unsigned char bWrite, unsigned char PwrState)
 {
 	unsigned char tempval;
 	short tmpV16;
@@ -11193,16 +10417,22 @@ static void efuse_PowerSwitch(struct rtl8192cd_priv *priv, unsigned char PwrStat
 			tmpV16 |= (LOADER_CLK_EN |ANA8M);
 			RTL_W16(SYS_CLKR, tmpV16);
 		}
-		// Enable LDO 2.5V before read/write action
-		tempval = RTL_R8(EFUSE_TEST+3);
-		RTL_W8(EFUSE_TEST+3, (tempval | 0x80));
+
+		if (bWrite == TRUE) {
+			// Enable LDO 2.5V before read/write action
+			tempval = RTL_R8(EFUSE_TEST+3);
+			tempval &= 0x0F;
+			tempval |= (VOLTAGE_V25 << 4);
+			RTL_W8(EFUSE_TEST+3, (tempval | 0x80));
+		}
 	} else {
-		// Disable LDO 2.5V after read/write action
-		tempval = RTL_R8(EFUSE_TEST+3);
-		RTL_W8(EFUSE_TEST+3, (tempval & 0x7F));
+		if (bWrite == TRUE) {
+			// Disable LDO 2.5V after read/write action
+			tempval = RTL_R8(EFUSE_TEST+3);
+			RTL_W8(EFUSE_TEST+3, (tempval & 0x7F));
+		}
 	}
 }	/* efuse_PowerSwitch */
-
 
 static void ReadEFuseByte(struct rtl8192cd_priv *priv, unsigned short _offset, unsigned char *pbuf)
 {
@@ -11228,6 +10458,14 @@ static void ReadEFuseByte(struct rtl8192cd_priv *priv, unsigned short _offset, u
 		value32 = RTL_R32(EFUSE_CTRL);
 		retry++;
 	}
+
+	// 20100205 Joseph: Add delay suggested by SD1 Victor.
+	// This fix the problem that Efuse read error in high temperature condition.
+	// Designer says that there shall be some delay after ready bit is set, or the
+	// result will always stay on last data we read.
+	delay_us(50);
+	value32 = RTL_R32(EFUSE_CTRL);
+	
 	*pbuf = (unsigned char)(value32 & 0xff);
 }	/* ReadEFuseByte */
 
@@ -11397,9 +10635,9 @@ static void efuse_ReadAllMap(struct rtl8192cd_priv *priv, unsigned char *Efuse)
 	//
 	// We must enable clock and LDO 2.5V otherwise, read all map will be fail!!!!
 	//
-	efuse_PowerSwitch(priv, TRUE);
+	efuse_PowerSwitch(priv, FALSE, TRUE);
 	ReadEFuse(priv, 0, EFUSE_MAP_LEN, Efuse);
-	efuse_PowerSwitch(priv, FALSE);
+	efuse_PowerSwitch(priv, FALSE, FALSE);
 }
 
 
@@ -11441,7 +10679,7 @@ static int isPGValueValid(struct rtl8192cd_priv *priv, unsigned char *hwinfo)
 {
 	int j;
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if (GET_CHIP_VER(priv) != VERSION_8192D) {
+	if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C)) {
 		for (j=EEPROM_TxPowerCCK; j<EEPROM_TxPowerCCK+3; j++) {
 			if (hwinfo[j] > 63)
 				return 0;
@@ -11491,7 +10729,7 @@ void ReadTxPowerInfoFromHWPG(struct rtl8192cd_priv *priv)
 	if (/*priv->AutoloadFailFlag==FALSE &&*/ priv->pmib->efuseEntry.enable_efuse==1) {
 		u8 TxPwrCCK=0, TxPwrHT40_1S=0, TxPwrHT40_2SDiff=0, TxPwrHT20Diff=0, TxPwrOFDMDiff=0;
 #ifdef CONFIG_RTL_92C_SUPPORT
-		if (GET_CHIP_VER(priv)!=VERSION_8192D){
+		if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C)) {
 			TxPwrCCK = EEPROM_TxPowerCCK;
 			TxPwrHT40_1S = EEPROM_TxPowerHT40_1S;
 			TxPwrHT40_2SDiff = EEPROM_TxPowerHT40_2SDiff;
@@ -11653,7 +10891,7 @@ static void ReadMacAddressFromEfuse(struct rtl8192cd_priv *priv)
 #endif
 
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if (GET_CHIP_VER(priv) != VERSION_8192D) {
+	if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C)) {
 		efuse_MAC = EEPROM_MACADDRESS;
 	}
 #endif
@@ -11714,7 +10952,7 @@ void ReadThermalMeterFromEfuse(struct rtl8192cd_priv *priv)
 		return;
 
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if (GET_CHIP_VER(priv) != VERSION_8192D) {
+	if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C)) {
 		efuse_Ther = EEPROM_THERMAL_METER;
 	}
 #endif
@@ -11728,6 +10966,15 @@ void ReadThermalMeterFromEfuse(struct rtl8192cd_priv *priv)
 	priv->pmib->dot11RFEntry.ther = (hwinfo[efuse_Ther] & 0x1f);	//[4:0]
 	DEBUG_INFO("ThermalMeter = 0x%x\n", priv->pmib->dot11RFEntry.ther);
 
+#ifdef CONFIG_RTL_88E_SUPPORT //for 88e tx power tracking
+	if(GET_CHIP_VER(priv) == VERSION_8188E){
+		if ((priv->pmib->dot11RFEntry.ther < 0x07) || (priv->pmib->dot11RFEntry.ther > 0x32)) {
+			DEBUG_ERR("TPT: unreasonable target ther %d, disable tpt\n", priv->pmib->dot11RFEntry.ther);
+			priv->pmib->dot11RFEntry.ther = 0;
+		}
+	}
+	else
+#endif
 	if ((priv->pmib->dot11RFEntry.ther < 0x07) || (priv->pmib->dot11RFEntry.ther > 0x1d)) {
 		priv->pmib->dot11RFEntry.ther = 0;
 	}
@@ -11816,9 +11063,9 @@ int ReadAdapterInfo8192CE(struct rtl8192cd_priv *priv)
 	ReadMacAddressFromEfuse(priv);
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if (GET_CHIP_VER(priv)==VERSION_8192D){
-	ReadCrystalCalibrationFromEfuse(priv);
-	ReadDeltaValFromEfuse(priv);
-	ReadTRSWPAPEFromEfuse(priv);
+		ReadCrystalCalibrationFromEfuse(priv);
+		ReadDeltaValFromEfuse(priv);
+		ReadTRSWPAPEFromEfuse(priv);
 	}
 #endif
 
@@ -11859,7 +11106,7 @@ static int getEEPROMOffset(struct rtl8192cd_priv *priv, int type)
 	int offset=0;
 
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if (GET_CHIP_VER(priv) != VERSION_8192D) {
+	if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C)) {
 		switch(type) {
 		case 0:	offset = EEPROM_TxPowerCCK;
 				break;
@@ -12171,22 +11418,16 @@ static INT32 WriteEFuseByte(struct rtl8192cd_priv *priv, UINT16 addr, UINT8 data
 {
 	UINT8 tmpidx = 0;
 	INT32 bResult;
-	UINT8 val8;
 
 //	DEBUG_INFO("Addr = %x Data=%x\n", addr, data);
 
 	// -----------------e-fuse reg ctrl ---------------------------------
 	//address
 	RTL_W8( EFUSE_CTRL+1, (UINT8)(addr&0xff));
-	val8 = RTL_R8( EFUSE_CTRL+1);
 	RTL_W8( EFUSE_CTRL+2, 	(RTL_R8(EFUSE_CTRL+2)&0xFC )|(UINT8)((addr>>8)&0x03));
 	RTL_W8( EFUSE_CTRL, data);//data
-#if 1
+
 	RTL_W8( EFUSE_CTRL+3, 0xF2	);//write cmd
-#else
-	// use default program time 5000 ns
-	PlatformEFIOWrite4Byte(pAdapter,  REG_EFUSE_CTRL, (PlatformEFIORead4Byte(pAdapter,REG_EFUSE_CTRL)|( EF_FLAG)));//write cmd
-#endif
 
 	while((0x80 &  RTL_R8(EFUSE_CTRL+3)) && (tmpidx<100) ){
 		tmpidx++;
@@ -12740,7 +11981,7 @@ static int EFUSE_ShadowUpdate(struct rtl8192cd_priv *priv)
 		return FALSE;
 	}
 	// For Efuse write action, we must enable LDO2.5V and 40MHZ clk.
-	efuse_PowerSwitch(priv,TRUE);
+	efuse_PowerSwitch(priv,TRUE,TRUE);
 
 	//
 	// Efuse support 16 write are with PG header packet!!!!
@@ -12780,7 +12021,7 @@ static int EFUSE_ShadowUpdate(struct rtl8192cd_priv *priv)
 	}
 
 	// For warm reboot, we must resume Efuse clock to 500K.
-	efuse_PowerSwitch(priv, FALSE);
+	efuse_PowerSwitch(priv,TRUE, FALSE);
 
 	//
 	// <Roger_Notes> We update both init shadow map again and modified map
@@ -12802,7 +12043,7 @@ static void shadowMapWrite(struct rtl8192cd_priv *priv, int type, char *value, u
 		return;
 
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if (GET_CHIP_VER(priv) != VERSION_8192D) {
+	if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C)) {
 		if (offset == EEPROM_MACADDRESS) {
 			for (i=0; i<MACADDRLEN; i++) {
 				get_array_val(hwinfo+offset+i, value+i*2, 2);
@@ -12912,7 +12153,7 @@ static int converToFlashFormat(struct rtl8192cd_priv *priv, unsigned char *out, 
 	len += 1 + strlen(FLASH_NAME_PARAM[type]);
 
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if (GET_CHIP_VER(priv) != VERSION_8192D) {
+	if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C)) {
 		if (offset == EEPROM_MACADDRESS) {
 			for (i=0; i<MACADDRLEN; i++) {
 				sprintf(out+len, "%02x", hwinfo[offset+i]);
@@ -13235,7 +12476,7 @@ int efuse_get(struct rtl8192cd_priv *priv, unsigned char *data)
 	int j, len, para_num=0;
 
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if (GET_CHIP_VER(priv) != VERSION_8192D)
+	if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C))
 		para_num = EFUSECMD_NUM_92C;
 #endif
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -13258,10 +12499,9 @@ int efuse_set(struct rtl8192cd_priv *priv, unsigned char *data)
 {
 	char *val;
 	int j, para_num=0;
-	extern char *get_value_by_token(char *data, char *token);
 
 #ifdef CONFIG_RTL_92C_SUPPORT
-	if (GET_CHIP_VER(priv) != VERSION_8192D)
+	if ((GET_CHIP_VER(priv) == VERSION_8188C) || (GET_CHIP_VER(priv) == VERSION_8192C))
 		para_num = EFUSECMD_NUM_92C;
 #endif
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -13288,633 +12528,154 @@ int efuse_sync(struct rtl8192cd_priv *priv, unsigned char *data)
 }
 #endif // EN_EFUSE
 
-
-
-#ifdef SW_ANT_SWITCH
-
-//
-// 20100514 Luke/Joseph:
-// Add new function to reset antenna diversity state after link.
-//
-
-void resetSwAntDivVariable(struct rtl8192cd_priv *priv)
+#ifdef TX_EARLY_MODE
+void enable_em(struct rtl8192cd_priv *priv)
 {
-	priv->pshare->RSSI_sum_R = 0;
-	priv->pshare->RSSI_cnt_R = 0;
-	priv->pshare->RSSI_sum_L = 0;
-	priv->pshare->RSSI_cnt_L = 0;
-	priv->pshare->TXByteCnt_R = 0;
-	priv->pshare->TXByteCnt_L = 0;
-	priv->pshare->RXByteCnt_R = 0;
-	priv->pshare->RXByteCnt_L = 0;
-
-}
-void SwAntDivRestAfterLink(struct rtl8192cd_priv *priv)
-{
-	priv->pshare->RSSI_test = FALSE;
-	priv->pshare->DM_SWAT_Table.try_flag = SWAW_STEP_RESET;
-	memset(priv->pshare->DM_SWAT_Table.SelectAntennaMap, 0, sizeof(priv->pshare->DM_SWAT_Table.SelectAntennaMap));
-	priv->pshare->DM_SWAT_Table.mapIndex = 0;
-	priv->pshare->lastTxOkCnt = priv->net_stats.tx_bytes;
-	priv->pshare->lastRxOkCnt = priv->net_stats.rx_bytes;
-	resetSwAntDivVariable(priv);
-}
-
-
-void dm_SW_AntennaSwitchInit(struct rtl8192cd_priv *priv)
-{
-	if (GET_CHIP_VER(priv) == VERSION_8188C)
-		priv->pshare->rf_ft_var.antSw_select = 0;
-
-	//RT_TRACE(COMP_SWAS, DBG_LOUD, ("SWAS:Init SW Antenna Switch\n"));
-	resetSwAntDivVariable(priv);
-	priv->pshare->DM_SWAT_Table.CurAntenna = Antenna_L;
-	priv->pshare->DM_SWAT_Table.try_flag = SWAW_STEP_RESET;
-	memset(priv->pshare->DM_SWAT_Table.SelectAntennaMap, 0, sizeof(priv->pshare->DM_SWAT_Table.SelectAntennaMap));
-	priv->pshare->DM_SWAT_Table.mapIndex = 0;
-
-
-	RTL_W32(LEDCFG, RTL_R32(LEDCFG) | BIT(23) );	//enable LED[1:0] pin as ANTSEL
-
-	if ( !priv->pshare->rf_ft_var.antSw_select)	{
-		RTL_W32(rFPGA0_XAB_RFParameter, RTL_R32(rFPGA0_XAB_RFParameter) | BIT(13) );	 //select ANTESEL from path A
-		RTL_W32(rFPGA0_XAB_RFInterfaceSW, RTL_R32(rFPGA0_XAB_RFInterfaceSW) | BIT(8)| BIT(9) );  // enable ANTSEL  A as SW control
-		RTL_W32(rFPGA0_XA_RFInterfaceOE, (RTL_R32(rFPGA0_XA_RFInterfaceOE) & ~(BIT(8)|BIT(9)))| 0x01<<8 );	// 0x01: left antenna, 0x02: right antenna
-	} else 	{
-		RTL_W32(rFPGA0_XAB_RFParameter, RTL_R32(rFPGA0_XAB_RFParameter) & ~ BIT(13) );	 //select ANTESEL from path B
-		RTL_W32(rFPGA0_XAB_RFInterfaceSW, RTL_R32(rFPGA0_XAB_RFInterfaceSW) | BIT(24)| BIT(25) );  // enable ANTSEL B as SW control
-		RTL_W32(rFPGA0_XB_RFInterfaceOE, (RTL_R32(rFPGA0_XB_RFInterfaceOE) & ~(BIT(8)|BIT(9)))| 0x01<<8 );	// 0x01: left antenna, 0x02: right antenna
-	}
-	RTL_W16(rFPGA0_TxInfo, (RTL_R16(rFPGA0_TxInfo)&0xf0ff) | BIT(8) );	// b11-b8=0001
-
-	// Move the timer initialization to InitializeVariables function.
-	//PlatformInitializeTimer(Adapter, &pMgntInfo->SwAntennaSwitchTimer, (RT_TIMER_CALL_BACK)dm_SW_AntennaSwitchCallback, NULL, "SwAntennaSwitchTimer");
-}
-//
-// 20100514 Luke/Joseph:
-// Add new function for antenna diversity after link.
-// This is the main function of antenna diversity after link.
-// This function is called in HalDmWatchDog() and dm_SW_AntennaSwitchCallback().
-// HalDmWatchDog() calls this function with SWAW_STEP_PEAK to initialize the antenna test.
-// In SWAW_STEP_PEAK, another antenna and a 500ms timer will be set for testing.
-// After 500ms, dm_SW_AntennaSwitchCallback() calls this function to compare the signal just
-// listened on the air with the RSSI of original antenna.
-// It chooses the antenna with better RSSI.
-// There is also a aged policy for error trying. Each error trying will cost more 5 seconds waiting
-// penalty to get next try.
-//
-void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step)
-{
-	unsigned int	curTxOkCnt, curRxOkCnt;
-	unsigned int	CurByteCnt, PreByteCnt;
-	int 			Score_R=0, Score_L=0;
-	int				RSSI_R, RSSI_L;
-	char 			nextAntenna=priv->pshare->DM_SWAT_Table.CurAntenna;
-	int				i;
-
-//1 1. Determine which condition should turn off Antenna Diversity
-
-#ifdef MP_TEST
-	if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific)
-		return;
-#endif
-
-//	if(!(GET_CHIP_VER(priv) == VERSION_8188C) || !priv->pshare->rf_ft_var.antSw_enable)
-//		return;
-
-	if((!priv->assoc_num)
-#ifdef PCIE_POWER_SAVING
-	|| (priv->pwr_state == L2) || (priv->pwr_state == L1)
-#endif
-	){
-		SwAntDivRestAfterLink(priv);
-		return;
-	}
-
-	// Handling step mismatch condition.
-	// Peak step is not finished at last time. Recover the variable and check again.
-	if( Step != priv->pshare->DM_SWAT_Table.try_flag)
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E) {
+		RTL_W32(EARLY_MODE_CTRL, RTL_R32(EARLY_MODE_CTRL) |0x8000001f);
+		priv->pshare->aggrmax_bak = RTL_R16(PROT_MODE_CTRL+2);
+		//RTL_W16(PROT_MODE_CTRL+2, 0x0808);
+		RTL_W16(PROT_MODE_CTRL+2, 0x0c0c);
+	} else
+#endif	
 	{
-		SwAntDivRestAfterLink(priv);
+		RTL_W32(EARLY_MODE_CTRL, RTL_R32(EARLY_MODE_CTRL) |0x8000000f); // enable signel AMPDU, early mode for vi/vo/be/bk queue
 	}
 
-//1 2. Initialization: Select a assocaiated AP or STA as RSSI target
-	if(priv->pshare->DM_SWAT_Table.try_flag == SWAW_STEP_RESET) {
-#ifdef CLIENT_MODE
-		if((OPMODE & (WIFI_STATION_STATE | WIFI_ASOC_STATE)) == (WIFI_STATION_STATE | WIFI_ASOC_STATE)) {
-			// Target: Infrastructure mode AP.
-			priv->pshare->RSSI_target = NULL;
-		}
+	RTL_W16(TCR, RTL_R16(TCR) | WMAC_TCR_ERRSTEN2);		
+}
+
+void disable_em(struct rtl8192cd_priv *priv)
+{
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E) {
+		RTL_W32(EARLY_MODE_CTRL, RTL_R32(EARLY_MODE_CTRL) & ~0x8000001f);
+		if (priv->pshare->aggrmax_bak != 0)
+			RTL_W16(PROT_MODE_CTRL+2, (priv->pshare->aggrmax_bak & 0xffff));
+	} else
+#endif	
+	{
+		RTL_W32(EARLY_MODE_CTRL, RTL_R32(EARLY_MODE_CTRL) & ~0x8000000f); // disable signel AMPDU, early mode for vi/vo/be/bk queue
+	}
+	
+	RTL_W16(TCR, RTL_R16(TCR) & ~WMAC_TCR_ERRSTEN2 );
+}
 #endif
-		resetSwAntDivVariable(priv);
-		priv->pshare->DM_SWAT_Table.try_flag = SWAW_STEP_PEAK;
+
+
+
+#ifdef RTLWIFINIC_GPIO_CONTROL
+struct rtl8192cd_priv *root_priv;
+
+void RTLWIFINIC_GPIO_init_priv(struct rtl8192cd_priv *priv)
+{
+	root_priv = priv;
+}
+
+void RTLWIFINIC_GPIO_config(unsigned int gpio_num, unsigned int direction)
+{
+	struct rtl8192cd_priv *priv = root_priv;
+	if(!root_priv)
 		return;
-	}
-	else  {
 
-//1 3. Antenna Diversity
+#ifdef PCIE_POWER_SAVING
+	PCIeWakeUp(priv, POWER_DOWN_T0);
+#endif
 
-		//2 Calculate TX and RX OK bytes
+	if ((gpio_num >= 0) && (gpio_num <= 7)) {
+		priv->pshare->phw->GPIO_dir[gpio_num] = direction;
 
-		curTxOkCnt = priv->net_stats.tx_bytes - priv->pshare->lastTxOkCnt;
-		curRxOkCnt = priv->net_stats.rx_bytes - priv->pshare->lastRxOkCnt;
-		priv->pshare->lastTxOkCnt = priv->net_stats.tx_bytes;
-		priv->pshare->lastRxOkCnt = priv->net_stats.rx_bytes;
-
-		//2 Try State
-		if(priv->pshare->DM_SWAT_Table.try_flag == SWAW_STEP_DETERMINE)	{
-			//3 1. Seperately caculate TX and RX OK byte counter for ant A and B
-			if(priv->pshare->DM_SWAT_Table.CurAntenna == Antenna_R) {
-				priv->pshare->TXByteCnt_R += curTxOkCnt;
-				priv->pshare->RXByteCnt_R += curRxOkCnt;
-			} else 	{
-				priv->pshare->TXByteCnt_L += curTxOkCnt;
-				priv->pshare->RXByteCnt_L += curRxOkCnt;
-			}
-
-			//3 2. Change anntena for testing
-			if(priv->pshare->DM_SWAT_Table.RSSI_Trying != 0) {
-				nextAntenna = (priv->pshare->DM_SWAT_Table.CurAntenna ) ^ Antenna_MAX;
-				priv->pshare->DM_SWAT_Table.RSSI_Trying--;
-			}
-
-			//2 Try State End: Determine the best antenna
-
-			if(priv->pshare->DM_SWAT_Table.RSSI_Trying==0) {
-				nextAntenna = priv->pshare->DM_SWAT_Table.CurAntenna;
-				priv->pshare->DM_SWAT_Table.mapIndex = (priv->pshare->DM_SWAT_Table.mapIndex+1)%SELANT_MAP_SIZE;
-
-				//3 TP Mode: Determine the best antenna by throuhgput
-				if(priv->pshare->DM_SWAT_Table.TestMode == TP_MODE)  {
-
-
-
-					//3 (1) Saperately caculate total byte count for two antennas
-					if(priv->pshare->DM_SWAT_Table.CurAntenna == Antenna_R) {
-						CurByteCnt = (priv->pshare->TXByteCnt_R + (priv->pshare->RXByteCnt_R<<1));
-						PreByteCnt = (priv->pshare->TXByteCnt_L + (priv->pshare->RXByteCnt_L<<1));
-					} else {
-						CurByteCnt = (priv->pshare->TXByteCnt_L + (priv->pshare->RXByteCnt_L<<1));
-						PreByteCnt = (priv->pshare->TXByteCnt_R + (priv->pshare->RXByteCnt_R<<1));
-					}
-
-					//3 (2) Throughput Normalization
-					if(priv->pshare->TrafficLoad == TRAFFIC_HIGH)
-						CurByteCnt >>=3;
-					else if(priv->pshare->TrafficLoad == TRAFFIC_LOW)
-						CurByteCnt >>=1;
-
-					if(priv->pshare->DM_SWAT_Table.CurAntenna == Antenna_R) {
-						priv->pshare->DM_SWAT_Table.SelectAntennaMap[0][priv->pshare->DM_SWAT_Table.mapIndex] = PreByteCnt;
-						priv->pshare->DM_SWAT_Table.SelectAntennaMap[1][priv->pshare->DM_SWAT_Table.mapIndex] = CurByteCnt;
-					} else {
-						priv->pshare->DM_SWAT_Table.SelectAntennaMap[0][priv->pshare->DM_SWAT_Table.mapIndex] = CurByteCnt;
-						priv->pshare->DM_SWAT_Table.SelectAntennaMap[1][priv->pshare->DM_SWAT_Table.mapIndex] = PreByteCnt;
-					}
-
-					Score_R = Score_L=0;
-					for (i= 0; i<SELANT_MAP_SIZE; i++) {
-						Score_L += priv->pshare->DM_SWAT_Table.SelectAntennaMap[0][i];
-						Score_R += priv->pshare->DM_SWAT_Table.SelectAntennaMap[1][i];
-					}
-
-					nextAntenna = (Score_L > Score_R) ? Antenna_L : Antenna_R;
-
-					if(priv->pshare->rf_ft_var.ant_dump&8)
-						panic_printk("Mode TP, select Ant%d, [Score1=%d,Score2=%d]\n", nextAntenna, Score_L, Score_R);
-
-				}
-
-				//3 RSSI Mode: Determine the best anntena by RSSI
-				else if(priv->pshare->DM_SWAT_Table.TestMode == RSSI_MODE) {
-
-					//2 Saperately caculate average RSSI for two antennas
-					RSSI_L = RSSI_R = 0;
-
-					if(priv->pshare->RSSI_cnt_R > 0)
-						RSSI_R = priv->pshare->RSSI_sum_R/priv->pshare->RSSI_cnt_R;
-					if(priv->pshare->RSSI_cnt_L > 0)
-						RSSI_L = priv->pshare->RSSI_sum_L/priv->pshare->RSSI_cnt_L;
-
-					if(RSSI_L && RSSI_R )
-						nextAntenna =  (RSSI_L > RSSI_R) ? Antenna_L : Antenna_R;
-
-					if(priv->pshare->rf_ft_var.ant_dump&8)
-						panic_printk("Mode RSSI, RSSI_R=%d(%d), RSSI_L=%d(%d), Ant=%d\n",
-						RSSI_R, priv->pshare->RSSI_cnt_R, RSSI_L,  priv->pshare->RSSI_cnt_L, nextAntenna);
-
-				}
-
-				//3 Reset state
-				resetSwAntDivVariable(priv);
-				priv->pshare->DM_SWAT_Table.try_flag = SWAW_STEP_PEAK;
-				priv->pshare->RSSI_test = FALSE;
-			}
+		if (direction == 0x01) {
+			RTL_W32(GPIO_PIN_CTRL, RTL_R32(GPIO_PIN_CTRL) & ~(BIT(gpio_num+24) | BIT(gpio_num+16)));
+			return;
 		}
+		else if (direction == 0x10) {
+			RTL_W32(GPIO_PIN_CTRL, (RTL_R32(GPIO_PIN_CTRL) & ~BIT(gpio_num+24)) | (BIT(gpio_num+16) | BIT(gpio_num+8)));
+			return;
+		}
+	}
+	if ((gpio_num >= 8) && (gpio_num <= 11)) {
+		priv->pshare->phw->GPIO_dir[gpio_num] = direction;
 
-		//1 Normal State
-		else if(priv->pshare->DM_SWAT_Table.try_flag == SWAW_STEP_PEAK)	{
-
-			//3 Determine TP/RSSI mode by TRX OK count
-			if((curRxOkCnt+curTxOkCnt) > TP_MODE_THD) {
-				//2 Determine current traffic is high or low
-				if((curTxOkCnt+curRxOkCnt) > TRAFFIC_THRESHOLD)
-					priv->pshare->TrafficLoad = TRAFFIC_HIGH;
-				else
-					priv->pshare->TrafficLoad = TRAFFIC_LOW;
-
-				priv->pshare->DM_SWAT_Table.RSSI_Trying = 10;
-				priv->pshare->DM_SWAT_Table.TestMode = TP_MODE;
-			} else	{
-
-				int idx = 0;
-				struct stat_info* pEntry = findNextSTA(priv, &idx);
-				priv->pshare->RSSI_target = NULL;
-				while(pEntry) {
-					if(pEntry && pEntry->expire_to) {
-						if(!priv->pshare->RSSI_target)
-							priv->pshare->RSSI_target = pEntry;
-						else if( pEntry->rssi < priv->pshare->RSSI_target->rssi )
-							priv->pshare->RSSI_target = pEntry;
-					}
-					pEntry = findNextSTA(priv, &idx);
-				};
-
-				priv->pshare->DM_SWAT_Table.RSSI_Trying = 6;
-				priv->pshare->DM_SWAT_Table.TestMode = RSSI_MODE;
-
-				if(priv->pshare->RSSI_target == NULL)	{
-					SwAntDivRestAfterLink(priv);
-					return;
-				}
-
-				//3 reset state
-				memset(priv->pshare->DM_SWAT_Table.SelectAntennaMap, 0, sizeof(priv->pshare->DM_SWAT_Table.SelectAntennaMap));
-			}
-
-			//3 Begin  to enter Try State
-			nextAntenna = (priv->pshare->DM_SWAT_Table.CurAntenna ) ^ Antenna_MAX;
-			priv->pshare->DM_SWAT_Table.try_flag = SWAW_STEP_DETERMINE;
-			priv->pshare->RSSI_test = TRUE;
-
-			//3 Reset variables
-			resetSwAntDivVariable(priv);
+		if (direction == 0x01) {
+			RTL_W32(GPIO_MUXCFG, RTL_R32(GPIO_MUXCFG) & ~(BIT(gpio_num+20) | BIT(gpio_num+16)));
+			return;
+		}
+		else if (direction == 0x10) {
+			RTL_W32(GPIO_MUXCFG, (RTL_R32(GPIO_MUXCFG) & ~BIT(gpio_num+20)) | (BIT(gpio_num+16) | BIT(gpio_num+12)));
+			return;
 		}
 	}
 
-//1 4.Change TRX antenna
-	if(nextAntenna != priv->pshare->DM_SWAT_Table.CurAntenna) {
-		if (!priv->pshare->rf_ft_var.antSw_select)
-			PHY_SetBBReg(priv, rFPGA0_XA_RFInterfaceOE, 0x300, nextAntenna);
-		else
-			PHY_SetBBReg(priv, rFPGA0_XB_RFInterfaceOE, 0x300, nextAntenna);
-	}
 
-//1 5.Reset Statistics
-	priv->pshare->DM_SWAT_Table.CurAntenna = nextAntenna;
+	panic_printk("GPIO %d action %d not support!\n", gpio_num, direction);
+	return;
+}
 
-//1 6.Set next timer
-
-	if(priv->pshare->DM_SWAT_Table.RSSI_Trying == 0) {
+void RTLWIFINIC_GPIO_write(unsigned int gpio_num, unsigned int value)
+{
+	struct rtl8192cd_priv *priv = root_priv;
+	if(!root_priv)
 		return;
-	}
-
-	if(priv->pshare->DM_SWAT_Table.TestMode == RSSI_MODE)	{
-		mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies +40);		// 400 ms
-	} else if(priv->pshare->DM_SWAT_Table.TestMode == TP_MODE)	{
-
-		if(priv->pshare->TrafficLoad == TRAFFIC_HIGH)	{
-			if(priv->pshare->DM_SWAT_Table.RSSI_Trying%2 == 0)
-				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + 1);	// 10 ms
-			else
-				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + 8);	// 80 ms
-
-		} else if(priv->pshare->TrafficLoad == TRAFFIC_LOW) {
-			if(priv->pshare->DM_SWAT_Table.RSSI_Trying%2 == 0)
-				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + 4);	// 40 ms
-			else
-				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + 8);	// 80 ms
-		}
-	}
-
-}
-
-
-void dm_SW_AntennaSwitchCallback(unsigned long task_priv)
-{
-	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv*)task_priv;
-	unsigned long flags;
-	SAVE_INT_AND_CLI(flags);
-	dm_SW_AntennaSwitch(priv, SWAW_STEP_DETERMINE);
-	RESTORE_INT(flags);
-}
-
-//
-// 20100514 Luke/Joseph:
-// This function is used to gather the RSSI information for antenna testing.
-// It selects the RSSI of the peer STA that we want to know.
-//
-void dm_SWAW_RSSI_Check(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo)
-{
-	struct stat_info* pEntry = NULL;
-	pEntry = get_stainfo(priv, GetAddr2Ptr(get_pframe(pfrinfo)));
-
-	if((priv->pshare->RSSI_target==NULL)||(priv->pshare->RSSI_target==pEntry)) {
-		//1 RSSI for SW Antenna Switch
-		if(priv->pshare->DM_SWAT_Table.CurAntenna == Antenna_R)
-		{
-			priv->pshare->RSSI_sum_R += pfrinfo->rssi;
-			priv->pshare->RSSI_cnt_R++;
-		} else {
-			priv->pshare->RSSI_sum_L += pfrinfo->rssi;
-			priv->pshare->RSSI_cnt_L++;
-		}
-	}
-}
-
-#ifndef HW_ANT_SWITCH
-
-int diversity_antenna_select(struct rtl8192cd_priv *priv, unsigned char *data)
-{
-	int ant = _atoi(data, 16);
-//	if(GET_CHIP_VER(priv) != VERSION_8188C)
-//		return 0;
-
 #ifdef PCIE_POWER_SAVING
 		PCIeWakeUp(priv, POWER_DOWN_T0);
-#endif
-	if(ant==Antenna_L || ant==Antenna_R) {
-		if (!priv->pshare->rf_ft_var.antSw_select)
-			PHY_SetBBReg(priv, rFPGA0_XA_RFInterfaceOE, 0x300, ant);
-		else
-			PHY_SetBBReg(priv, rFPGA0_XB_RFInterfaceOE, 0x300, ant);
-		priv->pshare->DM_SWAT_Table.CurAntenna = ant;
-		priv->pshare->rf_ft_var.antSw_enable = 0;
-		SwAntDivRestAfterLink(priv);
-		memset(priv->pshare->DM_SWAT_Table.SelectAntennaMap, 0, sizeof(priv->pshare->DM_SWAT_Table.SelectAntennaMap));
-		return 1;
-	} else {
-		priv->pshare->rf_ft_var.antSw_enable = 1;
-		priv->pshare->lastTxOkCnt = priv->net_stats.tx_bytes;
-		priv->pshare->lastRxOkCnt = priv->net_stats.rx_bytes;
-
-		return 0;
-	}
-}
-#endif
-#endif
-#if defined(HW_ANT_SWITCH)
-
-void dm_HW_AntennaSwitchInit(struct rtl8192cd_priv *priv)
-{
-#ifdef SW_ANT_SWITCH
-	priv->pshare->rf_ft_var.antSw_enable =0;
-#endif
-
-	if (GET_CHIP_VER(priv) == VERSION_8188C)
-		priv->pshare->rf_ft_var.antSw_select = 0;
-	if ( !priv->pshare->rf_ft_var.antSw_select)	{
-		RTL_W32(rFPGA0_XAB_RFParameter, RTL_R32(rFPGA0_XAB_RFParameter) | BIT(13) );	 //select ANTESEL from path A
-		RTL_W32(rFPGA0_XAB_RFInterfaceSW, RTL_R32(rFPGA0_XAB_RFInterfaceSW) & ~(BIT(8)| BIT(9)) ); // ANTSEL as HW control
-		RTL_W32(rFPGA0_XA_RFInterfaceOE, (RTL_R32(rFPGA0_XA_RFInterfaceOE) & ~(BIT(8)|BIT(9)))| 0x01<<8 );	// 0x01: left antenna, 0x02: right antenna
-		RTL_W8(0xc50, RTL_R8(0xc50) | BIT(7));	// Enable Hardware antenna switch
-		RTL_W32(0xc54, RTL_R32(0xc54) | BIT(23) );	// Decide final antenna by comparing 2 antennas' pwdb
-	} else 	{
-		RTL_W32(rFPGA0_XAB_RFParameter, RTL_R32(rFPGA0_XAB_RFParameter) & ~ BIT(13) );	 //select ANTESEL from path B
-		RTL_W32(rFPGA0_XAB_RFInterfaceSW, RTL_R32(rFPGA0_XAB_RFInterfaceSW) & ~(BIT(24)| BIT(25)) ); // ANTSEL as HW control
-		RTL_W32(rFPGA0_XB_RFInterfaceOE, (RTL_R32(rFPGA0_XB_RFInterfaceOE) & ~(BIT(8)|BIT(9)))| 0x01<<8 );	// 0x01: left antenna, 0x02: right antenna
-		RTL_W8(0xc58, RTL_R8(0xc58) | BIT(7));	// Enable Hardware antenna switch
-		RTL_W32(0xc5C, RTL_R32(0xc5c) | BIT(23) );	// Decide final antenna by comparing 2 antennas' pwdb
-	}
-
-	priv->pshare->rf_ft_var.CurAntenna = 0;
-
-	RTL_W32(LEDCFG, RTL_R32(LEDCFG) | BIT(23) );	//enable LED[1:0] pin as ANTSEL
-	RTL_W16(0xca4, (RTL_R16(0xca4) & ~(0xfff))|0x0c0); 	// Pwdb threshold=12dB
-	RTL_W32(0x874, RTL_R32(0x874) & ~ BIT(23) );	// No update ANTSEL during GNT_BT=1
-	RTL_W16(rFPGA0_TxInfo, (RTL_R16(rFPGA0_TxInfo)&0xf0ff) | BIT(8) );	// b11-b8=0001
-	RTL_W32(0x80c, RTL_R32(0x80c) | BIT(21) );		// assign antenna by tx desc
-
-	// CCK setting
-	RTL_W8(0xa01, RTL_R8(0xa01) | BIT(7));			// enable hw ant diversity
-	RTL_W8(0xa0c, (RTL_R8(0xa0c) & 0xe0) | 0x0f );	// b4=0, b3:0 = 1111	32 sample
-	RTL_W8(0xa11, RTL_R8(0xa11) | BIT(5));			// do not change default optional antenna
-	RTL_W8(0xa14, (RTL_R8(0xa14) & 0xe0) | 0x08 );	// default : optional = 1:1
-
-}
-
-void setRxIdleAnt(struct rtl8192cd_priv *priv, char Ant)
-{
-	if(priv->pshare->rf_ft_var.CurAntenna != Ant) {
-		if(Ant) {
-			RTL_W32(0x858, 0x65a965a9);
-//			RTL_W8(0x6d8, RTL_R8(0x6d8) | BIT(6) );
-		}
-		else {
-			RTL_W32(0x858, 0x569a569a);
-//			RTL_W8(0x6d8, RTL_R8(0x6d8) & (~ BIT(6)));
-		}
-		priv->pshare->rf_ft_var.CurAntenna = Ant;
-	}
-}
-
-
-void dm_STA_Ant_Select(struct rtl8192cd_priv *priv, struct stat_info *pstat)
-{
-	int ScoreA=0, ScoreB=0, i, nextAnt= pstat->CurAntenna, idleAnt=priv->pshare->rf_ft_var.CurAntenna;
-
-	if((priv->pshare->rf_ft_var.CurAntenna & 0x80)
-		|| ((pstat->hwRxAntSel[0] + pstat->hwRxAntSel[1])==0 && (pstat->cckPktCount[0] + pstat->cckPktCount[1])<10)	)
-		return;
-
-	for(i=0; i<2; i++) {
-		if(pstat->cckPktCount[i]==0 && pstat->hwRxAntSel[i]==0)
-			pstat->AntRSSI[i] = 0;
-	}
-
-	if(pstat->hwRxAntSel[0] || pstat->hwRxAntSel[1]) {
-		ScoreA = pstat->hwRxAntSel[0];
-		ScoreB = pstat->hwRxAntSel[1];
-
-		if(ScoreA != ScoreB) {
-			if(ScoreA > ScoreB)
-				nextAnt = 0;
-			else
-				nextAnt = 1;
-		}
-	} else {
-		ScoreA = pstat->cckPktCount[0];
-		ScoreB = pstat->cckPktCount[1];
-
-		if(ScoreA > 5*ScoreB)
-			nextAnt = 0;
-		else if(ScoreB > 5*ScoreA)
-			nextAnt = 1;
-		else if(ScoreA > ScoreB)
-			nextAnt = 1;
-		else if(ScoreB > ScoreA)
-			nextAnt = 0;
-	}
-
-	pstat->CurAntenna = nextAnt;
-
-	if(priv->pshare->rf_ft_var.ant_dump&2) {
-		panic_printk("id=%d, OFDM/CCK: (%d, %d/%d, %d), RSSI:(%d, %d), ant=%d, RxIdle=%d\n",
-			pstat->aid,
-			pstat->hwRxAntSel[1],
-			pstat->hwRxAntSel[0],
-			pstat->cckPktCount[1],
-			pstat->cckPktCount[0],
-			pstat->AntRSSI[1],
-			pstat->AntRSSI[0],
-			(pstat->CurAntenna==0 ? 2: 1)
-			 ,((priv->pshare->rf_ft_var.CurAntenna&1)==0 ? 2 : 1)
-			 );
-	}
-
-	if(pstat->AntRSSI[idleAnt]==0)
-		pstat->AntRSSI[idleAnt] = pstat->AntRSSI[idleAnt^1];
-
-// reset variables
-	pstat->hwRxAntSel[1] = pstat->hwRxAntSel[0] =0;
-	pstat->cckPktCount[1]= pstat->cckPktCount[0] =0;
-
-
-}
-
-void dm_HW_IdleAntennaSelect(struct rtl8192cd_priv *priv)
-{
-	struct stat_info	*pstat, *pstat_min=NULL;
-	struct list_head	*phead, *plist;
-	int rssi_min= 0xff, i;
-
-	if(priv->pshare->rf_ft_var.CurAntenna & 0x80)
-		return;
-
-	phead = &priv->asoc_list;
-	plist = phead->next;
-
-	while(plist != phead)	{
-		pstat = list_entry(plist, struct stat_info, asoc_list);
-		if((pstat->expire_to) && (pstat->AntRSSI[0] || pstat->AntRSSI[1])) {
-			int rssi = (pstat->AntRSSI[0] < pstat->AntRSSI[1]) ? pstat->AntRSSI[0] : pstat->AntRSSI[1];
-			if((!pstat_min) || ( rssi < rssi_min) ) {
-				pstat_min = pstat;
-				rssi_min = rssi;
-			}
-		}
-		if (plist == plist->next)
-			break;
-		plist = plist->next;
-	};
-
-	if(pstat_min)
-		setRxIdleAnt(priv, pstat_min->CurAntenna);
-
-
-#ifdef TX_SHORTCUT
-	if (!priv->pmib->dot11OperationEntry.disable_txsc) {
-		plist = phead->next;
-		while(plist != phead)	{
-			pstat = list_entry(plist, struct stat_info, asoc_list);
-			if(pstat->expire_to) {
-				for (i=0; i<TX_SC_ENTRY_NUM; i++) {
-					struct tx_desc *pdesc= &(pstat->tx_sc_ent[i].hwdesc1);	
-					pdesc->Dword2 &= set_desc(~ (BIT(24)|BIT(25)));
-					if((pstat->CurAntenna^priv->pshare->rf_ft_var.CurAntenna)&1)
-						pdesc->Dword2 |= set_desc(BIT(24)|BIT(25));
-					pdesc= &(pstat->tx_sc_ent[i].hwdesc2);	
-					pdesc->Dword2 &= set_desc(~ (BIT(24)|BIT(25)));
-					if((pstat->CurAntenna^priv->pshare->rf_ft_var.CurAntenna)&1)
-						pdesc->Dword2 |= set_desc(BIT(24)|BIT(25));					
-				}
-			}		
-
-			if (plist == plist->next)
-				break;
-			plist = plist->next;
-		};
-	}
 #endif	
 
-}
-
-
-
-int diversity_antenna_select(struct rtl8192cd_priv *priv, unsigned char *data)
-{
-	int ant = _atoi(data, 16);
-
-#ifdef PCIE_POWER_SAVING
-		PCIeWakeUp(priv, POWER_DOWN_T0);
-#endif
-
-		if (ant==Antenna_L || ant==Antenna_R) {
-		if ( !priv->pshare->rf_ft_var.antSw_select) {
-			RTL_W32(rFPGA0_XAB_RFInterfaceSW, RTL_R32(rFPGA0_XAB_RFInterfaceSW) | BIT(8)| BIT(9) );  //  ANTSEL A as SW control
-			RTL_W8(0xc50, RTL_R8(0xc50) & (~ BIT(7)));	// rx OFDM SW control
-			PHY_SetBBReg(priv, rFPGA0_XA_RFInterfaceOE, 0x300, ant);
-		} else {
-			RTL_W32(rFPGA0_XAB_RFInterfaceSW, RTL_R32(rFPGA0_XAB_RFInterfaceSW) | BIT(24)| BIT(25) ); // ANTSEL B as HW control
-			PHY_SetBBReg(priv, rFPGA0_XB_RFInterfaceOE, 0x300, ant);
-			RTL_W8(0xc58, RTL_R8(0xc58) & (~ BIT(7)));		// rx OFDM SW control
-		}
-		RTL_W8(0xa01, RTL_R8(0xa01) & (~ BIT(7)));	// rx CCK SW control
-		RTL_W32(0x80c, RTL_R32(0x80c) & (~ BIT(21))); // select ant by tx desc
-		RTL_W32(0x858, 0x569a569a);
-
-		priv->pshare->rf_ft_var.antHw_enable = 0;
-		priv->pshare->rf_ft_var.CurAntenna  = (ant%2);
-
-#ifdef SW_ANT_SWITCH
-		priv->pshare->rf_ft_var.antSw_enable = 0;
-		priv->pshare->DM_SWAT_Table.CurAntenna = ant;
-		priv->pshare->RSSI_test =0;
-#endif
-	}
-	else if(ant==0){
-		if ( !priv->pshare->rf_ft_var.antSw_select)  {
-			RTL_W32(rFPGA0_XAB_RFInterfaceSW, RTL_R32(rFPGA0_XAB_RFInterfaceSW) & ~(BIT(8)| BIT(9)) );
-			RTL_W8(0xc50, RTL_R8(0xc50) | BIT(7));	// OFDM HW control
-		} else {
-			RTL_W32(rFPGA0_XAB_RFInterfaceSW, RTL_R32(rFPGA0_XAB_RFInterfaceSW) & ~(BIT(24)| BIT(25)) );
-			RTL_W8(0xc58, RTL_R8(0xc58) | BIT(7));	// OFDM HW control
-		}
-
-		RTL_W8(0xa01, RTL_R8(0xa01) | BIT(7));	// CCK HW control
-		RTL_W32(0x80c, RTL_R32(0x80c) | BIT(21) ); // by tx desc
-		priv->pshare->rf_ft_var.CurAntenna = 0;
-		RTL_W32(0x858, 0x569a569a);
-		priv->pshare->rf_ft_var.antHw_enable = 1;
-#ifdef SW_ANT_SWITCH
-		priv->pshare->rf_ft_var.antSw_enable = 0;
-		priv->pshare->RSSI_test =0;
-#endif
-	}
-#ifdef SW_ANT_SWITCH
-	else if(ant==3) {
-		if(!priv->pshare->rf_ft_var.antSw_enable) {
-			dm_SW_AntennaSwitchInit(priv);
-			RTL_W32(0x858, 0x569a569a);
-			priv->pshare->lastTxOkCnt = priv->net_stats.tx_bytes;
-			priv->pshare->lastRxOkCnt = priv->net_stats.rx_bytes;
-		}
-		if ( !priv->pshare->rf_ft_var.antSw_select)
-			RTL_W8(0xc50, RTL_R8(0xc50) & (~ BIT(7)));	// rx OFDM SW control
+	if (((gpio_num >= 0) && (gpio_num <= 7)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10)) {
+		if (value)
+			RTL_W32(GPIO_PIN_CTRL, RTL_R32(GPIO_PIN_CTRL) & ~BIT(gpio_num+8));
 		else
-			RTL_W8(0xc58, RTL_R8(0xc58) & (~ BIT(7)));	// rx OFDM SW control
-
-		RTL_W8(0xa01, RTL_R8(0xa01) & (~ BIT(7)));		// rx CCK SW control
-		RTL_W32(0x80c, RTL_R32(0x80c) & (~ BIT(21))); 	// select ant by tx desc
-		priv->pshare->rf_ft_var.antHw_enable = 0;
-		priv->pshare->rf_ft_var.antSw_enable = 1;
-
+			RTL_W32(GPIO_PIN_CTRL, RTL_R32(GPIO_PIN_CTRL) | BIT(gpio_num+8));
+		return;
 	}
-#endif
+	if (((gpio_num >= 8) && (gpio_num <= 11)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10)) {
+		if (value)
+			RTL_W32(GPIO_MUXCFG, RTL_R32(GPIO_MUXCFG) & ~BIT(gpio_num+12));
+		else
+			RTL_W32(GPIO_MUXCFG, RTL_R32(GPIO_MUXCFG) | BIT(gpio_num+12));
+		return;
+	}
 
-	return 1;
+	panic_printk("GPIO %d set value %d not support!\n", gpio_num, value);
+	return;
 }
 
-#endif
 
+int RTLWIFINIC_GPIO_read(unsigned int gpio_num)
+{
+	struct rtl8192cd_priv *priv = root_priv;
+	unsigned int val32;
+	if(!root_priv)
+		return -1;
+
+	if (((gpio_num >= 0) && (gpio_num <= 7)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x01)) {
+#ifdef PCIE_POWER_SAVING
+		if ((priv->pwr_state == L2) || (priv->pwr_state == L1)) 
+			val32 = priv->pshare->phw->GPIO_cache[0];
+		else
+#endif			
+			val32 = RTL_R32(GPIO_PIN_CTRL);
+		if (val32 & BIT(gpio_num))
+			return 0;
+		else
+			return 1;
+	}
+	if (((gpio_num >= 8) && (gpio_num <= 11)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x01)) {
+#ifdef PCIE_POWER_SAVING
+		if ((priv->pwr_state == L2) || (priv->pwr_state == L1)) 
+			val32 = priv->pshare->phw->GPIO_cache[1];
+		else
+#endif		
+			val32 = RTL_R32(GPIO_MUXCFG);
+		if (val32 & BIT(gpio_num+8))
+			return 0;
+		else
+			return 1;
+	}
+
+	panic_printk("GPIO %d get value not support!\n", gpio_num);
+	return -1;
+}
+#endif
 

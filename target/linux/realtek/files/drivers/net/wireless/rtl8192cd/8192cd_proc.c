@@ -23,19 +23,46 @@
 
 #include "./8192cd_cfg.h"
 #include "./8192cd.h"
+#ifdef __KERNEL__
 #include "./ieee802_mib.h"
+#elif defined(__ECOS)
+#include <cyg/io/eth/rltk/819x/wlan/ieee802_mib.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
+#endif
 #include "./8192cd_headers.h"
 
 #ifdef CONFIG_RTK_MESH
-#include "./mesh_ext/mesh_route.h"
-#include "./mesh_ext/mesh_util.h"
+#include "../mesh_ext/mesh_route.h"
+#include "../mesh_ext/mesh_util.h"
 #endif // CONFIG_RTK_MESH
-#ifdef _INCLUDE_PROC_FS_
+#if defined(_INCLUDE_PROC_FS_) || defined(__ECOS)
+#ifdef __KERNEL__
 #include <asm/uaccess.h>
+#endif
 
 /*
  *	Note : These define someone copy to ./mesh_ext/mesh_proc.c !!
 */
+#ifdef __ECOS
+extern struct rtl8192cd_priv *search_priv(char *name);
+
+typedef void pr_fun(char *fmt, ...);
+extern pr_fun *ecos_pr_fun;
+
+#define PRINT_ONE(val, format, line_end) { \
+	ecos_pr_fun(format, val); \
+	if (line_end) 	\
+		ecos_pr_fun("\n"); \
+}
+
+#define PRINT_ARRAY(val, format, len, line_end) { \
+	int index; 	\
+	for (index=0; index<len; index++) \
+		ecos_pr_fun(format, val[index]); \
+	if (line_end) 	\
+		ecos_pr_fun("\n"); \
+}
+#else
 #define PRINT_ONE(val, format, line_end) { 		\
 	pos += sprintf(&buf[pos], format, val);		\
 	if (line_end)					\
@@ -50,6 +77,7 @@
 		strcat(&buf[pos++], "\n");		\
 							\
 }
+#endif
 
 #define PRINT_SINGL_ARG(name, para, format) { \
 	PRINT_ONE(name, "%s", 0); \
@@ -61,6 +89,9 @@
 	PRINT_ARRAY(para, format, len, 1); \
 }
 
+#ifdef __ECOS
+#define CHECK_LEN do {} while(0)
+#else
 #define CHECK_LEN { \
 	len += size; \
 	pos = begin + len; \
@@ -71,23 +102,18 @@
 	if (pos > offset + length) \
 		goto _ret; \
 }
+#endif
 
-
-/*const unsigned short MCS_DATA_RATE[2][2][16] =
-{
-	{{13, 26, 39, 52, 78, 104, 117, 130, 26, 52, 78 ,104, 156, 208, 234, 260},		// Long GI, 20MHz
-	 {14, 29, 43, 58, 87, 116, 130, 144, 29, 58, 87, 116, 173, 231, 260, 289}},		// Short GI, 20MHz
-	{{27, 54, 81, 108, 162, 216, 243, 270, 54, 108, 162, 216, 324, 432, 486, 540},	// Long GI, 40MHz
-	 {30, 60, 90, 120, 180, 240, 270, 300, 60, 120, 180, 240, 360, 480, 540, 600}}	// Short GI, 40MHz
-};*/
-
-
+#ifdef __ECOS
+const char* MCS_DATA_RATEStr[2][2][16] =
+#else
 const unsigned char* MCS_DATA_RATEStr[2][2][16] =
+#endif
 {
-	{{"6.5", "13", "19.5", "26", "39", "52", "58.5", "65", "13", "26", "39" ,"52", "78", "104", "117", "130"},		// Long GI, 20MHz
-	 {"7.2", "14.4", "21.7", "28.9", "43.3", "57.8", "65", "72.2", "14.4", "28.9", "43.3", "57.8", "86.7", "115.6", "130", "144.5"}},		// Short GI, 20MHz
-	{{"13.5", "27", "40.5", "54", "81", "108", "121.5", "135", "27", "54", "81", "108", "162", "216", "243", "270"},	// Long GI, 40MHz
-	 {"15", "30", "45", "60", "90", "120", "135", "150", "30", "60", "90", "120", "180", "240", "270", "300"}}	// Short GI, 40MHz
+	{{"6.5", "13", "19.5", "26", "39", "52", "58.5", "65", "13", "26", "39" ,"52", "78", "104", "117", "130"},                        // Long GI, 20MHz
+	 {"7.2", "14.4", "21.7", "28.9", "43.3", "57.8", "65", "72.2", "14.4", "28.9", "43.3", "57.8", "86.7", "115.6", "130", "144.5"}}, // Short GI, 20MHz
+	{{"13.5", "27", "40.5", "54", "81", "108", "121.5", "135", "27", "54", "81", "108", "162", "216", "243", "270"},                  // Long GI, 40MHz
+	 {"15", "30", "45", "60", "90", "120", "135", "150", "30", "60", "90", "120", "180", "240", "270", "300"}}                        // Short GI, 40MHz
 };
 
 
@@ -101,7 +127,11 @@ static int rtl8192cd_proc_mib_staconfig(char *buf, char **start, off_t offset,
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
 	int pos = 0, i;
+#ifdef __ECOS
+	char tmpbuf[100];
+#else
 	unsigned char tmpbuf[100];
+#endif
 
 	PRINT_ONE("  Dot11StationConfigEntry...", "%s", 1);
 	PRINT_ARRAY_ARG("    dot11Bssid: ",
@@ -164,6 +194,8 @@ static int rtl8192cd_proc_mib_staconfig(char *buf, char **start, off_t offset,
 			priv->pmib->dot11StationConfigEntry.protectionDisabled, "%d");
 	PRINT_SINGL_ARG("    olbcDetectDisabled: ",
 			priv->pmib->dot11StationConfigEntry.olbcDetectDisabled, "%d");
+	PRINT_SINGL_ARG("    nmlscDetectDisabled: ",
+			priv->pmib->dot11StationConfigEntry.nmlscDetectDisabled, "%d");
 	PRINT_SINGL_ARG("    legacySTADeny: ",
 			priv->pmib->dot11StationConfigEntry.legacySTADeny, "%d");
 #ifdef CLIENT_MODE
@@ -223,6 +255,10 @@ static int rtl8192cd_proc_mib_auth(char *buf, char **start, off_t offset,
 			priv->pmib->dot118021xAuthEntry.dot118021xDefaultPort, "%d");
 	PRINT_SINGL_ARG("    dot118021xcontrolport: ",
 			priv->pmib->dot118021xAuthEntry.dot118021xcontrolport, "%d");
+	PRINT_ONE("  	RADIUS Accounting...", "%s", 1);
+	PRINT_SINGL_ARG("    	Enabled: ",priv->pmib->dot118021xAuthEntry.acct_enabled, "%d");	
+	PRINT_SINGL_ARG("    	Idle period to leave STA: ",priv->pmib->dot118021xAuthEntry.acct_timeout_period, "%ld min(s)");
+	PRINT_SINGL_ARG("    	Idle throughput to leave STA: ", priv->pmib->dot118021xAuthEntry.acct_timeout_throughput, "%d Kbpm");
 
 	PRINT_ONE("  Dot11RsnIE...", "%s", 1);
 	PRINT_ARRAY_ARG("    rsnie: ",
@@ -300,7 +336,7 @@ static int rtl8192cd_proc_mib_gkeytbl(char *buf, char **start, off_t offset,
 	unsigned char *ptr;
 
 	PRINT_ONE("  Dot11GroupKeysTable...", "%s", 1);
-#ifdef CONFIG_RTL_WAPI_SUPPORT	
+#ifdef CONFIG_RTL_WAPI_SUPPORT
 	if (priv->pmib->wapiInfo.wapiType!=wapiDisable)
 	{
 		PRINT_SINGL_ARG("    dot11Privacy: ",
@@ -380,6 +416,15 @@ static int rtl8192cd_proc_mib_operation(char *buf, char **start, off_t offset,
 	PRINT_SINGL_ARG("    qos_enable: ", priv->pmib->dot11QosEntry.dot11QosEnable, "%d");
 #ifdef WMM_APSD
 	PRINT_SINGL_ARG("    apsd_enable: ", priv->pmib->dot11QosEntry.dot11QosAPSD, "%d");
+#ifdef CLIENT_MODE
+	if ((OPMODE & WIFI_STATION_STATE) && QOS_ENABLE && APSD_ENABLE) {
+		PRINT_SINGL_ARG("        uapsd_assoc: ", priv->uapsd_assoc, "%d");
+		PRINT_SINGL_ARG("        UAPSD_AC_VO: ", priv->pmib->dot11QosEntry.UAPSD_AC_VO, "%d");
+		PRINT_SINGL_ARG("        UAPSD_AC_VI: ", priv->pmib->dot11QosEntry.UAPSD_AC_VI, "%d");
+		PRINT_SINGL_ARG("        UAPSD_AC_BE: ", priv->pmib->dot11QosEntry.UAPSD_AC_BE, "%d");
+		PRINT_SINGL_ARG("        UAPSD_AC_BK: ", priv->pmib->dot11QosEntry.UAPSD_AC_BK, "%d");
+	}
+#endif
 #endif
 #endif
 
@@ -447,7 +492,11 @@ static int rtl8192cd_proc_mib_rf(char *buf, char **start, off_t offset,
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
 	int pos = 0;
+#ifdef __ECOS
+	char tmpbuf[16];
+#else
 	unsigned char tmpbuf[16];
+#endif
 
 	PRINT_ONE("  Dot11RFEntry...", "%s", 1);
 	PRINT_SINGL_ARG("    dot11channel: ", priv->pmib->dot11RFEntry.dot11channel, "%d");
@@ -463,8 +512,8 @@ static int rtl8192cd_proc_mib_rf(char *buf, char **start, off_t offset,
 		PRINT_ARRAY_ARG("    pwrdiff5GOFDM: ", priv->pmib->dot11RFEntry.pwrdiff5GOFDM, "%02x", MAX_5G_CHANNEL_NUM);
 	}
 	//} else
-#endif		
-	{	
+#endif
+	{
 		PRINT_ARRAY_ARG("    pwrlevelCCK_A: ", priv->pmib->dot11RFEntry.pwrlevelCCK_A, "%02x", MAX_2G_CHANNEL_NUM);
 		PRINT_ARRAY_ARG("    pwrlevelCCK_B: ", priv->pmib->dot11RFEntry.pwrlevelCCK_B, "%02x", MAX_2G_CHANNEL_NUM);
 		PRINT_ARRAY_ARG("    pwrlevelHT40_1S_A: ", priv->pmib->dot11RFEntry.pwrlevelHT40_1S_A, "%02x", MAX_2G_CHANNEL_NUM);
@@ -523,51 +572,62 @@ static int rtl8192cd_proc_mib_rf(char *buf, char **start, off_t offset,
 		break;
 	}
 	PRINT_SINGL_ARG("    MIMO_TR_mode: ", tmpbuf, "%s");
-	
-#ifdef CONFIG_RTL_92D_SUPPORT
- if (GET_CHIP_VER(priv) == VERSION_8192D) {
-	PRINT_SINGL_ARG("    phyBandSelect: ", priv->pmib->dot11RFEntry.phyBandSelect, "%d");
 
-	switch (priv->pmib->dot11RFEntry.macPhyMode) {
-	case SINGLEMAC_SINGLEPHY:
-		sprintf(tmpbuf, "SMSP");
-		break;
-	case DUALMAC_SINGLEPHY:
-		sprintf(tmpbuf, "DMSP");
-		break;
-	case DUALMAC_DUALPHY:
-		sprintf(tmpbuf, "DMDP");
-		break;
-	default:
-		sprintf(tmpbuf, "unknown");
-		break;
-	}
- 	}
-	PRINT_SINGL_ARG("    macPhyMode: ", tmpbuf, "%s");
+#ifdef CONFIG_RTL_92D_SUPPORT
+	 if (GET_CHIP_VER(priv) == VERSION_8192D) {
+		PRINT_SINGL_ARG("    phyBandSelect: ", priv->pmib->dot11RFEntry.phyBandSelect, "%d");
+
+		switch (priv->pmib->dot11RFEntry.macPhyMode) {
+		case SINGLEMAC_SINGLEPHY:
+			sprintf(tmpbuf, "SMSP");
+			break;
+		case DUALMAC_SINGLEPHY:
+			sprintf(tmpbuf, "DMSP");
+			break;
+		case DUALMAC_DUALPHY:
+			sprintf(tmpbuf, "DMDP");
+			break;
+		default:
+			sprintf(tmpbuf, "unknown");
+			break;
+		}
+		PRINT_SINGL_ARG("	 macPhyMode: ", tmpbuf, "%s");
+	 }
+	
 #endif
 
+#ifdef CONFIG_RTL_92C_SUPPORT
 	if (GET_CHIP_VER(priv) == VERSION_8188C) {
 		if(IS_UMC_B_CUT_88C(priv))
 			sprintf(tmpbuf, "RTL6195B");
 		else if(IS_88RE(priv))
 			sprintf(tmpbuf, "RTL8188R");
 		else
-		sprintf(tmpbuf, "RTL8188C");
-//		PRINT_SINGL_ARG("    chipVersion: ", "RTL8188C", "%s");
+			sprintf(tmpbuf, "RTL8188C");
+	} else if (GET_CHIP_VER(priv) == VERSION_8192C){
+		sprintf(tmpbuf, "RTL8192C");
 	}
-#ifdef CONFIG_RTL_92D_SUPPORT
-	else if (GET_CHIP_VER(priv) == VERSION_8192D) {
-		sprintf(tmpbuf, "RTL8192D");
+
+	if ((GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C)) {
+		if (IS_TEST_CHIP(priv))
+			strcat(tmpbuf, "t");
+		else
+			strcat(tmpbuf, "n");
 	}
 #endif
-	else {
-		sprintf(tmpbuf, "RTL8192C");
-//		PRINT_SINGL_ARG("    chipVersion: ", "RTL8192C", "%s");
+#ifdef CONFIG_RTL_92D_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8192D)
+		sprintf(tmpbuf, "RTL8192D");
+#endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) == VERSION_8188E) {
+		sprintf(tmpbuf, "RTL8188E");
+#ifdef SUPPORT_RTL8188E_TC
+		if (IS_TEST_CHIP(priv))
+			strcat(tmpbuf, "t");
+#endif
 	}
-	if (IS_TEST_CHIP(priv))
-		strcat(tmpbuf, "t");
-	else
-		strcat(tmpbuf, "n");
+#endif
 
 	if(IS_UMC_A_CUT(priv))
 		strcat(tmpbuf, "u");
@@ -575,55 +635,36 @@ static int rtl8192cd_proc_mib_rf(char *buf, char **start, off_t offset,
 	PRINT_SINGL_ARG("    chipVersion: ", tmpbuf, "%s");
 
 #ifdef EN_EFUSE
-	if(priv->pmib->efuseEntry.enable_efuse)	{	
+	if(priv->pmib->efuseEntry.enable_efuse)	{
 		int k;
 		PRINT_SINGL_ARG("    autoload fail: ", priv->AutoloadFailFlag, "%d");
-		PRINT_SINGL_ARG("    efuse used bytes: ", priv->EfuseUsedBytes, "%d");		
-		
+		PRINT_SINGL_ARG("    efuse used bytes: ", priv->EfuseUsedBytes, "%d");
+
 		PRINT_ONE("efuse init map...", "%s", 1);
 		for(k=0; k<EFUSE_MAP_LEN; k+=16)
 			PRINT_ARRAY_ARG("    ", (priv->EfuseMap[EFUSE_INIT_MAP]+k), "%02x", 16);
-		PRINT_ONE("efuse modify map...", "%s", 1);		
+		PRINT_ONE("efuse modify map...", "%s", 1);
 		for(k=0; k<EFUSE_MAP_LEN; k+=16)
-			PRINT_ARRAY_ARG("    ", (priv->EfuseMap[EFUSE_MODIFY_MAP]+k), "%02x", 16);		
+			PRINT_ARRAY_ARG("    ", (priv->EfuseMap[EFUSE_MODIFY_MAP]+k), "%02x", 16);
 	}
 #endif
 
 #ifdef SW_ANT_SWITCH
-	PRINT_SINGL_ARG("    SW Ant switch enable: ", (priv->pshare->rf_ft_var.antSw_enable ? "enable" : "disable"), "%s");
+	PRINT_SINGL_ARG("    SW Ant switch enable: ", (SW_DIV_ENABLE ? "enable" : "disable"), "%s");
 	PRINT_SINGL_ARG("    SW Diversity Antenna : ", priv->pshare->DM_SWAT_Table.CurAntenna, "%d");
 #endif
 
 #ifdef HW_ANT_SWITCH
-	PRINT_SINGL_ARG("    HW Ant switch enable: ", (priv->pshare->rf_ft_var.antHw_enable ? "enable" : "disable"), "%s");
+	PRINT_SINGL_ARG("    HW Ant switch enable: ", (HW_DIV_ENABLE ? "enable" : "disable"), "%s");
 	PRINT_SINGL_ARG("    RxIdle Antenna : ", (priv->pshare->rf_ft_var.CurAntenna==0 ? 2 : 1), "%d");
 #endif
 
+	PRINT_SINGL_ARG("    tx2path: ", priv->pmib->dot11RFEntry.tx2path, "%d");
 	PRINT_SINGL_ARG("    txbf: ", priv->pmib->dot11RFEntry.txbf, "%d");
 
 #ifdef RTL8192D_INT_PA
 	PRINT_SINGL_ARG("    use_intpa92d: ", priv->pshare->rf_ft_var.use_intpa92d, "%d");
 #endif
-
-	return pos;
-}
-
-
-static int rtl8192cd_proc_mib_rsnie(char *buf, char **start, off_t offset,
-			int length, int *eof, void *data)
-{
-	struct net_device *dev = (struct net_device *)data;
-#ifdef NETDEV_NO_PRIV
-	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
-#else
-	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
-#endif
-	int pos = 0;
-
-	PRINT_ONE("  Dot11RsnIE...", "%s", 1);
-	PRINT_ARRAY_ARG("    rsnie: ",
-			priv->pmib->dot11RsnIE.rsnie, "%02x", priv->pmib->dot11RsnIE.rsnielen);
-	PRINT_SINGL_ARG("    rsnielen: ", priv->pmib->dot11RsnIE.rsnielen, "%d");
 
 	return pos;
 }
@@ -652,6 +693,10 @@ static int rtl8192cd_proc_mib_bssdesc(char *buf, char **start, off_t offset,
 	PRINT_SINGL_ARG("    bsstype: ", priv->pmib->dot11Bss.bsstype, "%x");
 	PRINT_SINGL_ARG("    beacon_prd: ", priv->pmib->dot11Bss.beacon_prd, "%d");
 	PRINT_SINGL_ARG("    dtim_prd: ", priv->pmib->dot11Bss.dtim_prd, "%d");
+#ifdef CLIENT_MODE
+	if (OPMODE & WIFI_STATION_STATE)
+		PRINT_SINGL_ARG("    client mode aid: ", priv->aid, "%d");
+#endif
 	PRINT_ARRAY_ARG("    t_stamp(hex): ", priv->pmib->dot11Bss.t_stamp, "%08x", 2);
 	PRINT_SINGL_ARG("    ibss_par.atim_win: ", priv->pmib->dot11Bss.ibss_par.atim_win, "%d");
 	PRINT_SINGL_ARG("    capability(hex): ", priv->pmib->dot11Bss.capability, "%02x");
@@ -732,7 +777,11 @@ static int rtl8192cd_proc_mib_wds(char *buf, char **start, off_t offset,
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
 	int pos = 0, i;
+#ifdef __ECOS
+	char tmpbuf[100];
+#else
 	unsigned char tmpbuf[100];
+#endif
 
 	PRINT_ONE("  WDS info...", "%s", 1);
 	PRINT_SINGL_ARG("    wdsEnabled: ", priv->pmib->dot11WdsInfo.wdsEnabled, "%d");
@@ -775,6 +824,7 @@ static int rtl8192cd_proc_mib_brext(char *buf, char **start, off_t offset,
 	PRINT_SINGL_ARG("    dhcp_bcst_disable: ", priv->pmib->ethBrExtInfo.dhcp_bcst_disable, "%d");
 	PRINT_SINGL_ARG("    addPPPoETag: ", priv->pmib->ethBrExtInfo.addPPPoETag, "%d");
 	PRINT_SINGL_ARG("    nat25sc_disable: ", priv->pmib->ethBrExtInfo.nat25sc_disable, "%d");
+	PRINT_ARRAY_ARG("    ukpro_mac: ", priv->ukpro_mac, "%02x", MACADDRLEN);
 
 	return pos;
 }
@@ -794,30 +844,62 @@ static int rtl8192cd_proc_txdesc_info(char *buf, char **start, off_t offset,
 	unsigned long *txdescptr;
 	unsigned int q_num = priv->txdesc_num;
 
-	int len = 0;
+	int i, len = 0;
+#ifdef __KERNEL__
 	off_t begin = 0;
 	off_t pos = 0;
-	int i, size;
+	int size;
+#endif
 
 	phw = GET_HW(priv);
+#ifdef __ECOS
+	ecos_pr_fun("  Tx queue %d descriptor ..........\n", q_num);
+#else
 	size = sprintf(buf, "  Tx queue %d descriptor ..........\n", q_num);
 	CHECK_LEN;
+#endif
 	if (get_txdesc(phw, q_num)) {
+#ifdef __ECOS
+			ecos_pr_fun("  tx_desc%d/physical: 0x%.8x/0x%.8x\n", q_num, (UINT)get_txdesc(phw, q_num),
+							*(UINT *)(((UINT)&phw->tx_ring0_addr)+sizeof(unsigned long)*q_num));
+		
+	#ifdef DELAY_REFILL_RX_BUF
+			ecos_pr_fun("  cur_rx/cur_rx_refill: %d/%d\n", phw->cur_rx, phw->cur_rx_refill);
+	#else
+			ecos_pr_fun("  head/tail: %3d/%-3d  DW0      DW1      DW2      DW3      DW4      DW5\n",
+				get_txhead(phw, q_num), get_txtail(phw, q_num));
+	#endif
+#else
 		size = sprintf(buf+len, "  tx_desc%d/physical: 0x%.8x/0x%.8x\n", q_num, (UINT)get_txdesc(phw, q_num),
 						*(UINT *)(((UINT)&phw->tx_ring0_addr)+sizeof(unsigned long)*q_num));
 		CHECK_LEN;
+		
+#ifdef DELAY_REFILL_RX_BUF
+		size = sprintf(buf+len, "  cur_rx/cur_rx_refill: %d/%d\n", phw->cur_rx, phw->cur_rx_refill);
+#else
 		size = sprintf(buf+len, "  head/tail: %3d/%-3d  DW0      DW1      DW2      DW3      DW4      DW5\n",
 			get_txhead(phw, q_num), get_txtail(phw, q_num));
+#endif
 		CHECK_LEN;
-		for (i=0; i<NUM_TX_DESC; i++) {
+#endif
+		for (i=0; i<CURRENT_NUM_TX_DESC; i++) {
 			txdescptr = (unsigned long *)(get_txdesc(phw, q_num) + i);
+#ifdef __ECOS
+			ecos_pr_fun("      txdesc%d[%3d]: %.8x %.8x %.8x %.8x %.8x  %.8x\n", q_num, i,
+					(UINT)get_desc(txdescptr[0]), (UINT)get_desc(txdescptr[1]),
+					(UINT)get_desc(txdescptr[2]), (UINT)get_desc(txdescptr[3]),
+					(UINT)get_desc(txdescptr[4]), (UINT)get_desc(txdescptr[5]));
+#else
 			size = sprintf(buf+len, "      txdesc%d[%3d]: %.8x %.8x %.8x %.8x %.8x  %.8x\n", q_num, i,
 					(UINT)get_desc(txdescptr[0]), (UINT)get_desc(txdescptr[1]),
 					(UINT)get_desc(txdescptr[2]), (UINT)get_desc(txdescptr[3]),
 					(UINT)get_desc(txdescptr[4]), (UINT)get_desc(txdescptr[5]));
 			CHECK_LEN;
+#endif
 		}
 	}
+
+#ifdef __KERNEL__
 	*eof = 1;
 
 _ret:
@@ -825,6 +907,7 @@ _ret:
 	len -= (offset - begin);	/* Start slop */
 	if (len > length)
 		len = length;	/* Ending slop */
+#endif
 	return len;
 }
 
@@ -832,8 +915,12 @@ _ret:
 #ifdef CONFIG_RTL_KERNEL_MIPS16_WLAN
 __NOMIPS16
 #endif
+#ifdef __ECOS
+void rtl8192cd_proc_txdesc_info_write(int txdesc_num, void *data)
+#else
 static int rtl8192cd_proc_txdesc_info_write(struct file *file, const char *buffer,
 		unsigned long count, void *data)
+#endif
 {
 	struct net_device *dev = (struct net_device *)data;
 #ifdef NETDEV_NO_PRIV
@@ -841,8 +928,19 @@ static int rtl8192cd_proc_txdesc_info_write(struct file *file, const char *buffe
 #else
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
+#ifdef __KERNEL__
 	char tmp[32];
+#endif
 
+#ifdef __ECOS
+	priv->txdesc_num = txdesc_num;
+	if (priv->txdesc_num > 5) {
+		ecos_pr_fun("Invalid tx desc number!\n");
+		priv->txdesc_num = 0;
+	}
+	else
+		ecos_pr_fun("Ready to dump tx desc %d\n", priv->txdesc_num);
+#else
 	if (count < 2)
 		return -EFAULT;
 
@@ -859,6 +957,7 @@ static int rtl8192cd_proc_txdesc_info_write(struct file *file, const char *buffe
 			panic_printk("Ready to dump tx desc %d\n", priv->txdesc_num);
 }
 	return count;
+#endif
 }
 
 
@@ -874,29 +973,50 @@ static int rtl8192cd_proc_rxdesc_info(char *buf, char **start, off_t offset,
 	struct rtl8192cd_hw *phw;
 	unsigned long *rxdescptr;
 
-	int len = 0;
+	int i, len = 0;
+#ifdef __KERNEL__
 	off_t begin = 0;
 	off_t pos = 0;
-	int i, size;
+	int size;
+#endif
 
 	phw = GET_HW(priv);
+#ifdef __ECOS
+	ecos_pr_fun("  Rx queue descriptor ..........\n");
+#else
 	size = sprintf(buf+len, "  Rx queue descriptor ..........\n");
 	CHECK_LEN;
+#endif
 	if(phw->rx_descL){
+#ifdef __ECOS
+		ecos_pr_fun("  rx_descL/physical: 0x%.8x/0x%.8x\n", (UINT)phw->rx_descL, (UINT)phw->rx_ring_addr);
+		ecos_pr_fun("  cur_rx: %d\n", phw->cur_rx);
+#else
 		size = sprintf(buf+len, "  rx_descL/physical: 0x%.8x/0x%.8x\n", (UINT)phw->rx_descL, (UINT)phw->rx_ring_addr);
 		CHECK_LEN;
 		size = sprintf(buf+len, "  cur_rx: %d\n", phw->cur_rx);
 		CHECK_LEN;
+#endif
 		for(i=0; i<NUM_RX_DESC; i++) {
 			rxdescptr = (unsigned long *)(phw->rx_descL+i);
+#ifdef __ECOS
+			ecos_pr_fun("      rxdesc[%02d]: 0x%.8x 0x%.8x 0x%.8x 0x%.8x 0x%.8x 0x%.8x 0x%.8x 0x%.8x\n", i,
+					(UINT)get_desc(rxdescptr[0]), (UINT)get_desc(rxdescptr[1]),
+					(UINT)get_desc(rxdescptr[2]), (UINT)get_desc(rxdescptr[3]),
+					(UINT)get_desc(rxdescptr[4]), (UINT)get_desc(rxdescptr[5]),
+					(UINT)get_desc(rxdescptr[6]), (UINT)get_desc(rxdescptr[7]));
+#else
 			size = sprintf(buf+len, "      rxdesc[%02d]: 0x%.8x 0x%.8x 0x%.8x 0x%.8x 0x%.8x 0x%.8x 0x%.8x 0x%.8x\n", i,
 					(UINT)get_desc(rxdescptr[0]), (UINT)get_desc(rxdescptr[1]),
 					(UINT)get_desc(rxdescptr[2]), (UINT)get_desc(rxdescptr[3]),
 					(UINT)get_desc(rxdescptr[4]), (UINT)get_desc(rxdescptr[5]),
 					(UINT)get_desc(rxdescptr[6]), (UINT)get_desc(rxdescptr[7]));
 			CHECK_LEN;
+#endif
 		}
 	}
+
+#ifdef __KERNEL__
 	*eof = 1;
 
 _ret:
@@ -904,6 +1024,7 @@ _ret:
 	len -= (offset - begin);	/* Start slop */
 	if (len > length)
 		len = length;	/* Ending slop */
+#endif
 	return len;
 }
 
@@ -927,7 +1048,7 @@ static int rtl8192cd_proc_desc_info(char *buf, char **start, off_t offset,
 	PRINT_ONE((UINT)phw->rx_ring_addr, "0x%.8x", 1);
 	PRINT_ONE("      RDSAR: ", "%s", 0);
 	PRINT_ONE((UINT)RTL_R32(RX_DESA), "0x%.8x", 0);
-	
+
 #ifdef DELAY_REFILL_RX_BUF
 	PRINT_ONE("  cur_rx/cur_rx_refill: ", "%s", 0);
 	PRINT_ONE((UINT)phw->cur_rx, "%d/", 0);
@@ -936,7 +1057,7 @@ static int rtl8192cd_proc_desc_info(char *buf, char **start, off_t offset,
 	PRINT_ONE("  cur_rx: ", "%s", 0);
 	PRINT_ONE((UINT)phw->cur_rx, "%d", 1);
 #endif
-	
+
 	PRINT_ONE("    queue 0:", "%s", 1);
 	PRINT_ONE("      tx_desc0/physical: ", "%s", 0);
 	PRINT_ONE((UINT)phw->tx_desc0, "0x%.8x/", 0);
@@ -1134,8 +1255,8 @@ static int rtl8192cd_proc_mib_11n(char *buf, char **start, off_t offset,
 #ifdef CLIENT_MODE
 		if (OPMODE & WIFI_STATION_STATE)
 			PRINT_SINGL_ARG("    coexist_connection: ", priv->coexist_connection, "%d");
-			
-		if ((OPMODE & WIFI_AP_STATE) || 
+
+		if ((OPMODE & WIFI_AP_STATE) ||
 			((OPMODE & WIFI_STATION_STATE) && priv->coexist_connection))
 #endif
 			PRINT_SINGL_ARG("    bg_ap_timeout: ", priv->bg_ap_timeout, "%d");
@@ -1149,16 +1270,26 @@ static int rtl8192cd_proc_mib_11n(char *buf, char **start, off_t offset,
 #endif
 		if (OPMODE & WIFI_AP_STATE) {
 			PRINT_SINGL_ARG("    force_20_sta: ", priv->force_20_sta, "0x%08x");
+#ifdef CONFIG_RTL_88E_SUPPORT
+			if (GET_CHIP_VER(priv) == VERSION_8188E)
+				PRINT_SINGL_ARG("    force_20_sta_88e_hw_ext: ", priv->force_20_sta_88e_hw_ext, "0x%08x");	
+#endif
 #ifdef STA_EXT
 			PRINT_SINGL_ARG("    force_20_sta_ext: ", priv->force_20_sta_ext, "0x%08x");
 #endif
 			PRINT_SINGL_ARG("    switch_20_sta: ", priv->switch_20_sta, "0x%08x");
+#ifdef CONFIG_RTL_88E_SUPPORT
+			if (GET_CHIP_VER(priv) == VERSION_8188E)
+				PRINT_SINGL_ARG("    switch_20_sta_88e_hw_ext: ", priv->switch_20_sta_88e_hw_ext, "0x%08x");	
+#endif
 #ifdef STA_EXT
 			PRINT_SINGL_ARG("    switch_20_sta_ext: ", priv->switch_20_sta_ext, "0x%08x");
 #endif
 		}
 	}
 #endif
+
+	PRINT_SINGL_ARG("    txnoack: ", priv->pmib->dot11nConfigEntry.dot11nTxNoAck, "%d");
 
 	if (priv->ht_cap_len) {
 		unsigned char *pbuf = (unsigned char *)&priv->ht_cap_buf;
@@ -1175,7 +1306,8 @@ static int rtl8192cd_proc_mib_11n(char *buf, char **start, off_t offset,
 		PRINT_ONE("    ht_ie: none", "%s", 1);
 	}
 
-	PRINT_SINGL_ARG("    legacy_obss_to: ", priv->ht_legacy_obss_to, "%d");
+	PRINT_SINGL_ARG("    legacy_obss_to: ", priv->ht_legacy_obss_to, "%d");	
+	PRINT_SINGL_ARG("    nomember_legacy_sta_to: ", priv->ht_nomember_legacy_sta_to, "%d");
 	PRINT_SINGL_ARG("    legacy_sta_num: ", priv->ht_legacy_sta_num, "%d");
 	PRINT_SINGL_ARG("    11nProtection: ", priv->ht_protection, "%d");
 //	PRINT_SINGL_ARG("    has_2r_sta: ", priv->pshare->has_2r_sta, "0x%08x");
@@ -1184,7 +1316,6 @@ static int rtl8192cd_proc_mib_11n(char *buf, char **start, off_t offset,
 }
 
 
-#ifdef MERGE_FW
 #ifdef CONFIG_RTL_92C_SUPPORT //#ifndef CONFIG_RTL_92D_SUPPORT
 static int rtl8192cd_proc_phypara_file_read(char *buf, char **start, off_t offset,
 			int length, int *eof, void *data)
@@ -1195,19 +1326,22 @@ static int rtl8192cd_proc_phypara_file_read(char *buf, char **start, off_t offse
 #else
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
-	int len;
-if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)){
-	if (priv->phypara_file_end <= (priv->phypara_file_start + offset + length)) {
-		*eof = 1;
-		len = priv->phypara_file_end - priv->phypara_file_start - offset;
-	}
-	else
-		len = length;
+	int len=0;
 
-	memcpy(buf, &priv->phypara_file_start[offset], len);
-	*start = buf;
-	return len;
-}
+	if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)) {
+		if (priv->phypara_file_end <= (priv->phypara_file_start + offset + length)) {
+			*eof = 1;
+			len = priv->phypara_file_end - priv->phypara_file_start - offset;
+		}
+		else
+			len = length;
+
+		memcpy(buf, &priv->phypara_file_start[offset], len);
+		*start = buf;
+		return len;
+	}
+
+	return 0;
 }
 
 
@@ -1224,14 +1358,16 @@ static int rtl8192cd_proc_phypara_file_write(struct file *file, const char *buff
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
 	char tmp[64];
-	int len = 0;
 
 	if (count < 2)
 		return -EFAULT;
 
-	if (buffer && !copy_from_user(tmp, buffer, 64)) {
-		len = strlen(tmp);
-		tmp[len-1] = '\0';
+	if (count > sizeof(tmp))
+		return -EINVAL;
+
+	if (buffer && !copy_from_user(tmp, buffer, count)) {
+		tmp[count-1] = '\0';
+
 
 #ifdef TESTCHIP_SUPPORT
 		if (!strcmp(tmp, "AGC_TAB.txt")) {
@@ -1330,7 +1466,7 @@ static int rtl8192cd_proc_phypara_file_write(struct file *file, const char *buff
 		else if (!strcmp(tmp, "PHY_REG_PG_hp.txt")) {
 			priv->phypara_file_start = data_PHY_REG_PG_hp_start;
 			priv->phypara_file_end = data_PHY_REG_PG_hp_end;
-		}		
+		}
 #endif
 		else {
 			panic_printk("No file of \"%s\"\n", tmp);
@@ -1372,7 +1508,6 @@ static int rtl8192cd_proc_phypara_file_write(struct file *file, const char *buff
 
 #endif
 
-#endif
 
 #ifdef AUTO_TEST_SUPPORT
 static int rtl8192cd_proc_SSR_read(char *buf, char **start, off_t offset,
@@ -1390,64 +1525,91 @@ static int rtl8192cd_proc_SSR_read(char *buf, char **start, off_t offset,
 
 	//wait SiteSurvey completed
 	if(priv->ss_req_ongoing)	{
-		PRINT_ONE("waitting", "%s", 1);		
+		PRINT_ONE("waitting", "%s", 1);
 	}else{
 		PRINT_ONE(" SiteSurvey result : ", "%s", 1);
-		PRINT_ONE("    ====================", "%s", 1);		
+		PRINT_ONE("    ====================", "%s", 1);
 		if(priv->site_survey.count_backup==0){
-			PRINT_ONE("none", "%s", 1);	
+			PRINT_ONE("none", "%s", 1);
 		}else{
-			for(i1=0; i1<priv->site_survey.count_backup ;i1++){			
-			
-				memcpy(tmp,priv->site_survey.bss_backup[i1].bssid,MACADDRLEN);			
+			for(i1=0; i1<priv->site_survey.count_backup ;i1++){
+
+				memcpy(tmp,priv->site_survey.bss_backup[i1].bssid,MACADDRLEN);
 				/*
 				panic_printk("Mac=%02X%02X%02X:%02X%02X%02X ;Channel=%02d ;SSID:%s  \n",
-					tmp[0],tmp[1],tmp[2],tmp[3],tmp[4],tmp[5]				
-					,priv->site_survey.bss_backup[i1].channel				
-					,priv->site_survey.bss_backup[i1].ssid			
-					);				
+					tmp[0],tmp[1],tmp[2],tmp[3],tmp[4],tmp[5]
+					,priv->site_survey.bss_backup[i1].channel
+					,priv->site_survey.bss_backup[i1].ssid
+					);
 				*/
 				PRINT_ARRAY_ARG("    HwAddr: ",	tmp, "%02x", MACADDRLEN);
-				PRINT_SINGL_ARG("    Channel: ",	priv->site_survey.bss_backup[i1].channel, "%d");			
-				PRINT_SINGL_ARG("    SSID: ", priv->site_survey.bss_backup[i1].ssid, "%s");			
+				PRINT_SINGL_ARG("    Channel: ",	priv->site_survey.bss_backup[i1].channel, "%d");
+				PRINT_SINGL_ARG("    SSID: ", priv->site_survey.bss_backup[i1].ssid, "%s");
 				PRINT_SINGL_ARG("    Type: ", ((priv->site_survey.bss_backup[i1].bsstype == 16) ? "AP" : "Ad-Hoc"), "%s");
 				//PRINT_SINGL_ARG("    Type: ", priv->site_survey.bss_backup[i1].bsstype, "%d");
 				PRINT_ONE("    ====================", "%s", 1);
-			}	
+			}
 		}
-		
+
 
 	}
 
-	
+
 	return pos;
-	
+
 }
 #endif
+
+
 #ifdef CLIENT_MODE
 static int rtl8192cd_proc_up_read(char *buf, char **start, off_t offset,
 			int length, int *eof, void *data)
 {
 	struct net_device *dev = (struct net_device *)data;
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else	
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
 	int len = 0;
-	len=sprintf(buf,"%d",priv->up_flag);	
+#ifdef __ECOS
+	ecos_pr_fun("%d\n",priv->up_flag);
+#else
+	len=sprintf(buf,"%d",priv->up_flag);
+#endif
 	return len;
 }
+
+#ifdef __ECOS
+void rtl8192cd_proc_up_write(char *tmp, void *data)
+#else
 static int rtl8192cd_proc_up_write(struct file *file, const char *buffer,
 				unsigned long count, void *data)
+#endif
 {
 	struct net_device *dev = (struct net_device *)data;
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else	
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+#ifdef __KERNEL__
 	char tmp[4];
+#endif
 
+#ifdef __ECOS
+	if(0 == (tmp[0]-'0'))
+		priv->up_flag = 0;
+#else
 	if (buffer && !copy_from_user(tmp, buffer, 4)) {
 		if(0 == (tmp[0]-'0'))
 			priv->up_flag = 0;
 	}
 	return count;
+#endif
 }
 #endif
+
 
 #ifdef CONFIG_RTK_VLAN_SUPPORT
 static int rtl8192cd_proc_vlan_read(char *buf, char **start, off_t offset,
@@ -1462,23 +1624,15 @@ static int rtl8192cd_proc_vlan_read(char *buf, char **start, off_t offset,
 	int pos = 0;
 
 	PRINT_ONE("  vlan setting...", "%s", 1);
-	PRINT_SINGL_ARG("    global_vlan: ",
-			priv->pmib->vlan.global_vlan, "%d");
-	PRINT_SINGL_ARG("    is_lan: ",
-			priv->pmib->vlan.is_lan, "%d");
-	PRINT_SINGL_ARG("    vlan_enable: ",
-			priv->pmib->vlan.vlan_enable, "%d");
-	PRINT_SINGL_ARG("    vlan_tag: ",
-			priv->pmib->vlan.vlan_tag, "%d");
-	PRINT_SINGL_ARG("    vlan_id: ",
-			priv->pmib->vlan.vlan_id, "%d");
-	PRINT_SINGL_ARG("    vlan_pri: ",
-			priv->pmib->vlan.vlan_pri, "%d");
-	PRINT_SINGL_ARG("    vlan_cfi: ",
-			priv->pmib->vlan.vlan_cfi, "%d");
-#if defined(CONFIG_RTK_VLAN_ROUTETYPE)
-	PRINT_SINGL_ARG("    vlan_forwarding: ",
-			priv->pmib->vlan.forwarding, "%d");
+	PRINT_SINGL_ARG("    global_vlan: ", priv->pmib->vlan.global_vlan, "%d");
+	PRINT_SINGL_ARG("    is_lan: ", priv->pmib->vlan.is_lan, "%d");
+	PRINT_SINGL_ARG("    vlan_enable: ", priv->pmib->vlan.vlan_enable, "%d");
+	PRINT_SINGL_ARG("    vlan_tag: ", priv->pmib->vlan.vlan_tag, "%d");
+	PRINT_SINGL_ARG("    vlan_id: ", priv->pmib->vlan.vlan_id, "%d");
+	PRINT_SINGL_ARG("    vlan_pri: ", priv->pmib->vlan.vlan_pri, "%d");
+	PRINT_SINGL_ARG("    vlan_cfi: ", priv->pmib->vlan.vlan_cfi, "%d");
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+	PRINT_SINGL_ARG("    vlan_forwarding_rule: ", priv->pmib->vlan.forwarding_rule, "%d");
 #endif
 
 	return pos;
@@ -1503,7 +1657,7 @@ static int rtl8192cd_proc_vlan_write(struct file *file, const char *buffer,
 		return -EFAULT;
 
 	if (buffer && !copy_from_user(tmp, buffer, 128)) {
-#if defined(CONFIG_RTK_VLAN_ROUTETYPE)
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
 		int num = sscanf(tmp, "%d %d %d %d %d %d %d %d",
 #else
 		int num = sscanf(tmp, "%d %d %d %d %d %d %d",
@@ -1512,25 +1666,156 @@ static int rtl8192cd_proc_vlan_write(struct file *file, const char *buffer,
 			&priv->pmib->vlan.vlan_enable, &priv->pmib->vlan.vlan_tag,
 			&priv->pmib->vlan.vlan_id, &priv->pmib->vlan.vlan_pri,
 			&priv->pmib->vlan.vlan_cfi
-#if defined(CONFIG_RTK_VLAN_ROUTETYPE)
-			,&priv->pmib->vlan.forwarding
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+			, &priv->pmib->vlan.forwarding_rule
 #endif
 			);
 
-#if defined(CONFIG_RTK_VLAN_ROUTETYPE)
-		if (num != 8) {
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+		if (num != 8)
 #else
-		if (num !=  7) {
+		if (num != 7)
 #endif
+		{
 			panic_printk("invalid vlan parameter!\n");
 		}
 	}
-#if defined(CONFIG_RTK_VLAN_ROUTETYPE)
-	add_vlan_info(&priv->pmib->vlan,dev);
+
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+	rtl_add_vlan_info((struct vlan_info *)&priv->pmib->vlan, dev);
 #endif
+
 	return count;
 }
 #endif // CONFIG_RTK_VLAN_SUPPORT
+
+
+#ifdef SUPPORT_MULTI_PROFILE
+static int rtl8192cd_proc_mib_ap_profile(char *buf, char **start, off_t offset,
+			int length, int *eof, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+	int pos = 0, i;
+	unsigned char tmpbuf[100];
+
+	PRINT_ONE("  Client Profile...", "%s", 1);
+	PRINT_SINGL_ARG("    enable_profile: ", priv->pmib->ap_profile.enable_profile, "%d");
+	PRINT_SINGL_ARG("    profile_num: ", priv->pmib->ap_profile.profile_num, "%d");
+	PRINT_SINGL_ARG("    in_use_profile: ", ((priv->profile_idx == 0) ? (priv->pmib->ap_profile.profile_num-1) : (priv->profile_idx-1)), "%d");
+
+	for (i=0; i<priv->pmib->ap_profile.profile_num && i<PROFILE_NUM; i++) {
+		sprintf(tmpbuf, "       profile[%d]...", i);
+		PRINT_ONE(tmpbuf, "%s", 1);
+		PRINT_SINGL_ARG("         ssid: ", priv->pmib->ap_profile.profile[i].ssid, "%s");
+		PRINT_SINGL_ARG("         encryption: ", priv->pmib->ap_profile.profile[i].encryption, "%d");
+		PRINT_SINGL_ARG("         auth_type: ", priv->pmib->ap_profile.profile[i].auth_type, "%d");
+		if (priv->pmib->ap_profile.profile[i].encryption == 1 || priv->pmib->ap_profile.profile[i].encryption == 2) {
+			PRINT_SINGL_ARG("         wep_default_key: ", priv->pmib->ap_profile.profile[i].wep_default_key, "%d");
+			 if (priv->pmib->ap_profile.profile[i].encryption == 1) {
+				PRINT_ARRAY_ARG("         wep_key1: ", priv->pmib->ap_profile.profile[i].wep_key1, "%02x", 5);
+				PRINT_ARRAY_ARG("         wep_key2: ", priv->pmib->ap_profile.profile[i].wep_key2, "%02x", 5);
+				PRINT_ARRAY_ARG("         wep_key3: ", priv->pmib->ap_profile.profile[i].wep_key3, "%02x", 5);
+				PRINT_ARRAY_ARG("         wep_key4: ", priv->pmib->ap_profile.profile[i].wep_key4, "%02x", 5);
+			}
+			else {
+				PRINT_ARRAY_ARG("         wep_key1: ", priv->pmib->ap_profile.profile[i].wep_key1, "%02x", 13);
+				PRINT_ARRAY_ARG("         wep_key2: ", priv->pmib->ap_profile.profile[i].wep_key2, "%02x", 13);
+				PRINT_ARRAY_ARG("         wep_key3: ", priv->pmib->ap_profile.profile[i].wep_key3, "%02x", 13);
+				PRINT_ARRAY_ARG("         wep_key4: ", priv->pmib->ap_profile.profile[i].wep_key4, "%02x", 13);
+			}
+		}
+		else if (priv->pmib->ap_profile.profile[i].encryption == 3 || priv->pmib->ap_profile.profile[i].encryption == 4) {
+			PRINT_SINGL_ARG("         wpa_cipher: ", priv->pmib->ap_profile.profile[i].wpa_cipher, "%d");
+			PRINT_SINGL_ARG("         wpa_psk: ", priv->pmib->ap_profile.profile[i].wpa_psk, "%s");
+		}
+	}
+	return pos;
+}
+#endif // SUPPORT_MULTI_PROFILE
+
+
+static int rtl8192cd_proc_mib_misc(char *buf, char **start, off_t offset,
+			int length, int *eof, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+
+	int pos = 0;
+
+	PRINT_ONE("  miscEntry...", "%s", 1);
+
+	PRINT_SINGL_ARG("    show_hidden_bss: ", priv->pmib->miscEntry.show_hidden_bss, "%d");
+	PRINT_SINGL_ARG("    ack_timeout: ", (unsigned char)priv->pmib->miscEntry.ack_timeout, "%d");
+	PRINT_ARRAY_ARG("    private_ie: ", priv->pmib->miscEntry.private_ie, "%02x", priv->pmib->miscEntry.private_ie_len);
+	PRINT_SINGL_ARG("    rxInt: ", priv->pmib->miscEntry.rxInt_thrd, "%d");
+#ifdef DRVMAC_LB
+	PRINT_SINGL_ARG("    dmlb: ", priv->pmib->miscEntry.drvmac_lb, "%d");
+	PRINT_ARRAY_ARG("    lb_da: ", priv->pmib->miscEntry.lb_da, "%02x", MACADDRLEN);
+	PRINT_SINGL_ARG("    lb_tps: ", priv->pmib->miscEntry.lb_tps, "%d");
+#endif
+	PRINT_SINGL_ARG("    groupID: ", priv->pmib->miscEntry.groupID, "%d");
+	PRINT_SINGL_ARG("    rc_enable: ", priv->pmib->reorderCtrlEntry.ReorderCtrlEnable, "%d");
+	PRINT_SINGL_ARG("    rc_winsz: ", priv->pmib->reorderCtrlEntry.ReorderCtrlWinSz, "%d");
+	PRINT_SINGL_ARG("    rc_timeout: ", priv->pmib->reorderCtrlEntry.ReorderCtrlTimeout, "%d");
+//#ifdef FW_SW_BEACON
+	PRINT_SINGL_ARG("    vap_enable: ", priv->pmib->miscEntry.vap_enable, "%d");
+//#endif
+#if defined(RESERVE_TXDESC_FOR_EACH_IF) && (defined(UNIVERSAL_REPEATER) || defined(MBSSID))
+	PRINT_SINGL_ARG("    rsv_txdesc: ", GET_ROOT(priv)->pmib->miscEntry.rsv_txdesc, "%d");
+#endif
+#ifdef USE_TXQUEUE
+	PRINT_SINGL_ARG("    use_txq: ", GET_ROOT(priv)->pmib->miscEntry.use_txq, "%d");
+#endif
+	PRINT_SINGL_ARG("    func_off: ", priv->pmib->miscEntry.func_off, "%d");
+#ifdef TX_EARLY_MODE
+	PRINT_SINGL_ARG("    em_waitq_on: ", GET_ROOT(priv)->pshare->em_waitq_on, "%d");
+#endif
+#if defined(WIFI_11N_2040_COEXIST_EXT)
+	PRINT_SINGL_ARG("    40M map: ", priv->pshare->_40m_staMap, "%x");
+#ifdef STA_EXT
+	PRINT_SINGL_ARG("    40M map_ext: ", priv->pshare->_40m_staMap_ext, "%x");
+#endif
+	PRINT_SINGL_ARG("    bws: ", priv->pshare->bws_triggered, "%d");
+#endif
+	return pos;
+}
+
+
+#ifdef WIFI_SIMPLE_CONFIG
+static int rtl8192cd_proc_mib_wsc(char *buf, char **start, off_t offset,
+			int length, int *eof, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+	int pos = 0;
+
+	PRINT_ONE("  wscEntry...", "%s", 1);
+	PRINT_SINGL_ARG("    wsc_enable: ", priv->pmib->wscEntry.wsc_enable, "%d");
+	PRINT_ARRAY_ARG("    beacon_ie: ",
+			priv->pmib->wscEntry.beacon_ie, "%02x", priv->pmib->wscEntry.beacon_ielen);
+	PRINT_SINGL_ARG("    beacon_ielen: ", priv->pmib->wscEntry.beacon_ielen, "%d");
+	PRINT_ARRAY_ARG("    probe_rsp_ie: ",
+			priv->pmib->wscEntry.probe_rsp_ie, "%02x", priv->pmib->wscEntry.probe_rsp_ielen);
+	PRINT_SINGL_ARG("    probe_rsp_ielen: ", priv->pmib->wscEntry.probe_rsp_ielen, "%d");
+	PRINT_ARRAY_ARG("    probe_req_ie: ",
+			priv->pmib->wscEntry.probe_req_ie, "%02x", priv->pmib->wscEntry.probe_req_ielen);
+	PRINT_SINGL_ARG("    probe_req_ielen: ", priv->pmib->wscEntry.probe_req_ielen, "%d");
+	PRINT_ARRAY_ARG("    assoc_ie: ",
+			priv->pmib->wscEntry.assoc_ie, "%02x", priv->pmib->wscEntry.assoc_ielen);
+	PRINT_SINGL_ARG("    assoc_ielen: ", priv->pmib->wscEntry.assoc_ielen, "%d");
+
+	return pos;
+}
+#endif
 
 
 static int rtl8192cd_proc_mib_all(char *buf, char **start, off_t offset,
@@ -1543,21 +1828,33 @@ static int rtl8192cd_proc_mib_all(char *buf, char **start, off_t offset,
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
 	int len = 0;
+#ifdef __KERNEL__
 	off_t begin = 0;
 	off_t pos = 0;
+#endif
 	int size;
 
-#ifdef __KERNEL__
-#if 0
-	size = sprintf(buf, "  Make info: %s by %s, v%d.%d (%s)\n", UTS_VERSION, LINUX_COMPILE_BY,
-		DRV_VERSION_H, DRV_VERSION_L, DRV_RELDATE);
+#ifdef __ECOS
+	ecos_pr_fun("  Make info: v%d.%d (%s)\n", DRV_VERSION_H, DRV_VERSION_L, DRV_RELDATE);
+#else
+	size = sprintf(buf, "  Make info: v%d.%d (%s)\n", DRV_VERSION_H, DRV_VERSION_L, DRV_RELDATE);
 	CHECK_LEN;
-#endif	
 #endif
-	size = sprintf(buf+len, "  RTL8192 firmware version: %d.%d,  built time: %02x-%02x %02x:%02x\n", priv->pshare->fw_version, 
-		priv->pshare->fw_sub_version, priv->pshare->fw_date_month, priv->pshare->fw_date_day, 
-		priv->pshare->fw_date_hour, priv->pshare->fw_date_minute);
-	CHECK_LEN;
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv) != VERSION_8188E)
+#endif
+	{
+#ifdef __ECOS
+		ecos_pr_fun("  RTL8192 firmware version: %d.%d,  built time: %02x-%02x %02x:%02x\n", priv->pshare->fw_version,
+			priv->pshare->fw_sub_version, priv->pshare->fw_date_month, priv->pshare->fw_date_day,
+			priv->pshare->fw_date_hour, priv->pshare->fw_date_minute);
+#else
+		size = sprintf(buf+len, "  RTL8192 firmware version: %d.%d,  built time: %02x-%02x %02x:%02x\n", priv->pshare->fw_version,
+			priv->pshare->fw_sub_version, priv->pshare->fw_date_month, priv->pshare->fw_date_day,
+			priv->pshare->fw_date_hour, priv->pshare->fw_date_minute);
+		CHECK_LEN;
+#endif
+	}
 
 	size = rtl8192cd_proc_mib_rf(buf+len, start, offset, length, eof, data);
 	CHECK_LEN;
@@ -1583,6 +1880,12 @@ static int rtl8192cd_proc_mib_all(char *buf, char **start, off_t offset,
 	size = rtl8192cd_proc_mib_erp(buf+len, start, offset, length, eof, data);
 	CHECK_LEN;
 
+	size = rtl8192cd_proc_mib_misc(buf+len, start, offset, length, eof, data);
+	CHECK_LEN;
+
+	size = rtl8192cd_proc_mib_wsc(buf+len, start, offset, length, eof, data);
+	CHECK_LEN;
+
 #ifdef WDS
 	size = rtl8192cd_proc_mib_wds(buf+len, start, offset, length, eof, data);
 	CHECK_LEN;
@@ -1606,6 +1909,12 @@ static int rtl8192cd_proc_mib_all(char *buf, char **start, off_t offset,
 	CHECK_LEN;
 #endif
 
+#ifdef SUPPORT_MULTI_PROFILE
+	size = rtl8192cd_proc_mib_ap_profile(buf+len, start, offset, length, eof, data);
+	CHECK_LEN;
+#endif
+
+#ifdef __KERNEL__
 	*eof = 1;
 
 _ret:
@@ -1613,10 +1922,13 @@ _ret:
 	len -= (offset - begin);	/* Start slop */
 	if (len > length)
 		len = length;	/* Ending slop */
-
+#endif
 	return len;
 }
 
+#ifdef __ECOS
+#define CHECK_LEN_B do {} while(0)
+#else
 #define MAX_CHAR_IN_A_LINE		80
 // macro "CHECK_LEN_B" is used in dump_one_stainfo() only
 #define CHECK_LEN_B { \
@@ -1624,6 +1936,7 @@ _ret:
 		return pos; \
 	} \
 }
+#endif
 
 //static int dump_one_stainfo(int num, struct stat_info *pstat, char *buf, char **start,
 //			off_t offset, int length, int *eof, void *data)
@@ -1655,11 +1968,19 @@ static int dump_one_stainfo(int num, struct stat_info *pstat, char *buf,
 	CHECK_LEN_B;
 	PRINT_SINGL_ARG("    rx_bytes: ", pstat->rx_bytes, "%u");
 	CHECK_LEN_B;
+	PRINT_SINGL_ARG("    tx_bytes per minute: ", pstat->tx_bytes_1m, "%u");
+	CHECK_LEN_B;
+	PRINT_SINGL_ARG("    rx_bytes per minute: ", pstat->rx_bytes_1m, "%u");
+	CHECK_LEN_B;
 	PRINT_SINGL_ARG("    tx_pkts: ", pstat->tx_pkts, "%u");
 	CHECK_LEN_B;
 	PRINT_SINGL_ARG("    rx_pkts: ", pstat->rx_pkts, "%u");
 	CHECK_LEN_B;
 	PRINT_SINGL_ARG("    tx_fail: ", pstat->tx_fail, "%u");
+	CHECK_LEN_B;
+	PRINT_SINGL_ARG("    tx_avarage:    ", pstat->tx_avarage, "%u");
+	CHECK_LEN_B;
+	PRINT_SINGL_ARG("    rx_avarage:    ", pstat->rx_avarage, "%u");
 	CHECK_LEN_B;
 	PRINT_SINGL_ARG("    dz_queue_len: ", skb_queue_len(&pstat->dz_queue), "%u");
 	CHECK_LEN_B;
@@ -1715,7 +2036,7 @@ static int dump_one_stainfo(int num, struct stat_info *pstat, char *buf,
 	if (is_MCS_rate(pstat->current_tx_rate)) {
 		PRINT_ONE("    current_tx_rate: MCS", "%s", 0);
 //		PRINT_ONE(pstat->current_tx_rate&0x7f, "%d", 0);
-		PRINT_ONE(pstat->current_tx_rate&0xf, "%d", 0);		
+		PRINT_ONE(pstat->current_tx_rate&0xf, "%d", 0);
 //		rate = (unsigned char *)MCS_DATA_RATEStr[(pstat->ht_current_tx_info&BIT(0))?1:0][(pstat->ht_current_tx_info&BIT(1))?1:0][pstat->current_tx_rate&0x7f];
 		rate = (unsigned char *)MCS_DATA_RATEStr[(pstat->ht_current_tx_info&BIT(0))?1:0][(pstat->ht_current_tx_info&BIT(1))?1:0][pstat->current_tx_rate&0xf];
 		PRINT_ONE(rate, " %s", 1);
@@ -1759,17 +2080,29 @@ static int dump_one_stainfo(int num, struct stat_info *pstat, char *buf,
 	PRINT_SINGL_ARG("    tx_ra_bitmap: ", pstat->tx_ra_bitmap, "0x%08x");
 
 	if (pstat->is_realtek_sta)
-		sprintf(tmpbuf, "Realtek");
+		sprintf((char *)tmpbuf, "Realtek");
+#ifdef USE_OUT_SRC	
+	else if (pstat->IOTPeer==HT_IOT_PEER_BROADCOM)
+		sprintf((char *)tmpbuf, "Broadcom");
+	else if (pstat->IOTPeer==HT_IOT_PEER_MARVELL)
+		sprintf((char *)tmpbuf, "Marvell");
+	else if (pstat->IOTPeer==HT_IOT_PEER_INTEL)
+		sprintf((char *)tmpbuf, "Intel");
+	else if (pstat->IOTPeer==HT_IOT_PEER_RALINK)
+		sprintf((char *)tmpbuf, "Ralink");
+	else		
+#else
 	else if (pstat->is_broadcom_sta)
-		sprintf(tmpbuf, "Broadcom");
+		sprintf((char *)tmpbuf, "Broadcom");
 	else if (pstat->is_marvell_sta)
-		sprintf(tmpbuf, "Marvell");
+		sprintf((char *)tmpbuf, "Marvell");
 	else if (pstat->is_intel_sta)
-		sprintf(tmpbuf, "Intel");
+		sprintf((char *)tmpbuf, "Intel");
 	else if (pstat->is_ralink_sta)
-		sprintf(tmpbuf, "Ralink");
+		sprintf((char *)tmpbuf, "Ralink");
 	else
-		sprintf(tmpbuf, "--");
+#endif		
+		sprintf((char *)tmpbuf, "--");
 	PRINT_SINGL_ARG("    Chip Vendor: ", tmpbuf, "%s");
 	CHECK_LEN_B;
 #ifdef RTK_WOW
@@ -1912,13 +2245,35 @@ static int dump_one_stainfo(int num, struct stat_info *pstat, char *buf,
 	PRINT_SINGL_ARG("    rc passupi:   ", pstat->rx_rc_passupi, "%u");
 	CHECK_LEN_B;
 #endif
+
+#ifdef SW_TX_QUEUE
+	PRINT_SINGL_ARG("    bk aggnum:   ", pstat->swq.q_aggnum[BK_QUEUE], "%d");
+    CHECK_LEN_B;
+	PRINT_SINGL_ARG("    be aggnum:   ", pstat->swq.q_aggnum[BE_QUEUE], "%d");
+    CHECK_LEN_B;
+	PRINT_SINGL_ARG("    vi aggnum:   ", pstat->swq.q_aggnum[VI_QUEUE], "%d");
+    CHECK_LEN_B;
+	PRINT_SINGL_ARG("    vo aggnum:   ", pstat->swq.q_aggnum[VO_QUEUE], "%d");
+    CHECK_LEN_B;
+	PRINT_SINGL_ARG("    bk backtime:   ", pstat->swq.q_aggnumIncSlow[BK_QUEUE], "%d");
+    CHECK_LEN_B;
+    PRINT_SINGL_ARG("    be backtime:   ", pstat->swq.q_aggnumIncSlow[BE_QUEUE], "%d");
+    CHECK_LEN_B;
+    PRINT_SINGL_ARG("    vi backtime:   ", pstat->swq.q_aggnumIncSlow[VI_QUEUE], "%d");
+    CHECK_LEN_B;
+    PRINT_SINGL_ARG("    vo backtime:   ", pstat->swq.q_aggnumIncSlow[VO_QUEUE], "%d");
+    CHECK_LEN_B;
+#endif
+
 	PRINT_ONE("", "%s", 1);
 
 	*rc = 1; //finished, assign okay to return code.
 	return pos;
 }
 
+#ifdef __KERNEL__
 static int read_sta_info_down;
+#endif
 
 static int rtl8192cd_proc_stainfo(char *buf, char **start, off_t offset,
 			int length, int *eof, void *data)
@@ -1931,12 +2286,15 @@ static int rtl8192cd_proc_stainfo(char *buf, char **start, off_t offset,
 #endif
 	int len = 0, rc=1;
 	off_t begin = 0;
+#ifdef __KERNEL__
 	off_t pos = 0;
+#endif
 	int size, num=1;
 	struct list_head *phead, *plist;
 	struct stat_info *pstat;
 	unsigned long flags=0;
 
+#ifdef __KERNEL__
 	if (offset == 0) // first calling, reset read_sta_info_down variable
 		read_sta_info_down = 0;
 
@@ -1948,41 +2306,47 @@ static int rtl8192cd_proc_stainfo(char *buf, char **start, off_t offset,
 
 	// do not waste time again
 	// I sent *eof=1 last time, I do not know why the kernel will call me again.
-	if (read_sta_info_down) {		
-		*eof = 1;		
-		return 0;		
+	if (read_sta_info_down) {
+		*eof = 1;
+		return 0;
 	}
+#endif
 
 	SAVE_INT_AND_CLI(flags);
 
 	// !!! it REALLY waste the cpu time ==> it will do from beginning when kernel call rtl8192cd_proc_stainfo() function again and again.
+#ifdef __ECOS
+	ecos_pr_fun("-- STA info table -- (active: %d)\n", priv->assoc_num);
+#else
 	size = sprintf(buf, "-- STA info table -- (active: %d)\n", priv->assoc_num);
 	CHECK_LEN;
+#endif
 
 	phead = &priv->asoc_list;
 	if (!netif_running(dev) || list_empty(phead)) {
-		*eof = 1;		
+		*eof = 1;
 		goto _ret;
 	}
 
 	plist = phead->next;
 	while (plist != phead) {
 		pstat = list_entry(plist, struct stat_info, asoc_list);
-
+#ifdef __KERNEL__
 		// (length + offset) : the total length can be used in this rtl8192cd_proc_stainfo() calling.
 		//  (length + offset - -begin - len) : the remained length can be used.
 		if ((length + offset - begin - len) < MAX_CHAR_IN_A_LINE)
 			goto _ret;
 
 		rc = 0; // return code, assume error by default
+#endif
 		//size = dump_one_stainfo(num++, pstat, buf+len, start, offset, length, eof, data);
-		size = dump_one_stainfo(num++, pstat, buf+len, offset, length, (length + offset - begin- len), &rc);	
+		size = dump_one_stainfo(num++, pstat, buf+len, offset, length, (length + offset - begin- len), &rc);
 		CHECK_LEN;
-		
+
 #ifdef CONFIG_RTK_MESH
 		if (rc == 0)
 			break;
-		
+
 		// 3 line for Throughput statistics (sounder)
 		size = dump_mesh_one_mpflow_sta(num, pstat, buf+len, start, offset, length,
 					eof, data);
@@ -1992,17 +2356,20 @@ static int rtl8192cd_proc_stainfo(char *buf, char **start, off_t offset,
 		plist = plist->next;
 	}
 
+#ifdef __KERNEL__
 	if (rc == 1) { // return code is okay. if return code is 0, it means the dump_one_stainfo() is not finished.
 		read_sta_info_down = 1;
 	*eof = 1;
 	}
+#endif
 
 _ret:
+#ifdef __KERNEL__
 	*start = buf + (offset - begin);	/* Start of wanted data */
 	len -= (offset - begin);	/* Start slop */
 	if (len > length)
 		len = length;	/* Ending slop */
-
+#endif
 	RESTORE_INT(flags);
 	return len;
 }
@@ -2056,17 +2423,24 @@ static int rtl8192cd_proc_sta_keyinfo(char *buf, char **start, off_t offset,
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
 	int len = 0;
+#ifdef __KERNEL__
 	off_t begin = 0;
 	off_t pos = 0;
+#endif
 	int size, num=1;
 	struct list_head *phead, *plist;
 	struct stat_info *pstat;
 	unsigned long flags=0;
-	SAVE_INT_AND_CLI(flags);	
 
+	SAVE_INT_AND_CLI(flags);
+
+#ifdef __ECOS
+	ecos_pr_fun("-- STA key info table --\n");
+#else
 	strcpy(buf, "-- STA key info table --\n");
 	size = strlen(buf);
 	CHECK_LEN;
+#endif
 
 	phead = &priv->asoc_list;
 	if (!netif_running(dev) || list_empty(phead))
@@ -2085,10 +2459,12 @@ static int rtl8192cd_proc_sta_keyinfo(char *buf, char **start, off_t offset,
 	*eof = 1;
 
 _ret:
+#ifdef __KERNEL__
 	*start = buf + (offset - begin);	/* Start of wanted data */
 	len -= (offset - begin);	/* Start slop */
 	if (len > length)
 		len = length;	/* Ending slop */
+#endif
 
 	RESTORE_INT(flags);
 	return len;
@@ -2112,8 +2488,12 @@ static int rtl8192cd_proc_stats(char *buf, char **start, off_t offset,
 	char tmp[32];
 	unsigned char *rate;
 	unsigned long flags=0;
+#ifdef __ECOS
+	Rltk819x_t *info = dev->info;
+#endif
+
 	SAVE_INT_AND_CLI(flags);
-	
+
 	PRINT_ONE("  Statistics...", "%s", 1);
 
 	m = priv->up_time / 86400;
@@ -2165,22 +2545,20 @@ static int rtl8192cd_proc_stats(char *buf, char **start, off_t offset,
 #ifdef CHECK_TX_HANGUP
 		PRINT_SINGL_ARG("    check_cnt_tx:  ", priv->check_cnt_tx, "%d");
 #endif
-#ifdef CHECK_RX_HANGUP
+#if defined(CHECK_RX_HANGUP) || defined(CHECK_RX_DMA_ERROR)
 		PRINT_SINGL_ARG("    check_cnt_rx:  ", priv->check_cnt_rx, "%d");
 #endif
 #ifdef CHECK_BEACON_HANGUP
 		PRINT_SINGL_ARG("    check_cnt_bcn: ", priv->check_cnt_bcn, "%d");
 #endif
+#ifdef CHECK_AFTER_RESET
 		PRINT_SINGL_ARG("    check_cnt_rst: ", priv->check_cnt_rst, "%d");
-#ifdef CHECK_BB_HANGUP
-		PRINT_SINGL_ARG("    check_cnt_bb:  ", priv->check_cnt_bb, "%d");
-		PRINT_SINGL_ARG("    check_cnt_cca: ", priv->check_cnt_cca, "%d");
 #endif
 	}
 #endif
 
-		
-		
+
+
 #if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_NOISE_CONTROL)
 	if (GET_CHIP_VER(priv) == VERSION_8192D){
 #ifdef _DEBUG_RTL8192CD_
@@ -2223,8 +2601,14 @@ static int rtl8192cd_proc_stats(char *buf, char **start, off_t offset,
 			PRINT_SINGL_ARG("    skb_free_num:  ", skb_free_num+priv->pshare->skb_queue.qlen, "%d");
 	#endif
 		}
+#else
+	PRINT_SINGL_ARG("    skb_free_num:  ", priv->pshare->skb_queue.qlen, "%d");
 #endif
-
+#ifdef __ECOS
+#ifdef TX_PKT_FREE_QUEUE
+	PRINT_SINGL_ARG("    tx_queue:  ", info->tx_queue.qlen, "%d");
+#endif
+#endif
 	PRINT_SINGL_ARG("    tx_avarage:    ", priv->ext_stats.tx_avarage, "%lu");
 	PRINT_SINGL_ARG("    rx_avarage:    ", priv->ext_stats.rx_avarage, "%lu");
 
@@ -2248,21 +2632,36 @@ static int rtl8192cd_proc_stats(char *buf, char **start, off_t offset,
 #endif
 
 #if defined(RESERVE_TXDESC_FOR_EACH_IF) && (defined(UNIVERSAL_REPEATER) || defined(MBSSID))
-	if (priv->pmib->miscEntry.rsv_txdesc) {
+	if (GET_ROOT(priv)->pmib->miscEntry.rsv_txdesc) {
 		PRINT_SINGL_ARG("    bkq_used_desc:   ", (UINT)priv->use_txdesc_cnt[BK_QUEUE], "%d");
 		PRINT_SINGL_ARG("    beq_used_desc:   ", (UINT)priv->use_txdesc_cnt[BE_QUEUE], "%d");
 		PRINT_SINGL_ARG("    viq_used_desc:   ", (UINT)priv->use_txdesc_cnt[VI_QUEUE], "%d");
 		PRINT_SINGL_ARG("    voq_used_desc:   ", (UINT)priv->use_txdesc_cnt[VO_QUEUE], "%d");
 	}
 #endif
+
+#ifdef USE_TXQUEUE
+	if (GET_ROOT(priv)->pmib->miscEntry.use_txq) {
+		PRINT_SINGL_ARG("    txq_bk_num:   ", (UINT)txq_len(&priv->pshare->txq_list[BK_QUEUE]), "%d");
+		PRINT_SINGL_ARG("    txq_be_num:   ", (UINT)txq_len(&priv->pshare->txq_list[BE_QUEUE]), "%d");
+		PRINT_SINGL_ARG("    txq_vi_num:   ", (UINT)txq_len(&priv->pshare->txq_list[VI_QUEUE]), "%d");
+		PRINT_SINGL_ARG("    txq_vo_num:   ", (UINT)txq_len(&priv->pshare->txq_list[VO_QUEUE]), "%d");		
+	}
+#endif
+#ifdef SW_TX_QUEUE
+	PRINT_SINGL_ARG("    swq enable:    ", priv->swq_en, "%d");
+#endif
 	RESTORE_INT(flags);
 
 	return pos;
 }
 
-
+#ifdef __ECOS
+void rtl8192cd_proc_stats_clear(void *data)
+#else
 static int rtl8192cd_proc_stats_clear(struct file *file, const char *buffer,
 				unsigned long count, void *data)
+#endif
 {
 	struct net_device *dev = (struct net_device *)data;
 #ifdef NETDEV_NO_PRIV
@@ -2279,79 +2678,10 @@ static int rtl8192cd_proc_stats_clear(struct file *file, const char *buffer,
 #ifdef _11s_TEST_MODE_
 	memset(priv->rvTestPacket, 0, 3000);
 #endif
+#ifdef __KERNEL__
 	return count;
+#endif
 }
-
-
-static int rtl8192cd_proc_mib_misc(char *buf, char **start, off_t offset,
-			int length, int *eof, void *data)
-{
-	struct net_device *dev = (struct net_device *)data;
-#ifdef NETDEV_NO_PRIV
-	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
-#else
-	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
-#endif
-
-	int pos = 0;
-
-	PRINT_ONE("  miscEntry...", "%s", 1);
-
-	PRINT_SINGL_ARG("    show_hidden_bss: ", priv->pmib->miscEntry.show_hidden_bss, "%d");
-	PRINT_SINGL_ARG("    ack_timeout: ", (unsigned char)priv->pmib->miscEntry.ack_timeout, "%d");
-	PRINT_ARRAY_ARG("    private_ie: ", priv->pmib->miscEntry.private_ie, "%02x", priv->pmib->miscEntry.private_ie_len);
-	PRINT_SINGL_ARG("    rxInt: ", priv->pmib->miscEntry.rxInt_thrd, "%d");
-#ifdef DRVMAC_LB
-	PRINT_SINGL_ARG("    dmlb: ", priv->pmib->miscEntry.drvmac_lb, "%d");
-	PRINT_ARRAY_ARG("    lb_da: ", priv->pmib->miscEntry.lb_da, "%02x", MACADDRLEN);
-	PRINT_SINGL_ARG("    lb_tps: ", priv->pmib->miscEntry.lb_tps, "%d");
-#endif
-	PRINT_SINGL_ARG("    groupID: ", priv->pmib->miscEntry.groupID, "%d");
-	PRINT_SINGL_ARG("    rc_enable: ", priv->pmib->reorderCtrlEntry.ReorderCtrlEnable, "%d");
-	PRINT_SINGL_ARG("    rc_winsz: ", priv->pmib->reorderCtrlEntry.ReorderCtrlWinSz, "%d");
-	PRINT_SINGL_ARG("    rc_timeout: ", priv->pmib->reorderCtrlEntry.ReorderCtrlTimeout, "%d");
-//#ifdef FW_SW_BEACON
-	PRINT_SINGL_ARG("    vap_enable: ", priv->pmib->miscEntry.vap_enable, "%d");
-//#endif
-#if defined(RESERVE_TXDESC_FOR_EACH_IF) && (defined(UNIVERSAL_REPEATER) || defined(MBSSID))
-	PRINT_SINGL_ARG("    rsv_txdesc: ", priv->pmib->miscEntry.rsv_txdesc, "%d");
-#endif
-	PRINT_SINGL_ARG("    func_off: ", priv->pmib->miscEntry.func_off, "%d");
-
-	return pos;
-}
-
-
-#ifdef WIFI_SIMPLE_CONFIG
-static int rtl8192cd_proc_mib_wsc(char *buf, char **start, off_t offset,
-			int length, int *eof, void *data)
-{
-	struct net_device *dev = (struct net_device *)data;
-#ifdef NETDEV_NO_PRIV
-	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
-#else
-	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
-#endif
-	int pos = 0;
-
-	PRINT_ONE("  wscEntry...", "%s", 1);
-	PRINT_SINGL_ARG("    wsc_enable: ", priv->pmib->wscEntry.wsc_enable, "%d");
-	PRINT_ARRAY_ARG("    beacon_ie: ",
-			priv->pmib->wscEntry.beacon_ie, "%02x", priv->pmib->wscEntry.beacon_ielen);
-	PRINT_SINGL_ARG("    beacon_ielen: ", priv->pmib->wscEntry.beacon_ielen, "%d");
-	PRINT_ARRAY_ARG("    probe_rsp_ie: ",
-			priv->pmib->wscEntry.probe_rsp_ie, "%02x", priv->pmib->wscEntry.probe_rsp_ielen);
-	PRINT_SINGL_ARG("    probe_rsp_ielen: ", priv->pmib->wscEntry.probe_rsp_ielen, "%d");
-	PRINT_ARRAY_ARG("    probe_req_ie: ",
-			priv->pmib->wscEntry.probe_req_ie, "%02x", priv->pmib->wscEntry.probe_req_ielen);
-	PRINT_SINGL_ARG("    probe_req_ielen: ", priv->pmib->wscEntry.probe_req_ielen, "%d");
-	PRINT_ARRAY_ARG("    assoc_ie: ",
-			priv->pmib->wscEntry.assoc_ie, "%02x", priv->pmib->wscEntry.assoc_ielen);
-	PRINT_SINGL_ARG("    assoc_ielen: ", priv->pmib->wscEntry.assoc_ielen, "%d");
-
-	return pos;
-}
-#endif
 
 
 #ifdef RF_FINETUNE
@@ -2365,6 +2695,10 @@ static int rtl8192cd_proc_rfft(char *buf, char **start, off_t offset,
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
 	int pos = 0;
+#ifdef SUPPORT_TX_MCAST2UNI
+	int i;
+	int tmpbuf[64];
+#endif
 
 	PRINT_ONE("  RF fine tune variables...", "%s", 1);
 
@@ -2404,12 +2738,23 @@ static int rtl8192cd_proc_rfft(char *buf, char **start, off_t offset,
 	//Support IP multicast->unicast
 #ifdef SUPPORT_TX_MCAST2UNI
 	PRINT_SINGL_ARG("    mc2u_disable: ", priv->pshare->rf_ft_var.mc2u_disable, "%d");
+	PRINT_SINGL_ARG("    mc2u_drop_unknown: ", priv->pshare->rf_ft_var.mc2u_drop_unknown, "%d");
+	PRINT_SINGL_ARG("    mc2u_flood_ctrl: ", priv->pshare->rf_ft_var.mc2u_flood_ctrl, "%d");
+	if(priv->pshare->rf_ft_var.mc2u_flood_ctrl)
+	{
+		PRINT_SINGL_ARG("    mc2u_flood_mac_num: ", priv->pshare->rf_ft_var.mc2u_flood_mac_num, "%d");
+		for (i=0; i< priv->pshare->rf_ft_var.mc2u_flood_mac_num; i++) {
+			sprintf(tmpbuf, "    mc2u_flood_mac[%d]: ", i);
+			PRINT_ARRAY_ARG(tmpbuf,	priv->pshare->rf_ft_var.mc2u_flood_mac[i].macAddr, "%02x", 6);
+		}
+	}
 #endif
+
 #ifdef	HIGH_POWER_EXT_PA
 	PRINT_SINGL_ARG("    use_ext_pa: ", priv->pshare->rf_ft_var.use_ext_pa, "%d");
 #endif
 	PRINT_SINGL_ARG("    use_ext_lna: ", priv->pshare->rf_ft_var.use_ext_lna, "%d");
-	PRINT_SINGL_ARG("    NDSi_support: ", priv->pshare->rf_ft_var.NDSi_support, "%d");	
+	PRINT_SINGL_ARG("    NDSi_support: ", priv->pshare->rf_ft_var.NDSi_support, "%d");
 	PRINT_SINGL_ARG("    EDCCA threshold: ", priv->pshare->rf_ft_var.edcca_thd, "%d");
 	PRINT_SINGL_ARG("    1rcca: ", priv->pshare->rf_ft_var.one_path_cca, "%d");
 
@@ -2433,7 +2778,8 @@ static int rtl8192cd_proc_mib_gbwc(char *buf, char **start, off_t offset,
 	PRINT_ONE("  miscGBWC...", "%s", 1);
 
 	PRINT_SINGL_ARG("    GBWCMode: ", priv->pmib->gbwcEntry.GBWCMode, "%d");
-	PRINT_SINGL_ARG("    GBWCThrd: ", priv->pmib->gbwcEntry.GBWCThrd, "%d kbps");
+	PRINT_SINGL_ARG("    GBWCThrd_tx: ", priv->pmib->gbwcEntry.GBWCThrd_tx, "%d kbps");
+	PRINT_SINGL_ARG("    GBWCThrd_rx: ", priv->pmib->gbwcEntry.GBWCThrd_rx, "%d kbps");
 	PRINT_ONE("    Address List:", "%s", 1);
 	for (i=0; i<priv->pmib->gbwcEntry.GBWCNum; i++) {
 		PRINT_ARRAY_ARG("      ", priv->pmib->gbwcEntry.GBWCAddr[i], "%02x", MACADDRLEN);
@@ -2444,11 +2790,16 @@ static int rtl8192cd_proc_mib_gbwc(char *buf, char **start, off_t offset,
 #endif
 
 
+#ifdef CONFIG_RTL_92C_SUPPORT
 #ifdef CONFIG_RTL_KERNEL_MIPS16_WLAN
 __NOMIPS16
 #endif
+#ifdef __ECOS
+void rtl8192cd_proc_led(int flag, void *data)
+#else
 static int rtl8192cd_proc_led(struct file *file, const char *buffer,
 				unsigned long count, void *data)
+#endif
 {
 	struct net_device *dev = (struct net_device *)data;
 #ifdef NETDEV_NO_PRIV
@@ -2456,9 +2807,21 @@ static int rtl8192cd_proc_led(struct file *file, const char *buffer,
 #else
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
+#ifdef __KERNEL__
 	char tmpbuf[100];
 	int flag;
+#endif
 
+#ifdef __ECOS
+		if (flag == 0) // disable
+			control_wireless_led(priv, 0);
+		else if (flag == 1) // enable
+			control_wireless_led(priv, 1);
+		else if (flag == 2) // restore
+			control_wireless_led(priv, 2);
+		else
+			ecos_pr_fun("flag [%d] not supported!\n", flag);
+#else
 	if (buffer && !copy_from_user(tmpbuf, buffer, count)) {
 		sscanf(tmpbuf, "%d", &flag);
 		if (flag == 0) // disable
@@ -2471,7 +2834,9 @@ static int rtl8192cd_proc_led(struct file *file, const char *buffer,
 			printk("flag [%d] not supported!\n", flag);
     }
 	return count;
+#endif
 }
+#endif
 
 
 #ifdef RTL_MANUAL_EDCA
@@ -2484,48 +2849,48 @@ static int rtl8192cd_proc_mib_edca(char *buf, char **start, off_t offset,
 #else
      struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
-     int pos = 0;
+	int pos = 0;
 	char *queue[] = {"", "BK", "BE", "VI", "VO"};
 
-     PRINT_SINGL_ARG("  Manually config EDCA : ", priv->pmib->dot11QosEntry.ManualEDCA, "%d");
-     PRINT_ONE("  EDCA for AP...", "%s", 1);
-     PRINT_SINGL_ARG("  [BE]slot number (AIFS): ", priv->pmib->dot11QosEntry.AP_manualEDCA[BE].AIFSN, "%d");
-     PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BE].ECWmax, "%d");
-     PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BE].ECWmin, "%d");
-     PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BE].TXOPlimit, "%d");
-     PRINT_SINGL_ARG("  [BK]slot number (AIFS): ", priv->pmib->dot11QosEntry.AP_manualEDCA[BK].AIFSN, "%d");
-     PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BK].ECWmax, "%d");
-     PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BK].ECWmin, "%d");
-     PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BK].TXOPlimit, "%d");
-     PRINT_SINGL_ARG("  [VI]slot number (AIFS)= ", priv->pmib->dot11QosEntry.AP_manualEDCA[VI].AIFSN, "%d");
-     PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VI].ECWmax, "%d");
-     PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VI].ECWmin, "%d");
-     PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VI].TXOPlimit, "%d");
-     PRINT_SINGL_ARG("  [VO]slot number (AIFS): ", priv->pmib->dot11QosEntry.AP_manualEDCA[VO].AIFSN, "%d");
-     PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VO].ECWmax, "%d");
-     PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VO].ECWmin, "%d");
-     PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VO].TXOPlimit, "%d");
-     PRINT_ONE("  EDCA for Wireless client...", "%s", 1);
-     PRINT_SINGL_ARG("  [BE]ACM: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].ACM, "%d");
-     PRINT_SINGL_ARG("      slot number (AIFS): ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].AIFSN, "%d");
-     PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].ECWmax, "%d");
-     PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].ECWmin, "%d");
-     PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].TXOPlimit, "%d");
-     PRINT_SINGL_ARG("  [BK]ACM:", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].ACM, "%d");
-     PRINT_SINGL_ARG("      slot number (AIFS): ", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].AIFSN, "%d");
-     PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].ECWmax, "%d");
-     PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].ECWmin, "%d");
-     PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].TXOPlimit, "%d");
-     PRINT_SINGL_ARG("  [VI]ACM: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].ACM, "%d");
-     PRINT_SINGL_ARG("      slot number (AIFS): ", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].AIFSN, "%d");
-     PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].ECWmax, "%d");
-     PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].ECWmin, "%d");
-     PRINT_SINGL_ARG("      TXOP limit:", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].TXOPlimit, "%d");
-     PRINT_SINGL_ARG("  [VO]ACM: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].ACM, "%d");
-     PRINT_SINGL_ARG("      slot number (AIFS): ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].AIFSN, "%d");
-     PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].ECWmax, "%d");
-     PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].ECWmin, "%d");
-     PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].TXOPlimit, "%d");
+	PRINT_SINGL_ARG("  Manually config EDCA : ", priv->pmib->dot11QosEntry.ManualEDCA, "%d");
+	PRINT_ONE("  EDCA for AP...", "%s", 1);
+	PRINT_SINGL_ARG("  [BE]slot number (AIFS): ", priv->pmib->dot11QosEntry.AP_manualEDCA[BE].AIFSN, "%d");
+	PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BE].ECWmax, "%d");
+	PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BE].ECWmin, "%d");
+	PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BE].TXOPlimit, "%d");
+	PRINT_SINGL_ARG("  [BK]slot number (AIFS): ", priv->pmib->dot11QosEntry.AP_manualEDCA[BK].AIFSN, "%d");
+	PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BK].ECWmax, "%d");
+	PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BK].ECWmin, "%d");
+	PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.AP_manualEDCA[BK].TXOPlimit, "%d");
+	PRINT_SINGL_ARG("  [VI]slot number (AIFS)= ", priv->pmib->dot11QosEntry.AP_manualEDCA[VI].AIFSN, "%d");
+	PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VI].ECWmax, "%d");
+	PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VI].ECWmin, "%d");
+	PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VI].TXOPlimit, "%d");
+	PRINT_SINGL_ARG("  [VO]slot number (AIFS): ", priv->pmib->dot11QosEntry.AP_manualEDCA[VO].AIFSN, "%d");
+	PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VO].ECWmax, "%d");
+	PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VO].ECWmin, "%d");
+	PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.AP_manualEDCA[VO].TXOPlimit, "%d");
+	PRINT_ONE("  EDCA for Wireless client...", "%s", 1);
+	PRINT_SINGL_ARG("  [BE]ACM: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].ACM, "%d");
+	PRINT_SINGL_ARG("      slot number (AIFS): ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].AIFSN, "%d");
+	PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].ECWmax, "%d");
+	PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].ECWmin, "%d");
+	PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BE].TXOPlimit, "%d");
+	PRINT_SINGL_ARG("  [BK]ACM:", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].ACM, "%d");
+	PRINT_SINGL_ARG("      slot number (AIFS): ", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].AIFSN, "%d");
+	PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].ECWmax, "%d");
+	PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].ECWmin, "%d");
+	PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.STA_manualEDCA[BK].TXOPlimit, "%d");
+	PRINT_SINGL_ARG("  [VI]ACM: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].ACM, "%d");
+	PRINT_SINGL_ARG("      slot number (AIFS): ", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].AIFSN, "%d");
+	PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].ECWmax, "%d");
+	PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].ECWmin, "%d");
+	PRINT_SINGL_ARG("      TXOP limit:", priv->pmib->dot11QosEntry.STA_manualEDCA[VI].TXOPlimit, "%d");
+	PRINT_SINGL_ARG("  [VO]ACM: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].ACM, "%d");
+	PRINT_SINGL_ARG("      slot number (AIFS): ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].AIFSN, "%d");
+	PRINT_SINGL_ARG("      Maximal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].ECWmax, "%d");
+	PRINT_SINGL_ARG("      Minimal contention window period: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].ECWmin, "%d");
+	PRINT_SINGL_ARG("      TXOP limit: ", priv->pmib->dot11QosEntry.STA_manualEDCA[VO].TXOPlimit, "%d");
 
 	PRINT_SINGL_ARG("      TID0 mapping: ", queue[priv->pmib->dot11QosEntry.TID_mapping[0]], "%s");
 	PRINT_SINGL_ARG("      TID1 mapping: ", queue[priv->pmib->dot11QosEntry.TID_mapping[1]], "%s");
@@ -2536,9 +2901,225 @@ static int rtl8192cd_proc_mib_edca(char *buf, char **start, off_t offset,
 	PRINT_SINGL_ARG("      TID6 mapping: ", queue[priv->pmib->dot11QosEntry.TID_mapping[6]], "%s");
 	PRINT_SINGL_ARG("      TID7 mapping: ", queue[priv->pmib->dot11QosEntry.TID_mapping[7]], "%s");
 
-     return pos;
+	return pos;
 }
- #endif //RTL_MANUAL_EDCA
+#endif //RTL_MANUAL_EDCA
+
+
+#ifdef TLN_STATS
+static int proc_wifi_conn_stats(char *buf, char **start, off_t offset,
+			int length, int *eof, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+	int pos = 0;
+
+	PRINT_ONE("  Wifi Connection Stats...", "%s", 1);
+
+	PRINT_SINGL_ARG("    Time Interval: ", priv->pshare->rf_ft_var.stats_time_interval, "%d");
+	PRINT_SINGL_ARG("    Connected Clients: ", priv->wifi_stats.connected_sta, "%d");
+	PRINT_SINGL_ARG("    MAX Clients: ", priv->wifi_stats.max_sta, "%d");
+	PRINT_SINGL_ARG("    MAX Clients Timestamp: ", priv->wifi_stats.max_sta_timestamp, "%d");
+	PRINT_SINGL_ARG("    Rejected clients: ", priv->wifi_stats.rejected_sta, "%d");
+
+	return pos;
+}
+
+
+static int proc_wifi_conn_stats_clear(struct file *file, const char *buffer,
+				unsigned long count, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+
+	memset(&priv->wifi_stats, 0, sizeof(struct tln_wifi_stats));
+	return count;
+}
+
+
+static int proc_ext_wifi_conn_stats(char *buf, char **start, off_t offset,
+			int length, int *eof, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+	int pos = 0;
+
+	PRINT_ONE("  Extended WiFi Connection Stats...", "%s", 1);
+
+	PRINT_ONE("  Reject Reason/Status: Reject Count", "%s", 1);
+	PRINT_ONE(" =====================================================", "%s", 1);
+	PRINT_SINGL_ARG("    Unspecified reason: ", priv->ext_wifi_stats.rson_UNSPECIFIED_1, "%d");
+	PRINT_SINGL_ARG("    Previous auth no longer valid: ", priv->ext_wifi_stats.rson_AUTH_INVALID_2, "%d");
+	PRINT_SINGL_ARG("    Deauth because of leaving (or has left): ", priv->ext_wifi_stats.rson_DEAUTH_STA_LEAVING_3, "%d");
+	PRINT_SINGL_ARG("    Disassoc due to inactivity: ", priv->ext_wifi_stats.rson_INACTIVITY_4, "%d");
+	PRINT_SINGL_ARG("    Disassoc because AP cannot handle: ", priv->ext_wifi_stats.rson_RESOURCE_INSUFFICIENT_5, "%d");
+	PRINT_SINGL_ARG("    Class 2 frame from non-auth STA: ", priv->ext_wifi_stats.rson_UNAUTH_CLS2FRAME_6, "%d");
+	PRINT_SINGL_ARG("    Class 3 frame from non-assoc STA: ", priv->ext_wifi_stats.rson_UNAUTH_CLS3FRAME_7, "%d");
+	PRINT_SINGL_ARG("    Disassoc because leaving (or has left): ", priv->ext_wifi_stats.rson_DISASSOC_STA_LEAVING_8, "%d");
+	PRINT_SINGL_ARG("    STA request (re)assoc did not auth: ", priv->ext_wifi_stats.rson_ASSOC_BEFORE_AUTH_9, "%d");
+	PRINT_SINGL_ARG("    Invalid IE: ", priv->ext_wifi_stats.rson_INVALID_IE_13, "%d");
+	PRINT_SINGL_ARG("    MIC failure: ", priv->ext_wifi_stats.rson_MIC_FAILURE_14, "%d");
+	PRINT_SINGL_ARG("    4-Way Handshake timeout: ", priv->ext_wifi_stats.rson_4WAY_TIMEOUT_15, "%d");
+	PRINT_SINGL_ARG("    Group Key Handshake timeout: ", priv->ext_wifi_stats.rson_GROUP_KEY_TIMEOUT_16, "%d");
+	PRINT_SINGL_ARG("    IE in 4-Way Handshake different: ", priv->ext_wifi_stats.rson_DIFF_IE_17, "%d");
+	PRINT_SINGL_ARG("    Invalid group cipher: ", priv->ext_wifi_stats.rson_MCAST_CIPHER_INVALID_18, "%d");
+	PRINT_SINGL_ARG("    Invalid pairwise cipher: ", priv->ext_wifi_stats.rson_UCAST_CIPHER_INVALID_19, "%d");
+	PRINT_SINGL_ARG("    Invalid AKMP: ", priv->ext_wifi_stats.rson_AKMP_INVALID_20, "%d");
+	PRINT_SINGL_ARG("    Unsupported RSNIE version: ", priv->ext_wifi_stats.rson_UNSUPPORT_RSNIE_VER_21, "%d");
+	PRINT_SINGL_ARG("    Invalid RSNIE capabilities: ", priv->ext_wifi_stats.rson_RSNIE_CAP_INVALID_22, "%d");
+	PRINT_SINGL_ARG("    IEEE 802.1X auth failed: ", priv->ext_wifi_stats.rson_802_1X_AUTH_FAIL_23, "%d");
+	PRINT_SINGL_ARG("    Reason out of scope of the device: ", priv->ext_wifi_stats.rson_OUT_OF_SCOPE, "%d");
+
+	PRINT_SINGL_ARG("    Unspecified failure: ", priv->ext_wifi_stats.status_FAILURE_1, "%d");
+	PRINT_SINGL_ARG("    Cannot support all capabilities: ", priv->ext_wifi_stats.status_CAP_FAIL_10, "%d");
+	PRINT_SINGL_ARG("    Reassoc denied due to cannot confirm assoc exists: ", priv->ext_wifi_stats.status_NO_ASSOC_11, "%d");
+	PRINT_SINGL_ARG("    Assoc denied due to reason beyond: ", priv->ext_wifi_stats.status_OTHER_12, "%d");
+	PRINT_SINGL_ARG("    Not support specified auth alg: ", priv->ext_wifi_stats.status_NOT_SUPPORT_ALG_13, "%d");
+	PRINT_SINGL_ARG("    Auth seq out of expected: ", priv->ext_wifi_stats.status_OUT_OF_AUTH_SEQ_14, "%d");
+	PRINT_SINGL_ARG("    Challenge failure: ", priv->ext_wifi_stats.status_CHALLENGE_FAIL_15, "%d");
+	PRINT_SINGL_ARG("    Auth timeout: ", priv->ext_wifi_stats.status_AUTH_TIMEOUT_16, "%d");
+	PRINT_SINGL_ARG("    Denied because AP cannot handle: ", priv->ext_wifi_stats.status_RESOURCE_INSUFFICIENT_17, "%d");
+	PRINT_SINGL_ARG("    Denied because STA not support all rates: ", priv->ext_wifi_stats.status_RATE_FAIL_18, "%d");
+	PRINT_SINGL_ARG("    Status out of scope of the device: ", priv->ext_wifi_stats.status_OUT_OF_SCOPE, "%d");
+
+	return pos;
+}
+
+
+static int proc_ext_wifi_conn_stats_clear(struct file *file, const char *buffer,
+				unsigned long count, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+
+	memset(&priv->ext_wifi_stats, 0, sizeof(struct tln_ext_wifi_stats));
+	return count;
+}
+#endif
+
+
+#if defined(RTLWIFINIC_GPIO_CONTROL)
+static int rtl8192cd_proc_gpio_ctrl_read(char *buf, char **start, off_t offset,
+			int length, int *eof, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+	int pos = 0;
+	int i;
+	char tmp[16];
+
+	for (i=0; i<12; i++) {
+		if (priv->pshare->phw->GPIO_dir[i] == 0x01) {
+			sprintf(tmp, "GPIO%d %d", i, RTLWIFINIC_GPIO_read(i));
+			PRINT_ONE(tmp, "%s", 1);
+		}
+	}
+
+	return pos;
+}
+
+#ifdef __ECOS
+int rtl8192cd_proc_gpio_ctrl_write(char *command, int gpio_num, char *action, void *data)
+#else
+static int rtl8192cd_proc_gpio_ctrl_write(struct file *file, const char *buffer,
+				unsigned long count, void *data)
+#endif
+{
+	struct net_device *dev = (struct net_device *)data;
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
+#endif
+#ifdef __ECOS
+	int direction, value, count=0;
+#else
+	char tmp[32], command[8], action[4];
+	unsigned int num, gpio_num, direction, value;
+#endif
+
+#ifdef __ECOS
+	ecos_pr_fun("Command: [%s] gpio: [%d] action: [%s]\n", command, gpio_num, action);
+#else
+	if (buffer && !copy_from_user(tmp, buffer, 32)) {
+		num = sscanf(tmp, "%s %d %s", command, &gpio_num, action);
+
+		if (num != 3) {
+			panic_printk("Invalid gpio parameter! Failed!\n");
+			return num;
+		}
+	}
+
+	panic_printk("Command: [%s] gpio: [%d] action: [%s]\n", command, gpio_num, action);
+#endif
+
+	if (!memcmp(command, "config", 6)) {
+		if (!memcmp(action, "r", 1))
+			direction = 0x01;
+		else if (!memcmp(action, "w", 1))
+			direction = 0x10;
+		else {
+#ifdef __ECOS
+			ecos_pr_fun("Action not supported!\n");
+#else
+			panic_printk("Action not supported!\n");
+#endif
+			return count;
+		}
+
+		if ((gpio_num >= 0) && (gpio_num <= 11))
+			priv->pshare->phw->GPIO_dir[gpio_num] = direction;
+		else {
+#ifdef __ECOS
+			ecos_pr_fun("GPIO pin not supported!\n");
+#else
+			panic_printk("GPIO pin not supported!\n");
+#endif
+			return count;
+		}
+
+		RTLWIFINIC_GPIO_config(gpio_num, direction);
+	}
+	else if (!memcmp(command, "set", 3)) {
+		if (!memcmp(action, "0", 1))
+			value = 0;
+		else if (!memcmp(action, "1", 1))
+			value = 1;
+		else {
+#ifdef __ECOS
+			ecos_pr_fun("Action not supported!\n");
+#else
+			panic_printk("Action not supported!\n");
+#endif
+			return count;
+		}
+
+		if (((gpio_num >= 0) && (gpio_num <= 11)) && (priv->pshare->phw->GPIO_dir[gpio_num] == 0x10))
+			RTLWIFINIC_GPIO_write(gpio_num, value);	
+		else {
+#ifdef __ECOS
+			ecos_pr_fun("GPIO pin not supported!\n");
+#else
+			panic_printk("GPIO pin not supported!\n");
+#endif
+			return count;
+		}
+	}
+	else {
+#ifdef __ECOS
+		ecos_pr_fun("Command not supported!\n");
+#else
+		panic_printk("Command not supported!\n");
+#endif
+	}
+
+	return count;
+}
+#endif
 
 
 #ifdef __KERNEL__
@@ -2640,7 +3221,7 @@ void MDL_DEVINIT rtl8192cd_proc_init(struct net_device *dev)
 #ifdef DFS
 	if ( create_proc_read_entry ("mib_dfs", 0644, rtl8192cd_proc_root,
 			rtl8192cd_proc_mib_DFS, (void *)dev) == NULL ) {
-		printk("create proc mib_DFS failed!\n");
+		printk("create proc mib_dfs failed!\n");
 		return;
 	}
 #endif
@@ -2675,19 +3256,43 @@ void MDL_DEVINIT rtl8192cd_proc_init(struct net_device *dev)
 
 #ifdef RTL_MANUAL_EDCA
      if ( create_proc_read_entry ("mib_EDCA", 0644, rtl8192cd_proc_root,
-                     rtl8192cd_proc_mib_edca, (void *)dev) == NULL ) {
-             printk("create proc mib_EDCA failed!\n");
-             return;
+			rtl8192cd_proc_mib_edca, (void *)dev) == NULL ) {
+		printk("create proc mib_EDCA failed!\n");
+		return;
      }
 #endif
 
 #ifdef CONFIG_RTK_VLAN_SUPPORT
 	if ( (res = create_proc_read_entry("mib_vlan", 0644, rtl8192cd_proc_root,
 			rtl8192cd_proc_vlan_read, (void *)dev)) == NULL) {
-		printk("create_proc vlan failed!\n");
+		printk("create_proc mib_vlan failed!\n");
 		return;
 	}
 	res->write_proc = rtl8192cd_proc_vlan_write;
+#endif
+
+#ifdef TLN_STATS
+	if ((res = create_proc_read_entry ("wifi_conn_stats", 0644, rtl8192cd_proc_root,
+			proc_wifi_conn_stats, (void *)dev)) == NULL ) {
+		printk("create proc wifi_conn_stats failed!\n");
+		return;
+	}
+	res->write_proc = proc_wifi_conn_stats_clear;
+
+	if ((res = create_proc_read_entry ("ext_wifi_conn_stats", 0644, rtl8192cd_proc_root,
+			proc_ext_wifi_conn_stats, (void *)dev)) == NULL ) {
+		printk("create proc ext_wifi_conn_stats failed!\n");
+		return;
+	}
+	res->write_proc = proc_ext_wifi_conn_stats_clear;
+#endif
+
+#ifdef SUPPORT_MULTI_PROFILE
+	if ( create_proc_read_entry ("mib_ap_profile", 0644, rtl8192cd_proc_root,
+			rtl8192cd_proc_mib_ap_profile, (void *)dev) == NULL ) {
+		printk("create proc mib_ap_profile failed!\n");
+		return;
+	}
 #endif
 
 #if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
@@ -2700,13 +3305,13 @@ void MDL_DEVINIT rtl8192cd_proc_init(struct net_device *dev)
 			return;
 		}
 		res->write_proc = rtl8192cd_proc_txdesc_info_write;
-		
+
 #ifdef CLIENT_MODE
 		if ((res = create_proc_read_entry("up_flag", 0644, rtl8192cd_proc_root,
 				rtl8192cd_proc_up_read, (void *)dev)) == NULL ) {
 			printk("create_proc up_flag failed!\n");
-		return;
-	}
+			return;
+		}
 		res->write_proc = rtl8192cd_proc_up_write;
 #endif
 
@@ -2730,6 +3335,7 @@ void MDL_DEVINIT rtl8192cd_proc_init(struct net_device *dev)
 			printk("create proc cam_info failed!\n");
 			return;
 		}
+
 #ifdef ENABLE_RTL_SKB_STATS
 		if ( create_proc_read_entry ("skb_info", 0644, rtl8192cd_proc_root,
 				rtl8192cd_proc_skb_info, (void *)dev) == NULL ) {
@@ -2737,6 +3343,7 @@ void MDL_DEVINIT rtl8192cd_proc_init(struct net_device *dev)
 			return;
 		}
 #endif
+
 #ifdef RF_FINETUNE
 		if ( create_proc_read_entry ("rf_finetune", 0644, rtl8192cd_proc_root,
 				rtl8192cd_proc_rfft, (void *)dev) == NULL ) {
@@ -2744,41 +3351,41 @@ void MDL_DEVINIT rtl8192cd_proc_init(struct net_device *dev)
 			return;
 		}
 #endif
-#ifdef CONFIG_RTL_92C_SUPPORT //#ifndef CONFIG_RTL_92D_SUPPORT
-if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)){
-#ifdef MERGE_FW
-		if ( (res = create_proc_read_entry ("phypara_file", 0644, rtl8192cd_proc_root,
-				rtl8192cd_proc_phypara_file_read, (void *)dev)) == NULL ) {
-			printk("create proc stats failed!\n");
-		return;
-	}
-		res->write_proc = rtl8192cd_proc_phypara_file_write;
-#endif
-		if ( create_proc_read_entry ("MACPHY_REG.txt", 0644, rtl8192cd_proc_root,
-				rtl8192cd_proc_phypara_file_read, (void *)dev) == NULL ) {
-			printk("create proc MACPHY_REG.txt failed!\n");
-			return;
-		}
-		if ( create_proc_read_entry ("PHY_REG_PG.txt", 0644, rtl8192cd_proc_root,
-				rtl8192cd_proc_phypara_file_write, (void *)dev) == NULL ) {
-			printk("create proc phy_reg_pg.txt failed!\n");
-			return;
-		}
 
-		if ( (res = create_proc_entry("led", 0644, rtl8192cd_proc_root)) == NULL ) {
-			printk("create proc led failed!\n");
-	}
-		res->write_proc = rtl8192cd_proc_led;
-		res->data = (void *)dev;
-}
-#endif //end of CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		if ((GET_CHIP_VER(priv) == VERSION_8192C) || (GET_CHIP_VER(priv) == VERSION_8188C)) {
+			if ( (res = create_proc_read_entry ("phypara_file", 0644, rtl8192cd_proc_root,
+					rtl8192cd_proc_phypara_file_read, (void *)dev)) == NULL ) {
+				printk("create proc stats failed!\n");
+				return;
+			}
+			res->write_proc = rtl8192cd_proc_phypara_file_write;
+
+			if ( (res = create_proc_entry("led", 0644, rtl8192cd_proc_root)) == NULL ) {
+				printk("create proc led failed!\n");
+				return;
+			}
+			res->write_proc = rtl8192cd_proc_led;
+			res->data = (void *)dev;
+		}
+#endif // CONFIG_RTL_92C_SUPPORT
 
 #ifdef AUTO_TEST_SUPPORT
 		if ( create_proc_read_entry("SS_Result", 0644, rtl8192cd_proc_root,
 				rtl8192cd_proc_SSR_read, (void *)dev) == NULL ) {
 			printk("create_proc SS_Result failed!\n");
-		return;
-	}
+			return;
+		}
+#endif
+
+#if defined(RTLWIFINIC_GPIO_CONTROL)
+		if ( (res = create_proc_read_entry ("gpio_ctrl", 0644, rtl8192cd_proc_root,
+				rtl8192cd_proc_gpio_ctrl_read, (void *)dev)) == NULL ) {
+			printk("create proc gpio_ctrl failed!\n");
+			return;
+		}
+		res->write_proc = rtl8192cd_proc_gpio_ctrl_write;
+		RTLWIFINIC_GPIO_init_priv(priv);
 #endif
 	}
 
@@ -2786,179 +3393,165 @@ if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)
 #ifdef CONFIG_RTK_MESH
 #ifdef MESH_BOOTSEQ_AUTH
 	if ( create_proc_read_entry ("mesh_auth_mpinfo", 0644, rtl8192cd_proc_root,
-			rtl8190_mesh_auth_mpinfo, (void *)dev) == NULL ) {
+			mesh_auth_mpinfo, (void *)dev) == NULL ) {
 		printk("create proc mesh_auth_mpinfo failed!\n");
 		return;
 	}
 #endif
 
 	if ( create_proc_read_entry ("mesh_unestablish_mpinfo", 0644, rtl8192cd_proc_root,
-			rtl8190_mesh_unEstablish_mpinfo, (void *)dev) == NULL ) {
+			mesh_unEstablish_mpinfo, (void *)dev) == NULL ) {
 		printk("create proc mesh_unestablish_mpinfo failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_assoc_mpinfo", 0644, rtl8192cd_proc_root,
-			rtl8190_mesh_assoc_mpinfo, (void *)dev) == NULL ) {
+			mesh_assoc_mpinfo, (void *)dev) == NULL ) {
 		printk("create proc mesh_assoc_mpinfo failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_stats", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_stats, (void *)dev) == NULL ) {
+			mesh_stats, (void *)dev) == NULL ) {
 		printk("create proc mesh_stats failed!\n");
 		return;
 	}
 
 	// 6 line for Throughput statistics (sounder)
 	if ( (res = create_proc_read_entry ("flow_stats", 0644, rtl8192cd_proc_root,
-			rtk8190_proc_flow_stats, (void *)dev)) == NULL ) {
+			mesh_proc_flow_stats, (void *)dev)) == NULL ) {
 		printk("create proc flow_stats failed!\n");
 		return;
 	}
-	res->write_proc = rtk8190_proc_flow_stats_write;
+	res->write_proc = mesh_proc_flow_stats_write;
 
 	if ( create_proc_read_entry ("mesh_pathsel_routetable", 0644, rtl8192cd_proc_root,
-			rtl8190_pathsel_routetable_info, (void *)dev) == NULL ) {
+			mesh_pathsel_routetable_info, (void *)dev) == NULL ) {
 		printk("create proc mesh_pathsel_routetable failed!\n");
 		return;
 	}
 	if ( create_proc_read_entry ("mesh_proxy_table", 0644, rtl8192cd_proc_root,
-			rtl8190_proxy_table_info, (void *)dev) == NULL ) {
+			mesh_proxy_table_info, (void *)dev) == NULL ) {
 		printk("create proc mesh_proxy_table failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_portal_table", 0644, rtl8192cd_proc_root,
-			rtl8190_portal_table_info, (void *)dev) == NULL ) {
+			mesh_portal_table_info, (void *)dev) == NULL ) {
 		printk("create proc mesh_portal_table failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_root_info", 0644, rtl8192cd_proc_root,
-			rtl8190_root_info, (void *)dev) == NULL ) {
+			mesh_root_info, (void *)dev) == NULL ) {
 		printk("create proc mesh_root_info failed!\n");
 		return;
 	}
 #ifdef MESH_USE_METRICOP
 	{ // change metric method
 		struct proc_dir_entry *proc_file1;
-		proc_file1 = create_proc_entry( "mesh_metric",
-						0644,
-						rtl8192cd_proc_root);
-		if(proc_file1 == NULL)
-		{
+		proc_file1 = create_proc_entry( "mesh_metric", 0644, rtl8192cd_proc_root);
+		if(proc_file1 == NULL) {
 			printk("can't create proc: %s\r\n", "mesh_metric");
 			return;
 		}
-		proc_file1->write_proc = rtl8190_mesh_metric_w;
-		proc_file1->read_proc = rtl8190_mesh_metric_r;
+		proc_file1->write_proc = mesh_metric_w;
+		proc_file1->read_proc = mesh_metric_r;
 		proc_file1->data = (void *)dev;
 	}
 #endif
 
 #if DBG_NCTU_MESH
 	if ( create_proc_read_entry ("mesh_skb", 0644, rtl8192cd_proc_root,
-			showAllSkbs, (void *)dev) == NULL ) {
+			mesh_showAllSkbs, (void *)dev) == NULL ) {
 		printk("create proc mesh_skb failed!\n");
 		return;
 	}
 	{
 		struct proc_dir_entry *proc_file1;
 
-		proc_file1 = create_proc_entry(
-					"mesh_dbg",
-					0644,
-					rtl8192cd_proc_root);
-		if(proc_file1 == NULL)
-		{
+		proc_file1 = create_proc_entry("mesh_dbg", 0644, rtl8192cd_proc_root);
+		if(proc_file1 == NULL) {
 			printk("can't create proc: %s\r\n", "mesh_dbg");
 			return;
 		}
-		proc_file1->write_proc = rtl8190_setMeshDebugLevel;
+		proc_file1->write_proc = mesh_setDebugLevel;
 	}
 #endif
 #ifdef _MESH_DEBUG_
 	if ( create_proc_read_entry ("mesh_clearalltable", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_clear_table, (void *)dev) == NULL ) {
+			mesh_proc_clear_table, (void *)dev) == NULL ) {
 		printk("create proc mesh_clearalltable failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_issueauthreq", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_issueAuthReq, (void *)dev) == NULL ) {
+			mesh_proc_issueAuthReq, (void *)dev) == NULL ) {
 		printk("create proc mesh_issueauthreq failed!\n");
 		return;
 	}
 
+#ifdef MESH_BOOTSEQ_AUTH
 	if ( create_proc_read_entry ("mesh_issueauthrsp", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_issueAuthRsp, (void *)dev) == NULL ) {
+			mesh_proc_issueAuthRsp, (void *)dev) == NULL ) {
 		printk("create proc mesh_issueauthrsp failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_issuedeauth", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_issueDeAuth, (void *)dev) == NULL ) {
+			mesh_proc_issueDeAuth, (void *)dev) == NULL ) {
 		printk("create proc mesh_issuedeauth failed!\n");
 		return;
 	}
+#endif
 
 	if ( create_proc_read_entry ("mesh_openconnect", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_openConnect, (void *)dev) == NULL ) {
+			mesh_proc_openConnect, (void *)dev) == NULL ) {
 		printk("create proc mesh_openconnect failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_issueopen", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_issueOpen, (void *)dev) == NULL ) {
+			mesh_proc_issueOpen, (void *)dev) == NULL ) {
 		printk("create proc mesh_issueopen failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_issueconfirm", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_issueConfirm, (void *)dev) == NULL ) {
+			mesh_proc_issueConfirm, (void *)dev) == NULL ) {
 		printk("create proc mesh_issueconfirm failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_issueclose", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_issueClose, (void *)dev) == NULL ) {
+			mesh_proc_issueClose, (void *)dev) == NULL ) {
 		printk("create proc mesh_issueclose failed!\n");
 		return;
 	}
 
 	if ( create_proc_read_entry ("mesh_closeconnect", 0644, rtl8192cd_proc_root,
-			rtl8190_proc_mesh_closeConnect, (void *)dev) == NULL ) {
+			mesh_proc_closeConnect, (void *)dev) == NULL ) {
 		printk("create proc mesh_closeconnect failed!\n");
 		return;
 	}
 
 	{
-	struct proc_dir_entry *proc_file1;
+		struct proc_dir_entry *proc_file1;
 
-	proc_file1 = create_proc_entry(
-					"mesh_setmacaddr",
-					0644,
-					rtl8192cd_proc_root);
-	if(proc_file1 == NULL)
-	{
-		printk("can't create proc: %s\r\n", "mesh_setmacaddr");
-		return;
+		proc_file1 = create_proc_entry("mesh_setmacaddr", 0644, rtl8192cd_proc_root);
+		if(proc_file1 == NULL) {
+			printk("can't create proc: %s\r\n", "mesh_setmacaddr");
+			return;
+		}
+		proc_file1->write_proc = mesh_setMACAddr;
 	}
-	proc_file1->write_proc = rtl8190_mesh_setMACAddr;
-	}
-
 
 #if (MESH_DBG_LV & MESH_DBG_COMPLEX)
 	{
 		struct proc_dir_entry *proc_file;
 
-		proc_file = create_proc_entry(
-						MESH_PROC_SME_TEST_FILENAME,
-						0644,
-						rtl8192cd_proc_root);
-		if(proc_file == NULL)
-		{
+		proc_file = create_proc_entry(MESH_PROC_SME_TEST_FILENAME, 0644, rtl8192cd_proc_root);
+		if(proc_file == NULL) {
 			printk("can't create proc: %s\r\n", MESH_PROC_SME_TEST_FILENAME);
 			return;
 		}
@@ -2966,17 +3559,11 @@ if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)
 		proc_file->write_proc = mesh_test_sme_proc_write;
 	}
 
-
-
-/*	{
+	/*{
 		struct proc_dir_entry *proc_file;
 
-		proc_file = create_proc_entry(
-						MESH_PROC_FILENAME,
-						0644,
-						rtl8192cd_proc_root);
-		if(proc_file == NULL)
-		{
+		proc_file = create_proc_entry(MESH_PROC_FILENAME, 0644, rtl8192cd_proc_root);
+		if(proc_file == NULL) {
 			printk("can't create proc: %s\r\n", MESH_PROC_FILENAME);
 			return;
 		}
@@ -2984,8 +3571,8 @@ if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)
 		proc_file->write_proc = mesh_proc_write;
 	}*/
 #endif // (MESH_DBG_LV & MESH_DBG_COMPLEX)
-#endif	// _MESH_DEBUG_
-#endif	// CONFIG_RTK_MESH
+#endif // _MESH_DEBUG_
+#endif // CONFIG_RTK_MESH
 }
 
 
@@ -3038,10 +3625,18 @@ void __devexit rtl8192cd_proc_remove (struct net_device *dev)
 
 		remove_proc_entry( "mib_11n", rtl8192cd_proc_root );
 
+#ifdef RTL_MANUAL_EDCA
+		remove_proc_entry( "mib_EDCA", rtl8192cd_proc_root );
+#endif
+
 #ifdef CONFIG_RTK_VLAN_SUPPORT
 		remove_proc_entry( "mib_vlan", rtl8192cd_proc_root );
 #endif
 
+#ifdef TLN_STATS
+		remove_proc_entry( "wifi_conn_stats", rtl8192cd_proc_root );
+		remove_proc_entry( "ext_wifi_conn_stats", rtl8192cd_proc_root );
+#endif
 
 #if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
 		if (GET_ROOT_PRIV(priv) == NULL)  // is root interface
@@ -3058,11 +3653,12 @@ void __devexit rtl8192cd_proc_remove (struct net_device *dev)
 #ifdef RF_FINETUNE
 			remove_proc_entry( "rf_finetune", rtl8192cd_proc_root );
 #endif
-#ifdef MERGE_FW
-			remove_proc_entry( "phypara_file", rtl8192cd_proc_root );
+#ifdef CLIENT_MODE
+			remove_proc_entry( "up_flag", rtl8192cd_proc_root );
 #endif
+			remove_proc_entry( "phypara_file", rtl8192cd_proc_root );
 			remove_proc_entry( "led", rtl8192cd_proc_root );
-	
+
 #ifdef AUTO_TEST_SUPPORT
 			remove_proc_entry( "SS_Result", rtl8192cd_proc_root );
 #endif
@@ -3074,9 +3670,9 @@ void __devexit rtl8192cd_proc_remove (struct net_device *dev)
 		remove_proc_entry( "mesh_assoc_mpinfo", rtl8192cd_proc_root );
 		remove_proc_entry( "mesh_stats", rtl8192cd_proc_root );
 		remove_proc_entry( "mesh_pathsel_routetable", rtl8192cd_proc_root );
-		remove_proc_entry( "rtl8190_proxy_table_info", rtl8192cd_proc_root );
-		remove_proc_entry( "rtl8190_root_info", rtl8192cd_proc_root );
-		remove_proc_entry( "rtl8190_portal_table_info", rtl8192cd_proc_root );
+		remove_proc_entry( "mesh_proxy_table", rtl8192cd_proc_root );
+		remove_proc_entry( "mesh_root_info", rtl8192cd_proc_root );
+		remove_proc_entry( "mesh_portal_table", rtl8192cd_proc_root );
 
 #ifdef MESH_USE_METRICOP // remove proc file
                 remove_proc_entry( "mesh_metric", rtl8192cd_proc_root );
@@ -3100,8 +3696,8 @@ void __devexit rtl8192cd_proc_remove (struct net_device *dev)
 #if (MESH_DBG_LV & MESH_DBG_COMPLEX)
 		remove_proc_entry( MESH_PROC_SME_TEST_FILENAME, rtl8192cd_proc_root );
 #endif
-#endif	// _MESH_DEBUG_
-#endif	// CONFIG_RTK_MESH
+#endif // _MESH_DEBUG_
+#endif // CONFIG_RTK_MESH
 
 		remove_proc_entry( dev->name, NULL );
 		rtl8192cd_proc_root = NULL;
@@ -3151,20 +3747,65 @@ static struct _proc_table_ proc_table[] =
 	{"mib_dfs",				rtl8192cd_proc_mib_DFS},
 #endif
 	{"mib_misc",			rtl8192cd_proc_mib_misc},
+#ifdef WIFI_SIMPLE_CONFIG
+	{"mib_wsc",			rtl8192cd_proc_mib_wsc},
+#endif
+#ifdef GBWC
+	{"mib_gbwc",			rtl8192cd_proc_mib_gbwc},
+#endif
+#ifdef RTL_MANUAL_EDCA
+	{"mib_EDCA",			rtl8192cd_proc_mib_edca},
+#endif
+#ifdef CLIENT_MODE
+	{"up_flag",			rtl8192cd_proc_up_read},
+#endif
+#if defined(RTLWIFINIC_GPIO_CONTROL)
+	{"gpio_ctrl",			rtl8192cd_proc_gpio_ctrl_read},
+#endif
+#ifdef TLN_STATS
+	{"wifi_conn_stats",		proc_wifi_conn_stats},
+	{"ext_wifi_conn_stats",	proc_ext_wifi_conn_stats},
+#endif
 
 #ifdef AUTO_TEST_SUPPORT
 	{"SS_Result",			rtl8192cd_proc_SSR_read},
 #endif
 
 #ifdef _MESH_DEBUG_ // 802.11s output debug information
-	{"mesh_unestablish_mpinfo",	rtl8190_mesh_unEstablish_mpinfo},
-	{"mesh_assoc_mpinfo",		rtl8190_mesh_assoc_mpinfo},
-	{"mesh_stats",			rtl8190_proc_mesh_stats}
+	{"mesh_unestablish_mpinfo",	mesh_unEstablish_mpinfo},
+	{"mesh_assoc_mpinfo",	mesh_assoc_mpinfo},
+	{"mesh_stats",			mesh_stats}
 #endif	// _MESH_DEBUG_
 };
 
 #define NUM_CMD_TABLE_ENTRY		(sizeof(proc_table) / sizeof(struct _proc_table_))
 
+#ifdef __ECOS
+void rtl8192cd_proc_help(char *name)
+{
+	int i;
+
+	for (i=0; i<NUM_CMD_TABLE_ENTRY; i++) {
+		ecos_pr_fun("%s %s\n", name, proc_table[i].cmd);
+	}
+#ifdef CONFIG_RTL_92C_SUPPORT
+	ecos_pr_fun("%s led\n", name);
+#endif
+}
+
+void rtl8192cd_proc_debug(struct net_device *dev, char *cmd)
+{
+	int i, eof;
+	char *tmpbuf, *start;
+
+	start = tmpbuf = 0;
+	for (i=0; i<NUM_CMD_TABLE_ENTRY; i++) {
+		if (!strcmp(cmd, proc_table[i].cmd)) {
+			proc_table[i].func(tmpbuf, &start, 0, 0, &eof, dev);
+		}
+	}
+}
+#else
 void rtl8192cd_proc_debug(struct net_device *dev, char *cmd)
 {
 	int i, j, eof, len;
@@ -3181,13 +3822,15 @@ void rtl8192cd_proc_debug(struct net_device *dev, char *cmd)
 	}
 	kfree(tmpbuf);
 }
+#endif
+
 #ifdef CONFIG_MSC
 int rtl8192cd_show_wifi_debug(char *dev_name, char *cmd, char *str)
 {
 	int i, j, eof, len;
 	char *tmpbuf, *start;
 	struct net_device *dev;
-	
+
 	printk("dev_name=%s, cmd=%s.\n", dev_name, cmd);
 
     dev = dev_get_by_name(dev_name);
@@ -3207,9 +3850,10 @@ int rtl8192cd_show_wifi_debug(char *dev_name, char *cmd, char *str)
 	}
 	else
 	    return 1;
-	    
+
 	return 0;
 }
+
 
 EXPORT_SYMBOL(rtl8192cd_show_wifi_debug);
 EXPORT_SYMBOL(rtl8192cd_proc_debug);

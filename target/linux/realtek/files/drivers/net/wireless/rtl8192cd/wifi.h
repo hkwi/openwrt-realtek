@@ -27,6 +27,7 @@
 #define WLAN_CRC_LEN		4
 #define WLAN_BSSID_LEN		6
 #define WLAN_BSS_TS_LEN		8
+#define WLAN_HDR_PSPOLL	16
 #define WLAN_HDR_A3_LEN		24
 #define WLAN_HDR_A4_LEN		30
 #define WLAN_HDR_A3_QOS_LEN	26
@@ -54,28 +55,28 @@
 
 #define P80211CAPTURE_VERSION	0x80211001
 
-#if defined(GREEN_HILL) || defined(PACK_STRUCTURE)
+#if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack(1)
 #endif
 
 __PACK struct wlan_ethhdr_t
 {
-	UINT8	daddr[WLAN_ETHADDR_LEN]		__WLAN_ATTRIB_PACK__;
-	UINT8	saddr[WLAN_ETHADDR_LEN]		__WLAN_ATTRIB_PACK__;
+	UINT8	daddr[WLAN_ETHADDR_LEN]		;
+	UINT8	saddr[WLAN_ETHADDR_LEN]		;
 	UINT16	type						__WLAN_ATTRIB_PACK__;
 } __WLAN_ATTRIB_PACK__;
 
 __PACK struct wlan_llc_t
 {
-	UINT8	dsap						__WLAN_ATTRIB_PACK__;
-	UINT8	ssap						__WLAN_ATTRIB_PACK__;
-	UINT8	ctl							__WLAN_ATTRIB_PACK__;
+	UINT8	dsap						;
+	UINT8	ssap						;
+	UINT8	ctl							;
 } __WLAN_ATTRIB_PACK__;
 
 /* local snap header type */
 __PACK struct wlan_snap_t
 {
-	UINT8	oui[WLAN_IEEE_OUI_LEN]		__WLAN_ATTRIB_PACK__;
+	UINT8	oui[WLAN_IEEE_OUI_LEN]		;
 	UINT16	type						__WLAN_ATTRIB_PACK__;
 } __WLAN_ATTRIB_PACK__;
 
@@ -87,20 +88,20 @@ __PACK struct llc_snap {
 __PACK struct ht_cap_elmt
 {
 	UINT16	ht_cap_info					__WLAN_ATTRIB_PACK__;
-	UINT8	ampdu_para					__WLAN_ATTRIB_PACK__;
-	UINT8	support_mcs[16]				__WLAN_ATTRIB_PACK__;
+	UINT8	ampdu_para					;
+	UINT8	support_mcs[16]				;
 	UINT16	ht_ext_cap					__WLAN_ATTRIB_PACK__;
 	UINT32	txbf_cap					__WLAN_ATTRIB_PACK__;
-	UINT8	asel_cap					__WLAN_ATTRIB_PACK__;
+	UINT8	asel_cap					;
 } __WLAN_ATTRIB_PACK__;
 
 __PACK struct ht_info_elmt
 {
-	UINT8	primary_ch					__WLAN_ATTRIB_PACK__;
-	UINT8	info0						__WLAN_ATTRIB_PACK__;
+	UINT8	primary_ch					;
+	UINT8	info0						;
 	UINT16	info1						__WLAN_ATTRIB_PACK__;
 	UINT16	info2						__WLAN_ATTRIB_PACK__;
-	UINT8	basic_mcs[16]				__WLAN_ATTRIB_PACK__;
+	UINT8	basic_mcs[16]				;
 } __WLAN_ATTRIB_PACK__;
 
 #ifdef WIFI_11N_2040_COEXIST
@@ -116,7 +117,7 @@ __PACK struct obss_scan_para_elmt
 } __WLAN_ATTRIB_PACK__;
 #endif
 
-#if defined(GREEN_HILL) || defined(PACK_STRUCTURE)
+#if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack()
 #endif
 
@@ -188,6 +189,21 @@ enum WIFI_FRAME_SUBTYPE {
 #endif
 
 };
+
+
+#ifdef P2P_SUPPORT
+#define CATEGORY_P2P_PUBLIC_ACTION  		4 	
+#define ACTIONY_P2P_PUBLIC_ACTION  			9 	
+#define	_P2P_PUBLIC_ACTION_FIELD_			9		
+#define _P2P_PUBLIC_ACTION_IE_OFFSET_		8
+#define _P2P_ACTION_IE_OFFSET_				7
+#define _P2P_IE_							221
+#define _SUPPORTED_RATES_NO_CCK_ 			2
+
+
+#endif
+
+
 
 #ifdef CONFIG_RTK_MESH
 
@@ -324,6 +340,11 @@ enum WIFI_REG_DOMAIN {
 	DOMAIN_MKK1		= 8,
 	DOMAIN_MKK2		= 9,
 	DOMAIN_MKK3		= 10,
+	DOMAIN_NCC		= 11,
+	DOMAIN_RUSSIAN	= 12,
+	DOMAIN_CN		= 13,
+	DOMAIN_GLOBAL	= 14,	
+	DOMAIN_WORLD_WIDE = 15,		
 	DOMAIN_MAX
 };
 
@@ -463,6 +484,11 @@ enum WIFI_REG_DOMAIN {
 #define GetAid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + 2)) & 0x3fff)
 
 #define GetTid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x000f)
+
+#define SetPsPollAid(pbuf, aid)  \
+	do {    \
+		*(unsigned short *)((unsigned int)(pbuf) + 2) |= cpu_to_le16(0xffff & (aid|0xc000)); \
+	} while(0)
 
 //WIFI_WMM
 #define GetQOSackPolicy(pbuf)	((cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x0060)>>5)
@@ -619,7 +645,7 @@ enum WIFI_REG_DOMAIN {
 #define _ADDBA_Req_ACTION_ID_		0
 #define _ADDBA_Rsp_ACTION_ID_		1
 #define _DELBA_ACTION_ID_			2
-
+#define _VENDOR_ACTION_ID_			0x7f	// add for P2P_SUPPORT
 
 /*-----------------------------------------------------------------------------
 			Below is for HT related definition

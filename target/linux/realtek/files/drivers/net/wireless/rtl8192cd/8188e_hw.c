@@ -1,5 +1,24 @@
+/*
+ *  Routines to access hardware
+ *
+ *  $Id: 8188e_hw.c,v 1.1 2012/05/16 13:21:01 jimmylin Exp $
+ *
+ *  Copyright (c) 2012 Realtek Semiconductor Corp.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
+ */
+
+#ifdef __ECOS
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
+#include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
+#endif
+
 #ifdef CONFIG_RTL_88E_SUPPORT
-#ifndef _8188E_HW_C_
+
 #define _8188E_HW_C_
 
 #include "8192cd.h"
@@ -69,7 +88,47 @@ static unsigned int findout_max_macid(struct rtl8192cd_priv *priv)
 	return max_macid;
 }
 
+#ifdef RATEADAPTIVE_BY_ODM
+void RTL8188E_SetStationTxRateInfo(PDM_ODM_T	pDM_Odm, PODM_RA_INFO_T pRAInfo, int MacID)
+{
+	struct rtl8192cd_priv *priv = pDM_Odm->priv;
+	int i;
 
+	PSTA_INFO_T pstat = pDM_Odm->pODM_StaInfo[MacID];
+	if( !MacID || !pstat)
+		return;
+	
+	for(i=0;i<NUM_STAT;i++)
+	{
+		if(&(priv->pshare->aidarray[i]->station) == pstat)
+		{
+			priv = priv->pshare->aidarray[i]->priv;
+			break;
+		}
+	}
+	
+	if (priv->pmib->dot11StationConfigEntry.autoRate) {
+		if (pRAInfo->RateSGI)
+			pstat->ht_current_tx_info |= TX_USE_SHORT_GI;
+		else
+			pstat->ht_current_tx_info &= ~TX_USE_SHORT_GI;
+
+		if (pstat->ht_cap_len) {
+			if (priv->pshare->is_40m_bw && (pstat->tx_bw == HT_CHANNEL_WIDTH_20_40))
+				pstat->ht_current_tx_info |= TX_USE_40M_MODE;
+			else
+				pstat->ht_current_tx_info &= ~TX_USE_40M_MODE;
+		}
+		
+		if ((pRAInfo->DecisionRate&0x3f) < 12)
+			pstat->current_tx_rate = dot11_rate_table[pRAInfo->DecisionRate];
+		else if ((pRAInfo->DecisionRate&0x3f) <= 27)
+			pstat->current_tx_rate = 0x80|((pRAInfo->DecisionRate&0x3f) -12);
+		else
+			DEBUG_WARN("%s %d, DecisionRate mismatched as 0x%02x\n", __FUNCTION__, __LINE__, pRAInfo->DecisionRate);
+	}
+}
+#else
 static void RTL8188E_SetStationTxRateInfo(struct rtl8192cd_priv *priv, PSTATION_RA_INFO pRaInfo)
 {
 	if (pRaInfo->RateSGI)
@@ -92,11 +151,18 @@ static void RTL8188E_SetStationTxRateInfo(struct rtl8192cd_priv *priv, PSTATION_
 		DEBUG_WARN("%s %d, DecisionRate mismatched as 0x%02x\n", __FUNCTION__, __LINE__, pRaInfo->DecisionRate);
 }
 
+#endif
 
 void RTL8188E_AssignTxReportMacId(struct rtl8192cd_priv *priv)
 {
 	struct rtl8192cd_priv *tmp_root_priv = GET_ROOT(priv);
-	unsigned int i = 0, max_macid = 0, temp_macid = 0;
+	unsigned int max_macid = 0;
+#ifdef MBSSID
+	unsigned int i = 0;
+#endif
+#if defined(UNIVERSAL_REPEATER) || defined(MBSSID)
+	unsigned int temp_macid = 0;
+#endif
 
 	/* find out the largest macid */
 	max_macid = findout_max_macid(tmp_root_priv);
@@ -126,8 +192,8 @@ void RTL8188E_AssignTxReportMacId(struct rtl8192cd_priv *priv)
 
 	/* assign new macid for tx report setting iff it is different from the previous one */
 	if (max_macid && (priv->pshare->txRptMacid != max_macid)) {
-		RTL_W32(REG_88E_TXRPT_CTRL, (RTL_R32(REG_88E_TXRPT_CTRL) & ~(TXRPT_CTRL_88E_RPT_MACID_Mask 
-			<< TXRPT_CTRL_88E_RPT_MACID_SHIFT)) | ((max_macid+1 & TXRPT_CTRL_88E_RPT_MACID_Mask) 
+		RTL_W32(REG_88E_TXRPT_CTRL, (RTL_R32(REG_88E_TXRPT_CTRL) & (~(TXRPT_CTRL_88E_RPT_MACID_Mask 
+			<< TXRPT_CTRL_88E_RPT_MACID_SHIFT))) | (((max_macid+1) & TXRPT_CTRL_88E_RPT_MACID_Mask) 
 			<< TXRPT_CTRL_88E_RPT_MACID_SHIFT));
 
 		DEBUG_INFO("%s %d, preTxRptMacid: %d, newTxRptMacid: %d\n", __FUNCTION__, __LINE__, priv->pshare->txRptMacid, max_macid);
@@ -136,10 +202,23 @@ void RTL8188E_AssignTxReportMacId(struct rtl8192cd_priv *priv)
 }
 
 #ifdef DETECT_STA_EXISTANCE
+#ifdef RATEADAPTIVE_BY_ODM
+void RTL8188E_DetectSTAExistance(PDM_ODM_T	pDM_Odm, PODM_RA_INFO_T pRaInfo, int MacID)
+{
+	struct rtl8192cd_priv *priv = pDM_Odm->priv;
+	PSTA_INFO_T pstat = pDM_Odm->pODM_StaInfo[MacID];
+    const unsigned int  txFailSecThr= 3;            // threshold of Tx Fail Time (in second)
+	if(!pstat || !MacID)
+		return;
+#else
 void RTL8188E_DetectSTAExistance(struct rtl8192cd_priv *priv, PSTATION_RA_INFO pRaInfo)
 {
     struct stat_info    *pstat = pRaInfo->pstat;
     const unsigned int  txFailSecThr= 3;            // threshold of Tx Fail Time (in second)
+#endif
+
+	if(OPMODE & WIFI_STATION_STATE)
+		return;
 
     if ((pRaInfo->RTY[0] != 0)||(pRaInfo->RTY[1] != 0)||(pRaInfo->RTY[2] != 0)||(pRaInfo->RTY[3] != 0)||(pRaInfo->RTY[4] != 0))
     { // Reset Counter
@@ -167,6 +246,7 @@ void RTL8188E_DetectSTAExistance(struct rtl8192cd_priv *priv, PSTATION_RA_INFO p
     }
 }
 #endif
+#ifndef RATEADAPTIVE_BY_ODM
 
 void RTL8188E_TxReportHandler(struct rtl8192cd_priv *priv, struct sk_buff *pskb, unsigned int bitmapLowByte,
 	unsigned int bitmapHighByte, struct rx_desc* pdesc)
@@ -283,7 +363,7 @@ void RTL8188E_SetTxReportTimeByRA(struct rtl8192cd_priv *priv, int extend)
 	TxRPTTiming_idx=idx;
 }
 #endif
-
+#endif
 
 void RTL8188E_MACID_NOLINK(struct rtl8192cd_priv *priv, unsigned int nolink, unsigned int aid)
 {
@@ -332,6 +412,8 @@ void check_RTL8188E_testChip(struct rtl8192cd_priv *priv)
 	}
 }
 #endif
+
+#ifndef CALIBRATE_BY_ODM
 
 
 #define	IQK_DELAY_TIME_88E	10
@@ -383,6 +465,8 @@ void _PHY_PathAFillIQKMatrix(struct rtl8192cd_priv *priv, char bIQKOK, int	resul
 		}
 
 		reg = result[final_candidate][2];
+		if( RTL_ABS(reg ,0x100) >= 16) 
+			reg = 0x100;
 		PHY_SetBBReg(priv, rOFDM0_XARxIQImbalance, 0x3FF, reg);
 
 		reg = result[final_candidate][3] & 0x3F;
@@ -664,8 +748,8 @@ void phy_IQCalibrate_8188E(struct rtl8192cd_priv *priv, int result[][8], unsigne
 							};	
 
 	unsigned int	retryCount = 0;
-		
-	unsigned int 	bbvalue;
+
+//	unsigned int 	bbvalue;
 
 #ifdef MP_TEST
 	if(priv->pshare->rf_ft_var.mp_specific)
@@ -931,7 +1015,7 @@ void PHY_IQCalibrate_8188E(struct rtl8192cd_priv *priv, char bReCovery)
 	char			bPathAOK, bPathBOK;
 	int				RegE94, RegE9C, RegEA4, RegEAC, RegEB4, RegEBC, RegEC4, RegECC, RegTmp = 0;
 	char			is12simular, is13simular, is23simular;	
-	char 			bStartContTx = FALSE, bSingleTone = FALSE;
+//	char 			bStartContTx = FALSE, bSingleTone = FALSE;
 	int				IQK_BB_REG_92C[IQK_BB_REG_NUM] = {
 					rOFDM0_XARxIQImbalance, 	rOFDM0_XBRxIQImbalance, 
 					rOFDM0_ECCAThreshold, 	rOFDM0_AGCRSSITable,
@@ -954,7 +1038,11 @@ void PHY_IQCalibrate_8188E(struct rtl8192cd_priv *priv, char bReCovery)
 #if 1 
 	if(priv->pshare->IQK_88E_done)
 	{
+#ifdef __ECOS
+		_PHY_ReloadADDARegisters(priv, (unsigned int*)IQK_BB_REG_92C, priv->pshare->IQK_BB_backup_recover, 9);
+#else
 		_PHY_ReloadADDARegisters(priv, IQK_BB_REG_92C, priv->pshare->IQK_BB_backup_recover, 9);
+#endif
 		return;
 	}
 
@@ -1089,14 +1177,526 @@ void PHY_IQCalibrate_8188E(struct rtl8192cd_priv *priv, char bReCovery)
 		}
 	}
 #endif
+	 Indexforchannel = 0;
 
+	 for(i = 0; i < IQK_Matrix_REG_NUM; i++)
+		 priv->pshare->IQKMatrixRegSetting[Indexforchannel].Value[0][i] = result[final_candidate][i];
+	  
+	 priv->pshare->IQKMatrixRegSetting[Indexforchannel].bIQKDone = TRUE;
+#ifdef __ECOS
+	_PHY_SaveADDARegisters(priv, (unsigned int*)IQK_BB_REG_92C, priv->pshare->IQK_BB_backup_recover, 9);
+#else
 	_PHY_SaveADDARegisters(priv, IQK_BB_REG_92C, priv->pshare->IQK_BB_backup_recover, 9);
+#endif
 
+}
+
+void ODM_ResetIQKResult(struct rtl8192cd_priv *priv)
+{
+/*
+#if (DM_ODM_SUPPORT_TYPE == ODM_MP || DM_ODM_SUPPORT_TYPE == ODM_CE)
+	PADAPTER	Adapter = pDM_Odm->Adapter;
+	u1Byte		i;
+
+	if (!IS_HARDWARE_TYPE_8192D(Adapter))
+		return;
+#endif
+*/
+
+	unsigned char i;
+
+	//printk("PHY_ResetIQKResult:: settings regs %d default regs %d\n", sizeof(priv->pshare->IQKMatrixRegSetting)/sizeof(IQK_MATRIX_REGS_SETTING), IQK_Matrix_Settings_NUM);
+	//0xe94, 0xe9c, 0xea4, 0xeac, 0xeb4, 0xebc, 0xec4, 0xecc
+
+	for(i = 0; i < IQK_Matrix_Settings_NUM; i++)
+	{
+		{
+			priv->pshare->IQKMatrixRegSetting[i].Value[0][0] = 
+				priv->pshare->IQKMatrixRegSetting[i].Value[0][2] = 
+				priv->pshare->IQKMatrixRegSetting[i].Value[0][4] = 
+				priv->pshare->IQKMatrixRegSetting[i].Value[0][6] = 0x100;
+
+			priv->pshare->IQKMatrixRegSetting[i].Value[0][1] = 
+				priv->pshare->IQKMatrixRegSetting[i].Value[0][3] = 
+				priv->pshare->IQKMatrixRegSetting[i].Value[0][5] = 
+				priv->pshare->IQKMatrixRegSetting[i].Value[0][7] = 0x0;
+
+			priv->pshare->IQKMatrixRegSetting[i].bIQKDone = FALSE;
+			
+		}
+	}
+
+}
+
+#define	RF_PATH_A		0		//Radio Path A
+#define	OFDM_TABLE_SIZE_92D 	43
+
+#define bRFRegOffsetMask	0xfffff	
+
+extern unsigned int OFDMSwingTable[];
+extern const int OFDM_TABLE_SIZE;
+extern const int CCK_TABLE_SIZE;
+extern unsigned char CCKSwingTable_Ch14 [][8];
+extern unsigned char CCKSwingTable_Ch1_Ch13[][8];
+
+
+//091212 chiyokolin
+void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
+{
+
+	//HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
+	
+	unsigned char			ThermalValue = 0, delta, delta_LCK, delta_IQK, offset;
+	unsigned char			ThermalValue_AVG_count = 0;
+	unsigned int			ThermalValue_AVG = 0;	
+	int						ele_A=0, ele_D, /* TempCCk,*/ X, value32;
+	int						Y, ele_C=0;
+	char					OFDM_index[2], CCK_index=0, OFDM_index_old[2]={0,0}, CCK_index_old=0, index;
+	unsigned int			i = 0, j = 0;
+	char 					is2T = FALSE;
+//	char 					bInteralPA = FALSE;
+
+	unsigned char			OFDM_min_index = 6, rf; //OFDM BB Swing should be less than +3.0dB, which is required by Arthur
+	unsigned char			Indexforchannel = 0/*GetRightChnlPlaceforIQK(pHalData->CurrentChannel)*/;
+	char					OFDM_index_mapping[2][index_mapping_NUM_88E] = { 
+							{0,	0,	2,	3,	4,	4,			//2.4G, decrease power 
+							5, 	6, 	7, 	7,	8,	9,					
+							10,	10,	11}, // For lower temperature, 20120220 updated on 20120220.	
+							{0,	0,	-1,	-2,	-3,	-4,			//2.4G, increase power 
+							-4, 	-4, 	-4, 	-5,	-7,	-8,					
+							-9,	-9,	-10},					
+							};	
+	unsigned char			Thermal_mapping[2][index_mapping_NUM_88E] = { 
+							{0,	2,	4,	6,	8,	10,			//2.4G, decrease power 
+							12, 	14, 	16, 	18,	20,	22,					
+							24,	26,	27},	
+							{0, 	2,	4,	6,	8,	10, 			//2.4G,, increase power 
+							12, 	14, 	16, 	18, 	20, 	22, 
+							25,	25,	25},					
+							};	
+	
+	priv->pshare->TXPowerTrackingCallbackCnt++; //cosa add for debug
+	priv->pshare->bTXPowerTrackingInit = TRUE;
+    
+#if (MP_DRIVER == 1)
+    priv->pshare->TxPowerTrackControl = 1; //priv->pshare->TxPowerTrackControl; //_eric_?? // <Kordan> We should keep updating the control variable according to HalData.
+    // <Kordan> pshare->RegA24 will be initialized when ODM HW configuring, but MP configures with para files.
+    priv->pshare->RegA24 = 0x090e1317; 
+#endif
+
+
+#ifdef MP_TEST
+		if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific) {
+			if(priv->pshare->mp_txpwr_tracking == FALSE)
+				return;
+		}
+#endif
+
+	if(priv->pshare->Power_tracking_on_88E == 0)
+	{
+		priv->pshare->Power_tracking_on_88E = 1;
+		PHY_SetRFReg(priv, RF92CD_PATH_A, 0x42, (BIT(17) | BIT(16)), 0x03);
+		return; 
+	}
+	else
+	{
+
+		priv->pshare->Power_tracking_on_88E = 0;
+	
+		//printk("===>dm_TXPowerTrackingCallback_ThermalMeter_8188E txpowercontrol %d\n",  priv->pshare->TxPowerTrackControl);
+
+		ThermalValue = (unsigned char)PHY_QueryRFReg(priv, RF_PATH_A, RF_T_METER_88E, 0xfc00, 1);	//0x42: RF Reg[15:10] 88E
+
+		printk("\nReadback Thermal Meter = 0x%x pre thermal meter 0x%x EEPROMthermalmeter 0x%x\n", ThermalValue, priv->pshare->ThermalValue, priv->pmib->dot11RFEntry.ther);
+
+	}
+
+	
+	if(is2T)
+		rf = 2;
+	else
+		rf = 1;
+	
+	//if(ThermalValue)
+	{
+//		if(!pHalData->ThermalValue)
+		{
+			//Query OFDM path A default setting 		
+			ele_D = PHY_QueryBBReg(priv, rOFDM0_XATxIQImbalance, bMaskDWord)&bMaskOFDM_D;
+	
+			for(i=0; i<OFDM_TABLE_SIZE_92D; i++)	//find the index
+			{
+				if(ele_D == (OFDMSwingTable[i]&bMaskOFDM_D))
+				{
+					OFDM_index_old[0] = (unsigned char)i;
+					printk("Initial pathA ele_D reg0x%x = 0x%x, OFDM_index=0x%x\n", 
+						rOFDM0_XATxIQImbalance, ele_D, OFDM_index_old[0]);
+					break;
+				}
+			}
+
+			//Query OFDM path B default setting 
+			if(is2T)
+			{
+				ele_D = PHY_QueryBBReg(priv, rOFDM0_XBTxIQImbalance, bMaskDWord)&bMaskOFDM_D;
+				for(i=0; i<OFDM_TABLE_SIZE_92D; i++)	//find the index
+				{
+					if(ele_D == (OFDMSwingTable[i]&bMaskOFDM_D))
+					{
+						OFDM_index_old[1] = (unsigned char)i;
+						printk("Initial pathB ele_D reg0x%x = 0x%x, OFDM_index=0x%x\n", 
+							rOFDM0_XBTxIQImbalance, ele_D, OFDM_index_old[1]);
+						break;
+					}
+				}
+			}
+			
+			{
+				//Query CCK default setting From 0xa24
+#if 0
+				TempCCk = priv->pshare->RegA24;
+
+				for(i=0 ; i<CCK_TABLE_SIZE ; i++)
+				{
+					if(priv->pshare->bCCKinCH14)
+					{
+						if(memcmp((void*)&TempCCk, (void*)&CCKSwingTable_Ch14[i][2], 4)==0)
+						{
+							CCK_index_old =(unsigned char) i;
+							//printk("Initial reg0x%x = 0x%x, CCK_index=0x%x, ch 14 %d\n", 
+								//rCCK0_TxFilter2, TempCCk, CCK_index_old, priv->pshare->bCCKinCH14);
+							break;
+						}
+					}
+					else
+					{
+                        //printk("RegA24: 0x%X, CCKSwingTable_Ch1_Ch13[%d][2]: CCKSwingTable_Ch1_Ch13[i][2]: 0x%X\n", TempCCk, i, CCKSwingTable_Ch1_Ch13[i][2]);
+						if(memcmp((void*)&TempCCk, (void*)&CCKSwingTable_Ch1_Ch13[i][2], 4)==0)
+						{
+							CCK_index_old =(unsigned char) i;
+							//printk("Initial reg0x%x = 0x%x, CCK_index=0x%x, ch14 %d\n", 
+								//rCCK0_TxFilter2, TempCCk, CCK_index_old, priv->pshare->bCCKinCH14);
+							break;
+						}			
+					}
+				}
+#endif
+			}
+
+			if(!priv->pshare->ThermalValue)
+			{
+				CCK_index_old = get_CCK_swing_index(priv);
+				priv->pshare->ThermalValue = priv->pmib->dot11RFEntry.ther;
+				priv->pshare->ThermalValue_LCK = ThermalValue;				
+				priv->pshare->ThermalValue_IQK = ThermalValue;								
+				
+				for(i = 0; i < rf; i++)
+					priv->pshare->OFDM_index[i] = OFDM_index_old[i];
+				priv->pshare->CCK_index = CCK_index_old;
+			}			
+
+			if(priv->pshare->bReloadtxpowerindex)
+			{
+				printk("reload ofdm index for band switch\n");				
+			}
+
+			//calculate average thermal meter
+			{
+				priv->pshare->ThermalValue_AVG[priv->pshare->ThermalValue_AVG_index] = ThermalValue;
+				priv->pshare->ThermalValue_AVG_index++;
+				if(priv->pshare->ThermalValue_AVG_index == AVG_THERMAL_NUM_88E)
+					priv->pshare->ThermalValue_AVG_index = 0;
+
+				for(i = 0; i < AVG_THERMAL_NUM_88E; i++)
+				{
+					if(priv->pshare->ThermalValue_AVG[i])
+					{
+						ThermalValue_AVG += priv->pshare->ThermalValue_AVG[i];
+						ThermalValue_AVG_count++;
+					}
+				}
+
+				if(ThermalValue_AVG_count)
+				{
+					ThermalValue = (unsigned char)(ThermalValue_AVG / ThermalValue_AVG_count);
+					printk("AVG Thermal Meter = 0x%x \n", ThermalValue);					
+				}
+			}			
+		}
+
+		if(priv->pshare->bReloadtxpowerindex)
+		{
+			delta = ThermalValue > priv->pmib->dot11RFEntry.ther?(ThermalValue - priv->pmib->dot11RFEntry.ther):(priv->pmib->dot11RFEntry.ther - ThermalValue);				
+			priv->pshare->bReloadtxpowerindex = FALSE;	
+			priv->pshare->bDoneTxpower = FALSE;
+		}
+		else if(priv->pshare->bDoneTxpower)
+		{
+			delta = (ThermalValue > priv->pshare->ThermalValue)?(ThermalValue - priv->pshare->ThermalValue):(priv->pshare->ThermalValue - ThermalValue);
+		}
+		else
+		{
+			delta = ThermalValue > priv->pmib->dot11RFEntry.ther?(ThermalValue - priv->pmib->dot11RFEntry.ther):(priv->pmib->dot11RFEntry.ther - ThermalValue);		
+		}
+		delta_LCK = (ThermalValue > priv->pshare->ThermalValue_LCK)?(ThermalValue - priv->pshare->ThermalValue_LCK):(priv->pshare->ThermalValue_LCK - ThermalValue);
+		delta_IQK = (ThermalValue > priv->pshare->ThermalValue_IQK)?(ThermalValue - priv->pshare->ThermalValue_IQK):(priv->pshare->ThermalValue_IQK - ThermalValue);
+
+		printk("Readback Thermal Meter = 0x%x \npre thermal meter 0x%x EEPROMthermalmeter 0x%x delta 0x%x \ndelta_LCK 0x%x delta_IQK 0x%x \n",   ThermalValue, priv->pshare->ThermalValue, priv->pshare->EEPROMThermalMeter, delta, delta_LCK, delta_IQK);
+		printk("pre thermal meter LCK 0x%x \npre thermal meter IQK 0x%x \ndelta_LCK_bound 0x%x delta_IQK_bound 0x%x\n",   priv->pshare->ThermalValue_LCK, priv->pshare->ThermalValue_IQK, priv->pshare->Delta_LCK, priv->pshare->Delta_IQK);
+
+
+		//if((delta_LCK > pHalData->Delta_LCK) && (pHalData->Delta_LCK != 0))
+        if (delta_LCK >= 8) // Delta temperature is equal to or larger than 20 centigrade.
+		{
+            priv->pshare->ThermalValue_LCK = ThermalValue;
+			PHY_LCCalibrate(priv);
+		}
+
+		
+		if(delta > 0 && priv->pshare->TxPowerTrackControl)
+		{
+			delta = ThermalValue > priv->pmib->dot11RFEntry.ther?(ThermalValue - priv->pmib->dot11RFEntry.ther):(priv->pmib->dot11RFEntry.ther - ThermalValue);		
+
+			//calculate new OFDM / CCK offset	
+			{
+				{							
+					if(ThermalValue > priv->pmib->dot11RFEntry.ther)
+						j = 1;
+					else
+						j = 0;
+
+					for(offset = 0; offset < index_mapping_NUM_88E; offset++)
+					{
+						if(delta < Thermal_mapping[j][offset])
+						{
+							if(offset != 0)
+								offset--;
+							break;
+						}
+					}			
+					if(offset >= index_mapping_NUM_88E)
+						offset = index_mapping_NUM_88E-1;
+					
+					index = OFDM_index_mapping[j][offset];	
+
+					printk("\nj = %d delta = %d, index = %d\n\n", j, delta, index);
+					
+					for(i = 0; i < rf; i++) 		
+						OFDM_index[i] = priv->pshare->OFDM_index[i] + OFDM_index_mapping[j][offset];
+						CCK_index = priv->pshare->CCK_index + OFDM_index_mapping[j][offset];					
+				}				
+				
+				if(is2T)
+				{
+					printk("temp OFDM_A_index=0x%x, OFDM_B_index=0x%x, CCK_index=0x%x\n", 
+						priv->pshare->OFDM_index[0], priv->pshare->OFDM_index[1], priv->pshare->CCK_index);			
+				}
+				else
+				{
+					printk("temp OFDM_A_index=0x%x, CCK_index=0x%x\n", 
+						priv->pshare->OFDM_index[0], priv->pshare->CCK_index); 		
+				}
+				
+				for(i = 0; i < rf; i++)
+				{
+					if(OFDM_index[i] > OFDM_TABLE_SIZE_92D-1)
+					{
+						OFDM_index[i] = OFDM_TABLE_SIZE_92D-1;
+					}
+					else if (OFDM_index[i] < OFDM_min_index)
+					{
+						OFDM_index[i] = OFDM_min_index;
+					}
+				}
+
+				{
+					if(CCK_index > CCK_TABLE_SIZE-1)
+						CCK_index = CCK_TABLE_SIZE-1;
+					else if (CCK_index < 0)
+						CCK_index = 0;
+				}
+
+				if(is2T)
+				{
+					printk("new OFDM_A_index=0x%x, OFDM_B_index=0x%x, CCK_index=0x%x\n", 
+						OFDM_index[0], OFDM_index[1], CCK_index);
+				}
+				else
+				{
+					printk("new OFDM_A_index=0x%x, CCK_index=0x%x\n", 
+						OFDM_index[0], CCK_index); 
+				}
+			}
+
+			//2 temporarily remove bNOPG
+			//Config by SwingTable
+			if(priv->pshare->TxPowerTrackControl /*&& !pHalData->bNOPG*/)			
+			{
+				priv->pshare->bDoneTxpower = TRUE;			
+
+				//Adujst OFDM Ant_A according to IQK result
+				ele_D = (OFDMSwingTable[(unsigned char)OFDM_index[0]] & 0xFFC00000)>>22;		
+				X = priv->pshare->IQKMatrixRegSetting[Indexforchannel].Value[0][0];
+				Y = priv->pshare->IQKMatrixRegSetting[Indexforchannel].Value[0][1];
+
+				if(X != 0)
+				{
+					if ((X & 0x00000200) != 0)
+						X = X | 0xFFFFFC00;
+					ele_A = ((X * ele_D)>>8)&0x000003FF;
+						
+					//new element C = element D x Y
+					if ((Y & 0x00000200) != 0)
+						Y = Y | 0xFFFFFC00;
+					ele_C = ((Y * ele_D)>>8)&0x000003FF;
+					
+					//wirte new elements A, C, D to regC80 and regC94, element B is always 0
+					value32 = (ele_D<<22)|((ele_C&0x3F)<<16)|ele_A;
+					PHY_SetBBReg(priv, rOFDM0_XATxIQImbalance, bMaskDWord, value32);
+
+					value32 = (ele_C&0x000003C0)>>6;
+					PHY_SetBBReg(priv, rOFDM0_XCTxAFE, bMaskH4Bits, value32);
+
+					value32 = ((X * ele_D)>>7)&0x01;
+					PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(24), value32);
+					
+				}
+				else
+				{
+					PHY_SetBBReg(priv, rOFDM0_XATxIQImbalance, bMaskDWord, OFDMSwingTable[(unsigned char)OFDM_index[0]]);				
+					PHY_SetBBReg(priv, rOFDM0_XCTxAFE, bMaskH4Bits, 0x00);
+					PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(24), 0x00);			
+				}
+
+				//printk("TxPwrTracking for path A: X = 0x%x, Y = 0x%x ele_A = 0x%x ele_C = 0x%x ele_D = 0x%x 0xe94 = 0x%x 0xe9c = 0x%x\n", 
+					//(unsigned int)X, (unsigned int)Y, (unsigned int)ele_A, (unsigned int)ele_C, (unsigned int)ele_D, (unsigned int)X, (unsigned int)Y); 	
+				
+				{
+					//Adjust CCK according to IQK result
+					if(!priv->pshare->bCCKinCH14){
+						RTL_W8(0xa22, CCKSwingTable_Ch1_Ch13[(unsigned char)CCK_index][0]);
+						RTL_W8(0xa23, CCKSwingTable_Ch1_Ch13[(unsigned char)CCK_index][1]);
+						RTL_W8(0xa24, CCKSwingTable_Ch1_Ch13[(unsigned char)CCK_index][2]);
+						RTL_W8(0xa25, CCKSwingTable_Ch1_Ch13[(unsigned char)CCK_index][3]);
+						RTL_W8(0xa26, CCKSwingTable_Ch1_Ch13[(unsigned char)CCK_index][4]);
+						RTL_W8(0xa27, CCKSwingTable_Ch1_Ch13[(unsigned char)CCK_index][5]);
+						RTL_W8(0xa28, CCKSwingTable_Ch1_Ch13[(unsigned char)CCK_index][6]);
+						RTL_W8(0xa29, CCKSwingTable_Ch1_Ch13[(unsigned char)CCK_index][7]);		
+					}
+					else{
+						RTL_W8(0xa22, CCKSwingTable_Ch14[(unsigned char)CCK_index][0]);
+						RTL_W8(0xa23, CCKSwingTable_Ch14[(unsigned char)CCK_index][1]);
+						RTL_W8(0xa24, CCKSwingTable_Ch14[(unsigned char)CCK_index][2]);
+						RTL_W8(0xa25, CCKSwingTable_Ch14[(unsigned char)CCK_index][3]);
+						RTL_W8(0xa26, CCKSwingTable_Ch14[(unsigned char)CCK_index][4]);
+						RTL_W8(0xa27, CCKSwingTable_Ch14[(unsigned char)CCK_index][5]);
+						RTL_W8(0xa28, CCKSwingTable_Ch14[(unsigned char)CCK_index][6]);
+						RTL_W8(0xa29, CCKSwingTable_Ch14[(unsigned char)CCK_index][7]);	
+					}		
+				}
+				
+				if(is2T)
+				{						
+					ele_D = (OFDMSwingTable[(unsigned char)OFDM_index[1]] & 0xFFC00000)>>22;
+					
+					//new element A = element D x X
+					X = priv->pshare->IQKMatrixRegSetting[Indexforchannel].Value[0][4];
+					Y = priv->pshare->IQKMatrixRegSetting[Indexforchannel].Value[0][5];
+					
+					//if(X != 0 && pHalData->CurrentBandType92D == ODM_BAND_ON_2_4G)
+					if((X != 0) && (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G))
+						
+					{
+						if ((X & 0x00000200) != 0)	//consider minus
+							X = X | 0xFFFFFC00;
+						ele_A = ((X * ele_D)>>8)&0x000003FF;
+						
+						//new element C = element D x Y
+						if ((Y & 0x00000200) != 0)
+							Y = Y | 0xFFFFFC00;
+						ele_C = ((Y * ele_D)>>8)&0x00003FF;
+						
+						//wirte new elements A, C, D to regC88 and regC9C, element B is always 0
+						value32=(ele_D<<22)|((ele_C&0x3F)<<16) |ele_A;
+						PHY_SetBBReg(priv, rOFDM0_XBTxIQImbalance, bMaskDWord, value32);
+
+						value32 = (ele_C&0x000003C0)>>6;
+						PHY_SetBBReg(priv, rOFDM0_XDTxAFE, bMaskH4Bits, value32);	
+						
+						value32 = ((X * ele_D)>>7)&0x01;
+						PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(28), value32);
+
+					}
+					else
+					{
+						PHY_SetBBReg(priv, rOFDM0_XBTxIQImbalance, bMaskDWord, OFDMSwingTable[(unsigned char)OFDM_index[1]]);										
+						PHY_SetBBReg(priv, rOFDM0_XDTxAFE, bMaskH4Bits, 0x00);	
+						PHY_SetBBReg(priv, rOFDM0_ECCAThreshold, BIT(28), 0x00);				
+					}
+
+					//printk("TxPwrTracking path B: X = 0x%x, Y = 0x%x ele_A = 0x%x ele_C = 0x%x ele_D = 0x%x 0xeb4 = 0x%x 0xebc = 0x%x\n", 
+						//(unsigned int)X, (unsigned int)Y, (unsigned int)ele_A, (unsigned int)ele_C, (unsigned int)ele_D, (unsigned int)X, (unsigned int)Y);			
+				}
+				
+				printk("TxPwrTracking 0xc80 = 0x%x, 0xc94 = 0x%x RF 0x24 = 0x%x\n\n", PHY_QueryBBReg(priv, 0xc80, bMaskDWord), PHY_QueryBBReg(priv, 0xc94, bMaskDWord), PHY_QueryRFReg(priv, RF_PATH_A, 0x24, bRFRegOffsetMask, 1));
+			}			
+		}
+		
+#if 0 //DO NOT do IQK during 88E power tracking	
+		// if((delta_IQK > pHalData->Delta_IQK) && (pHalData->Delta_IQK != 0))
+        if (delta_IQK >= 8) // Delta temperature is equal to or larger than 20 centigrade.
+		{
+			ODM_ResetIQKResult(priv);		
+
+/*
+#if(DM_ODM_SUPPORT_TYPE  & ODM_MP)
+#if (DEV_BUS_TYPE == RT_PCI_INTERFACE)	
+#if USE_WORKITEM
+			PlatformAcquireMutex(&pHalData->mxChnlBwControl);
+#else
+			PlatformAcquireSpinLock(Adapter, RT_CHANNEL_AND_BANDWIDTH_SPINLOCK);
+#endif
+#elif((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+			PlatformAcquireMutex(&pHalData->mxChnlBwControl);
+#endif
+#endif			
+*/
+			priv->pshare->ThermalValue_IQK= ThermalValue;
+			PHY_IQCalibrate_8188E(priv, FALSE);
+
+/*
+#if(DM_ODM_SUPPORT_TYPE  & ODM_MP)
+#if (DEV_BUS_TYPE == RT_PCI_INTERFACE)	
+#if USE_WORKITEM
+			PlatformReleaseMutex(&pHalData->mxChnlBwControl);
+#else
+			PlatformReleaseSpinLock(Adapter, RT_CHANNEL_AND_BANDWIDTH_SPINLOCK);
+#endif
+#elif((DEV_BUS_TYPE == RT_USB_INTERFACE) || (DEV_BUS_TYPE == RT_SDIO_INTERFACE))
+			PlatformReleaseMutex(&pHalData->mxChnlBwControl);
+#endif
+#endif
+*/
+		}
+#endif
+		//update thermal meter value
+		if(priv->pshare->TxPowerTrackControl)
+		{
+			//Adapter->HalFunc.SetHalDefVarHandler(Adapter, HAL_DEF_THERMAL_VALUE, &ThermalValue);
+			priv->pshare->ThermalValue = ThermalValue;
+		}
+			
+	}
+
+	//printk("<===dm_TXPowerTrackingCallback_ThermalMeter_8188E\n");
+	
+	priv->pshare->TXPowercount = 0;
 
 }
 
 
+#endif // CALIBRATE_BY_ODM
 
-#endif
-#endif
+
+#endif // CONFIG_RTL_88E_SUPPORT
 

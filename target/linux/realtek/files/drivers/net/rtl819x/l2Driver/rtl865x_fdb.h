@@ -27,11 +27,6 @@
 #define	FDB_TYPE_DSTBLK				0x02
 #define	FDB_TYPE_TRAPCPU				0x03
 
-#define RTL865x_FDB_NUMBER				4
-#define RTL865x_L2_TYPEI			0x0001		/* Referenced by ARP/PPPoE */
-#define RTL865x_L2_TYPEII			0x0002		/* Referenced by Protocol */
-#define RTL865x_L2_TYPEIII			0x0004		/* Referenced by PCI/Extension Port */
-
 #define RTL865X_FDBENTRY_TIMEOUT		0x1001		/*fdb entry time out*/
 #define RTL865X_FDBENTRY_450SEC		0x1002		/*fdb entry 450s timing*/
 #define RTL865X_FDBENTRY_300SEC		0x1004		/*fdb entry 300s timing*/
@@ -81,6 +76,9 @@ struct rtl865x_L2Tables{
 		SLIST_HEAD( _FreeFDBEntry, rtl865x_filterDbTableEntry_s) filterDBentry;
 	} freefdbList;
 };
+
+// int32 rtl865x_arp_register_event(void);
+
 int32 rtl865x_layer2_init(void);
 int32 _rtl865x_addFilterDatabaseEntry(uint16 l2Type, uint16 fid, ether_addr_t * macAddr, uint32 type, uint32 portMask, uint8 auth, uint8 SrcBlk);
 int32 _rtl865x_addAuthFilterDatabaseEntry(uint16 l2Type, uint16 fid, ether_addr_t * macAddr, uint32 type, uint32 portMask, uint8 auth, uint8 SrcBlk);

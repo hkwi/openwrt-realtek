@@ -21,23 +21,19 @@
 		__asm__ __volatile__(					\
 		"	.set	push				\n"	\
 		"	.set	noat				\n"	\
-		"	.set	mips3				\n"	\
-		"1:	ll	%1, %4	# __futex_atomic_op	\n"	\
+		"1:	ll	    %1, %4	# __futex_atomic_op	\n"	\
 #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
                 "       nop                                     \n"	\
 #endif
-		"	.set	mips0				\n"	\
 		"	" insn	"				\n"	\
-		"	.set	mips3				\n"	\
-		"2:	sc	$1, %2				\n"	\
+		"2:	sc	    $1, %2				\n"	\
 		"	beqz	$1, 1b				\n"	\
 		__WEAK_LLSC_MB						\
 		"3:						\n"	\
 		"	.set	pop				\n"	\
-		"	.set	mips0				\n"	\
 		"	.section .fixup,\"ax\"			\n"	\
-		"4:	li	%0, %6				\n"	\
-		"	j	3b				\n"	\
+		"4:	li	    %0, %6				\n"	\
+		"	j	    3b				\n"	\
 		"	.previous				\n"	\
 		"	.section __ex_table,\"a\"		\n"	\
 		"	"__UA_ADDR "\t1b, 4b			\n"	\
@@ -50,7 +46,7 @@
 #else
 #define __futex_atomic_op(insn, ret, oldval, uaddr, oparg)		\
 {									\
-		ret = -ENOSYS;						\
+	ret = -ENOSYS;						\
 }
 #endif
 
@@ -124,15 +120,12 @@ futex_atomic_cmpxchg_inatomic(int __user *uaddr, int oldval, int newval)
 		"# futex_atomic_cmpxchg_inatomic			\n"
 		"	.set	push					\n"
 		"	.set	noat					\n"
-		"	.set	mips3					\n"
 		"1:	ll	%0, %2					\n"
 #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181) || defined(CONFIG_CPU_RLX5281)
                 "       nop                                             \n"
 #endif
 		"	bne	%0, %z3, 3f				\n"
-		"	.set	mips0					\n"
 		"	move	$1, %z4					\n"
-		"	.set	mips3					\n"
 		"2:	sc	$1, %1					\n"
 		"	beqz	$1, 1b					\n"
 		__WEAK_LLSC_MB

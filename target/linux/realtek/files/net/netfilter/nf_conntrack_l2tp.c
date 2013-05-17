@@ -91,7 +91,7 @@ static struct nf_conntrack_helper l2tp = {
 	.name = "l2tp",
 	.me = THIS_MODULE,
 	.tuple.src.l3num	= AF_INET,
-	.tuple.src.u.tcp.port	= __constant_htons(L2TP_CONTROL_PORT),
+	.tuple.src.u.udp.port	= __constant_htons(L2TP_CONTROL_PORT),
 	.tuple.dst.protonum	= IPPROTO_UDP,
 
 	.help = conntrack_l2tp_help,

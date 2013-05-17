@@ -147,7 +147,7 @@ void dwc_otg_hcd_qh_init(dwc_otg_hcd_t *_hcd, dwc_otg_qh_t *_qh, struct urb *_ur
 	/* FS/LS Enpoint on HS Hub 
 	 * NOT virtual root hub */
 	_qh->do_split = 0;
-#if 0
+#if 1
 	if (_urb->dev->speed == USB_SPEED_LOW || _urb->dev->speed == USB_SPEED_FULL)
       {
         if (_urb->dev->tt != NULL 
@@ -284,12 +284,12 @@ static int check_periodic_bandwidth(dwc_otg_hcd_t *_hcd, dwc_otg_qh_t *_qh)
 
 	status = 0;
 
-	if (_hcd->core_if->core_params->speed == DWC_SPEED_PARAM_HIGH) {
+	if ((_hcd->core_if->core_params->speed == DWC_SPEED_PARAM_HIGH)||_qh->do_split) {
 		/*
 		 * High speed mode.
 		 * Max periodic usecs is 80% x 125 usec = 100 usec.
 		 */
-		max_claimed_usecs = 100 - _qh->usecs;
+		max_claimed_usecs = 900 - _qh->usecs;
 	} else {
 		/*
 		 * Full speed mode.

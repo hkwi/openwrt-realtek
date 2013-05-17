@@ -20,7 +20,12 @@
 #include "./8192cd_cfg.h"
 
 #ifndef __KERNEL__
+#ifdef __ECOS
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
+#else
 #include "./sys-support.h"
+#endif
 #endif
 
 #include "./8192cd_headers.h"
@@ -123,7 +128,17 @@ extern unsigned char TxPwrTrk_CCK_SwingTbl_CH14[TxPwrTrk_CCK_SwingTbl_Len][8];
 
 #ifdef USE_RTL8186_SDK
 #ifdef CONFIG_RTL8672
-	#include <platform.h>
+	#ifdef USE_RLX_BSP
+		#include <bspchip.h>
+		#ifdef CONFIG_RTL_8196C
+		#undef CONFIG_RTL_8196C
+		#endif
+		#ifdef CONFIG_RTL8196C_REVISION_B
+		#undef CONFIG_RTL8196C_REVISION_B
+		#endif
+	#else
+		#include <platform.h>
+	#endif
 #else
 #if defined(__LINUX_2_6__)
 #ifdef NOT_RTK_BSP
@@ -132,20 +147,41 @@ extern unsigned char TxPwrTrk_CCK_SwingTbl_CH14[TxPwrTrk_CCK_SwingTbl_Len][8];
 #include <bsp/bspchip.h>
 #endif
 #else
+#ifndef __ECOS
 	#include <asm/rtl865x/platform.h>
 #endif
 #endif
+#endif
 
-#if defined(__LINUX_2_6__)
+#ifdef CONFIG_RTL8672
+#ifdef USE_RLX_BSP
+#ifdef CONFIG_RTL8686
+	#define _GIMR_				BSP_GIMR1_0
+	#else
+	#define _GIMR_				BSP_GIMR
+	#endif
+#else
+	#define _GIMR_				GIMR
+#endif
+#define _ICU_UART_MSK_			_UART_IE
+#define _UART_RBR_				_UART_RBR 
+#define _UART_LSR_				_UART_LSR
+#else
+#if defined(__LINUX_2_6__) || defined(__ECOS)
+#ifdef CONFIG_RTL_8198B
+#define _GIMR_				BSP_GIMR0_0
+#else
 #define _GIMR_				BSP_GIMR
-#define _ICU_UART0_MSK_	BSP_UART0_IE
+#endif
+#define _ICU_UART0_MSK_		BSP_UART0_IE
 #define _UART0_RBR_			BSP_UART0_RBR
 #define _UART0_LSR_			BSP_UART0_LSR
 #else
 #define _GIMR_				GIMR
-#define _ICU_UART0_MSK_	UART0_IE
+#define _ICU_UART0_MSK_		UART0_IE
 #define _UART0_RBR_			UART0_RBR
 #define _UART0_LSR_			UART0_LSR
+#endif
 #endif
 #endif
 
@@ -206,7 +242,28 @@ static inline int IS_KEYBRD_HIT(void)
 #define RTL_UART_W8(reg, val)	writeb(val, (unsigned int)reg)
 #define RTL_UART_W32(reg, val)	writel(val, (unsigned int)reg)
 #endif
+#ifdef CONFIG_RTL8672
+#define DISABLE_UART0_INT() \
+	do { \
+		RTL_UART_W32(_GIMR_, RTL_UART_R32(_GIMR_) & ~_ICU_UART_MSK_); \
+		RTL_UART_R8(_UART_RBR_); \
+		RTL_UART_R8(_UART_RBR_); \
+	} while (0)
 
+#define RESTORE_UART0_INT() \
+	do { \
+		RTL_UART_W32(_GIMR_, RTL_UART_R32(_GIMR_) | _ICU_UART_MSK_); \
+	} while (0)
+
+static inline int IS_KEYBRD_HIT(void)
+{
+	if (RTL_UART_R8(_UART_LSR_) & 1) { // data ready
+		RTL_UART_R8(_UART_RBR_);	 // clear rx FIFO
+		return 1;
+	}
+	return 0;
+}
+#else
 #define DISABLE_UART0_INT() \
 	do { \
 		RTL_UART_W32(_GIMR_, RTL_UART_R32(_GIMR_) & ~_ICU_UART0_MSK_); \
@@ -227,15 +284,14 @@ static inline int IS_KEYBRD_HIT(void)
 	}
 	return 0;
 }
+
+#endif
 #endif // USE_RTL8186_SDK
 
 
 /*
  *  find a token in a string. If succes, return pointer of token next. If fail, return null
  */
-#ifndef EN_EFUSE
-static
-#endif
 char *get_value_by_token(char *data, char *token)
 {
 		int idx=0, src_len=strlen(data), token_len=strlen(token);
@@ -320,7 +376,27 @@ static __inline__ int isLegalRate(unsigned int rate)
 	return res;
 }
 
+#ifdef MP_PSD_SUPPORT
+int GetPSDData(struct rtl8192cd_priv *priv,unsigned int point)
+{
+	int psd_val;
 
+	psd_val = RTL_R32(0x808);
+	psd_val &= 0xFFBFFC00;
+	psd_val |= point;
+
+	RTL_W32(0x808, psd_val);
+	delay_ms(2);
+	psd_val |= 0x00400000;
+
+	RTL_W32(0x808, psd_val);
+	delay_ms(2);
+	psd_val = RTL_R32(0x8B4);
+
+	psd_val &= 0x0000FFFF;
+	return psd_val;
+}
+#endif
 #if 0
 static void mp_RL5975e_Txsetting(struct rtl8192cd_priv *priv)
 {
@@ -488,16 +564,21 @@ static void mp_RF_RxLPFsetting(struct rtl8192cd_priv *priv)
 
 static void mp_8192CD_tx_setting(struct rtl8192cd_priv *priv)
 {
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
 	unsigned int odd_pwr = 0;
-	extern int get_CCK_swing_index(struct rtl8192cd_priv*);
-//#ifndef CONFIG_RTL_92D_SUPPORT
-#if 1//!defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_DUAL_PCIESLOT_BIWLAN_D)
 	extern void set_CCK_swing_index(struct rtl8192cd_priv*, short );
-#endif
 
-	if (is_CCK_rate(priv->pshare->mp_datarate) && ((!IS_TEST_CHIP(priv) && 
-		(GET_CHIP_VER(priv) == VERSION_8192C)) 
-		|| (GET_CHIP_VER(priv) == VERSION_8192D)
+	if (is_CCK_rate(priv->pshare->mp_datarate) 
+		&& (
+#ifdef CONFIG_RTL_92C_SUPPORT
+		(!IS_TEST_CHIP(priv) && (GET_CHIP_VER(priv) == VERSION_8192C)) 
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+		|| 
+#endif
+		(GET_CHIP_VER(priv) == VERSION_8192D)
+#endif
 		)) {
 		if (RTL_R8(0xa07) & 0x80) {
 			if (priv->pshare->mp_txpwr_patha % 2)
@@ -521,6 +602,7 @@ static void mp_8192CD_tx_setting(struct rtl8192cd_priv *priv)
 		}
 		priv->pshare->mp_cck_txpwr_odd = odd_pwr;
 	}
+#endif
 }
 
 
@@ -560,8 +642,17 @@ static void mpt_StartCckContTx(struct rtl8192cd_priv *priv)
 	PHY_SetBBReg(priv, rCCK0_System, bCCKBBMode, 0x2);    //transmit mode
 	PHY_SetBBReg(priv, rCCK0_System, bCCKScramble, 0x1);  //turn on scramble setting
 
+#if 1//def CONFIG_RTL8672
+	// Commented out for background mode, sync with SD7, 2010-07-08 by Annie ---
+	// We will set 0x820 and 0x828 under Tx mode in mp_ctx(), 2010-09-17 by Family.
+	//	PHY_SetBBReg(priv, 0x820, 0x400, 0x1);
+	//	PHY_SetBBReg(priv, 0x828, 0x400, 0x1);
+	//---
+#else //CONFIG_RTL8672
 	PHY_SetBBReg(priv, 0x820, 0x400, 0x1);
 	PHY_SetBBReg(priv, 0x828, 0x400, 0x1);
+#endif //CONFIG_RTL8672
+
 }
 
 
@@ -577,24 +668,23 @@ static void mpt_StopCckCoNtTx(struct rtl8192cd_priv *priv)
 
 static void mpt_StartOfdmContTx(struct rtl8192cd_priv *priv)
 {
+	unsigned int go=0;
+
 	// 1. if OFDM block on?
 	if (!PHY_QueryBBReg(priv, rFPGA0_RFMOD, bOFDMEn))
 		PHY_SetBBReg(priv, rFPGA0_RFMOD, bOFDMEn, bEnable);//set OFDM block on
 
-//#ifdef CONFIG_RTL_92D_SUPPORT
-	unsigned int go=0;
-	if(CHECKICIS92D())
+	if (CHECKICIS92D())
 	{
 		if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_2G)
-		{	go=1;
-		}
+			go=1;
 		else
 			go=0;
 	}
 	else
-	{go=1;}
-	if(go==1)
-//#endif
+		go=1;
+
+	if (go==1)
 	{
 		// 2. set CCK test mode off, set to CCK normal mode
 		PHY_SetBBReg(priv, rCCK0_System, bCCKBBMode, bDisable);
@@ -608,8 +698,18 @@ static void mpt_StartOfdmContTx(struct rtl8192cd_priv *priv)
 	PHY_SetBBReg(priv, rOFDM1_LSTF, bOFDMSingleCarrier, bDisable);
 	PHY_SetBBReg(priv, rOFDM1_LSTF, bOFDMSingleTone, bDisable);
 
+
+#if 1//def CONFIG_RTL8672
+	// Commented out for background mode, sync with SD7, 2010-07-08 by Annie ---
+	// We will set 0x820 and 0x828 under Tx mode in mp_ctx(), 2010-09-17 by Family.
+	//	PHY_SetBBReg(priv, 0x820, 0x400, 0x1);
+	//	PHY_SetBBReg(priv, 0x828, 0x400, 0x1);
+	//---
+#else //CONFIG_RTL8672
 	PHY_SetBBReg(priv, 0x820, 0x400, 0x1);
 	PHY_SetBBReg(priv, 0x828, 0x400, 0x1);
+#endif //CONFIG_RTL8672
+
 }
 
 
@@ -664,6 +764,8 @@ static void mpt_ProSetCarrierSupp(struct rtl8192cd_priv *priv, int enable)
  */
 void mp_start_test(struct rtl8192cd_priv *priv)
 {
+	unsigned int go=0;
+
 	if (!netif_running(priv->dev))
 	{
 		printk("\nFail: interface not opened\n");
@@ -675,6 +777,11 @@ void mp_start_test(struct rtl8192cd_priv *priv)
 		printk("\nFail: already in MP mode\n");
 		return;
 	}
+
+#ifdef MP_SWITCH_LNA
+	priv->pshare->rx_packet_ss_a = 0;
+	priv->pshare->rx_packet_ss_b = 0;
+#endif
 
 #ifdef TEMP_MP_92D
 	RTL_W32(CR, (RTL_R32(CR) & ~(NETYPE_Mask << NETYPE_SHIFT)) | ((NETYPE_NOLINK & NETYPE_Mask) << NETYPE_SHIFT));
@@ -733,6 +840,11 @@ void mp_start_test(struct rtl8192cd_priv *priv)
 	priv->pshare->mp_antenna_tx = ANTENNA_A;
 	priv->pshare->mp_antenna_rx = ANTENNA_A;
 	mp_chk_sw_ant(priv);
+	
+	if ((get_rf_mimo_mode(priv) == MIMO_2T2R) && priv->pmib->dot11RFEntry.txbf) {
+			// Tx Path Selection by ctrl_reg in MP mode
+			PHY_SetBBReg(priv, 0x90C, BIT(30), 0);
+		}
 
 	// initialize swing index
 	{
@@ -746,19 +858,18 @@ void mp_start_test(struct rtl8192cd_priv *priv)
 			}
 		}
 
-//#ifdef CONFIG_RTL_92D_SUPPORT
-	unsigned int go=0;
-	if(CHECKICIS92D())
-	{
-		if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_2G)
-		{ go=1;}
-		else {go=0;}
-	}
-	else go=1;	
-	if(go==1)		
-//#endif
+		if (CHECKICIS92D())
+		{
+			if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_2G)
+				go=1;
+			else
+				go=0;
+		}
+		else
+			go=1;
 
-			priv->pshare->mp_cck_swing_idx = get_cck_swing_idx(priv->pshare->CurrentChannelBW, priv->pshare->mp_ofdm_swing_idx);
+		if (go==1)		
+				priv->pshare->mp_cck_swing_idx = get_cck_swing_idx(priv->pshare->CurrentChannelBW, priv->pshare->mp_ofdm_swing_idx);
 	}
 
 	// change mode to mp mode
@@ -795,18 +906,31 @@ void mp_start_test(struct rtl8192cd_priv *priv)
 	set_DIG_state(priv, 0);
 	delay_ms(1);
 
-#ifdef HIGH_POWER_EXT_PA
+#if defined( HIGH_POWER_EXT_PA) && defined(CONFIG_RTL_92C_SUPPORT)
 
 //_TXPWR_REDEFINE ?? shall also apply to Normal Driver ??
-	if ((priv->pshare->rf_ft_var.use_ext_pa) && (GET_CHIP_VER(priv)!=VERSION_8192D)) {
+	if ((priv->pshare->rf_ft_var.use_ext_pa) && 
+		((GET_CHIP_VER(priv)==VERSION_8192C)  || (GET_CHIP_VER(priv)==VERSION_8188E))) {
 		RTL_W8(0xc50, 0x2e);
 		RTL_W8(0xc58, 0x2e);
-	}
-	else
+	} else
 #endif
 	if (priv->pshare->rf_ft_var.use_ext_lna) {
 		RTL_W8(0xc50, 0x2a);
-		RTL_W8(0xc58, 0x2a);
+#if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
+		if (
+#ifdef CONFIG_RTL_92C_SUPPORT
+			(GET_CHIP_VER(priv)==VERSION_8192C) || (GET_CHIP_VER(priv)==VERSION_8188C) 
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef CONFIG_RTL_92C_SUPPORT
+			|| 
+#endif
+			(GET_CHIP_VER(priv)==VERSION_8192D)
+#endif
+			)
+			RTL_W8(0xc58, 0x2a);
+#endif
 	}
 #ifdef CONFIG_RTL_92D_SUPPORT
 	else if (GET_CHIP_VER(priv)==VERSION_8192D) {
@@ -858,6 +982,9 @@ void mp_start_test(struct rtl8192cd_priv *priv)
 	printk("        - if \"stone\", send packet in single-tone.\n");
 	printk("        - default: tx infinitely (no background).\n");
 	printk("  iwpriv wlanx mp_query\n");
+#ifdef MP_PSD_SUPPORT
+	printk("  iwpriv wlanx mp_psd\n"); 
+#endif
 	printk("  iwpriv wlanx mp_ther\n");
 	printk("  iwpriv wlanx mp_pwrtrk [ther={7-29}, stop]\n");
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -906,6 +1033,14 @@ void mp_stop_test(struct rtl8192cd_priv *priv)
 		return;
 	}
 
+#if 1//def CONFIG_RTL8672
+	// make sure mp_ctx action stop, otherwise it will cause memory leak(skb_pool_ptr) for linux SDK
+	//	 ,or crash dump for OSK because free skb_pool using rtl_kfree_skb()
+	if (OPMODE & WIFI_MP_CTX_BACKGROUND) {
+		mp_ctx(priv, "stop");
+	}
+#endif
+
 	// enable beacon
 	RTL_W8(TXPAUSE, RTL_R8(TXPAUSE) & ~STOP_BCN);
 	OPMODE &= ~WIFI_MP_STATE;
@@ -923,7 +1058,9 @@ void mp_set_datarate(struct rtl8192cd_priv *priv, unsigned char *data)
 {
 	unsigned char rate, rate_org;
 	char tmpbuf[32];
+#if 0
 	RF92CD_RADIO_PATH_E eRFPath;
+#endif
 
 	if (!netif_running(priv->dev))
 	{
@@ -934,6 +1071,11 @@ void mp_set_datarate(struct rtl8192cd_priv *priv, unsigned char *data)
 	if (!(OPMODE & WIFI_MP_STATE))
 	{
 		printk("Fail: not in MP mode\n");
+		return;
+	}
+	if (OPMODE & WIFI_MP_CTX_BACKGROUND)
+	{
+		printk("Fail: In MP background mode, please stop and retry it again\n");
 		return;
 	}
 
@@ -957,6 +1099,7 @@ void mp_set_datarate(struct rtl8192cd_priv *priv, unsigned char *data)
 
 	rate_org = priv->pshare->mp_datarate;
 	priv->pshare->mp_datarate = rate;
+#if 0	
 	for (eRFPath = RF92CD_PATH_A; eRFPath<priv->pshare->phw->NumTotalRFPath; eRFPath++) {
 		if (!PHYCheckIsLegalRfPath8192cPci(priv, eRFPath))
 			continue;
@@ -965,9 +1108,18 @@ void mp_set_datarate(struct rtl8192cd_priv *priv, unsigned char *data)
 		if(CHECKICIS92D()){
 			priv->pshare->RegRF18[eRFPath] &= (~BIT(11));
 			priv->pshare->RegRF18[eRFPath] |= BIT(10);
-		} else
+		}
 #endif
-			PHY_SetRFReg(priv, (RF92CD_RADIO_PATH_E)eRFPath, rRfChannel, (BIT(11)|BIT(10)), 0x01);
+#ifdef CONFIG_RTL_92C_SUPPORT
+		if ((GET_CHIP_VER(priv) == VERSION_8192C)||(GET_CHIP_VER(priv) == VERSION_8188C)){
+			PHY_SetRFReg(priv, eRFPath, rRfChannel, (BIT(11)|BIT(10)), 0x1);
+		}
+#endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8188E){
+			PHY_SetRFReg(priv, eRFPath, rRfChannel, (BIT(11)|BIT(10)), 0x3);
+		}
+#endif
 		}else{
 #ifdef CONFIG_RTL_92D_SUPPORT
 			if(CHECKICIS92D()){
@@ -984,6 +1136,7 @@ void mp_set_datarate(struct rtl8192cd_priv *priv, unsigned char *data)
 #endif		
 		delay_us(100);
 	}
+#endif	
 /*
 	if(CHECKICIS92C()) {
 		if (is_CCK_rate(priv->pshare->mp_datarate)) {
@@ -1014,7 +1167,9 @@ void mp_set_channel(struct rtl8192cd_priv *priv, unsigned char *data)
 	unsigned char channel, channel_org;
 	char tmpbuf[48];
 	unsigned int eRFPath;
-
+#ifdef CONFIG_RTL_92D_SUPPORT
+	unsigned int go=0;
+#endif
 	if (!netif_running(priv->dev))
 	{
 		printk("\nFail: interface not opened\n");
@@ -1030,7 +1185,6 @@ void mp_set_channel(struct rtl8192cd_priv *priv, unsigned char *data)
 	channel = (unsigned char)_atoi((char *)data, 10);
 
 #ifdef CONFIG_RTL_92D_SUPPORT
-	unsigned int go=0;
 	if(CHECKICIS92D())		
 	{	if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_2G)
 	          go=1;
@@ -1109,6 +1263,28 @@ void mp_set_channel(struct rtl8192cd_priv *priv, unsigned char *data)
 		channel = val;
 	}
 
+
+#ifdef CONFIG_RTL_88E_SUPPORT 
+	if(GET_CHIP_VER(priv) == VERSION_8188E){
+		unsigned int val_read;
+		val_read = PHY_QueryRFReg(priv, 0, 0x18, bMask20Bits, 1);
+
+		if(priv->pshare->CurrentChannelBW == 1)
+		{
+			val_read |= BIT(10);
+			val_read &= (~BIT(11));
+		}
+		else
+		{
+			val_read |= BIT(10);
+			val_read |= BIT(11);
+		}
+
+		PHY_SetRFReg(priv, 0, 0x18, bMask20Bits, val_read);
+	}
+#endif
+
+
 #ifdef CONFIG_RTL_92D_SUPPORT
 	if(CHECKICIS92D())
 	{
@@ -1135,6 +1311,10 @@ void mp_set_channel(struct rtl8192cd_priv *priv, unsigned char *data)
 		Update92DRFbyChannel(priv, channel);
 		
 		PHY_IQCalibrate(priv);
+#ifdef DPK_92D		
+		if (priv->pmib->dot11RFEntry.phyBandSelect==PHY_BAND_5G && priv->pshare->rf_ft_var.dpk_on)
+			PHY_DPCalibrate(priv);
+#endif
 	}
 #endif
 
@@ -1146,14 +1326,21 @@ void mp_set_channel(struct rtl8192cd_priv *priv, unsigned char *data)
 //#endif
 
 	priv->pshare->working_channel = channel;
+
+	//CCK Shaping Filter
+	if(priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G)
+		set_CCK_swing_index(priv, 12);
+	
 //	mp_8192CD_tx_setting(priv);
 
+#ifdef CONFIG_RTL_92C_SUPPORT
 	if(IS_UMC_B_CUT_88C(priv)) {
 		if(channel==6)
 			RTL_W8(0xc50, 0x22);
 		else
 			RTL_W8(0xc50, 0x20);
 	}
+#endif
 
 #ifdef TXPWR_LMT
 	if (!priv->pshare->rf_ft_var.disable_txpwrlmt){
@@ -1192,7 +1379,7 @@ void mp_set_channel(struct rtl8192cd_priv *priv, unsigned char *data)
 			//printk("priv->pshare->phw->MCSTxAgcOffset_A[%d]=%x\n",i, priv->pshare->phw->MCSTxAgcOffset_A[i]);
 			//printk("priv->pshare->phw->MCSTxAgcOffset_B[%d]=%x\n",i, priv->pshare->phw->MCSTxAgcOffset_B[i]);
 		}
-
+		
 		if (!priv->pshare->txpwr_lmt_HT2S || !priv->pshare->tgpwr_HT2S){
 			DEBUG_INFO("No limit for HT2S TxPower\n");
 			max_idx=255;
@@ -1283,6 +1470,13 @@ void mp_set_tx_power(struct rtl8192cd_priv *priv, unsigned char *data)
 #endif
 */
 
+#if defined(CALIBRATE_BY_ODM) && defined(CONFIG_RTL_88E_SUPPORT)
+	if (GET_CHIP_VER(priv) == VERSION_8188E) {
+	PHY_RF6052SetCCKTxPower(priv, *(ODMPTR->pChannel));
+	PHY_RF6052SetOFDMTxPower(priv, *(ODMPTR->pChannel));
+	} else
+#endif	
+	{
 	baseA = priv->pshare->mp_txpwr_patha;
 	baseB = priv->pshare->mp_txpwr_pathb;
 
@@ -1407,7 +1601,6 @@ void mp_set_tx_power(struct rtl8192cd_priv *priv, unsigned char *data)
 	writeVal = (byte[0]<<24) | (byte[1]<<16) |(byte[2]<<8) | byte[3];
 	RTL_W32(rTxAGC_B_Rate18_06, writeVal);
 
-	
 	// 54M ~ 24M
 	for (i=0; i<4; i++) {
 		if (priv->pshare->rf_ft_var.pwr_by_rate)
@@ -1439,7 +1632,7 @@ void mp_set_tx_power(struct rtl8192cd_priv *priv, unsigned char *data)
 #endif
 	writeVal = (byte[0]<<24) | (byte[1]<<16) |(byte[2]<<8) | byte[3];
 	RTL_W32(rTxAGC_B_Mcs03_Mcs00, writeVal);
-	
+
 	// MCS7 ~ MCS4
 	for (i=0; i<4; i++) {
 		if (priv->pshare->rf_ft_var.pwr_by_rate)
@@ -1475,7 +1668,6 @@ void mp_set_tx_power(struct rtl8192cd_priv *priv, unsigned char *data)
 	writeVal = (byte[0]<<24) | (byte[1]<<16) |(byte[2]<<8) | byte[3];
 	RTL_W32(rTxAGC_B_Mcs11_Mcs08, writeVal);
 
-	
 	// MCS15 ~ MCS12
 	for (i=0; i<4; i++) {
 		if (priv->pshare->rf_ft_var.pwr_by_rate)
@@ -1515,7 +1707,6 @@ void mp_set_tx_power(struct rtl8192cd_priv *priv, unsigned char *data)
 		writeVal = POWER_RANGE_CHECK(baseA + priv->pshare->phw->CCKTxAgc_A[3]);
 	else
 		writeVal = baseA;
-	
 #ifdef HIGH_POWER_EXT_PA
 	if (priv->pshare->rf_ft_var.use_ext_pa) {	
 		writeVal = POWER_MIN_CHECK(writeVal, HP_CCK_POWER_MAX);
@@ -1550,7 +1741,12 @@ void mp_set_tx_power(struct rtl8192cd_priv *priv, unsigned char *data)
 		byte[0] = POWER_RANGE_CHECK(baseB + priv->pshare->phw->CCKTxAgc_B[0]);
 	else
 		byte[0] = baseB;
-	
+#ifdef HIGH_POWER_EXT_PA
+	if (priv->pshare->rf_ft_var.use_ext_pa) {
+		for (i=0; i<4; i++)
+			byte[i] = POWER_MIN_CHECK(byte[i], HP_CCK_POWER_MAX);
+	}
+#endif
 	writeVal = (byte[1]<<24) | (byte[2]<<16) |(byte[3]<<8) | byte[0];
 	PHY_SetBBReg(priv, rTxAGC_A_CCK11_2_B_CCK11, 0xffffffff, writeVal);
 
@@ -1564,6 +1760,52 @@ void mp_set_tx_power(struct rtl8192cd_priv *priv, unsigned char *data)
 			priv->pshare->mp_txpwr_patha, priv->pshare->mp_txpwr_pathb);
 		printk(tmpbuf);
 	}
+
+#ifdef CONFIG_RTL_92D_SUPPORT
+#ifdef DPK_92D
+	if ((GET_CHIP_VER(priv) == VERSION_8192D) && (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) ) {
+
+		unsigned int tmp_txpwr_dpk_0 = 0, tmp_txpwr_dpk_1 = 0;
+
+		tmp_txpwr_dpk_0 += (priv->pshare->TxPowerLevelDPK[0]);
+		tmp_txpwr_dpk_0 += (priv->pshare->TxPowerLevelDPK[0]<<8);
+		tmp_txpwr_dpk_0 += (priv->pshare->TxPowerLevelDPK[0]<<16);
+		tmp_txpwr_dpk_0 += (priv->pshare->TxPowerLevelDPK[0]<<24);
+
+		tmp_txpwr_dpk_1 += (priv->pshare->TxPowerLevelDPK[1]);
+		tmp_txpwr_dpk_1 += (priv->pshare->TxPowerLevelDPK[1]<<8);
+		tmp_txpwr_dpk_1 += (priv->pshare->TxPowerLevelDPK[1]<<16);
+		tmp_txpwr_dpk_1 += (priv->pshare->TxPowerLevelDPK[1]<<24);
+		
+		priv->pshare->phw->power_backup[0x00] = RTL_R32(rTxAGC_A_Rate18_06);
+		priv->pshare->phw->power_backup[0x01] = RTL_R32(rTxAGC_A_Rate54_24);
+		priv->pshare->phw->power_backup[0x02] = RTL_R32(rTxAGC_B_Rate18_06);
+		priv->pshare->phw->power_backup[0x03] = RTL_R32(rTxAGC_B_Rate54_24);
+		priv->pshare->phw->power_backup[0x04] = RTL_R32(rTxAGC_A_Mcs03_Mcs00);
+		priv->pshare->phw->power_backup[0x05] = RTL_R32(rTxAGC_A_Mcs07_Mcs04);
+		priv->pshare->phw->power_backup[0x06] = RTL_R32(rTxAGC_A_Mcs11_Mcs08);
+		priv->pshare->phw->power_backup[0x07] = RTL_R32(rTxAGC_A_Mcs15_Mcs12);
+		priv->pshare->phw->power_backup[0x08] = RTL_R32(rTxAGC_B_Mcs03_Mcs00);
+		priv->pshare->phw->power_backup[0x09] = RTL_R32(rTxAGC_B_Mcs07_Mcs04);
+		priv->pshare->phw->power_backup[0x0a] = RTL_R32(rTxAGC_B_Mcs11_Mcs08);
+		priv->pshare->phw->power_backup[0x0b] = RTL_R32(rTxAGC_B_Mcs15_Mcs12);
+
+		RTL_W32(rTxAGC_A_Rate18_06, priv->pshare->phw->power_backup[0x00]	 +tmp_txpwr_dpk_0);
+		RTL_W32(rTxAGC_A_Rate54_24, priv->pshare->phw->power_backup[0x01]	 +tmp_txpwr_dpk_0);
+		RTL_W32(rTxAGC_B_Rate18_06, priv->pshare->phw->power_backup[0x02]	 +tmp_txpwr_dpk_1);
+		RTL_W32(rTxAGC_B_Rate54_24, priv->pshare->phw->power_backup[0x03]	 +tmp_txpwr_dpk_1);
+		RTL_W32(rTxAGC_A_Mcs03_Mcs00, priv->pshare->phw->power_backup[0x04]  +tmp_txpwr_dpk_0);
+		RTL_W32(rTxAGC_A_Mcs07_Mcs04, priv->pshare->phw->power_backup[0x05]  +tmp_txpwr_dpk_0);
+		RTL_W32(rTxAGC_A_Mcs11_Mcs08, priv->pshare->phw->power_backup[0x06]  +tmp_txpwr_dpk_0);
+		RTL_W32(rTxAGC_A_Mcs15_Mcs12, priv->pshare->phw->power_backup[0x07]  +tmp_txpwr_dpk_0);
+		RTL_W32(rTxAGC_B_Mcs03_Mcs00, priv->pshare->phw->power_backup[0x08]  +tmp_txpwr_dpk_1);
+		RTL_W32(rTxAGC_B_Mcs07_Mcs04, priv->pshare->phw->power_backup[0x09]  +tmp_txpwr_dpk_1);
+		RTL_W32(rTxAGC_B_Mcs11_Mcs08, priv->pshare->phw->power_backup[0x0a]  +tmp_txpwr_dpk_1);
+		RTL_W32(rTxAGC_B_Mcs15_Mcs12, priv->pshare->phw->power_backup[0x0b]  +tmp_txpwr_dpk_1);
+	}
+#endif
+#endif
+}
 }
 
 
@@ -1587,6 +1829,9 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 	int len, i=0, q_num;
 	unsigned char pattern;
 	char *val;
+#if 1//def CONFIG_RTL8672
+	unsigned long flags2=0;
+#endif
 	unsigned long end_time=0;
 	unsigned long flags=0;
 	int tx_from_isr=0, background=0;
@@ -1594,7 +1839,9 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 	volatile unsigned int head, tail;
 	RF92CD_RADIO_PATH_E eRFPath;
 
-	unsigned int temp_860,  temp_864, temp_870;
+#ifdef CONFIG_RTL_92D_SUPPORT
+	unsigned int temp_860=0,  temp_864=0, temp_870=0;
+#endif
 /*
 // We need to turn off ADC before entering CTX mode
 	RTL_W32(0xe70, (RTL_R32(0xe70) & 0xFE1FFFFF ) );
@@ -1636,11 +1883,6 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 	if (val)
 		background = 1;
 
-	// get packet mode
-	val = get_value_by_token((char *)data, "pkt");
-	if (val)
-		OPMODE |= WIFI_MP_CTX_PACKET;
-
 	// get carrier suppression mode
 	val = get_value_by_token((char *)data, "cs");
 	if (val) {
@@ -1671,23 +1913,11 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 	// get stop
 	val = get_value_by_token((char *)data, "stop");
 	if (val) {
-		unsigned long flags;
 
 		if (!(OPMODE & WIFI_MP_CTX_BACKGROUND)) {
 			printk("Error! Continuous-Tx is not on-going.\n");
 			return;
 		}
-		printk("Stop continuous TX\n");
-
-		SAVE_INT_AND_CLI(flags);
-		OPMODE &= ~(WIFI_MP_CTX_BACKGROUND | WIFI_MP_CTX_BACKGROUND_PENDING);
-		RESTORE_INT(flags);
-
-		delay_ms(1000);
-		for (i=0; i<NUM_MP_SKB; i++)
-			kfree(priv->pshare->skb_pool[i]->head);
-		kfree(priv->pshare->skb_pool_ptr);
-
 		goto stop_tx;
 	}
 
@@ -1696,8 +1926,15 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 	val = get_value_by_token((char *)data, "tx-isr");
 	if (val) {
 		if (OPMODE & WIFI_MP_CTX_BACKGROUND) {
+
+#if 1//def CONFIG_RTL8672
+			if ((OPMODE & WIFI_MP_CTX_ST) || (!(OPMODE & (WIFI_MP_CTX_PACKET|WIFI_MP_CTX_CCK_CS)) &&
+					(priv->net_stats.tx_packets > 0)) )
+				return;
+#else //CONFIG_RTL8672
 			if (OPMODE & WIFI_MP_CTX_OFDM_HW)
 				return;
+#endif //CONFIG_RTL8672
 
 			tx_from_isr = 1;
 			time = -1;
@@ -1708,6 +1945,10 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 		printk("Continuous-Tx is on going. You can't issue any tx command except 'stop'.\n");
 		return;
 	}
+	// get packet mode
+		val = get_value_by_token((char *)data, "pkt");
+		if (val)
+			OPMODE |= WIFI_MP_CTX_PACKET;
 
 	if (background) {
 		priv->pshare->skb_pool_ptr = kmalloc(sizeof(struct sk_buff)*NUM_MP_SKB, GFP_KERNEL);
@@ -1742,6 +1983,16 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 
 		/*disable interrupt and change OPMODE here to avoid re-enter*/
 		SAVE_INT_AND_CLI(flags);
+
+		head = get_txhead(phw, BE_QUEUE);
+		tail = get_txtail(phw, BE_QUEUE);
+		
+		while (head != tail) {
+			DEBUG_INFO("BEQ head/tail=%d/%d\n", head, tail);
+			rtl8192cd_tx_dsr((unsigned long)priv);
+			delay_us(50);
+			tail = get_txtail(phw, BE_QUEUE);
+		}
 		OPMODE |= WIFI_MP_CTX_BACKGROUND;
 		time = -1; // set as infinite
 	}
@@ -1810,11 +2061,21 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
         if (is_CCK_rate(priv->pshare->mp_datarate)) {
                 PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x0f400);
         } else {
-                if( IS_UMC_A_CUT_88C(priv) || GET_CHIP_VER(priv) == VERSION_8192C )
-                        PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x4f000);
-                else
-                        PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x4f200);
-        }
+#ifdef CONFIG_RTL_92C_SUPPORT
+		if( IS_UMC_A_CUT_88C(priv) || GET_CHIP_VER(priv) == VERSION_8192C) {
+			PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x4f000);
+		} else
+#endif
+		{
+#ifdef CONFIG_RTL_92C_SUPPORT
+			if( (IS_UMC_B_CUT_88C(priv) || GET_CHIP_VER(priv) == VERSION_8192C) 
+				&& ((priv->pmib->dot11RFEntry.dot11channel == 4)||(priv->pmib->dot11RFEntry.dot11channel == 12)))
+				PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x4f000);
+			else
+#endif
+				PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x4f200);
+		}
+	}
 
 
 	i = 0;
@@ -1895,7 +2156,11 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 				PHY_SetRFReg(priv, RF92CD_PATH_A, 0x21, bMask20Bits, 0xd4000);
 			}
 			delay_us(100);
+#ifdef HIGH_POWER_EXT_PA
+				PHY_SetRFReg(priv, eRFPath, 0x00, bMask20Bits, 0x20000); //From suggestion of BS (RF Team)
+#else
 				PHY_SetRFReg(priv, eRFPath, 0x00, bMask20Bits, 0x20010);
+#endif
 			delay_us(100);
 
 #ifdef HIGH_POWER_EXT_PA
@@ -1988,8 +2253,12 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 			SetFrDs(txinsn.phdr);
 			SetFrameType(txinsn.phdr, WIFI_DATA);
 
-			if(rtl8192cd_firetx(priv, &txinsn) == CONGESTED) {
+			if(rtl8192cd_firetx(priv, &txinsn) == CONGESTED) 
+			{
 				//printk("Congested\n");
+#if 1//def CONFIG_RTL8672 
+
+#else //CONFIG_RTL8672
 				if (tx_from_isr) {
 					head = get_txhead(phw, BE_QUEUE);
 					tail = get_txtail(phw, BE_QUEUE);
@@ -1997,6 +2266,7 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 						OPMODE |= (WIFI_MP_CTX_BACKGROUND | WIFI_MP_CTX_BACKGROUND_PENDING);
 					return;
 				}
+#endif //CONFIG_RTL8672
 				i--;
 				priv->pshare->mp_ctx_pkt--;
 				if (txinsn.phdr)
@@ -2010,6 +2280,21 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 					rtl_kfree_skb(priv, skb, _SKB_TX_);
 				}
 
+
+#if 1//def CONFIG_RTL8672
+				if (tx_from_isr) {
+					head = get_txhead(phw, BE_QUEUE);
+					tail = get_txtail(phw, BE_QUEUE);
+					if (head == tail) // if Q empty,invoke 1s-timer to send
+						OPMODE |= (WIFI_MP_CTX_BACKGROUND | WIFI_MP_CTX_BACKGROUND_PENDING);
+					return;
+				} else {
+					SAVE_INT_AND_CLI(flags2);
+					rtl8192cd_tx_dsr((unsigned long)priv);
+					RESTORE_INT(flags2);
+				}
+
+#else //CONFIG_RTL8672
 				if (!tx_from_isr) {
 					SAVE_INT_AND_CLI(flags);
 #ifdef SMP_SYNC
@@ -2022,8 +2307,52 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 #endif
 					RESTORE_INT(flags);
 				}
+#endif //CONFIG_RTL8672
 			}
-		} else {
+#if 1//def CONFIG_RTL8672
+			else if ((1 == priv->net_stats.tx_packets) &&
+				((OPMODE & (WIFI_MP_CTX_PACKET| WIFI_MP_CTX_BACKGROUND| WIFI_MP_CTX_ST|
+				WIFI_MP_CTX_CCK_CS))==WIFI_MP_CTX_BACKGROUND) )
+			{
+				#define CHECK_TX_MODE_CNT	40
+				int check_cnt;
+				
+				// must sure RF is in TX mode before enabling TXAGC function.
+				if ( priv->pshare->mp_antenna_tx & ANTENNA_A ) {
+					check_cnt = 0;
+					while ( (PHY_QueryRFReg(priv, RF92CD_PATH_A, 0x00, 0x70000, 1) != 0x02) && (check_cnt < CHECK_TX_MODE_CNT) ) {
+						delay_ms(1); ++check_cnt;
+					}
+					printk("RF(A) # of check tx mode = %d (%d)\n", check_cnt, tx_from_isr);
+					PHY_SetBBReg(priv, 0x820, 0x400, 0x1);
+				}
+				
+				if ( priv->pshare->mp_antenna_tx & ANTENNA_B ) {
+					check_cnt = 0;
+					while ( (PHY_QueryRFReg(priv, RF92CD_PATH_B, 0x00, 0x70000, 1) != 0x02) && (check_cnt < CHECK_TX_MODE_CNT) ) {
+						delay_ms(1); ++check_cnt;
+			}
+					printk("RF(B) # of check tx mode = %d\n", check_cnt);
+					PHY_SetBBReg(priv, 0x828, 0x400, 0x1);
+				}
+
+				if ( background ) {
+					RESTORE_INT(flags);
+				} else if (tx_from_isr) {
+					OPMODE &= ~WIFI_MP_CTX_BACKGROUND_PENDING;
+				}
+				return;
+
+				#undef CHECK_TX_MODE_CNT
+			}
+#endif
+		}
+		else 
+		{
+#ifdef CONFIG_RTL8672
+			i--;
+			priv->pshare->mp_ctx_pkt--;
+#endif
 			//printk("Can't allocate sk_buff\n");
 			if (tx_from_isr) {
 				head = get_txhead(phw, BE_QUEUE);
@@ -2032,10 +2361,17 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 					OPMODE |= (WIFI_MP_CTX_BACKGROUND | WIFI_MP_CTX_BACKGROUND_PENDING);
 				return;
 			}
+#if 1//def CONFIG_RTL8672	
+			delay_ms(1);
+			SAVE_INT_AND_CLI(flags2);
+			rtl8192cd_tx_dsr((unsigned long)priv);
+			RESTORE_INT(flags2);
+#else //CONFIG_RTL8672
 			i--;
 			priv->pshare->mp_ctx_pkt--;
 			delay_ms(1);
 			SAVE_INT_AND_CLI(flags);
+#endif //CONFIG_RTL8672
 #ifdef SMP_SYNC
 			if (!priv->pshare->has_triggered_tx_tasklet) {
 				tasklet_schedule(&priv->pshare->tx_tasklet);
@@ -2047,7 +2383,7 @@ void mp_ctx(struct rtl8192cd_priv *priv, unsigned char *data)
 			RESTORE_INT(flags);
 		}
 
-		if ((background || tx_from_isr) && (i == NUM_TX_DESC/4)) {
+		if ((background || tx_from_isr) && (i == CURRENT_NUM_TX_DESC/4)) {
 			OPMODE &= ~WIFI_MP_CTX_BACKGROUND_PENDING;
 			if (background)
 				RESTORE_INT(flags);
@@ -2159,6 +2495,34 @@ stop_tx:
 
 		PHY_SetBBReg(priv, rFPGA0_XA_HSSIParameter1, bContTxHSSI, 0);
 	}
+		if (OPMODE & WIFI_MP_CTX_BACKGROUND) {
+		
+		printk("Stop continuous TX\n");
+
+		SAVE_INT_AND_CLI(flags);
+		OPMODE |= WIFI_MP_CTX_BACKGROUND_STOPPING;
+		OPMODE &= ~WIFI_MP_CTX_BACKGROUND_PENDING;
+		RESTORE_INT(flags);
+		
+		while (priv->pshare->skb_head != priv->pshare->skb_tail) {
+			DEBUG_INFO("[%s %d] skb_head/skb_tail=%d/%d, head/tail=%d/%d\n",
+				__FUNCTION__, __LINE__, priv->pshare->skb_head, priv->pshare->skb_tail,
+				get_txhead(phw, BE_QUEUE), get_txtail(phw, BE_QUEUE));
+			
+			rtl8192cd_tx_dsr((unsigned long)priv);
+			delay_us(50);
+		}
+		
+		SAVE_INT_AND_CLI(flags);
+		OPMODE &= ~(WIFI_MP_CTX_BACKGROUND | WIFI_MP_CTX_BACKGROUND_PENDING | WIFI_MP_CTX_PACKET |
+				WIFI_MP_CTX_ST | WIFI_MP_CTX_SCR | WIFI_MP_CTX_CCK_CS |WIFI_MP_CTX_OFDM_HW |
+				WIFI_MP_CTX_BACKGROUND_STOPPING);
+		RESTORE_INT(flags);
+		
+		for (i=0; i<NUM_MP_SKB; i++)
+			kfree(priv->pshare->skb_pool[i]->head);
+		kfree(priv->pshare->skb_pool_ptr);
+	}
 }
 
 
@@ -2219,6 +2583,20 @@ void mp_txpower_tracking(struct rtl8192cd_priv *priv, unsigned char *data)
 		return;
 	}
 
+
+#ifdef CONFIG_RTL_88E_SUPPORT //for 88e tx power tracking
+	if(GET_CHIP_VER(priv) == VERSION_8188E){
+		if ((target_ther < 0x07) || (target_ther > 0x32)) {
+			printk("Warning: tx power tracking should have target thermal value 7-40\n");
+			if (target_ther < 0x07)
+				target_ther = 0x07;
+			else
+				target_ther = 0x32;
+			printk("Warning: reset target thermal value as %d\n", target_ther);
+		}
+	}
+	else
+#endif
 	if ((target_ther < 0x07) || (target_ther > 0x1d)) {
 		printk("Warning: tx power tracking should have target thermal value 7-29\n");
 		if (target_ther < 0x07)
@@ -2332,6 +2710,11 @@ int mp_query_ther(struct rtl8192cd_priv *priv, unsigned char *data)
 	}
 
 	// enable power and trigger
+#ifdef CONFIG_RTL_88E_SUPPORT //for 88e tx power tracking
+	if (GET_CHIP_VER(priv)==VERSION_8188E)
+		PHY_SetRFReg(priv, RF92CD_PATH_A, RF_T_METER_88E, (BIT(17) | BIT(16)), 0x03);
+	else
+#endif
 	if (CHECKICIS92D())
 		PHY_SetRFReg(priv, RF92CD_PATH_A, RF_T_METER_92D, bMask20Bits, 0x30000);
 	else	
@@ -2341,6 +2724,11 @@ int mp_query_ther(struct rtl8192cd_priv *priv, unsigned char *data)
 	delay_ms(1000);
 
 	// query rf reg 0x24[4:0], for thermal meter value
+#ifdef CONFIG_RTL_88E_SUPPORT //for 88e tx power tracking
+	if (GET_CHIP_VER(priv)==VERSION_8188E)
+		ther = PHY_QueryRFReg(priv, RF92CD_PATH_A, RF_T_METER_88E, 0xfc00, 1);
+	else
+#endif
 	if (CHECKICIS92D())	
 		ther = PHY_QueryRFReg(priv, RF92CD_PATH_A, RF_T_METER_92D, 0xf800, 1);
 	else	
@@ -2351,6 +2739,78 @@ int mp_query_ther(struct rtl8192cd_priv *priv, unsigned char *data)
 	return strlen(data)+1;
 }
 
+#ifdef MP_PSD_SUPPORT
+int mp_query_psd(struct rtl8192cd_priv *priv, unsigned char * data)
+{
+	char *val;
+	unsigned int i, psd_pts=0, psd_start=0, psd_stop=0;
+	int psd_data=0;
+
+	if (!netif_running(priv->dev)) {
+		printk("\nFail: interface not opened\n");
+		return 0;
+	}
+
+	if (!(OPMODE & WIFI_MP_STATE)) {
+		printk("Fail: not in MP mode\n");
+		return 0;
+	}
+
+	if (strlen(data) == 0) { //default value
+		psd_pts = 128;
+		psd_start = 64;
+		psd_stop = 128;   
+		
+	}
+	else
+	{
+		val = get_value_by_token((char *)data, "pts=");
+		if (val) {
+			psd_pts = _atoi(val,10);
+		}else {
+			psd_pts = 128;
+		}
+
+		val = get_value_by_token((char *)data, "start=");
+		if (val) {
+			psd_start=_atoi(val,10);
+		}else {
+			psd_start = 64;
+		}
+
+		val = get_value_by_token((char *)data, "stop=");
+		if (val) {
+			psd_stop=_atoi(val,10);
+		}else {
+			psd_stop = psd_pts;   
+		}
+	}
+
+	memset(data,'\0',sizeof(data));
+
+	i = psd_start;
+	while( i < psd_stop) {
+		
+		if( i>= psd_pts) {
+			psd_data = GetPSDData(priv,(i-psd_pts));
+		}
+		else {
+			psd_data = GetPSDData(priv,i);
+		}
+		sprintf(data, "%s%x ",data, psd_data);
+		i++;
+	}
+
+	panic_printk("\"read psd = %s\"\n", data);
+	panic_printk("Length is %d\n",strlen(data));
+	printk("read psd = %s\n", data);
+	printk("Length is %d\n",strlen(data));
+	
+	delay_ms(500);
+
+	return strlen(data)+1;
+}
+#endif
 
 int mp_get_txpwr(struct rtl8192cd_priv *priv, unsigned char *data)
 {
@@ -2662,7 +3122,16 @@ int mp_tx(struct rtl8192cd_priv *priv, unsigned char *data)
 	printk("\n");
 #endif
 
-	RTL_W32(HIMR, RTL_R32(HIMR) | HIMR_BEDOK);
+#ifdef CONFIG_RTL_88E_SUPPORT
+	if (GET_CHIP_VER(priv)==VERSION_8188E) {
+		priv->pshare->InterruptMask |= HIMR_88E_BEDOK;
+		RTL_W32(REG_88E_HIMR, priv->pshare->InterruptMask);
+	} else
+#endif
+	{
+		RTL_W32(HIMR, RTL_R32(HIMR) | HIMR_BEDOK);
+	}
+
 //	RTL_W32(_RCR_, _NO_ERLYRX_);
 	RTL_W32(RCR, RTL_R32(RCR) & ~(RCR_AB | RCR_AM | RCR_APM | RCR_AAP));
 
@@ -3255,22 +3724,42 @@ int mp_arx(struct rtl8192cd_priv *priv, unsigned char *data)
 		printk("Fail: not in MP mode\n");
 		return 0;
 	}
+	if (OPMODE & WIFI_MP_CTX_BACKGROUND) {
+		printk("Fail: In MP background mode, please stop and retry it again\n");
+		return 0;
+	}
 
 	if (!strcmp(data, "start")) {
 		OPMODE |= WIFI_MP_RX;
-		RTL_W32(RCR, RCR_APWRMGT | RCR_AMF | RCR_ADF |RCR_ACRC32 |RCR_AB | RCR_AM | RCR_APM | RCR_AAP);
+		priv->pshare->mp_dig_on = 1;
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
+		mod_timer(&priv->pshare->MP_DIGTimer, jiffies + RTL_MILISECONDS_TO_JIFFIES(700));
+#endif
+#ifdef MP_SWITCH_LNA
+		priv->pshare->rx_packet_ss_a = 0;
+		priv->pshare->rx_packet_ss_b = 0;
+		PHY_SetBBReg(priv, 0xd00, BIT(27)|BIT(26), 0x3);
+		RTL_W32(RCR, RCR_APWRMGT | RCR_AMF | RCR_ADF |RCR_ACRC32 |RCR_AB | RCR_AM | RCR_APM | RCR_AAP | RCR_APP_PHYSTS);
+#else
+		RTL_W32(RCR, RCR_APWRMGT | RCR_AMF | RCR_ADF |RCR_ACRC32 |RCR_AB | RCR_AM | RCR_APM | RCR_AAP | RCR_APP_PHYSTS);
+#endif
 		if (priv->pshare->rf_ft_var.use_frq_2_3G)
 			PHY_SetBBReg(priv, rCCK0_System, bCCKEqualizer, 0x0);
 
 		memset(&priv->net_stats, 0,  sizeof(struct net_device_stats));
 		memset(&priv->ext_stats, 0,  sizeof(struct extra_stats));
 
+#ifdef CONFIG_RTL_92C_SUPPORT
                if( IS_UMC_B_CUT_88C(priv) )
                         PHY_SetRFReg(priv, 0, 0x26, bMask20Bits, 0x4f200);
-
+#endif
 	} else if (!strcmp(data, "stop")) {
 		OPMODE &= ~WIFI_MP_RX;
-		RTL_W32(RCR, RTL_R32(RCR) & ~(RCR_AB | RCR_AM | RCR_APM | RCR_AAP));
+		priv->pshare->mp_dig_on = 0;
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
+		del_timer(&priv->pshare->MP_DIGTimer);
+#endif
+		RTL_W32(RCR, RTL_R32(RCR) & ~(RCR_AB | RCR_AM | RCR_APM | RCR_AAP | RCR_APP_PHYSTS));
 
 		if (priv->pshare->rf_ft_var.use_frq_2_3G)
 			PHY_SetBBReg(priv, rCCK0_System, bCCKEqualizer, 0x1);
@@ -3649,8 +4138,8 @@ void mp_set_phypara(struct rtl8192cd_priv *priv, unsigned char *data)
 	}
 
 	
-	if (!CHECKICIS92D()) {
-		printk("Fail: xcap is for 92D only\n");
+	if (GET_CHIP_VER(priv) != VERSION_8192D && GET_CHIP_VER(priv) != VERSION_8188E) {
+		printk("Fail: xcap is for 92D or 88E only\n");
 		return;
 	}
 	
@@ -3670,17 +4159,24 @@ void mp_set_phypara(struct rtl8192cd_priv *priv, unsigned char *data)
 	}
 
 	// set CrystalCap value
-	if (xcap != -32) {
-		/*
-		PHY_SetBBReg(priv, rFPGA0_AnalogParameter1, bXtalCap01, (xcap & 0x00000003));
-		PHY_SetBBReg(priv, rFPGA0_AnalogParameter2, bXtalCap23, ((xcap & 0x0000000c) >> 2));
-		*/
-		PHY_SetBBReg(priv, 0x24, 0xF0, xcap & 0x0F);
-		PHY_SetBBReg(priv, 0x28, 0xF0000000, ((xcap & 0xF0) >> 4));
+	if(GET_CHIP_VER(priv) == VERSION_8192D){
+		if (xcap != -32) {
+			/*
+			PHY_SetBBReg(priv, rFPGA0_AnalogParameter1, bXtalCap01, (xcap & 0x00000003));
+			PHY_SetBBReg(priv, rFPGA0_AnalogParameter2, bXtalCap23, ((xcap & 0x0000000c) >> 2));
+			*/
+			PHY_SetBBReg(priv, 0x24, 0xF0, xcap & 0x0F);
+			PHY_SetBBReg(priv, 0x28, 0xF0000000, ((xcap & 0xF0) >> 4));
+		}
+	} 
+#ifdef CONFIG_RTL_88E_SUPPORT 
+	if(GET_CHIP_VER(priv) == VERSION_8188E){
+		if(xcap > 0 && xcap < 0x3F) {
+			PHY_SetBBReg(priv, 0x24, BIT(11)|BIT(12)|BIT(13)|BIT(14)|BIT(15)|BIT(16), xcap & 0x3F);
+			PHY_SetBBReg(priv, 0x24, BIT(17)|BIT(18)|BIT(19)|BIT(20)|BIT(21)|BIT(22), xcap & 0x3F);
+		}
 	}
-	
-		
-
+#endif
 	printk("Set xcap=%d\n", xcap);
 }
 
@@ -3796,6 +4292,56 @@ void mp_reset_stats(struct rtl8192cd_priv *priv)
 
 	memset(&priv->net_stats, 0,  sizeof(struct net_device_stats));
 	memset(&priv->ext_stats, 0,  sizeof(struct extra_stats));
+}
+void mp_dig(struct rtl8192cd_priv *priv, unsigned char *data)
+{
+	char *val;
+	
+	if (!netif_running(priv->dev)) {
+		printk("\nFail: interface not opened\n");
+		return;
+	}
+
+	if (!(OPMODE & WIFI_MP_STATE)) {
+		printk("Fail: not in MP mode\n");
+		return;
+	}
+	
+	val = get_value_by_token((char *)data, "on");
+	if (val) {
+		if (timer_pending(&priv->pshare->MP_DIGTimer)) {
+			printk("mp_dig is running!!!\n");
+			return;	
+		}
+		priv->pshare->mp_dig_reg_backup = RTL_R8(0xc50);
+		printk("mp dig on! backup IG: 0x%x\n", priv->pshare->mp_dig_reg_backup);	
+		
+		if (priv->pshare->mp_dig_on==TRUE)
+			return;
+		priv->pshare->mp_dig_on = TRUE;					
+	}
+
+	val = get_value_by_token((char *)data, "off");
+	if (val) {
+		RTL_W8(0xc50, priv->pshare->mp_dig_reg_backup);
+		RTL_W8(0xc58, priv->pshare->mp_dig_reg_backup);
+		printk("mp dig off\n");	
+		
+		if (priv->pshare->mp_dig_on==FALSE)
+			return;
+		
+		priv->pshare->mp_dig_on = FALSE;
+#ifdef __ECOS
+		del_timer_sync(&priv->pshare->MP_DIGTimer);
+#else
+		del_timer(&priv->pshare->MP_DIGTimer);
+#endif
+		return;
+	}
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_92C_SUPPORT)
+	MP_DIG_process(priv);
+#endif
+
 }
 #endif	// MP_TEST
 

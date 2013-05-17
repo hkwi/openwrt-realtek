@@ -1,26 +1,16 @@
 /*
-* Copyright c                  Realsil Semiconductor Corporation, 2006
-* All rights reserved.
-* 
 * Program :  igmp snooping function
 * Abstract : 
 * Author :qinjunjie 
 * Email:qinjunjie1980@hotmail.com
 *
+*  Copyright (c) 2011 Realtek Semiconductor Corp.
+*
+*  This program is free software; you can redistribute it and/or modify
+*  it under the terms of the GNU General Public License version 2 as
+*  published by the Free Software Foundation.
 */
-/*	@doc Realtek_Igmp_Snooping_API
 
-	@module rtl865x_igmpsnooping.c - Realtek Igmp Snooping API documentation	|
-	This document explains the API interface of the igmp snooping  module.
-	@normal Jun-Jie Qin (qjj_qin@realsil.com.cn) <date>
-
-	Copyright <cp>2009 Realtek<tm> Semiconductor Cooperation, All Rights Reserved.
-
- 	@head3 List of Symbols |
- 	Here is a list of all functions and variables in this module.
-
- 	@index | Realtek_Igmp_Snooping_API
-*/
 #ifdef __linux__
 #include <linux/config.h>
 #include <linux/jiffies.h>

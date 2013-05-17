@@ -163,7 +163,7 @@ int __weak __uncached_access(struct file *file, unsigned long addr)
 	return addr >= __pa(high_memory);
 }
 
-void __devinit cpu_cache_init(void)
+void __cpuinit cpu_cache_init(void)
 {
     extern void __weak rlx_cache_init(void);
 

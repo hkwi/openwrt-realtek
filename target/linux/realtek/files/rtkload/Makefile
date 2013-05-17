@@ -1,7 +1,7 @@
 # The kernel tree you do builds in.
 # Uncomment if you're building for the emulator
 include ../.config
-#include ../../.config	# to check toolchain CONFIG_RSDK_rsdk-1.5.4-5281-EB-2.6.30-0.9.30.3-uls-101110
+include ../../.config	# to check toolchain CONFIG_RSDK_rsdk-1.5.4-5281-EB-2.6.30-0.9.30.3-uls-101110
 DOQUIET = false
 #DOQUIET = true 
 #EMULATOR = true
@@ -13,6 +13,7 @@ CVIMG=./cvimg
 else
 CVIMG=$(DIR_USERS)/goahead-2.1.1/LINUX/cvimg
 endif
+.NOTPARALLEL : all
 else
 CVIMG=$(DIR_USERS)/boa/tools/cvimg
 endif

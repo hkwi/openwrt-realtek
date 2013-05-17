@@ -1,25 +1,13 @@
 /*
-* Copyright c                  Realtek Semiconductor Corporation, 2008  
-* All rights reserved.
-* 
 * Program : napt table driver
 * Abstract : 
 * Author : hyking (hyking_liu@realsil.com.cn)  
-*/
-
-/*      @doc RTL_LAYEREDDRV_API
-
-        @module rtl865x_nat.c - RTL865x Home gateway controller Layered driver API documentation       |
-        This document explains the API interface of the table driver module. Functions with rtl865x prefix
-        are external functions.
-        @normal Hyking Liu (Hyking_liu@realsil.com.cn) <date>
-
-        Copyright <cp>2008 Realtek<tm> Semiconductor Cooperation, All Rights Reserved.
-
-        @head3 List of Symbols |
-        Here is a list of all functions and variables in this module.
-        
-        @index | RTL_LAYEREDDRV_API
+*
+*  Copyright (c) 2011 Realtek Semiconductor Corp.
+*
+*  This program is free software; you can redistribute it and/or modify
+*  it under the terms of the GNU General Public License version 2 as
+*  published by the Free Software Foundation.
 */
 
 #include <net/rtl/rtl_types.h>
@@ -67,7 +55,7 @@
 
 static struct nat_table nat_tbl;
 static int32 rtl865x_enableNaptFourWay=FALSE;
-//static int32 _rtl865x_naptIdleCheck(int32 index);
+static int32 _rtl865x_naptIdleCheck(int32 index);
 #if 0
 static int32 rtl865x_nat_callbackFn_for_del_ip(void *param);
 
@@ -655,7 +643,7 @@ static int32 _rtl865x_addNaptConnection(rtl865x_napt_entry *naptEntry, rtl865x_p
 	#endif
 	int32		priority[2];
 #endif
-	//int32		elasped, del_conn_flags;
+	int32		elasped, del_conn_flags;
 	
 	uint32 outCollision=FALSE;
 	uint32 inCollision=FALSE;
@@ -738,7 +726,7 @@ static int32 _rtl865x_addNaptConnection(rtl865x_napt_entry *naptEntry, rtl865x_p
 	
 	nat_out = &nat_tbl.nat_bucket[out];
 	nat_in = &nat_tbl.nat_bucket[in];
-	#if 0
+
 	del_conn_flags = 0;
 	if (NAT_INUSE(nat_out))
 	{
@@ -767,7 +755,7 @@ static int32 _rtl865x_addNaptConnection(rtl865x_napt_entry *naptEntry, rtl865x_p
 	if (del_conn_flags==2) {
 		nat_tbl.connNum--;
 	}
-	#endif
+
 	if ( NAT_INUSE(nat_out) && NAT_INUSE(nat_in))
 	{
 		/*both outbound and inbound has been occupied*/
@@ -923,16 +911,24 @@ static int32 _rtl865x_addNaptConnection(rtl865x_napt_entry *naptEntry, rtl865x_p
 
 	{
 		sip = naptEntry->intIp;
+		for(i=0; i<2; i++)
+		{
+			memset(&rule2[i], 0, sizeof(rtl865x_AclRule_t));
+		}
+		
 		for(i=0;i<2;i++)
 		{
 			if (rtl865x_getArpMapping(sip, &arpInfo)==SUCCESS && rtl865x_getRouteEntry(sip, &rt)==SUCCESS)
 			{
 				/*	check mac base rule secondly	*/
-				memset(&rule2[i], 0, sizeof(rtl865x_AclRule_t));
+				//memset(&rule2[i], 0, sizeof(rtl865x_AclRule_t));
 				rule2[i].ruleType_ = RTL865X_ACL_MAC;
 				memcpy(rule2[i].srcMac_.octet, arpInfo.mac.octet, ETHER_ADDR_LEN);
 				memset(rule2[i].srcMacMask_.octet, 0xff, ETHER_ADDR_LEN);
 				rule2[i].netifIdx_ = _rtl865x_getNetifIdxByNameExt(rt.dstNetif->name);
+
+				//printk("----%s[%d], rt.dstNetif->name is %s, rule2[i].srcMac_.octet is 0x%x%x%x%x%x%x\n", __FUNCTION__, __LINE__, rt.dstNetif->name, 
+					//rule2[i].srcMac_.octet[0], rule2[i].srcMac_.octet[1],rule2[i].srcMac_.octet[2],rule2[i].srcMac_.octet[3],rule2[i].srcMac_.octet[4],rule2[i].srcMac_.octet[5]);
 
 				if (rtl865x_qosCheckNaptPriority(&rule2[i])==SUCCESS)
 				{
@@ -940,69 +936,68 @@ static int32 _rtl865x_addNaptConnection(rtl865x_napt_entry *naptEntry, rtl865x_p
 					upDown[i]=rule2[i].upDown_;
 					//break;
 
-					 if(i==0)
+					if(i==0)
 					{
 						sip = naptEntry->remIp;
 						continue;
 					}
-					 
 				}
 				else if(i==0)
 				{
 					sip = naptEntry->remIp;
 					continue;
 				}
+			}else{
+				sip = naptEntry->remIp;
+			}
+		}
+
+		dip = naptEntry->remIp;
+		for(i=0; i<2; i++)
+		{
+			if((rule2[i].aclIdx==0)&&rtl865x_getArpMapping(dip, &arpInfo)==SUCCESS && rtl865x_getRouteEntry(naptEntry->remIp, &rt)==SUCCESS)		
+			{
+				/*	check mac base rule secondly  */
+				//memset(&rule2[i], 0, sizeof(rtl865x_AclRule_t));
+				rule2[i].ruleType_ = RTL865X_ACL_MAC;
+				memcpy(rule2[i].dstMac_.octet, arpInfo.mac.octet, ETHER_ADDR_LEN);
+				memset(rule2[i].dstMacMask_.octet, 0xff, ETHER_ADDR_LEN);
+				rule2[i].netifIdx_ = _rtl865x_getNetifIdxByNameExt(rt.dstNetif->name);
+
+				//printk("----%s[%d], rt.dstNetif->name is %s, rule2[i].dstMac_.octet is 0x%x%x%x%x%x%x\n", __FUNCTION__, __LINE__, rt.dstNetif->name, 
+					//rule2[i].dstMac_.octet[0], rule2[i].dstMac_.octet[1],rule2[i].dstMac_.octet[2],rule2[i].dstMac_.octet[3],rule2[i].dstMac_.octet[4],rule2[i].dstMac_.octet[5]);
+
+				if (rtl865x_qosCheckNaptPriority(&rule2[i])==SUCCESS)
+				{
+					priority[i] = rule2[i].priority_;		/* matched priority	*/
+					upDown[i]=rule2[i].upDown_;
+					//break;
+				
+					if(i==0)
+					{
+						dip = naptEntry->intIp;
+						continue;
+					}
+					
+				}
+				else if(i==0)
+				{
+					dip = naptEntry->intIp;
+					continue;
+				}
 				else
 				{
-					dip = naptEntry->remIp;
-					for(i=0;i<2;i++)
-					{
-						if (rtl865x_getArpMapping(dip, &arpInfo)==SUCCESS)
-						{
-							/*	check mac base rule secondly	*/
-							memset(&rule2[i], 0, sizeof(rtl865x_AclRule_t));
-							rule2[i].ruleType_ = RTL865X_ACL_MAC;
-							memcpy(rule2[i].dstMac_.octet, arpInfo.mac.octet, ETHER_ADDR_LEN);
-							memset(rule2[i].dstMacMask_.octet, 0xff, ETHER_ADDR_LEN);
-							rule2[i].netifIdx_ = _rtl865x_getNetifIdxByNameExt(rt.dstNetif->name);
-
-							if (rtl865x_qosCheckNaptPriority(&rule2[i])==SUCCESS)
-							{
-								priority[i] = rule2[i].priority_;		/* matched priority	*/
-								upDown[i]=rule2[i].upDown_;
-								//break;
-								
-								if(i==0)
-								{
-									dip = naptEntry->intIp;
-									continue;
-								}
-								
-							}
-							else if(i==0)
-							{
-								dip = naptEntry->intIp;
-								continue;
-							}
-							else
-							{
-								defPriority[i] = rule2[i].priority_;
-								defUpDown[i]=rule2[i].upDown_;
-							}
-						}
-						else
-						{
-							dip = naptEntry->intIp;
-						}
-					}
+					defPriority[i] = rule2[i].priority_;
+					defUpDown[i]=rule2[i].upDown_;
 				}
 			}
 			else
 			{
-				sip = naptEntry->remIp;
+				dip = naptEntry->intIp;
 			}
 		}
 	}
+
 
 	for(i=0;i<2;i++)
 	{
@@ -1187,7 +1182,7 @@ static int32 _rtl865x_delNaptConnection(rtl865x_napt_entry *naptEntry)
 	
 	return SUCCESS;
 }
-#if 0
+
 static int32 _rtl865x_naptIdleCheck(int32 index)
 {
 	rtl865x_tblAsicDrv_naptTcpUdpParam_t	entry;
@@ -1203,7 +1198,7 @@ static int32 _rtl865x_naptIdleCheck(int32 index)
 		return (nat_tbl.udp_timeout>hw_now?nat_tbl.udp_timeout-hw_now:0);
 	}
 }
-#endif
+
 static int32 _rtl865x_naptSync(rtl865x_napt_entry *naptEntry, uint32 refresh)
 {
 	rtl865x_tblAsicDrv_naptTcpUdpParam_t asic_nat_out;
@@ -1211,6 +1206,7 @@ static int32 _rtl865x_naptSync(rtl865x_napt_entry *naptEntry, uint32 refresh)
 	struct nat_entry *nat_out,*nat_in;
 	struct nat_tuple nat_tuple;
 	int32 rc;
+	int32 hw_now;
 
 	memset(&nat_tuple, 0, sizeof(struct nat_tuple));
 	nat_tuple.int_host.ip			= naptEntry->intIp;
@@ -1226,8 +1222,7 @@ static int32 _rtl865x_naptSync(rtl865x_napt_entry *naptEntry, uint32 refresh)
 
 	if( (!nat_out) && (!nat_in))
 	{
-		return 0;
-
+		return -1;
 	}
 
 	memset(&asic_nat_out ,0 ,sizeof(rtl865x_tblAsicDrv_naptTcpUdpParam_t));
@@ -1240,29 +1235,37 @@ static int32 _rtl865x_naptSync(rtl865x_napt_entry *naptEntry, uint32 refresh)
 		
 		rc = rtl8651_getAsicNaptTcpUdpTable(nat_in->in, &asic_nat_in);
 		assert(rc==SUCCESS);
-		return (asic_nat_out.ageSec>asic_nat_in.ageSec)? asic_nat_out.ageSec: asic_nat_in.ageSec;
+		hw_now = (asic_nat_out.ageSec>asic_nat_in.ageSec)? asic_nat_out.ageSec: asic_nat_in.ageSec;
 	}
 	else if((nat_out!=NULL) && (nat_in==NULL))
 	{
 		rc = rtl8651_getAsicNaptTcpUdpTable(nat_out->out, &asic_nat_out);
 		assert(rc==SUCCESS);
-		return asic_nat_out.ageSec;
+		hw_now = asic_nat_out.ageSec;
 	}
 	else if((nat_out==NULL) && (nat_in!=NULL))
 	{
 		rc = rtl8651_getAsicNaptTcpUdpTable(nat_in->in, &asic_nat_in);
 		assert(rc==SUCCESS);
-		return asic_nat_in.ageSec;
+		hw_now = asic_nat_in.ageSec;
 		
 	}
 	else
 	{
-		return 0;
+		hw_now = 0;
 	}
 
-	return 0;
-	
-	
+	if (hw_now==0) {
+		return -1;
+	} else {
+		if (naptEntry->protocol==RTL865X_PROTOCOL_UDP) {
+			return (nat_tbl.udp_timeout>hw_now?nat_tbl.udp_timeout-hw_now:0);
+		} else if (naptEntry->protocol==RTL865X_PROTOCOL_TCP) {
+			return (nat_tbl.tcp_timeout>hw_now?nat_tbl.tcp_timeout-hw_now:0);
+		}
+	}
+
+	return -1;	
 }
 
 

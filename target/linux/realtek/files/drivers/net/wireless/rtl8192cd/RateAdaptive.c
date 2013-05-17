@@ -13,6 +13,9 @@ Major Change History:
 	2011-08-12 Page            Create.	
 
 --*/
+#ifdef __ECOS
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#endif
 
 #ifdef CONFIG_RTL_88E_SUPPORT
 #include "8192cd_cfg.h"
@@ -69,11 +72,11 @@ static unsigned char RETRY_PENALTY[PERENTRY][RETRYSIZE+1] = {{5,4,3,2,0,3},//92 
 													{49,16,16,0,0,48}};//3 //3, idx=0x16
 
 
+#if 0
 static unsigned char	RETRY_PENALTY_UP[RETRYSIZE+1]={49,44,16,16,0,48};  // 12% for rate up
 
 static unsigned char PT_PENALTY[RETRYSIZE+1]={34,31,30,24,0,32};
 
-#if 0
 static u1Byte	RETRY_PENALTY_IDX[2][RATESIZE] = {{4,4,4,5,4,4,5,7,7,7,8,0x0a,	       // SS>TH
 													4,4,4,4,6,0x0a,0x0b,0x0d,
 													5,5,7,7,8,0x0b,0x0d,0x0f},	 		   // 0329 R01
@@ -108,11 +111,11 @@ static unsigned short 	N_THRESHOLD_LOW[RATESIZE] = {2,2,4,8,
 													12,18,24,36,48,72,96,108,
 													30,40,50,80,120,200,280,320,
 													150,160,240,360,500,600,800,1000};
+#if 0
 static unsigned char	 TRYING_NECESSARY[RATESIZE] = {2,2,2,2,
 													2,2,3,3,4,4,5,7,
 													4,4,7,10,10,12,12,18,
 													5,7,7,8,11,18,36,60};  // 0329 // 1207
-#if 0
 static u1Byte	 POOL_RETRY_TH[RATESIZE] = {30,30,30,30,
 													30,30,25,25,20,15,15,10,
 													30,25,25,20,15,10,10,10,
@@ -124,7 +127,7 @@ static unsigned char	DROPING_NECESSARY[RATESIZE] = {1,1,1,1,
 													1,2,3,4,5,6,7,8,
 													5,6,7,8,9,10,11,12};
 
-
+#if 0
 static unsigned int	INIT_RATE_FALLBACK_TABLE[16]={0x0f8ff015,  // 0: 40M BGN mode
 											0x0f8ff010,   // 1: 40M GN mode
 											0x0f8ff005,   // 2: BN mode/ 40M BGN mode
@@ -143,11 +146,14 @@ static unsigned int	INIT_RATE_FALLBACK_TABLE[16]={0x0f8ff015,  // 0: 40M BGN mod
 											0,			// 15:
 											
 	};
+#endif
 static unsigned char PendingForRateUpFail[5]={2,10,24,40,60};
 
 static unsigned short DefaultTxRPTTiming=0x186a; //200ms
 unsigned short DynamicTxRPTTiming[6]={0x186a, 0x30d4, 0x493e, 0x61a8, 0x7a12 ,0x927c}; // 200ms-1200ms
+#if 0
 static unsigned short MinTxRPTTiming=0x186a; //200ms
+#endif
 unsigned char TxRPTTiming_idx=1;
 unsigned char DynamicTxRPTTimingCounter=0;
 
@@ -204,7 +210,7 @@ int RateAdaptiveInfoInit(PSTATION_RA_INFO  pRaInfo)
 int ARFBRefresh(struct rtl8192cd_priv *priv, PSTATION_RA_INFO  pRaInfo)
 {  // Wilson 2011/10/26
 	unsigned int MaskFromReg;
-	unsigned char i,j;
+	int i;
 
 	// Test for Wilson
 	RTL_W16(REG_88E_TXRPT_TIM, DefaultTxRPTTiming);  //200ms
@@ -476,9 +482,9 @@ void SetTxRPTTiming(IN	PADAPTER	Adapter, int extend)
 
 void RateDecision(struct rtl8192cd_priv *priv, PSTATION_RA_INFO  pRaInfo)
 {
-	unsigned char i, RateID = 0, RtyPtID = 0, PenaltyID1 = 0, PenaltyID2 = 0;
-	unsigned int pool_retry;
-	unsigned char Try_Result=0;
+	unsigned char RateID = 0, RtyPtID = 0, PenaltyID1 = 0, PenaltyID2 = 0;
+	//unsigned int pool_retry;
+	//unsigned char Try_Result=0;
 	
 	if (pRaInfo->Active && (pRaInfo->TOTAL > 0)) /* STA used and data packet exits */ {
 #if 0

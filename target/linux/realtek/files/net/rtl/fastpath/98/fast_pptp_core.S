@@ -103,48 +103,54 @@ pptp_conn_check:
 	.type	is_pptp_device, @function
 is_pptp_device:
 	.set	nomips16
-	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
-	.mask	0x00000000,0
+	.frame	$sp,24,$31		# vars= 0, regs= 2/0, args= 16, gp= 0
+	.mask	0x80010000,-4
 	.fmask	0x00000000,0
+	addiu	$sp,$sp,-24
 	lui	$2,%hi(pptpAccInfo+56)
+	sw	$16,16($sp)
+	move	$16,$4
+	sw	$31,20($sp)
 	lw	$2,%lo(pptpAccInfo+56)($2)
 	.set	noreorder
 	.set	nomacro
 	beq	$2,$0,$L2
-	move	$5,$2
+	move	$4,$2
 	.set	macro
 	.set	reorder
 
-	move	$3,$4
+	jal	rtl_get_ppp_dev_name
 #APP
 	.set	noreorder
 	.set	noat
-	lbu	$2,($5)
-1:	lbu	$1,($3)
-	addiu	$5,1
-	bne	$1,$2,2f
-	addiu	$3,1
-	bnez	$2,1b
-	lbu	$2,($5)
-	move	$2,$1
-2:	subu	$2,$1
+	lbu	$3,($2)
+1:	lbu	$1,($16)
+	addiu	$2,1
+	bne	$1,$3,2f
+	addiu	$16,1
+	bnez	$3,1b
+	lbu	$3,($2)
+	move	$3,$1
+2:	subu	$3,$1
 3:	.set	at
 	.set	reorder
 #NO_APP
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L1
-	li	$3,1			# 0x1
+	beq	$3,$0,$L1
+	li	$2,1			# 0x1
 	.set	macro
 	.set	reorder
 
 $L2:
-	move	$3,$0
+	move	$2,$0
 $L1:
+	lw	$31,20($sp)
+	lw	$16,16($sp)
 	.set	noreorder
 	.set	nomacro
 	j	$31
-	move	$2,$3
+	addiu	$sp,$sp,24
 	.set	macro
 	.set	reorder
 
@@ -165,13 +171,11 @@ set_pptp_device:
 	addiu	$sp,$sp,-24
 	lui	$2,%hi(fast_pptp_fw)
 	sw	$31,16($sp)
-	move	$5,$4
 	lw	$2,%lo(fast_pptp_fw)($2)
-	lui	$4,%hi(init_net)
 	beq	$2,$0,$L4
-	addiu	$4,$4,%lo(init_net)
+	nop
 
-	jal	__dev_get_by_name
+	jal	rtl_get_dev_by_name
 	nop
 
 	lui	$3,%hi(pptpAccInfo)
@@ -192,39 +196,57 @@ $L4:
 	.type	Check_GRE_rx_net_device, @function
 Check_GRE_rx_net_device:
 	.set	nomips16
-	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
-	.mask	0x00000000,0
+	.frame	$sp,32,$31		# vars= 0, regs= 4/0, args= 16, gp= 0
+	.mask	0x80070000,-4
 	.fmask	0x00000000,0
 	.set	noreorder
 	.set	nomacro
 	
-	lw	$3,156($4)
-	lui	$2,%hi(pptpAccInfo)
-	addiu	$7,$2,%lo(pptpAccInfo)
-	move	$5,$4
-	lbu	$2,0($3)
-	move	$6,$0
-	lw	$4,176($4)
-	andi	$2,$2,0xf
-	lw	$3,8($7)
-	sll	$2,$2,2
-	beq	$3,$0,$L6
-	addu	$4,$4,$2
+	addiu	$sp,$sp,-32
+	sw	$31,28($sp)
+	sw	$18,24($sp)
+	sw	$17,20($sp)
+	move	$17,$4
+	jal	rtl_ip_hdr
+	sw	$16,16($sp)
 
-	lw	$2,24($5)
-	bne	$3,$2,$L10
+	move	$4,$17
+	jal	rtl_get_skb_data
+	move	$16,$2
+
+	lui	$3,%hi(pptpAccInfo)
+	lbu	$5,0($16)
+	addiu	$18,$3,%lo(pptpAccInfo)
+	lw	$3,8($18)
+	move	$4,$17
+	andi	$5,$5,0xf
+	move	$6,$0
+	sll	$5,$5,2
+	beq	$3,$0,$L6
+	addu	$16,$2,$5
+
+	jal	rtl_get_skb_dev
+	nop
+
+	lw	$3,8($18)
+	bne	$3,$2,$L8
 	li	$6,1			# 0x1
 
-	lhu	$3,6($4)
-	lhu	$2,30($7)
+	lhu	$3,6($16)
+	lhu	$2,30($18)
 	beq	$3,$2,$L6
 	nop
 
-$L10:
+$L8:
 	move	$6,$0
 $L6:
-	j	$31
+	lw	$31,28($sp)
 	move	$2,$6
+	lw	$18,24($sp)
+	lw	$17,20($sp)
+	lw	$16,16($sp)
+	j	$31
+	addiu	$sp,$sp,32
 
 	.set	macro
 	.set	reorder
@@ -236,34 +258,40 @@ $L6:
 	.type	fast_pptp_filter, @function
 fast_pptp_filter:
 	.set	nomips16
-	.frame	$sp,32,$31		# vars= 0, regs= 4/0, args= 16, gp= 0
-	.mask	0x80070000,-4
+	.frame	$sp,40,$31		# vars= 0, regs= 5/0, args= 16, gp= 0
+	.mask	0x800f0000,-8
 	.fmask	0x00000000,0
 	.set	noreorder
 	.set	nomacro
 	
-	addiu	$sp,$sp,-32
+	addiu	$sp,$sp,-40
+	sw	$19,28($sp)
+	move	$19,$4
+	sw	$31,32($sp)
 	sw	$18,24($sp)
-	sw	$31,28($sp)
 	sw	$17,20($sp)
+	jal	rtl_ip_hdr
 	sw	$16,16($sp)
-	lw	$2,84($4)
-	lw	$8,156($4)
-	sltu	$2,$2,56
-	bne	$2,$0,$L13
-	move	$18,$4
 
-	lbu	$2,0($8)
-	lbu	$3,9($8)
+	move	$4,$19
+	jal	rtl_get_skb_len
+	move	$18,$2
+
+	sltu	$2,$2,56
+	bne	$2,$0,$L11
+	nop
+
+	lbu	$2,0($18)
+	lbu	$3,9($18)
 	andi	$2,$2,0xf
 	sll	$2,$2,2
-	addu	$4,$8,$2
+	addu	$4,$18,$2
 	li	$2,6			# 0x6
-	bne	$3,$2,$L13
+	bne	$3,$2,$L11
 	li	$2,1723			# 0x6bb
 
 	lhu	$3,0($4)
-	bne	$3,$2,$L13
+	bne	$3,$2,$L11
 	nop
 
 	lw	$2,12($4)
@@ -271,116 +299,123 @@ fast_pptp_filter:
 	sll	$2,$2,2
 	addu	$4,$4,$2
 	li	$2,1			# 0x1
-	lhu	$6,2($4)
-	addiu	$9,$4,8
-	andi	$5,$6,0xffff
-	bne	$5,$2,$L18
-	addiu	$7,$4,12
+	lhu	$7,2($4)
+	addiu	$8,$4,8
+	andi	$5,$7,0xffff
+	bne	$5,$2,$L14
+	addiu	$6,$4,12
 
 	lhu	$3,8($4)
 	li	$2,8			# 0x8
-	bne	$3,$2,$L18
+	bne	$3,$2,$L14
 	nop
 
-	lbu	$2,4($7)
-	bne	$2,$5,$L18
+	lbu	$2,4($6)
+	bne	$2,$5,$L14
 	lui	$16,%hi(pptpAccInfo)
 
 	addiu	$5,$16,%lo(pptpAccInfo)
 	lw	$2,36($5)
-	beq	$2,$0,$L19
+	beq	$2,$0,$L15
 	nop
 
 	lw	$2,20($5)
-	beq	$2,$0,$L19
+	beq	$2,$0,$L15
 	nop
 
 	lw	$2,32($5)
-	beq	$2,$0,$L19
+	beq	$2,$0,$L15
 	nop
 
 	lhu	$3,12($4)
 	lhu	$2,18($5)
-	bne	$2,$3,$L13
+	bne	$2,$3,$L11
 	nop
 
 	lhu	$3,30($5)
-	lhu	$2,2($7)
-	bne	$3,$2,$L13
+	lhu	$2,2($6)
+	bne	$3,$2,$L11
 	nop
 
-$L19:
+$L15:
 	li	$17,1			# 0x1
 	lui	$2,%hi(pptp_tcp_finished)
 	sw	$17,%lo(pptp_tcp_finished)($2)
 	addiu	$16,$16,%lo(pptpAccInfo)
-	lhu	$2,0($7)
-	lui	$4,%hi(pptpAccInfo+24)
-	addiu	$4,$4,%lo(pptpAccInfo+24)
-	li	$6,6			# 0x6
+	lhu	$2,0($6)
+	move	$4,$19
 	sh	$2,18($16)
-	lhu	$2,2($7)
+	lhu	$2,2($6)
 	sh	$2,30($16)
-	lw	$2,16($8)
+	lw	$2,16($18)
 	sw	$2,20($16)
-	lw	$2,12($8)
+	lw	$2,12($18)
 	sw	$17,36($16)
+	jal	rtl_get_skb_dev
 	sw	$2,32($16)
-	lw	$2,24($18)
+
+	move	$4,$19
+	jal	rtl_get_skb_data
 	sw	$2,8($16)
-	lw	$5,176($18)
+
+	lui	$4,%hi(pptpAccInfo+24)
+	addiu	$5,$2,-8
+	li	$6,6			# 0x6
 	jal	memcpy
-	addiu	$5,$5,-8
+	addiu	$4,$4,%lo(pptpAccInfo+24)
+
+	jal	rtl_get_skb_data
+	move	$4,$19
 
 	lui	$4,%hi(pptpAccInfo+12)
-	lw	$5,176($18)
 	addiu	$4,$4,%lo(pptpAccInfo+12)
-	li	$6,6			# 0x6
+	addiu	$5,$2,-14
 	jal	memcpy
-	addiu	$5,$5,-14
+	li	$6,6			# 0x6
 
-	j	$L13
+	j	$L11
 	sw	$17,4($16)
 
-$L18:
-	andi	$3,$6,0xffff
+$L14:
+	andi	$3,$7,0xffff
 	li	$2,1			# 0x1
-	bne	$3,$2,$L13
+	bne	$3,$2,$L11
 	li	$2,13			# 0xd
 
-	lhu	$3,0($9)
-	bne	$3,$2,$L13
+	lhu	$3,0($8)
+	bne	$3,$2,$L11
 	lui	$4,%hi(pptpAccInfo)
 
 	addiu	$3,$4,%lo(pptpAccInfo)
 	lw	$2,36($3)
-	beq	$2,$0,$L33
+	beq	$2,$0,$L29
 	lui	$2,%hi(pptp_tcp_finished)
 
 	lw	$2,20($3)
-	beq	$2,$0,$L33
+	beq	$2,$0,$L29
 	lui	$2,%hi(pptp_tcp_finished)
 
 	lw	$2,32($3)
-	beq	$2,$0,$L33
+	beq	$2,$0,$L29
 	lui	$2,%hi(pptp_tcp_finished)
 
 	lhu	$3,18($3)
-	lhu	$2,4($9)
-	bne	$3,$2,$L13
+	lhu	$2,4($8)
+	bne	$3,$2,$L11
 	addiu	$3,$4,%lo(pptpAccInfo)
 
 	lui	$2,%hi(pptp_tcp_finished)
-$L33:
+$L29:
 	sw	$0,%lo(pptp_tcp_finished)($2)
 	sw	$0,4($3)
-$L13:
-	lw	$31,28($sp)
+$L11:
+	lw	$31,32($sp)
+	lw	$19,28($sp)
 	lw	$18,24($sp)
 	lw	$17,20($sp)
 	lw	$16,16($sp)
 	j	$31
-	addiu	$sp,$sp,32
+	addiu	$sp,$sp,40
 
 	.set	macro
 	.set	reorder
@@ -392,223 +427,279 @@ $L13:
 	.type	fast_pptp_to_lan, @function
 fast_pptp_to_lan:
 	.set	nomips16
-	.frame	$sp,40,$31		# vars= 0, regs= 6/0, args= 16, gp= 0
-	.mask	0x801f0000,-4
+	.frame	$sp,48,$31		# vars= 0, regs= 8/0, args= 16, gp= 0
+	.mask	0x807f0000,-4
 	.fmask	0x00000000,0
 	.set	noreorder
 	.set	nomacro
 	
-	addiu	$sp,$sp,-40
-	lui	$9,%hi(pptpAccInfo)
+	addiu	$sp,$sp,-48
+	sw	$22,40($sp)
+	move	$22,$0
+	sw	$21,36($sp)
+	move	$21,$4
 	sw	$20,32($sp)
-	move	$20,$4
+	lui	$20,%hi(pptpAccInfo)
+	sw	$16,16($sp)
+	addiu	$16,$20,%lo(pptpAccInfo)
+	sw	$31,44($sp)
 	sw	$19,28($sp)
-	sw	$31,36($sp)
 	sw	$18,24($sp)
 	sw	$17,20($sp)
-	sw	$16,16($sp)
-	lw	$16,0($4)
-	addiu	$4,$9,%lo(pptpAccInfo)
-	lw	$3,8($4)
-	lw	$2,24($16)
-	bne	$2,$3,$L41
-	move	$19,$0
+	lw	$18,0($4)
+	jal	rtl_get_skb_dev
+	move	$4,$18
 
-	lw	$7,156($16)
+	lw	$3,8($16)
+	bne	$2,$3,$L30
+	move	$7,$0
+
+	jal	rtl_ip_hdr
+	move	$4,$18
+
+	lbu	$3,9($2)
 	li	$2,47			# 0x2f
-	lbu	$3,9($7)
-	bne	$3,$2,$L34
-	move	$8,$0
+	bne	$3,$2,$L30
+	move	$7,$0
 
-	lw	$2,84($16)
+	jal	rtl_get_skb_len
+	move	$4,$18
+
 	sltu	$2,$2,20
-	bne	$2,$0,$L34
-	nop
+	bne	$2,$0,$L30
+	move	$7,$0
 
-	lbu	$2,0($7)
-	lw	$3,176($16)
-	andi	$2,$2,0xf
-	sll	$2,$2,2
-	addu	$5,$3,$2
+	jal	rtl_ip_hdr
+	move	$4,$18
+
+	move	$4,$18
+	jal	rtl_get_skb_data
+	move	$17,$2
+
+	lbu	$3,0($17)
+	andi	$3,$3,0xf
+	sll	$3,$3,2
+	addu	$5,$2,$3
 	li	$3,1			# 0x1
 	lbu	$2,1($5)
 	andi	$2,$2,0x7
-	bne	$2,$3,$L34
-	li	$2,34827			# 0x880b
+	bne	$2,$3,$L30
+	move	$7,$0
 
 	lhu	$3,2($5)
-	bne	$3,$2,$L34
-	li	$17,8			# 0x8
+	li	$2,34827			# 0x880b
+	bne	$3,$2,$L30
+	li	$19,8			# 0x8
 
 	lhu	$3,6($5)
-	lhu	$2,30($4)
-	bne	$3,$2,$L34
+	lhu	$2,30($16)
+	bne	$3,$2,$L30
 	move	$6,$0
 
 	lbu	$2,0($5)
 	andi	$2,$2,0x10
-	beq	$2,$0,$L43
+	beq	$2,$0,$L35
 	nop
 
 	lw	$2,8($5)
-	li	$17,12			# 0xc
-	sw	$2,40($4)
-$L43:
+	li	$19,12			# 0xc
+	sw	$2,40($16)
+$L35:
 	lb	$2,1($5)
-	addiu	$3,$17,4
+	addiu	$3,$19,4
 	lhu	$4,4($5)
 	slt	$2,$2,0
-	movn	$17,$3,$2		#conditional move  
-	beq	$4,$0,$L41
-	addu	$5,$5,$17
+	movn	$19,$3,$2		#conditional move  
+	beq	$4,$0,$L33
+	addu	$5,$5,$19
 
 	lbu	$3,0($5)
-	bne	$3,$0,$L46
+	bne	$3,$0,$L38
 	li	$2,255			# 0xff
 
 	addiu	$5,$5,1
-	j	$L47
+	j	$L39
 	li	$6,1			# 0x1
 
-$L46:
-	bne	$3,$2,$L47
+$L38:
+	bne	$3,$2,$L39
 	li	$2,3			# 0x3
 
 	lbu	$3,1($5)
-	bne	$3,$2,$L47
+	bne	$3,$2,$L39
 	nop
 
 	addiu	$5,$5,2
 	lbu	$2,0($5)
-	bne	$2,$0,$L47
+	bne	$2,$0,$L39
 	li	$6,2			# 0x2
 
 	addiu	$5,$5,1
 	li	$6,3			# 0x3
-$L47:
+$L39:
 	lbu	$3,0($5)
 	li	$2,33			# 0x21
-	beq	$3,$2,$L51
+	beq	$3,$2,$L43
 	li	$2,253			# 0xfd
 
-	bne	$3,$2,$L34
-	move	$8,$0
+	bne	$3,$2,$L30
+	move	$7,$0
 
-$L51:
+$L43:
 	addiu	$6,$6,1
-	beq	$6,$0,$L41
-	move	$18,$3
+	beq	$6,$0,$L33
+	move	$16,$3
 
-	lbu	$2,0($7)
+	lbu	$2,0($17)
 	andi	$2,$2,0xf
 	sll	$2,$2,2
-	addu	$2,$2,$17
-	addu	$17,$2,$6
+	addu	$2,$2,$19
+	addu	$19,$2,$6
 	li	$2,33			# 0x21
-	beq	$3,$2,$L54
-	move	$5,$17
+	beq	$3,$2,$L46
+	addiu	$17,$20,%lo(pptpAccInfo)
 
-	addiu	$19,$9,%lo(pptpAccInfo)
-	lw	$2,56($19)
-	beq	$2,$0,$L34
-	move	$8,$0
+	lw	$4,56($17)
+	beq	$4,$0,$L30
+	move	$7,$0
 
-	lw	$2,180($2)
-	beq	$2,$0,$L34
-	move	$4,$16
+	jal	rtl_get_ppp_dev_priv
+	nop
 
+	beq	$2,$0,$L30
+	move	$7,$0
+
+	addiu	$5,$19,-2
 	jal	skb_pull
-	addiu	$5,$17,-2
+	move	$4,$18
 
-	move	$5,$16
-	lw	$2,176($16)
+	jal	rtl_get_skb_data
+	move	$4,$18
+
+	sb	$16,1($2)
 	sb	$0,0($2)
-	lw	$2,176($16)
-	sb	$18,1($2)
-	lw	$2,56($19)
-	lw	$4,180($2)
-	jal	ppp_receive_nonmp_frame
+	lw	$4,56($17)
+	jal	rtl_get_ppp_dev_priv
+	nop
+
+	move	$5,$18
+	move	$4,$2
+	jal	rtl_ppp_receive_nonmp_frame
 	li	$6,1			# 0x1
 
-	li	$8,-2			# 0xfffffffe
-	beq	$2,$0,$L34
+	li	$7,-2			# 0xfffffffe
+	beq	$2,$0,$L30
+	move	$18,$2
+
+	li	$22,1			# 0x1
+	j	$L50
+	sw	$2,0($21)
+
+$L46:
+	move	$5,$19
+	jal	skb_pull
+	move	$4,$18
+
+$L50:
+	jal	rtl_get_skb_data
+	move	$4,$18
+
+	andi	$19,$2,0x3
+	beq	$19,$0,$L59
+	move	$4,$18
+
+	jal	rtl_skb_headroom
+	move	$4,$18
+
+	sltu	$2,$2,$19
+	bne	$2,$0,$L51
+	nop
+
+	jal	rtl_get_skb_data
+	move	$4,$18
+
+	move	$4,$18
+	jal	rtl_get_skb_data
+	subu	$17,$2,$19
+
+	move	$4,$18
+	jal	rtl_get_skb_len
 	move	$16,$2
 
-	li	$19,1			# 0x1
-	j	$L58
-	sw	$2,0($20)
-
-$L54:
-	jal	skb_pull
-	move	$4,$16
-
-$L58:
-	lw	$4,176($16)
-	andi	$17,$4,0x3
-	beq	$17,$0,$L59
-	nop
-
-	lw	$2,172($16)
-	subu	$2,$4,$2
-	sltu	$2,$2,$17
-	bne	$2,$0,$L59
-	move	$5,$4
-
-	lw	$6,84($16)
+	move	$4,$17
+	move	$5,$16
 	jal	memmove
-	subu	$4,$4,$17
+	move	$6,$2
 
-	lw	$2,176($16)
-	lw	$3,164($16)
-	subu	$2,$2,$17
-	subu	$3,$3,$17
-	sw	$2,176($16)
-	sw	$3,164($16)
+	move	$4,$18
+	move	$5,$19
+	jal	rtl_set_skb_data
+	li	$6,1			# 0x1
+
+	move	$4,$18
+	move	$5,$19
+	jal	rtl_set_skb_tail
+	li	$6,1			# 0x1
+
+$L51:
+	move	$4,$18
 $L59:
-	lw	$2,176($16)
-	lui	$5,%hi(pptpAccInfo)
-	addiu	$3,$5,%lo(pptpAccInfo)
-	sw	$2,152($16)
-	sw	$2,156($16)
-	lw	$2,56($3)
-	beq	$2,$0,$L34
-	move	$8,$0
+	jal	rtl_skb_reset_network_header
+	lui	$17,%hi(pptpAccInfo)
 
-	bne	$19,$0,$L63
+	addiu	$16,$17,%lo(pptpAccInfo)
+	jal	rtl_skb_reset_transport_header
+	move	$4,$18
+
+	lw	$4,56($16)
+	beq	$4,$0,$L30
+	move	$7,$0
+
+	bne	$22,$0,$L60
+	addiu	$2,$17,%lo(pptpAccInfo)
+
+	jal	rtl_get_ppp_dev_priv
 	nop
 
-	lw	$4,180($2)
-	beq	$4,$0,$L68
-	addiu	$2,$5,%lo(pptpAccInfo)
+	beq	$2,$0,$L60
+	addiu	$2,$17,%lo(pptpAccInfo)
 
-	lw	$2,156($4)
-	lw	$3,164($4)
-	addiu	$2,$2,1
-	sw	$2,156($4)
-	lw	$2,84($16)
-	addu	$3,$3,$2
-	addiu	$3,$3,-2
-	sw	$3,164($4)
-$L63:
-	addiu	$2,$5,%lo(pptpAccInfo)
-$L68:
-	li	$8,1			# 0x1
-	lw	$2,56($2)
-	j	$L34
-	sw	$2,24($16)
+	lw	$4,56($16)
+	jal	rtl_get_ppp_dev_priv
+	nop
 
-$L41:
-	move	$8,$0
-$L34:
-	lw	$31,36($sp)
-	move	$2,$8
+	move	$4,$18
+	jal	rtl_get_skb_len
+	move	$16,$2
+
+	move	$4,$16
+	addiu	$6,$2,-2
+	jal	rtl_inc_ppp_stats
+	move	$5,$0
+
+	addiu	$2,$17,%lo(pptpAccInfo)
+$L60:
+	lw	$5,56($2)
+	jal	rtl_set_skb_dev
+	move	$4,$18
+
+	j	$L30
+	li	$7,1			# 0x1
+
+$L33:
+	move	$7,$0
+$L30:
+	lw	$31,44($sp)
+	move	$2,$7
+	lw	$22,40($sp)
+	lw	$21,36($sp)
 	lw	$20,32($sp)
 	lw	$19,28($sp)
 	lw	$18,24($sp)
 	lw	$17,20($sp)
 	lw	$16,16($sp)
 	j	$31
-	addiu	$sp,$sp,40
+	addiu	$sp,$sp,48
 
 	.set	macro
 	.set	reorder
@@ -630,16 +721,16 @@ get_fastpptp_lastxmit:
 	lui	$5,%hi(pptpAccInfo)
 	lw	$2,%lo(fast_pptp_fw)($2)
 	addiu	$3,$5,%lo(pptpAccInfo)
-	beq	$2,$0,$L69
+	beq	$2,$0,$L61
 	move	$4,$0
 
 	lw	$3,4($3)
 	li	$2,1			# 0x1
-	bne	$3,$2,$L69
+	bne	$3,$2,$L61
 	nop
 
 	lw	$4,%lo(pptpAccInfo)($5)
-$L69:
+$L61:
 	j	$31
 	move	$2,$4
 
@@ -665,43 +756,65 @@ $LC2:
 	.type	fast_pptp_to_wan, @function
 fast_pptp_to_wan:
 	.set	nomips16
-	.frame	$sp,80,$31		# vars= 40, regs= 6/0, args= 16, gp= 0
-	.mask	0x801f0000,-4
+	.frame	$sp,88,$31		# vars= 40, regs= 7/0, args= 16, gp= 0
+	.mask	0x803f0000,-8
 	.fmask	0x00000000,0
-	addiu	$sp,$sp,-80
-	li	$2,16711680			# 0xff0000
-	sw	$17,60($sp)
-	move	$17,$4
-	sw	$31,76($sp)
-	sw	$20,72($sp)
-	sw	$19,68($sp)
+	addiu	$sp,$sp,-88
+	sw	$31,80($sp)
 	sw	$18,64($sp)
+	move	$18,$4
+	sw	$17,60($sp)
 	sw	$16,56($sp)
-	lw	$7,156($4)
-	li	$4,-16777216			# 0xff000000
-	lw	$3,12($7)
-	and	$5,$3,$2
-	and	$4,$3,$4
-	li	$2,167772160			# 0xa000000
+	sw	$21,76($sp)
+	sw	$20,72($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$4,$2,$L78
-	andi	$3,$3,0xff00
+	jal	rtl_ip_hdr
+	sw	$19,68($sp)
 	.set	macro
 	.set	reorder
 
-	li	$2,4194304			# 0x400000
+	move	$4,$18
+	lw	$16,12($2)
+	li	$2,-16777216			# 0xff000000
 	.set	noreorder
 	.set	nomacro
-	bne	$5,$2,$L78
+	jal	rtl_ip_hdr
+	and	$16,$16,$2
+	.set	macro
+	.set	reorder
+
+	move	$4,$18
+	lw	$3,12($2)
+	li	$2,16711680			# 0xff0000
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_ip_hdr
+	and	$17,$3,$2
+	.set	macro
+	.set	reorder
+
+	lw	$2,12($2)
+	andi	$3,$2,0xff00
+	li	$2,167772160			# 0xa000000
+	.set	noreorder
+	.set	nomacro
+	bne	$16,$2,$L64
+	li	$2,4194304			# 0x400000
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	bne	$17,$2,$L64
 	li	$2,16384			# 0x4000
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L112
-	lui	$19,%hi(pptpAccInfo)
+	bne	$3,$2,$L89
+	lui	$20,%hi(pptpAccInfo)
 	.set	macro
 	.set	reorder
 
@@ -710,128 +823,196 @@ fast_pptp_to_wan:
 	li	$2,3			# 0x3
 	.set	noreorder
 	.set	nomacro
-	beq	$3,$2,$L71
+	beq	$3,$2,$L63
 	move	$4,$0
 	.set	macro
 	.set	reorder
 
-$L78:
-	lui	$19,%hi(pptpAccInfo)
-$L112:
-	addiu	$6,$19,%lo(pptpAccInfo)
-	lw	$5,56($6)
+$L64:
+	lui	$20,%hi(pptpAccInfo)
+$L89:
+	addiu	$17,$20,%lo(pptpAccInfo)
+	lw	$4,56($17)
+	beq	$4,$0,$L83
+	jal	rtl_get_ppp_dev_name
 	.set	noreorder
 	.set	nomacro
-	beq	$5,$0,$L71
+	beq	$2,$0,$L63
 	move	$4,$0
 	.set	macro
 	.set	reorder
 
-	lui	$3,%hi($LC0)
-	move	$4,$5
-	addiu	$2,$3,%lo($LC0)
+	lw	$4,56($17)
+	jal	rtl_get_ppp_dev_name
+	lui	$4,%hi($LC0)
+	addiu	$3,$4,%lo($LC0)
 #APP
 	.set	noreorder
 	.set	noat
-	lbu	$3,($4)
-1:	lbu	$1,($2)
-	addiu	$4,1
-	bne	$1,$3,2f
+	lbu	$4,($2)
+1:	lbu	$1,($3)
 	addiu	$2,1
-	bnez	$3,1b
-	lbu	$3,($4)
-	move	$3,$1
-2:	subu	$3,$1
+	bne	$1,$4,2f
+	addiu	$3,1
+	bnez	$4,1b
+	lbu	$4,($2)
+	move	$4,$1
+2:	subu	$4,$1
 3:	.set	at
 	.set	reorder
 #NO_APP
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$0,$L71
+	bne	$4,$0,$L63
 	move	$4,$0
 	.set	macro
 	.set	reorder
 
-	lw	$2,4($6)
-	beq	$2,$0,$L71
-	lw	$16,180($5)
-	beq	$16,$0,$L71
-	lw	$2,92($16)
-	beq	$2,$0,$L83
-	lw	$2,80($16)
-	andi	$2,$2,0x1000
-	beq	$2,$0,$L71
-	lw	$2,128($16)
-	beq	$2,$0,$L82
-$L83:
-	lw	$2,120($16)
-	lbu	$20,1($7)
+	lw	$2,4($17)
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L71
+	beq	$2,$0,$L90
+	addiu	$2,$20,%lo(pptpAccInfo)
+	.set	macro
+	.set	reorder
+
+	lw	$4,56($17)
+	beq	$4,$0,$L90
+	jal	rtl_get_ppp_dev_priv
+	.set	noreorder
+	.set	nomacro
+	beq	$2,$0,$L68
+	addiu	$2,$20,%lo(pptpAccInfo)
+	.set	macro
+	.set	reorder
+
+	lw	$4,56($17)
+	jal	rtl_get_ppp_dev_priv
+	move	$4,$2
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_ppp_vj_check
+	move	$16,$2
+	.set	macro
+	.set	reorder
+
+	li	$3,1			# 0x1
+	.set	noreorder
+	.set	nomacro
+	beq	$2,$3,$L63
+	move	$4,$0
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_ip_hdr
+	move	$4,$18
+	.set	macro
+	.set	reorder
+
+	lbu	$21,1($2)
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_get_ppp_xmit_pending
+	move	$4,$16
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	bne	$2,$0,$L63
 	move	$4,$0
 	.set	macro
 	.set	reorder
 
 	lui	$5,%hi($LC2)
-	addiu	$4,$17,32
+	li	$6,3			# 0x3
 	addiu	$5,$5,%lo($LC2)
 	.set	noreorder
 	.set	nomacro
-	jal	memcpy
-	li	$6,3			# 0x3
+	jal	rtl_set_skb_cb
+	move	$4,$18
 	.set	macro
 	.set	reorder
 
-	addiu	$2,$19,%lo(pptpAccInfo)
-	lw	$5,56($2)
+	lw	$5,56($17)
 	.set	noreorder
 	.set	nomacro
-	jal	ppp_start_xmit
-	move	$4,$17
+	jal	rtl_ppp_start_xmit
+	move	$4,$18
 	.set	macro
 	.set	reorder
 
-	lw	$18,120($16)
 	.set	noreorder
 	.set	nomacro
-	beq	$18,$0,$L71
+	jal	rtl_get_ppp_xmit_pending
+	move	$4,$16
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	beq	$2,$0,$L63
 	li	$4,1			# 0x1
 	.set	macro
 	.set	reorder
 
-	sw	$0,120($16)
-	lw	$2,176($18)
-	lw	$3,172($18)
-	subu	$2,$2,$3
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_get_ppp_xmit_pending
+	move	$4,$16
+	.set	macro
+	.set	reorder
+
+	move	$4,$16
+	move	$18,$2
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_set_ppp_xmit_pending
+	move	$5,$0
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_skb_headroom
+	move	$4,$18
+	.set	macro
+	.set	reorder
+
 	sltu	$2,$2,50
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L92
-	move	$17,$18
+	bne	$2,$0,$L91
+	move	$4,$18
 	.set	macro
 	.set	reorder
 
-	lw	$2,104($18)
-	li	$3,1073741824			# 0x40000000
-	and	$2,$2,$3
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L111
-	li	$3,1			# 0x1
+	jal	rtl_skb_cloned
+	move	$4,$18
 	.set	macro
 	.set	reorder
 
-	lw	$2,168($18)
-	lw	$2,0($2)
-	andi	$2,$2,0xffff
-	bne	$2,$3,$L92
-$L111:
-	lw	$2,184($17)
-	xori	$2,$2,0x1
-	beq	$2,$0,$L91
-$L92:
+	.set	noreorder
+	.set	nomacro
+	bne	$2,$0,$L91
 	move	$4,$18
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_skb_shared
+	move	$4,$18
+	.set	macro
+	.set	reorder
+
+	beq	$2,$0,$L74
+	move	$4,$18
+$L91:
 	.set	noreorder
 	.set	nomacro
 	jal	skb_realloc_headroom
@@ -841,7 +1022,7 @@ $L92:
 
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L71
+	beq	$2,$0,$L63
 	move	$4,$0
 	.set	macro
 	.set	reorder
@@ -850,12 +1031,12 @@ $L92:
 	.set	noreorder
 	.set	nomacro
 	jal	consume_skb
-	move	$17,$2
+	move	$18,$2
 	.set	macro
 	.set	reorder
 
-$L91:
-	move	$4,$17
+$L74:
+	move	$4,$18
 	.set	noreorder
 	.set	nomacro
 	jal	skb_push
@@ -876,11 +1057,12 @@ $L91:
 
 	lui	$5,%hi(pptpAccInfo+12)
 	addiu	$5,$5,%lo(pptpAccInfo+12)
+	li	$6,6			# 0x6
 	addiu	$4,$16,6
 	.set	noreorder
 	.set	nomacro
 	jal	memcpy
-	li	$6,6			# 0x6
+	addiu	$17,$20,%lo(pptpAccInfo)
 	.set	macro
 	.set	reorder
 
@@ -890,38 +1072,46 @@ $L91:
 	sb	$0,13($16)
 	ori	$2,$2,0xffff
 	lw	$3,16($sp)
-	addiu	$6,$19,%lo(pptpAccInfo)
-	lw	$5,32($6)
-	addiu	$10,$sp,16
+	move	$5,$0
+	lw	$7,32($17)
+	move	$4,$18
 	and	$3,$3,$2
 	li	$2,1073741824			# 0x40000000
 	or	$3,$3,$2
 	li	$2,-251723776			# 0xf0ff0000
 	ori	$2,$2,0xffff
-	addiu	$8,$sp,32
+	addiu	$19,$sp,16
 	and	$3,$3,$2
 	li	$2,83886080			# 0x5000000
 	or	$3,$3,$2
 	li	$2,16384
-	lw	$4,20($6)
+	lw	$6,20($17)
 	sh	$2,22($sp)
 	li	$2,47
 	sb	$2,25($sp)
 	li	$2,64
 	sw	$3,16($sp)
+	sw	$7,32($sp)
+	sw	$6,28($sp)
 	sb	$2,24($sp)
-	li	$2,-805371904			# 0xcfff0000
-	sb	$20,17($sp)
-	ori	$2,$2,0xffff
-	sw	$4,28($sp)
-	sw	$5,32($sp)
-	lw	$3,104($17)
-	lw	$4,84($17)
-	and	$3,$3,$2
-	sw	$3,104($17)
-	addiu	$4,$4,-14
-	lhu	$5,44($6)
-	sh	$4,18($sp)
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_set_skb_ip_summed
+	sb	$21,17($sp)
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_get_skb_len
+	move	$4,$18
+	.set	macro
+	.set	reorder
+
+	addiu	$7,$sp,32
+	lhu	$5,44($17)
+	addiu	$2,$2,-14
+	sh	$2,18($sp)
 	addiu	$5,$5,1
 	lw	$3,16($sp)
 	sh	$5,20($sp)
@@ -929,101 +1119,138 @@ $L91:
 	srl	$2,$3,22
 	sh	$0,26($sp)
 	andi	$2,$2,0x3c
-	addu	$7,$3,$4
-	addu	$9,$10,$2
-	sltu	$4,$7,$4
+	addu	$6,$3,$4
+	addu	$8,$19,$2
+	sltu	$4,$6,$4
 	lw	$2,24($sp)
-	addu	$7,$7,$4
+	addu	$6,$6,$4
 	lw	$3,28($sp)
-	addu	$7,$7,$2
-	sltu	$4,$7,$2
-	addu	$7,$7,$4
-	addu	$7,$7,$3
-	sltu	$4,$7,$3
-	sh	$5,44($6)
-	addu	$7,$7,$4
-$L100:
-	lw	$2,0($8)
-	addiu	$8,$8,4
-	addu	$7,$7,$2
-	sltu	$4,$7,$2
+	addu	$6,$6,$2
+	sltu	$4,$6,$2
+	addu	$6,$6,$4
+	addu	$6,$6,$3
+	sltu	$4,$6,$3
+	sh	$5,44($17)
+	addu	$6,$6,$4
+$L78:
+	lw	$2,0($7)
+	addiu	$7,$7,4
+	addu	$6,$6,$2
+	sltu	$4,$6,$2
 	.set	noreorder
 	.set	nomacro
-	bne	$8,$9,$L100
-	addu	$7,$7,$4
+	bne	$7,$8,$L78
+	addu	$6,$6,$4
 	.set	macro
 	.set	reorder
 
-	lhu	$2,4($10)
-	addiu	$16,$19,%lo(pptpAccInfo)
+	lhu	$2,4($19)
+	addiu	$16,$20,%lo(pptpAccInfo)
+	move	$4,$18
+	sh	$2,46($16)
 #APP
 		.set	push		# csum_fold
 	.set	noat		
-	sll	$1, $7, 16	
-	addu	$7, $1		
-	sltu	$1, $7, $1	
-	srl	$7, $7, 16	
-	addu	$7, $1		
-	xori	$7, 0xffff	
+	sll	$1, $6, 16	
+	addu	$6, $1		
+	sltu	$1, $6, $1	
+	srl	$6, $6, 16	
+	addu	$6, $1		
+	xori	$6, 0xffff	
 	.set	pop
 #NO_APP
-	sh	$2,46($16)
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_get_skb_data
+	sh	$6,10($19)
+	.set	macro
+	.set	reorder
+
 	addiu	$5,$sp,16
-	sh	$7,10($10)
 	li	$6,20			# 0x14
-	lw	$4,176($17)
 	.set	noreorder
 	.set	nomacro
 	jal	memcpy
-	addiu	$4,$4,14
+	addiu	$4,$2,14
 	.set	macro
 	.set	reorder
 
 	li	$2,48
 	sb	$2,40($sp)
 	li	$2,-127
+	move	$4,$18
 	sb	$2,41($sp)
 	li	$2,-30709
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_get_skb_len
 	sh	$2,42($sp)
-	addiu	$5,$sp,40
-	lw	$2,36($16)
+	.set	macro
+	.set	reorder
+
+	move	$4,$18
+	lw	$3,36($16)
+	addiu	$2,$2,-50
+	lhu	$5,18($16)
+	lw	$7,40($16)
+	move	$6,$3
+	addiu	$3,$3,1
+	sh	$5,46($sp)
+	sh	$2,44($sp)
+	sw	$3,36($16)
+	sw	$7,52($sp)
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_get_skb_data
+	sw	$6,48($sp)
+	.set	macro
+	.set	reorder
+
 	li	$6,16			# 0x10
-	lw	$3,84($17)
-	lhu	$7,18($16)
-	move	$4,$2
-	lw	$8,40($16)
-	addiu	$3,$3,-50
-	addiu	$2,$2,1
-	sh	$3,44($sp)
-	sh	$7,46($sp)
-	sw	$2,36($16)
-	sw	$8,52($sp)
-	sw	$4,48($sp)
-	lw	$4,176($17)
+	addiu	$5,$sp,40
 	.set	noreorder
 	.set	nomacro
 	jal	memcpy
-	addiu	$4,$4,34
+	addiu	$4,$2,34
 	.set	macro
 	.set	reorder
 
 	lui	$2,%hi(jiffies)
-	lw	$3,%lo(jiffies)($2)
-	move	$4,$17
-	lw	$2,8($16)
-	sw	$3,%lo(pptpAccInfo)($19)
+	lw	$2,%lo(jiffies)($2)
+	move	$4,$18
+	lw	$5,8($16)
 	.set	noreorder
 	.set	nomacro
-	jal	dev_queue_xmit
-	sw	$2,24($17)
+	jal	rtl_set_skb_dev
+	sw	$2,%lo(pptpAccInfo)($20)
 	.set	macro
 	.set	reorder
 
+	.set	noreorder
+	.set	nomacro
+	jal	dev_queue_xmit
+	move	$4,$18
+	.set	macro
+	.set	reorder
+
+	.set	noreorder
+	.set	nomacro
+	j	$L63
 	li	$4,1			# 0x1
-$L82:
-$L71:
-	lw	$31,76($sp)
+	.set	macro
+	.set	reorder
+
+$L68:
+$L90:
+	lw	$4,56($2)
+	beq	$4,$0,$L83
+	jal	rtl_get_ppp_dev_priv
+$L83:
+	move	$4,$0
+$L63:
+	lw	$31,80($sp)
 	move	$2,$4
+	lw	$21,76($sp)
 	lw	$20,72($sp)
 	lw	$19,68($sp)
 	lw	$18,64($sp)
@@ -1032,7 +1259,7 @@ $L71:
 	.set	noreorder
 	.set	nomacro
 	j	$31
-	addiu	$sp,$sp,80
+	addiu	$sp,$sp,88
 	.set	macro
 	.set	reorder
 
@@ -1044,28 +1271,33 @@ $L71:
 	.type	fast_pptp_sync_rx_seq, @function
 fast_pptp_sync_rx_seq:
 	.set	nomips16
-	.frame	$sp,0,$31		# vars= 0, regs= 0/0, args= 0, gp= 0
-	.mask	0x00000000,0
+	.frame	$sp,24,$31		# vars= 0, regs= 1/0, args= 16, gp= 0
+	.mask	0x80000000,-8
 	.fmask	0x00000000,0
 	.set	noreorder
 	.set	nomacro
 	
-	lw	$5,156($4)
+	addiu	$sp,$sp,-24
+	sw	$31,16($sp)
+	jal	rtl_ip_hdr
+	nop
+
 	li	$3,1			# 0x1
-	addiu	$4,$5,20
+	addiu	$4,$2,20
+	move	$5,$2
 	lbu	$2,1($4)
 	andi	$2,$2,0x7
-	bne	$2,$3,$L119
+	bne	$2,$3,$L92
 	li	$2,34827			# 0x880b
 
 	lhu	$3,2($4)
-	bne	$3,$2,$L119
+	bne	$3,$2,$L92
 	lui	$2,%hi(pptpAccInfo)
 
 	addiu	$6,$2,%lo(pptpAccInfo)
 	lbu	$2,20($5)
 	andi	$2,$2,0x10
-	beq	$2,$0,$L117
+	beq	$2,$0,$L94
 	nop
 
 	lw	$2,52($6)
@@ -1073,16 +1305,17 @@ fast_pptp_sync_rx_seq:
 	addiu	$2,$2,1
 	sw	$2,52($6)
 	sw	$3,8($4)
-$L117:
+$L94:
 	lb	$2,1($4)
-	bgez	$2,$L119
+	bgez	$2,$L92
 	lui	$2,%hi(pptpAccInfo+48)
 
 	lw	$2,%lo(pptpAccInfo+48)($2)
 	sw	$2,12($4)
-$L119:
+$L92:
+	lw	$31,16($sp)
 	j	$31
-	nop
+	addiu	$sp,$sp,24
 
 	.set	macro
 	.set	reorder
@@ -1094,53 +1327,72 @@ $L119:
 	.type	sync_tx_pptp_gre_seqno, @function
 sync_tx_pptp_gre_seqno:
 	.set	nomips16
-	.frame	$sp,8,$31		# vars= 8, regs= 0/0, args= 0, gp= 0
-	.mask	0x00000000,0
+	.frame	$sp,48,$31		# vars= 8, regs= 5/0, args= 16, gp= 0
+	.mask	0x800f0000,-8
 	.fmask	0x00000000,0
+	addiu	$sp,$sp,-48
+	sw	$18,32($sp)
+	move	$18,$4
+	sw	$17,28($sp)
+	sw	$16,24($sp)
+	sw	$31,40($sp)
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_get_skb_data
+	sw	$19,36($sp)
+	.set	macro
+	.set	reorder
+
+	move	$17,$2
 	lui	$2,%hi(fast_pptp_fw)
-	addiu	$sp,$sp,-8
-	lw	$5,176($4)
 	lw	$2,%lo(fast_pptp_fw)($2)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L120
-	addiu	$7,$5,14
+	beq	$2,$0,$L96
+	addiu	$16,$17,14
 	.set	macro
 	.set	reorder
 
 #APP
-	raw_local_irq_save	$9
+	raw_local_irq_save	$19
 #NO_APP
-	lbu	$3,9($7)
+	lbu	$3,9($16)
 	li	$2,47			# 0x2f
-	bne	$3,$2,$L123
-	lw	$2,84($4)
-	sltu	$2,$2,35
+	bne	$3,$2,$L99
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L123
-	move	$12,$0
+	jal	rtl_get_skb_len
+	move	$4,$18
 	.set	macro
 	.set	reorder
 
-	lbu	$2,14($5)
-	lw	$3,176($4)
-	move	$10,$sp
-	andi	$2,$2,0xf
+	sltu	$2,$2,35
+	bne	$2,$0,$L99
+	move	$4,$18
+	.set	noreorder
+	.set	nomacro
+	jal	rtl_get_skb_data
+	move	$18,$0
+	.set	macro
+	.set	reorder
+
+	addiu	$8,$sp,16
+	lbu	$3,14($17)
 	move	$5,$0
-	sll	$2,$2,2
-	addu	$3,$3,$2
-	addiu	$8,$3,16
-	addiu	$6,$3,14
-$L127:
-	addu	$2,$8,$5
-	addu	$4,$10,$5
+	andi	$3,$3,0xf
+	sll	$3,$3,2
+	addu	$2,$2,$3
+	addiu	$7,$2,16
+	addiu	$6,$2,14
+$L103:
+	addu	$2,$7,$5
+	addu	$4,$8,$5
 	lbu	$3,0($2)
 	addiu	$5,$5,1
 	slt	$2,$5,2
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L127
+	bne	$2,$0,$L103
 	sb	$3,0($4)
 	.set	macro
 	.set	reorder
@@ -1150,85 +1402,85 @@ $L127:
 	andi	$2,$2,0x7
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$3,$L123
+	bne	$2,$3,$L99
 	li	$2,34827			# 0x880b
 	.set	macro
 	.set	reorder
 
-	lhu	$3,0($sp)
-	bne	$3,$2,$L123
+	lhu	$3,16($sp)
+	bne	$3,$2,$L99
 	lbu	$2,0($6)
 	andi	$2,$2,0x10
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L130
-	lui	$10,%hi(pptpAccInfo)
+	beq	$2,$0,$L106
+	lui	$8,%hi(pptpAccInfo)
 	.set	macro
 	.set	reorder
 
-	addiu	$4,$10,%lo(pptpAccInfo)
-	lhu	$3,4($7)
+	addiu	$4,$8,%lo(pptpAccInfo)
+	lhu	$3,4($16)
 	lhu	$2,46($4)
-	beq	$3,$2,$L131
+	beq	$3,$2,$L107
 	lhu	$3,6($6)
 	lhu	$2,18($4)
-	bne	$3,$2,$L131
+	bne	$3,$2,$L107
 	lw	$3,32($4)
-	lw	$2,16($7)
+	lw	$2,16($16)
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L131
+	bne	$3,$2,$L107
 	lui	$2,%hi(pptpAccInfo+48)
 	.set	macro
 	.set	reorder
 
 	lw	$3,8($6)
-	addiu	$8,$2,%lo(pptpAccInfo+48)
-	addiu	$11,$sp,4
-	sw	$3,4($sp)
+	addiu	$7,$2,%lo(pptpAccInfo+48)
+	addiu	$9,$sp,20
+	sw	$3,20($sp)
 	move	$5,$0
-$L138:
-	addu	$2,$11,$5
-	addu	$4,$8,$5
+$L114:
+	addu	$2,$9,$5
+	addu	$4,$7,$5
 	lbu	$3,0($2)
 	addiu	$5,$5,1
 	slt	$2,$5,4
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L138
+	bne	$2,$0,$L114
 	sb	$3,0($4)
 	.set	macro
 	.set	reorder
 
-	addiu	$2,$10,%lo(pptpAccInfo)
-	addiu	$8,$6,8
+	addiu	$2,$8,%lo(pptpAccInfo)
+	addiu	$7,$6,8
 	lw	$3,36($2)
 	move	$5,$0
 	move	$4,$3
 	addiu	$3,$3,1
 	sw	$3,36($2)
-	sw	$4,4($sp)
-$L143:
-	addu	$2,$11,$5
-	addu	$4,$8,$5
+	sw	$4,20($sp)
+$L119:
+	addu	$2,$9,$5
+	addu	$4,$7,$5
 	lbu	$3,0($2)
 	addiu	$5,$5,1
 	slt	$2,$5,4
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L143
+	bne	$2,$0,$L119
 	sb	$3,0($4)
 	.set	macro
 	.set	reorder
 
-	j	$L130
-$L131:
-	li	$12,1			# 0x1
-$L130:
+	j	$L106
+$L107:
+	li	$18,1			# 0x1
+$L106:
 	lb	$2,1($6)
 	.set	noreorder
 	.set	nomacro
-	bgez	$2,$L146
+	bgez	$2,$L122
 	lui	$2,%hi(pptpAccInfo)
 	.set	macro
 	.set	reorder
@@ -1236,72 +1488,72 @@ $L130:
 	addiu	$4,$2,%lo(pptpAccInfo)
 	lhu	$3,6($6)
 	lhu	$2,18($4)
-	bne	$3,$2,$L123
+	bne	$3,$2,$L99
 	lw	$3,32($4)
-	lw	$2,16($7)
+	lw	$2,16($16)
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$2,$L123
+	bne	$3,$2,$L99
 	move	$5,$0
 	.set	macro
 	.set	reorder
 
 	lw	$2,40($4)
 	addiu	$6,$6,12
-	addiu	$8,$sp,4
-	sw	$2,4($sp)
-$L153:
-	addu	$2,$8,$5
+	addiu	$7,$sp,20
+	sw	$2,20($sp)
+$L129:
+	addu	$2,$7,$5
 	addu	$4,$6,$5
 	lbu	$3,0($2)
 	addiu	$5,$5,1
 	slt	$2,$5,4
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L153
+	bne	$2,$0,$L129
 	sb	$3,0($4)
 	.set	macro
 	.set	reorder
 
-$L146:
+$L122:
 	.set	noreorder
 	.set	nomacro
-	bne	$12,$0,$L123
+	bne	$18,$0,$L99
 	lui	$3,%hi(pptpAccInfo)
 	.set	macro
 	.set	reorder
 
-	addiu	$6,$7,16
+	addiu	$6,$16,16
 	addiu	$3,$3,%lo(pptpAccInfo)
 	lhu	$2,44($3)
 	addiu	$2,$2,1
 	sh	$2,44($3)
-	lw	$3,0($7)
-	sh	$2,4($7)
-	lw	$4,4($7)
+	lw	$3,0($16)
+	sh	$2,4($16)
+	lw	$4,4($16)
 	srl	$2,$3,22
 	andi	$2,$2,0x3c
 	addu	$5,$3,$4
-	addu	$8,$7,$2
-	sh	$0,10($7)
+	addu	$7,$16,$2
+	sh	$0,10($16)
 	sltu	$4,$5,$4
-	lw	$2,8($7)
+	lw	$2,8($16)
 	addu	$5,$5,$4
-	lw	$3,12($7)
+	lw	$3,12($16)
 	addu	$5,$5,$2
 	sltu	$4,$5,$2
 	addu	$5,$5,$4
 	addu	$5,$5,$3
 	sltu	$4,$5,$3
 	addu	$5,$5,$4
-$L156:
+$L132:
 	lw	$2,0($6)
 	addiu	$6,$6,4
 	addu	$5,$5,$2
 	sltu	$4,$5,$2
 	.set	noreorder
 	.set	nomacro
-	bne	$6,$8,$L156
+	bne	$6,$7,$L132
 	addu	$5,$5,$4
 	.set	macro
 	.set	reorder
@@ -1317,16 +1569,21 @@ $L156:
 	xori	$5, 0xffff	
 	.set	pop
 #NO_APP
-	sh	$5,10($7)
-$L123:
+	sh	$5,10($16)
+$L99:
 #APP
-	raw_local_irq_restore	$9
+	raw_local_irq_restore	$19
 #NO_APP
-$L120:
+$L96:
+	lw	$31,40($sp)
+	lw	$19,36($sp)
+	lw	$18,32($sp)
+	lw	$17,28($sp)
+	lw	$16,24($sp)
 	.set	noreorder
 	.set	nomacro
 	j	$31
-	addiu	$sp,$sp,8
+	addiu	$sp,$sp,48
 	.set	macro
 	.set	reorder
 
@@ -1371,13 +1628,13 @@ ppfw_read_proc:
 	subu	$4,$4,$17
 	slt	$3,$16,$4
 	movn	$4,$16,$3		#conditional move
-	bne	$2,$0,$L175
+	bne	$2,$0,$L151
 	slt	$5,$4,0
 
 	lw	$2,56($sp)
 	li	$3,1			# 0x1
 	sw	$3,0($2)
-$L175:
+$L151:
 	sw	$18,0($19)
 	move	$2,$0
 	lw	$31,32($sp)
@@ -1409,10 +1666,10 @@ atoi_dec:
 	addiu	$2,$5,-48
 	andi	$2,$2,0x00ff
 	sltu	$2,$2,10
-	beq	$2,$0,$L183
+	beq	$2,$0,$L159
 	move	$7,$0
 
-$L181:
+$L157:
 	addiu	$6,$6,1
 	sll	$2,$5,24
 	lbu	$5,0($6)
@@ -1424,10 +1681,10 @@ $L181:
 	andi	$4,$4,0x00ff
 	addu	$3,$3,$2
 	sltu	$4,$4,10
-	bne	$4,$0,$L181
+	bne	$4,$0,$L157
 	addiu	$7,$3,-48
 
-$L183:
+$L159:
 	j	$31
 	move	$2,$7
 
@@ -1470,13 +1727,13 @@ pptpconn_read_proc:
 	subu	$4,$4,$17
 	slt	$3,$16,$4
 	movn	$4,$16,$3		#conditional move
-	bne	$2,$0,$L185
+	bne	$2,$0,$L161
 	slt	$5,$4,0
 
 	lw	$2,56($sp)
 	li	$3,1			# 0x1
 	sw	$3,0($2)
-$L185:
+$L161:
 	sw	$18,0($19)
 	move	$2,$0
 	lw	$31,32($sp)
@@ -1506,7 +1763,7 @@ pptpconn_write_proc:
 	sw	$31,216($sp)
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L188
+	bne	$2,$0,$L164
 	move	$3,$6
 	.set	macro
 	.set	reorder
@@ -1516,7 +1773,7 @@ pptpconn_write_proc:
 	or	$2,$5,$2
 	.set	noreorder
 	.set	nomacro
-	beq	$5,$0,$L188
+	beq	$5,$0,$L164
 	or	$7,$2,$6
 	.set	macro
 	.set	reorder
@@ -1525,7 +1782,7 @@ pptpconn_write_proc:
 	and	$2,$2,$7
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L191
+	bne	$2,$0,$L167
 	move	$4,$13
 	.set	macro
 	.set	reorder
@@ -1539,10 +1796,10 @@ pptpconn_write_proc:
 	.set	reorder
 #NO_APP
 	move	$3,$6
-$L191:
+$L167:
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$0,$L188
+	bne	$3,$0,$L164
 	move	$4,$13
 	.set	macro
 	.set	reorder
@@ -1550,7 +1807,7 @@ $L191:
 	jal	atoi_dec
 	lui	$3,%hi(pptp_conn_check)
 	sw	$2,%lo(pptp_conn_check)($3)
-$L188:
+$L164:
 	lw	$31,216($sp)
 	li	$2,-14			# 0xfffffff2
 	.set	noreorder
@@ -1581,13 +1838,13 @@ ppfw_write_proc:
 	move	$16,$5
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L198
+	bne	$2,$0,$L174
 	sw	$17,28($sp)
 	.set	macro
 	.set	reorder
 
-$L204:
-$L245:
+$L180:
+$L221:
 	addiu	$4,$6,32
 	.set	noreorder
 	.set	nomacro
@@ -1599,14 +1856,14 @@ $L245:
 	li	$3,-14			# 0xfffffff2
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L198
+	beq	$2,$0,$L174
 	move	$17,$2
 	.set	macro
 	.set	reorder
 
 	.set	noreorder
 	.set	nomacro
-	beq	$16,$0,$L249
+	beq	$16,$0,$L225
 	addu	$3,$16,$18
 	.set	macro
 	.set	reorder
@@ -1617,7 +1874,7 @@ $L245:
 	and	$2,$2,$3
 	.set	noreorder
 	.set	nomacro
-	bne	$2,$0,$L250
+	bne	$2,$0,$L226
 	move	$6,$18
 	.set	macro
 	.set	reorder
@@ -1632,10 +1889,10 @@ $L245:
 	.set	at
 	.set	reorder
 #NO_APP
-$L250:
+$L226:
 	.set	noreorder
 	.set	nomacro
-	bne	$6,$0,$L249
+	bne	$6,$0,$L225
 	move	$4,$17
 	.set	macro
 	.set	reorder
@@ -1661,7 +1918,7 @@ $L250:
 	lw	$2,%lo(fast_pptp_fw)($16)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L257
+	beq	$2,$0,$L233
 	lui	$3,%hi(sync_tx_pptp_gre_seqno_hook)
 	.set	macro
 	.set	reorder
@@ -1670,14 +1927,14 @@ $L250:
 	addiu	$2,$2,%lo(sync_tx_pptp_gre_seqno)
 	.set	noreorder
 	.set	nomacro
-	j	$L258
+	j	$L234
 	sw	$2,%lo(sync_tx_pptp_gre_seqno_hook)($3)
 	.set	macro
 	.set	reorder
 
-$L257:
+$L233:
 	sw	$0,%lo(sync_tx_pptp_gre_seqno_hook)($3)
-$L258:
+$L234:
 	.set	noreorder
 	.set	nomacro
 	jal	kfree
@@ -1687,12 +1944,12 @@ $L258:
 
 	.set	noreorder
 	.set	nomacro
-	j	$L198
+	j	$L174
 	move	$3,$18
 	.set	macro
 	.set	reorder
 
-$L249:
+$L225:
 	.set	noreorder
 	.set	nomacro
 	jal	kfree
@@ -1701,7 +1958,7 @@ $L249:
 	.set	reorder
 
 	li	$3,-14			# 0xfffffff2
-$L198:
+$L174:
 	lw	$31,36($sp)
 	move	$2,$3
 	lw	$18,32($sp)
@@ -1749,7 +2006,7 @@ fast_pptp_init:
 	addiu	$4,$4,%lo($LC9)
 	move	$5,$0
 	move	$6,$0
-	beq	$2,$0,$L260
+	beq	$2,$0,$L236
 	sw	$2,%lo(res1)($7)
 
 	lui	$2,%hi(ppfw_read_proc)
@@ -1759,7 +2016,7 @@ fast_pptp_init:
 	lw	$3,%lo(res1)($7)
 	addiu	$2,$2,%lo(ppfw_write_proc)
 	sw	$2,68($3)
-$L260:
+$L236:
 	jal	create_proc_entry
 	nop
 
@@ -1769,7 +2026,7 @@ $L260:
 	addiu	$4,$4,%lo(pptpAccInfo)
 	move	$5,$0
 	li	$6,64			# 0x40
-	beq	$2,$0,$L261
+	beq	$2,$0,$L237
 	sw	$2,%lo(res_check_pptp)($7)
 
 	lui	$2,%hi(pptpconn_read_proc)
@@ -1779,7 +2036,7 @@ $L260:
 	lw	$3,%lo(res_check_pptp)($7)
 	addiu	$2,$2,%lo(pptpconn_write_proc)
 	sw	$2,68($3)
-$L261:
+$L237:
 	jal	memset
 	nop
 
@@ -1813,25 +2070,25 @@ fast_pptp_exit:
 	sw	$17,20($sp)
 	lui	$17,%hi(res_check_pptp)
 	sw	$31,24($sp)
-	beq	$2,$0,$L263
+	beq	$2,$0,$L239
 	move	$5,$2
 
 	jal	remove_proc_entry
 	nop
 
 	sw	$0,%lo(res1)($16)
-$L263:
+$L239:
 	lw	$2,%lo(res_check_pptp)($17)
 	lui	$4,%hi($LC9)
 	addiu	$4,$4,%lo($LC9)
-	beq	$2,$0,$L262
+	beq	$2,$0,$L238
 	move	$5,$2
 
 	jal	remove_proc_entry
 	nop
 
 	sw	$0,%lo(res_check_pptp)($17)
-$L262:
+$L238:
 	lw	$31,24($sp)
 	lw	$17,20($sp)
 	lw	$16,16($sp)

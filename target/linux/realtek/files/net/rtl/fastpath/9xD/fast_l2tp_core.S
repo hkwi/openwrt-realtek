@@ -228,7 +228,7 @@ l2tp_write_proc:
 
 	li	$6,1			# 0x1
 #APP
- # 437 "net/rtl/fastpath/fast_l2tp_core.c" 1
+ # 441 "net/rtl/fastpath/fast_l2tp_core.c" 1
 	.set	noreorder
 	jal	__copy_user
 	.set	noat
@@ -617,7 +617,7 @@ $L29:
 	lui	$18,%hi(l2tpInfo)
 	addiu	$19,$19,18
 #APP
- # 83 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
+ # 83 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/checksum.h" 1
 		.set	push		# csum_fold
 	.set	noat		
 	sll	$1, $2, 16	
@@ -863,45 +863,45 @@ l2tp_tx_id:
 	jal	rtl_ip_hdr
 	move	$16,$2
 
-	li	$4,1701			# 0x6a5
-	lbu	$3,0($2)
-	andi	$3,$3,0xf
-	sll	$3,$3,2
-	addu	$3,$2,$3
-	lhu	$5,0($3)
-	bne	$5,$4,$L52
+	li	$5,1701			# 0x6a5
+	lbu	$4,0($2)
+	andi	$4,$4,0xf
+	sll	$4,$4,2
+	addu	$4,$2,$4
+	lhu	$3,0($4)
+	bne	$3,$5,$L53
 	nop
 
-	lhu	$6,2($3)
-	bne	$6,$5,$L52
-	addiu	$4,$3,8
+	lhu	$6,2($4)
+	bne	$6,$3,$L53
+	addiu	$5,$4,8
 
-	lhu	$5,8($3)
-	sll	$6,$5,16
+	lhu	$3,8($4)
+	sll	$6,$3,16
 	sra	$6,$6,16
 	bgez	$6,$L45
-	andi	$5,$5,0x4000
+	andi	$3,$3,0x4000
 
-	bne	$5,$0,$L46
+	bne	$3,$0,$L46
 	nop
 
-	lhu	$5,2($4)
+	lhu	$5,2($5)
 	j	$L47
-	addiu	$3,$3,10
+	addiu	$4,$4,10
 
 $L46:
-	lhu	$5,4($4)
-	addiu	$3,$3,12
+	lhu	$5,4($5)
+	addiu	$4,$4,12
 $L47:
-	lhu	$4,14($3)
+	lhu	$3,14($4)
 	li	$6,4			# 0x4
-	bne	$4,$6,$L48
+	bne	$3,$6,$L48
 	nop
 
 	lui	$4,%hi(l2tpInfo)
 	addiu	$4,$4,%lo(l2tpInfo)
 	lhu	$2,20($4)
-	bne	$2,$5,$L52
+	bne	$2,$5,$L53
 	move	$5,$0
 
 	jal	memset
@@ -912,17 +912,17 @@ $L47:
 	jal	rtl865x_setNetifType
 	li	$5,2			# 0x2
 
-	j	$L54
+	j	$L55
 	lui	$2,%hi(state)
 
 $L48:
 	li	$5,11			# 0xb
-	bne	$4,$5,$L49
+	bne	$3,$5,$L49
 	li	$5,12			# 0xc
 
 	lui	$18,%hi(state)
 	lw	$2,%lo(state)($18)
-	bne	$2,$0,$L52
+	bne	$2,$0,$L53
 	nop
 
 	jal	rtl_get_skb_dev_name
@@ -934,7 +934,7 @@ $L48:
 	jal	memcmp
 	li	$6,4			# 0x4
 
-	bne	$2,$0,$L52
+	bne	$2,$0,$L53
 	nop
 
 	jal	rtl_get_skb_dev
@@ -961,27 +961,27 @@ $L48:
 	li	$6,2			# 0x2
 
 	li	$2,1			# 0x1
-	j	$L52
+	j	$L53
 	sw	$2,%lo(state)($18)
 
 $L49:
-	bne	$4,$5,$L52
+	bne	$3,$5,$L53
 	nop
 
-	lhu	$5,2($3)
-	beq	$5,$0,$L52
-	addiu	$4,$3,2
+	lhu	$5,2($4)
+	beq	$5,$0,$L53
+	addiu	$3,$4,2
 
 	lui	$16,%hi(state)
 	lw	$5,%lo(state)($16)
 	sltu	$5,$5,2
-	beq	$5,$0,$L52
+	beq	$5,$0,$L53
 	lui	$17,%hi(l2tpInfo)
 
-	lhu	$3,0($3)
+	lhu	$4,0($4)
 	addiu	$17,$17,%lo(l2tpInfo)
-	sh	$3,20($17)
-	lhu	$3,0($4)
+	sh	$4,20($17)
+	lhu	$3,0($3)
 	sh	$3,22($17)
 	lw	$3,12($2)
 	sw	$3,16($17)
@@ -998,48 +998,54 @@ $L49:
 	sh	$2,38($17)
 
 	li	$2,2			# 0x2
-	j	$L52
+	j	$L53
 	sw	$2,%lo(state)($16)
 
 $L45:
-	bne	$5,$0,$L50
+	lui	$18,%hi(l2tpInfo)
+	addiu	$2,$4,12
+	addiu	$18,$18,%lo(l2tpInfo)
+	addiu	$16,$4,10
+	lw	$4,12($18)
+	movn	$16,$2,$3
+	jal	filter_checkConnect
+	addiu	$17,$16,6
+
+	beq	$2,$0,$L52
 	nop
 
-	lhu	$2,2($4)
-	j	$L51
-	addiu	$3,$3,10
+	lw	$4,12($18)
+	jal	filter_addconnect
+	nop
 
-$L50:
-	lhu	$2,4($4)
-	addiu	$3,$3,12
-$L51:
-	lhu	$6,6($3)
-	li	$5,49185			# 0xc021
-	bne	$6,$5,$L52
-	addiu	$4,$3,6
+$L52:
+	lhu	$3,0($17)
+	li	$2,49185			# 0xc021
+	bne	$3,$2,$L53
+	li	$2,6			# 0x6
 
-	lbu	$5,2($4)
-	li	$4,6			# 0x6
-	bne	$5,$4,$L52
+	lbu	$3,2($17)
+	bne	$3,$2,$L53
 	lui	$4,%hi(l2tpInfo)
 
 	addiu	$4,$4,%lo(l2tpInfo)
-	lhu	$5,20($4)
-	bne	$5,$2,$L52
+	lhu	$3,20($4)
+	lhu	$2,0($16)
+	bne	$3,$2,$L53
 	nop
 
-	lhu	$2,2($3)
+	lhu	$2,2($16)
 	lhu	$3,22($4)
-	bne	$3,$2,$L52
+	bne	$3,$2,$L53
 	move	$5,$0
 
 	jal	memset
 	li	$6,40			# 0x28
 
 	lui	$2,%hi(state)
-$L54:
+$L55:
 	sw	$0,%lo(state)($2)
-$L52:
+$L53:
 	lw	$31,28($sp)
 	lw	$18,24($sp)
 	lw	$17,20($sp)
@@ -1084,28 +1090,28 @@ fast_l2tp_rx:
 	move	$19,$2
 
 	sltu	$2,$2,40
-	bne	$2,$0,$L63
+	bne	$2,$0,$L64
 	andi	$17,$17,0xf
 
 	sll	$17,$17,2
 	li	$3,1701			# 0x6a5
 	addu	$17,$20,$17
 	lhu	$2,0($17)
-	bne	$2,$3,$L63
+	bne	$2,$3,$L64
 	nop
 
 	lhu	$3,2($17)
-	bne	$3,$2,$L63
+	bne	$3,$2,$L64
 	lui	$2,%hi(l2tpInfo)
 
 	lw	$2,%lo(l2tpInfo)($2)
-	bne	$2,$0,$L57
+	bne	$2,$0,$L58
 	nop
 
 	jal	l2tp_tx_id
 	move	$4,$16
 
-$L57:
+$L58:
 	lbu	$3,28($19)
 	lui	$2,%hi(l2tpInfo)
 	addiu	$18,$2,%lo(l2tpInfo)
@@ -1114,33 +1120,33 @@ $L57:
 	lhu	$4,20($18)
 	movz	$5,$0,$17
 	andi	$3,$3,0x2
-	beq	$4,$0,$L63
+	beq	$4,$0,$L64
 	addu	$17,$5,$3
 
 	lhu	$3,22($18)
-	beq	$3,$0,$L63
+	beq	$3,$0,$L64
 	addu	$3,$19,$17
 
 	lbu	$4,36($3)
-	bne	$4,$0,$L63
+	bne	$4,$0,$L64
 	nop
 
 	lbu	$4,37($3)
 	li	$3,33			# 0x21
-	bne	$4,$3,$L63
+	bne	$4,$3,$L64
 	nop
 
 	lw	$2,%lo(l2tpInfo)($2)
-	beq	$2,$0,$L63
+	beq	$2,$0,$L64
 	nop
 
 	lw	$2,16($20)
 	lw	$3,16($18)
-	bne	$3,$2,$L63
+	bne	$3,$2,$L64
 	nop
 
 	lw	$2,4($18)
-	bne	$2,$0,$L64
+	bne	$2,$0,$L65
 	lui	$2,%hi(l2tpInfo+4)
 
 	lui	$4,%hi($LC2)
@@ -1149,20 +1155,20 @@ $L57:
 
 	sw	$2,4($18)
 	lui	$2,%hi(l2tpInfo+4)
-$L64:
+$L65:
 	lw	$5,%lo(l2tpInfo+4)($2)
-	beq	$5,$0,$L63
+	beq	$5,$0,$L64
 	addu	$19,$19,$17
 
 	li	$3,6			# 0x6
 	lbu	$2,47($19)
-	beq	$2,$3,$L62
+	beq	$2,$3,$L63
 	li	$3,17			# 0x11
 
-	bne	$2,$3,$L63
+	bne	$2,$3,$L64
 	nop
 
-$L62:
+$L63:
 	jal	rtl_set_skb_dev
 	move	$4,$16
 
@@ -1179,13 +1185,13 @@ $L62:
 	move	$4,$16
 
 	lw	$4,4($17)
-	beq	$4,$0,$L63
+	beq	$4,$0,$L64
 	nop
 
 	jal	rtl_get_ppp_dev_priv
 	nop
 
-	beq	$2,$0,$L63
+	beq	$2,$0,$L64
 	nop
 
 	lw	$4,4($17)
@@ -1208,7 +1214,7 @@ $L62:
 	j	rtl_inc_ppp_stats
 	addiu	$sp,$sp,40
 
-$L63:
+$L64:
 	lw	$31,36($sp)
 	lw	$20,32($sp)
 	lw	$19,28($sp)
@@ -1241,16 +1247,16 @@ event_ppp_dev_down:
 	lhu	$2,38($16)
 	.set	noreorder
 	.set	nomacro
-	beq	$2,$0,$L67
+	beq	$2,$0,$L68
 	move	$17,$4
 	.set	macro
 	.set	reorder
 
 	lw	$4,4($16)
-	beq	$4,$0,$L67
+	beq	$4,$0,$L68
 	jal	rtl_get_ppp_dev_name
 #APP
- # 75 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$3,($2)
@@ -1268,7 +1274,7 @@ event_ppp_dev_down:
 #NO_APP
 	.set	noreorder
 	.set	nomacro
-	bne	$3,$0,$L67
+	bne	$3,$0,$L68
 	move	$4,$16
 	.set	macro
 	.set	reorder
@@ -1283,7 +1289,7 @@ event_ppp_dev_down:
 
 	lui	$2,%hi(state)
 	sw	$0,%lo(state)($2)
-$L67:
+$L68:
 	lw	$31,28($sp)
 	lw	$17,24($sp)
 	lw	$16,20($sp)
@@ -1314,14 +1320,14 @@ is_l2tp_device:
 	lw	$4,%lo(l2tpInfo+4)($3)
 	.set	noreorder
 	.set	nomacro
-	beq	$4,$0,$L70
+	beq	$4,$0,$L71
 	move	$2,$0
 	.set	macro
 	.set	reorder
 
 	jal	rtl_get_ppp_dev_name
 #APP
- # 75 "/backup_new/qian_yu/trunk_release_buildcode/96d/linux-2.6.30/arch/rlx/include/asm/string.h" 1
+ # 75 "/home199/qian_yu/branch-rtl819x-sdk-v3.2/linux-2.6.30/arch/rlx/include/asm/string.h" 1
 	.set	noreorder
 	.set	noat
 	lbu	$3,($2)
@@ -1338,7 +1344,7 @@ is_l2tp_device:
  # 0 "" 2
 #NO_APP
 	sltu	$2,$3,1
-$L70:
+$L71:
 	lw	$31,20($sp)
 	lw	$16,16($sp)
 	.set	noreorder

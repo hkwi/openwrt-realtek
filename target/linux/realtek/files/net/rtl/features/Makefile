@@ -3,17 +3,27 @@
 #
  
 #EXTRA_CFLAGS += -I $(DIR_LINUX)/drivers/net/rtl819x
-EXTRA_CFLAGS += -I $(TOPDIR)/net
+EXTRA_CFLAGS += -I $(DIR_LINUX)/net
 EXTRA_CFLAGS += -D__KERNEL__
 #EXTRA_CFLAGS += -Wno-implicit -Werror
 
 #EXTRA_CFLAGS += -DCONFIG_RTK_IPTABLES_FAST_PATH
 #EXTRA_CFLAGS += -DCONFIG_FAST_PATH_MODULE
 
+ifeq ($(CONFIG_RTL_819XD),y)
+TARGET = 9xD
+endif
+
+ifeq ($(CONFIG_RTL_8196E),y)
+TARGET = 96E
+endif
+
 ifeq ($(CONFIG_RTL_8198),y)
 TARGET = 98
-else
-TARGET = 96C
+endif
+
+ifeq ($(CONFIG_RTL_8196C),y)
+TARGET = 96E
 endif
  
 EFEATURES_OBJ=rtl_features.o rtl_ps_hooks.o

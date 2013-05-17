@@ -115,6 +115,10 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 	 */
 	__get_user(insn.word, pc);
 
+	#if 0
+	printk("emulate opcode 0x%x at %08lx \n", insn.i_format.opcode, regs->cp0_epc);
+	#endif
+
 	switch (insn.i_format.opcode) {
 	/*
 	 * These are instructions that a compiler doesn't generate.  We
@@ -143,11 +147,11 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 
 		__asm__ __volatile__ (".set\tnoat\n"
 #ifdef __BIG_ENDIAN
-			"1:\tlb\t%0, 0(%2)\n"
+			"1:\tlbu\t%0, 0(%2)\n"
 			"2:\tlbu\t$1, 1(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
-			"1:\tlb\t%0, 1(%2)\n"
+			"1:\tlbu\t%0, 1(%2)\n"
 			"2:\tlbu\t$1, 0(%2)\n\t"
 #endif
 			"sll\t%0, 0x8\n\t"
@@ -180,14 +184,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"1:\tlwl\t%0, (%2)\n"
 			"2:\tlwr\t%0, 3(%2)\n\t"
   #else
-            "1:  lb    %0,  0(%2)\n"
-            "    lb    %1,  1(%2)\n"
+            "1:  lbu   %0,  0(%2)\n"
+            "    lbu   %1,  1(%2)\n"
             "    sll   %0,  8\n"
             "    or    %0,  %1\n"
-            "    lb    %1,  2(%2)\n"
+            "    lbu   %1,  2(%2)\n"
             "    sll   %0,  8\n"
             "    or    %0,  %1\n"
-            "    lb    %1,  3(%2)\n"
+            "    lbu   %1,  3(%2)\n"
             "    sll   %0,  8\n"
             "    or    %0,  %1\n"
   #endif
@@ -197,14 +201,14 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			"1:\tlwl\t%0, 3(%2)\n"
 			"2:\tlwr\t%0, (%2)\n\t"
   #else
-            "1:  lb    %0,  3(%2)\n"
-            "    lb    %1,  2(%2)\n"
+            "1:  lbu   %0,  3(%2)\n"
+            "    lbu   %1,  2(%2)\n"
             "    sll   %0,  8\n"
             "    or    %0,  %1\n"
-            "    lb    %1,  1(%2)\n"
+            "    lbu   %1,  1(%2)\n"
             "    sll   %0,  8\n"
             "    or    %0,  %1\n"
-            "    lb    %1,  0(%2)\n"
+            "    lbu   %1,  0(%2)\n"
             "    sll   %0,  8\n"
             "    or    %0,  %1\n"
   #endif
@@ -218,7 +222,11 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			STR(PTR)"\t1b, 4b\n\t"
 			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
+#ifdef CONFIG_CPU_HAS_ULS
 			: "=&r" (value), "=r" (res)
+#else
+			: "=&r" (value), "=&r" (res)
+#endif
 			: "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
@@ -343,14 +351,17 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			STR(PTR)"\t1b, 4b\n\t"
 			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
+#ifdef CONFIG_CPU_HAS_ULS
 		: "=r" (res)
+#else
+		: "=&r" (res)
+#endif
 		: "r" (value), "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
 		compute_return_epc(regs);
 		break;
 
-	case lwu_op:
 	default:
 		/*
 		 * Pheeee...  We encountered an yet unknown instruction or

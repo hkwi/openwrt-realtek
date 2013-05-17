@@ -13,6 +13,10 @@
 #ifndef _8192CD_HW_H_
 #define _8192CD_HW_H_
 
+#ifdef __ECOS
+#include <pkgconf/system.h>
+#endif
+
 #ifdef __KERNEL__
 #include <linux/module.h>
 #include <linux/skbuff.h>
@@ -24,13 +28,20 @@
 #endif
 
 #include "./8192c_reg.h"
-#ifdef CONFIG_RTL_92D_SUPPORT
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT)
 #include "./8192d_reg.h"
+#endif
+#ifdef CONFIG_RTL_88E_SUPPORT
+#include "./8188e_reg.h"
 #endif
 #include "./8192cd_cfg.h"
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && !defined(__ECOS)
 #include "./sys-support.h"
+#endif
+#ifdef __ECOS
+#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
+#include <cyg/io/eth/rltk/819x/wrapper/timer.h>
 #endif
 
 #include "./wifi.h"
@@ -58,6 +69,7 @@ enum _CHIP_VERSION_ {
 	VERSION_8188C = 0x1000,
 	VERSION_8192C = 0x1001,
 	VERSION_8192D = 0x1002,
+	VERSION_8188E = 0x1003,
 };
 
 #if 0
@@ -474,8 +486,24 @@ enum _ARFR_TABLE_SET_
 	ARFR_BMC = 6,
 };
 
+#if defined(CONFIG_RTL_88E_SUPPORT) && defined(TXREPORT)
+typedef enum _RATR_TABLE_MODE{
+	RATR_INX_WIRELESS_NGB = 0,		// BGN 40 Mhz 2SS 1SS
+	RATR_INX_WIRELESS_NG = 1,		// GN or N
+	RATR_INX_WIRELESS_NB = 2,		// BGN 20 Mhz 2SS 1SS  or BN
+	RATR_INX_WIRELESS_N = 3,
+	RATR_INX_WIRELESS_GB = 4,
+	RATR_INX_WIRELESS_G = 5,
+	RATR_INX_WIRELESS_B = 6,
+	RATR_INX_WIRELESS_MC = 7,
+	RATR_INX_WIRELESS_AC_N = 8,
+}RATR_TABLE_MODE, *PRATR_TABLE_MODE;
+#endif
+
 //#define	HP_UPPER			0x4B //SS = 75%
-#define	HP_LOWER			0x46 //SS = 70%
+#ifndef USE_OUT_SRC
+#define	HP_LOWER			0x3F //0x46 //SS = 70%
+#endif
 #define RSSI_DIFF_PA		10
 #define RSSI_DIFF_LNA		8
 
@@ -642,9 +670,15 @@ struct rx_desc_info {
 };
 
 struct rf_misc_info {
+#ifdef USE_OUT_SRC
+	unsigned char		mimosq[2];
+	unsigned char		mimorssi[2];
+	unsigned char		RxSNRdB[2];	
+#else
 	unsigned char		mimorssi[2];
 	signed char			mimosq[2];
 	int					RxSNRdB[2];
+#endif
 };
 
 #ifdef CONFIG_RTK_MESH
@@ -668,8 +702,11 @@ struct rx_frinfo {
 	unsigned short		seq;
 	unsigned short		tid;
 	unsigned char		to_fr_ds;
+// ODM PODM_PHY_INFO_T
 	unsigned char		rssi;
 	unsigned char		sq;
+	struct rf_misc_info	rf_info;
+//
 	unsigned char		rx_rate;
 	unsigned char		rx_bw;
 	unsigned char		rx_splcp;
@@ -685,7 +722,6 @@ struct rx_frinfo {
 	unsigned char		is_br_mgnt;	 // is a broadcast management frame (beacon and probe-rsp)
 #endif
 	struct RxFWInfo		*driver_info;
-	struct rf_misc_info	rf_info;
 	signed char			cck_mimorssi[4];
 
 #ifdef CONFIG_RTK_MESH
@@ -795,12 +831,8 @@ typedef struct _BB_REGISTER_DEFINITION {
 						 NUM_CMD_DESC *(sizeof(struct tx_desc))) +\
 						 6 * (sizeof(struct tx_desc))
 
-#ifndef __KERNEL__
-#define DESC_DMA_PAGE_SIZE ((DESC_DMA_SIZE + (PAGE_SIZE - 1)))
-#else
 //#define DESC_DMA_PAGE_SIZE ((DESC_DMA_SIZE + (2*PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1)))
 #define DESC_DMA_PAGE_SIZE ((DESC_DMA_SIZE + PAGE_SIZE))
-#endif
 
 struct rtl8192cd_tx_desc_info {
 	struct tx_desc_info	tx_info0[NUM_TX_DESC];
@@ -820,11 +852,22 @@ struct rtl8192cd_hw {
 // switch BE to VI
 	unsigned int	VO_pkt_count;
 	unsigned int	VI_pkt_count;
+	unsigned int	VI_rx_pkt_count;
+#ifdef WMM_VIBE_PRI
+	unsigned int	BE_pkt_count;
+#endif
 	unsigned int	BK_pkt_count;
 #endif
 
+#if defined(RTLWIFINIC_GPIO_CONTROL)
+	unsigned char	GPIO_dir[12];		// bit[0-1] 0x01: input, 0x10: output
+#ifdef PCIE_POWER_SAVING
+	unsigned int	GPIO_cache[2];				
+#endif	
+#endif
+
 #ifndef PRIV_STA_BUF
-	unsigned long alloc_dma_buf;
+	unsigned long	alloc_dma_buf;
 #endif
 
 	unsigned long	ring_dma_addr;
@@ -899,8 +942,8 @@ struct rtl8192cd_hw {
 
 	//_TXPWR_REDEFINE ?? int or char ??
 #if 0
-	int				CCKTxAgc_A[4];
-	int				CCKTxAgc_B[4];	
+	int					CCKTxAgc_A[4];
+	int					CCKTxAgc_B[4];
 #endif
 	char				CCKTxAgc_A[4];
 	char				CCKTxAgc_B[4];
@@ -914,6 +957,11 @@ struct rtl8192cd_hw {
 
 	// for DIG checking
 	unsigned char				signal_strength;	// 1=low and dig off, 2=normal and dig on, 3=high power and dig on
+
+#ifdef INTERFERENCE_CONTROL
+	// for NBI filter checking
+	unsigned char				nbi_filter_on;
+#endif
 
 	// dynamic CCK Tx power by rssi
 	unsigned char				CCKTxAgc_enhanced;
@@ -956,8 +1004,12 @@ struct rtl8192cd_hw {
 
 	unsigned char				check_reg824;
 	unsigned int				reg824_bit9;
+
 	unsigned char				InternalPA5G[2];
 	unsigned char				bNewTxGainTable;
+
+	unsigned char				RTSInitRate;
+	unsigned char				RTSInitRate_Candidate;
 };
 
 //1-------------------------------------------------------------------
@@ -1060,6 +1112,10 @@ enum _RTL8192CD_TX_DESC_ {
 	TX_AggEn			= BIT(5),
 	TX_MacIdSHIFT		= 0,
 	TX_MacIdMask		= 0x01F,
+#ifdef CONFIG_RTL_88E_SUPPORT
+	TXdesc_88E_MacIdSHIFT       = 0,
+	TXdesc_88E_MacIdMask        = 0x03F,
+#endif
 
 //	TX_MoreData			= BIT(5),
 //	TX_MoreFrag			= BIT(6),
@@ -1084,13 +1140,23 @@ enum _RTL8192CD_TX_DESC_ {
 	TX_TxAntCckMask	= 0x03,
 	TX_AntSelB			= BIT(25),
 	TX_AntSelA			= BIT(24),
+#ifdef CONFIG_RTL_88E_SUPPORT
+	TXdesc_88E_BtInt    = BIT(23),
+#endif
 	TX_AmpduDstySHIFT	= 20,
 	TX_AmpduDstyMask	= 0x07,
 	TX_CCX				= BIT(19),
 	TX_RAW				= BIT(18),
 	TX_MoreFrag		= BIT(17),
+#ifdef CONFIG_RTL_88E_SUPPORT
+	TXdesc_88E_BK       = BIT(16),
+#endif
 	TX_BarRtyThSHIFT	= 14,
 	TX_BarRtyThMask	= 0x03,
+#ifdef CONFIG_RTL_88E_SUPPORT
+	TXdesc_88E_RdEn		= BIT(13),
+	TXdesc_88E_AggEn    = BIT(12),
+#endif
 	TX_DataRcSHIFT		= 6,
 	TX_DataRcMask		= 0x03F,
 	TX_RtsRcSHIFT		= 0,
@@ -1112,6 +1178,12 @@ enum _RTL8192CD_TX_DESC_ {
 
 
 	//DWORD3
+#ifdef CONFIG_RTL_88E_SUPPORT
+	TXdesc_88E_EnHwSeq  = BIT(31),
+	TXdesc_88E_TriggerInt   = BIT(30),
+	TXdesc_88E_Tagi     = BIT(29),
+	TXdesc_88E_CpuHandle    = BIT(28),
+#endif
 	TX_PktIdSHIFT			= 28,
 	TX_PktIdMask			= 0x0F,
 	TX_SeqSHIFT			= 16,
@@ -1140,6 +1212,11 @@ enum _RTL8192CD_TX_DESC_ {
 	TX_DataScMask		= 0x03,
 	TX_CTS2AP			= BIT(19),
 	TX_WaitDCTS		= BIT(18),
+#ifdef CONFIG_RTL_88E_SUPPORT
+	TXdesc_88E_PwrStatusSHIFT       = 15,
+	TXdesc_88E_PwrStatusMask        = 0x07,
+	TXdesc_88E_PortId	= BIT(14), 
+#endif
 	TX_HwRtsEn			= BIT(13),
 	TX_RtsEn			= BIT(12),
 	TX_CTS2Self			= BIT(11),
@@ -1148,6 +1225,10 @@ enum _RTL8192CD_TX_DESC_ {
 	TX_UseRate			= BIT(8),
 	TX_HwSeqEn			= BIT(7),
 	TX_QOS				= BIT(6),
+#ifdef CONFIG_RTL_88E_SUPPORT
+	TXdesc_88E_HwSeqSelSHIFT       = 6,
+	TXdesc_88E_HwSeqSelMask        = 0x03,
+#endif
 	TX_ApDCFE			= BIT(5),
 	TX_RtsRateSHIFT	= 0,
 	TX_RtsRateMask		= 0x01F,
@@ -1174,6 +1255,9 @@ enum _RTL8192CD_TX_DESC_ {
 	TX_DataRateFBLmtSHIFT	= 8,
 	TX_DataRateFBLmtMask	= 0x01F,
 	TX_CcxTag				= BIT(7),
+#ifdef CONFIG_RTL_88E_SUPPORT
+	TXdesc_88E_TryRate		= BIT(7), 
+#endif
 	TX_SGI					= BIT(6),
 	TX_DataRateSHIFT		= 0,
 	TX_DataRateMask		= 0x03F,
@@ -1209,6 +1293,17 @@ enum _RTL8192CD_TX_DESC_ {
 
 
 	// DWORD 7
+#ifdef CONFIG_RTL_88E_SUPPORT
+	TXdesc_88E_Null1		= BIT(31), 
+	TXdesc_88E_Null0		= BIT(30), 
+	TXdesc_88E_AntSelC		= BIT(29), 
+	TXdesc_88E_SwOffset31SHIFT	= 27,
+	TXdesc_88E_SwOffset31Mask		= 0x0F,
+	TXdesc_88E_SwOffset30SHIFT	= 23,
+	TXdesc_88E_SwOffset30Mask		= 0x0F,
+	TXdesc_88E_SwOffset29SHIFT	= 19,
+	TXdesc_88E_SwOffset29Mask		= 0x0F,
+#endif
 	TX_MCS15SgiMaxSHIFT	= 28,
 	TX_MCS15SgiMaxMask	= 0x0F,
 	TX_MCS6gMaxSHIFT		= 24,
@@ -1268,15 +1363,24 @@ enum _RTL8192CD_RX_DESC_ {
 	RX_AMSDU			= BIT(13),
 	RX_HwRsvdSHIFT	= 9,
 	RX_HwRsvdMask		= 0x0F,
+#ifdef CONFIG_RTL_88E_SUPPORT
+	RXdesc_88E_TidSHIFT	= 8,
+#endif
 	RX_TidSHIFT			= 5,
 	RX_TidMask			= 0x0F,
 	RX_MacIdSHIFT		= 0,
 	RX_MacIdMask		= 0x01F,
+#ifdef CONFIG_RTL_88E_SUPPORT
+	RXdesc_88E_MacIdMask	= 0x03F,
+#endif
 
 
 	// DWORD 2
 	RX_NextInd				= BIT(30),
 	RX_NextPktLenSHIFT		= 16,
+#ifdef CONFIG_RTL_88E_SUPPORT
+	RXdesc_88E_NextPktLenMask       = 0x0FF,
+#endif
 	RX_NextPktLenMask		= 0x03FFF,
 	RX_FragSHIFT			= 12,
 	RX_FragMask			= 0x0F,
@@ -1285,8 +1389,17 @@ enum _RTL8192CD_RX_DESC_ {
 
 
 	//DWORD3
+#ifdef CONFIG_RTL_88E_SUPPORT
+	RXdesc_88E_MagicWake	= BIT(31),
+	RXdesc_88E_UCwake		= BIT(30),
+	RXdesc_88E_PtnMatch	= BIT(29),
+#endif
 	RX_IV0SHIFT		= 16,
 	RX_IV0Mask			= 0x0FFFF,
+#ifdef CONFIG_RTL_88E_SUPPORT
+	RXdesc_88E_RptSelSHIFT		= 14,
+	RXdesc_88E_RptSelMask		= 0x03,
+#endif
 	RX_HwPCInd			= BIT(15),
 	RX_HwPCErr			= BIT(14),
 	RX_TCPChkValid		= BIT(13),
@@ -1451,7 +1564,7 @@ enum REG_FILE_FORMAT {
 	THREE_COLUMN
 };
 
-#ifdef CONFIG_RTL_92D_SUPPORT
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT)
 typedef enum _PHYREG_PG_TBL_IDX_ {
 	BGN_2040_ALL = 0,
 	BGN_20_CH1_3 = 1,
@@ -1477,7 +1590,6 @@ typedef enum _TXPWR_LMT_TBL_IDX_ {
 	FCC_40M1S = 5,
 	FCC_40M2S = 6,
 }TXPWR_LMT_TBL_IDX;
-
 #endif
 
 typedef enum _MIMO_TR_STATUS {
@@ -1718,20 +1830,76 @@ enum _8190_CPU_RESET_BITFIELD_ {
 #define RSVD_FW_QUEUE_PAGE_BCN_SHIFT	0x00
 #define RSVD_FW_QUEUE_PAGE_PUB_SHIFT	0x08
 
+#ifndef CALIBRATE_BY_ODM
 // Tx power tracking
 #define TxPwrTrk_OFDM_SwingTbl_Len		37
 #define TxPwrTrk_CCK_SwingTbl_Len		23
 #define TxPwrTrk_E_Val					3
-
+#endif
 
 #ifdef CONFIG_RTL_92D_SUPPORT
 
 #define	OFDM_TABLE_SIZE_92D 	43
 #define index_mapping_NUM		13
-#define CCK_TABLE_SIZE_92D 33
+#define index_mapping_DPK_NUM	15
 #define Rx_index_mapping_NUM	15
+#define CCK_TABLE_SIZE_92D 33
 
 #endif
+
+#ifdef _TRACKING_TABLE_FILE
+#define index_mapping_NUM_MAX	20
+
+#define TXPWR_TRACKING_NAME_NUM 20
+static char TXPWR_TRACKING_NAME[][32] = {
+	"2GCCKA_P",
+	"2GCCKA_N",
+	"2GCCKB_P",
+	"2GCCKB_N",
+	"2GA_P",
+	"2GA_N",
+	"2GB_P",
+	"2GB_N",
+	"5GLA_P",
+	"5GLA_N",
+	"5GLB_P",
+	"5GLB_N",
+	"5GMA_P",
+	"5GMA_N",
+	"5GMB_P",
+	"5GMB_N",
+	"5GHA_P",
+	"5GHA_N",
+	"5GHB_P",
+	"5GHB_N",
+};
+
+enum txpwr_tracking_offset {
+	CCKA_P, //"2GCCKA_P"
+	CCKA_N, //"2GCCKA_N"
+	CCKB_P, //"2GCCKB_P"
+	CCKB_N, //"2GCCKB_N"
+	A_P,	//"2GA_P"
+	A_N,	//"2GA_N"
+	B_P,	//"2GB_P"
+	B_N,	//"2GB_N"
+	LA_P,	//"5GLA_P"
+	LA_N,	//"5GLA_N"
+	LB_P,	//"5GLB_P"
+	LB_N,	//"5GLB_N"
+	MA_P,	//"5GMA_P"
+	MA_N,	//"5GMA_N"
+	MB_P,	//"5GMB_P"
+	MB_N,	//"5GMB_N"
+	HA_P,	//"5GHA_P"
+	HA_N,	//"5GHA_N"
+	HB_P,	//"5GHB_P"
+	HB_N,	//"5GHB_N"
+};
+
+
+#endif
+
 
 #define RTL_ABS(a,b) ((a>b) ? (a-b) : (b-a))
 
@@ -1873,6 +2041,13 @@ __PACK struct SMCC_MAC_Info_Tbl{
 	u32 rfB_reg[3]			;
 }__WLAN_ATTRIB_PACK__;
 #endif //SMART_CONCURRENT_92D
+
+#ifndef __LINUX_2_6__
+#ifndef __ECOS
+#define BSP_REVR	REVR
+#define BSP_WDTCNR	WDTCNR
+#endif
+#endif
 
 #endif // _8192CD_HW_H_
 

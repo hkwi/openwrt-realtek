@@ -21,6 +21,8 @@
 /* ip 225.1.1.1 is not in the list of "http://www.iana.org/assignments/multicast-addresses/multicast-addresses.xml",
 	but it is used by customer's VoIP phone device.
  */
+#define IS_RESERVE_MULTICAST_MDNS_ADDR_V4(ipv4addr) 	((((uint32)(ipv4addr)) & 0xFFFFFFFF) == 0xE00000FB)//224.0.0.251
+#define IS_RESERVE_MULTICAST_MDNS_ADDR_V6(ipv6addr) 	(((ipv6addr[0] & 0xFFFFFFFF)==0xff020000)&&((ipv6addr[1] & 0xFFFFFFFF)==0x00000000)&&((ipv6addr[2] & 0xFFFFFFFF)==0x00000000)&&((ipv6addr[3] & 0xFFFFFFFF)==0x000000FB)) 
 #define RESERVE_MULTICAST_ADDR2 	0xE1010101	//225.1.1.1
 #define IN_MULTICAST_RESV1(addr)	((((uint32)(addr)) & 0xFFFFFF00) == 0xe0000000)	// 224.0.0.x
 #define IN_MULTICAST_RESV2(addr)	((((uint32)(addr)) & 0xFF000000) == 0xEF000000)	// 239.0.0.0~239.255.255.255

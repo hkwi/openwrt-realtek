@@ -54,6 +54,22 @@ config USB_GADGET_DEBUG_FILES
 	   here.  If in doubt, or to conserve kernel memory, say "N".
 	   
 	
+config USB_GADGET_VBUS_DRAW
+	int "Maximum VBUS Power usage (2-500 mA)"
+	range 2 500
+	default 2
+	help
+	   Some devices need to draw power from USB when they are
+	   configured, perhaps to operate circuitry or to recharge
+	   batteries.  This is in addition to any local power supply,
+	   such as an AC adapter or batteries.
+
+	   Enter the maximum power your device draws through USB, in
+	   milliAmperes.  The permitted range of values is 2 - 500 mA;
+	   0 mA would be legal, but can make some hosts misbehave.
+
+	   This value will be used except for system-specific gadget
+	   drivers that have more specific information.	
 	
 config	USB_GADGET_SELECTED
 	boolean "USB_GADGET_SELECTED"
@@ -369,21 +385,10 @@ config USB_ETH_RNDIS
 	   XP, you'll need to download drivers from Microsoft's website; a URL
 	   is given in comments found in that info file.
 
-config USB_GADGETFS
-	tristate "Gadget Filesystem (EXPERIMENTAL)"
-	depends on EXPERIMENTAL
-	help
-	  This driver provides a filesystem based API that lets user mode
-	  programs implement a single-configuration USB device, including
-	  endpoint I/O and control requests that don't relate to enumeration.
-	  All endpoints, transfer speeds, and transfer types supported by
-	  the hardware are available, through read() and write() calls.
-
-	  Say "y" to link the driver statically, or "m" to build a
-	  dynamically linked module called "gadgetfs".
-
 config USB_FILE_STORAGE
-	tristate "File-backed Storage Gadget"
+	bool "File-backed Storage Gadget"
+	depends on USB_ETH && EXPERIMENTAL
+	default y
 	help
 	  The File-backed Storage Gadget acts as a USB Mass Storage
 	  disk drive.  As its storage repository it can use a regular
@@ -402,6 +407,40 @@ config USB_FILE_STORAGE_TEST
 	  File-backed Storage Gadget, useful for probing the
 	  behavior of USB Mass Storage hosts.  Not needed for
 	  normal operation.
+
+config USB_GADGETFS
+	tristate "Gadget Filesystem (EXPERIMENTAL)"
+	depends on EXPERIMENTAL
+	help
+	  This driver provides a filesystem based API that lets user mode
+	  programs implement a single-configuration USB device, including
+	  endpoint I/O and control requests that don't relate to enumeration.
+	  All endpoints, transfer speeds, and transfer types supported by
+	  the hardware are available, through read() and write() calls.
+
+	  Say "y" to link the driver statically, or "m" to build a
+	  dynamically linked module called "gadgetfs".
+
+#config USB_FILE_STORAGE
+#	tristate "File-backed Storage Gadget"
+#	help
+#	  The File-backed Storage Gadget acts as a USB Mass Storage
+#	  disk drive.  As its storage repository it can use a regular
+#	  file or a block device (in much the same way as the "loop"
+#	  device driver), specified as a module parameter.
+#
+#	  Say "y" to link the driver statically, or "m" to build a
+#	  dynamically linked module called "g_file_storage".
+#
+#config USB_FILE_STORAGE_TEST
+#	bool "File-backed Storage Gadget testing version"
+#	depends on USB_FILE_STORAGE
+#	default n
+#	help
+#	  Say "y" to generate the larger testing version of the
+#	  File-backed Storage Gadget, useful for probing the
+#	  behavior of USB Mass Storage hosts.  Not needed for
+#	  normal operation.
 
 config USB_G_SERIAL
 	tristate "Serial Gadget (with CDC ACM support)"

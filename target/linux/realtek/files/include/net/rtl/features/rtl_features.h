@@ -1,7 +1,9 @@
 #ifndef	RTL_FEATURES_H
 #define	RTL_FEATURES_H		1
 
+extern char __conntrack_drop_check(void* tmp);
 extern int	rtl_nf_conntrack_threshold;
+extern int	drop_priority_max_idx;
 
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT) || defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
 #define IS_CLASSD_ADDR(__ipv4addr__)				((((uint32)(__ipv4addr__)) & 0xf0000000) == 0xe0000000)
@@ -13,7 +15,7 @@ extern int	rtl_nf_conntrack_threshold;
 struct tcp_state_hash_head
 {
 	enum tcp_conntrack state;
-	
+
 	struct list_head* state_hash;
 };
 struct udp_state_hash_head
@@ -47,20 +49,21 @@ enum {
 extern unsigned long rtl_gc_overflow_timout;
 void gc_overflow_timout_proc_init(void);
 #endif
-void clean_from_lists(struct nf_conn *ct, struct net *net);
-void rtl_death_action(struct nf_conn *ct);
+void clean_from_lists(void *ct, void *net);
+void rtl_death_action(void *ct);
 int drop_one_conntrack(const struct nf_conntrack_tuple *orig,const struct nf_conntrack_tuple *repl);
+int isReservedConntrack(const struct nf_conntrack_tuple * orig, const struct nf_conntrack_tuple * repl);
 int32 rtl_nf_conn_GC_init(void);
-int32 rtl_connGC_addList(struct sk_buff *skb, struct nf_conn *ct);
+int32 rtl_connGC_addList(void *skb, void *ct);
 #endif
 
 #if defined(CONFIG_RTL_IPTABLES_FAST_PATH)
-int rtl_fpTimer_update(struct nf_conn *ct);
+int rtl_fpTimer_update(void *ct);
 #endif
 
 void rtl_fpAddConnCache(struct nf_conn *ct, struct sk_buff *skb);
 
-#if defined(CONFIG_RTL_LOCAL_PUBLIC) || defined(CONFIG_RTL_MULTIPLE_WAN) || (defined(CONFIG_NET_SCHED)&&defined(CONFIG_RTL_IPTABLES_FAST_PATH)) || defined(CONFIG_RTL_HW_QOS_SUPPORT) 
+#if defined(CONFIG_RTL_LOCAL_PUBLIC) || defined(CONFIG_RTL_MULTIPLE_WAN) || (defined(CONFIG_NET_SCHED)&&defined(CONFIG_RTL_IPTABLES_FAST_PATH)) || defined(CONFIG_RTL_HW_QOS_SUPPORT)
 extern struct net_device *rtl865x_getWanDev(void );
 extern struct net_device *rtl865x_getLanDev(void );
 #endif
@@ -80,8 +83,9 @@ int32 rtl_connCache_timer_update(struct nf_conn *ct);
 #endif
 
 #if defined(CONFIG_RTL_HARDWARE_NAT)
-int rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb);
+int32 rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb);
 int rtl_hwnat_timer_update(struct nf_conn *ct);
+#define CONFIG_RTL_AVOID_ADDING_WLAN_PKT_TO_HW_NAT 1
 #endif
 
 #if defined(IMPROVE_QOS) && (defined(CONFIG_RTL_IPTABLES_FAST_PATH) || defined(CONFIG_RTL_HARDWARE_NAT))
@@ -133,9 +137,9 @@ extern unsigned int
 	rtl_nf_conntrack_in(struct net *net, unsigned int dataoff, unsigned int hooknum, struct sk_buff *skb);
 #endif
 
-#if defined(CONFIG_RTL_HARDWARE_NAT)	
+#if defined(CONFIG_RTL_HARDWARE_NAT)
 int rtl_flush_extern_ip(void);
-int rtl_init_masq_info(void);	
+int rtl_init_masq_info(void);
 int rtl_check_for_extern_ip(const char *name,
 		unsigned int valid_hooks, struct xt_table_info *newinfo,
 		void *entry0, unsigned int size,
@@ -144,7 +148,7 @@ int rtl_check_for_extern_ip(const char *name,
 #endif
 
 #if defined(CONFIG_RTL_HARDWARE_NAT)
-int rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb);
+int32 rtl865x_handle_nat(struct nf_conn *ct, int act, struct sk_buff *skb);
 int32 rtl_update_ip_tables(char *name,  unsigned long event, struct in_ifaddr *ina);
 int32 rtl_fn_insert(struct fib_table *tb, struct fib_config *cfg, struct fib_info *fi);
 int32 rtl_fn_delete(struct fib_table *tb, struct fib_config *cfg);
@@ -172,7 +176,7 @@ extern unsigned long rtl_newGC_session_status_time;
 #if defined(CONFIG_RTL_8198)
 #define	RTL_FP_SESSION_LEVEL3_ALLOW_COUNT	(40)
 #else
-#define	RTL_FP_SESSION_LEVEL3_ALLOW_COUNT	(16)	
+#define	RTL_FP_SESSION_LEVEL3_ALLOW_COUNT	(16)
 #endif
 #define	RTL_FP_SESSION_LEVEL1_RX_WEIGHT		(8)
 
@@ -182,6 +186,34 @@ extern unsigned long rtl_newGC_session_status_time;
 #define	RTL_FP_SESSION_LEVEL3					3
 //void rtl_fp_mark_invalid(struct nf_conn *ct);
 //enum LR_RESULT rtk_refreshOSConnectionTimer(void);
+
+#if 1 //defined(CONFIG_RTL_GC_INDEPENDENCE_ON_KERNEL)
+int rtl_gc_threshold_check(struct net* net);
+void rtl_list_del(struct nf_conn* ct);
+void rtl_hlist_nulls_del_rcu(struct nf_conn* ct, enum ip_conntrack_dir dir);
+void rtl_list_add_tail(struct nf_conn* ct, int proto, int flag);
+int rtl_test_bit(struct nf_conn* ct, int num);
+int rtl_del_ct_timer(struct nf_conn *ct);
+void rtl_add_ct_timer(struct nf_conn *ct);
+void rtl_list_move_tail(struct nf_conn *ct, int proto, int state);
+unsigned long rtl_get_ct_timer_expires(struct nf_conn* ct);
+void rtl_nf_ct_stat_inc(struct net* net);
+int rtl_skb_network_offset(struct sk_buff *skb);
+u_int8_t rtl_new_gc_get_ct_protonum(void *ct_ptr, enum ip_conntrack_dir dir);
+struct iphdr *rtl_new_gc_ip_hdr(struct sk_buff *skb);
+__be16 rtl_new_gc_get_skb_protocol(struct sk_buff *skb);
+unsigned long rtl_new_gc_get_ct_udp_status(void *ct_ptr);
+u_int8_t rtl_new_gc_get_ct_tcp_state(void *ct_ptr);
+void rtl_new_gc_set_ct_timeout_expires(void *ct_ptr, unsigned long value);
+__be32 rtl_new_gc_get_ct_ip_by_dir(void *ct_ptr, enum ip_conntrack_dir dir, int flag);
+__be16 rtl_new_gc_get_ct_port_by_dir(void *ct_ptr, enum ip_conntrack_dir dir, int flag);
+#endif
+
+#endif
+
+#define CONFIG_RTL_URL_PATCH 1
+#if defined(CONFIG_RTL_URL_PATCH)
+#define URL_PROTO_PORT 80
 #endif
 
 #endif	/*	RTL_FEATURES_H	*/

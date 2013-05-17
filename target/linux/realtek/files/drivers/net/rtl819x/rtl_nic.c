@@ -45,6 +45,9 @@
 #undef	CONFIG_RTL_IGMP_SNOOPING
 #endif
 
+//if you need to use the fake eth driver, please also disable the "CONFIG_RTL_ETH_PRIV_SK" in kernel
+//#define CONFIG_RTK_FAKE_ETH 1
+
 #include "version.h"
 #include <net/rtl/rtl_types.h>
 #include <net/rtl/rtl_glue.h>
@@ -88,6 +91,9 @@
 #include "romeperf.h"
 #endif
 #include <net/rtl/rtl_nic.h>
+#if defined(CONFIG_RTL_FASTBRIDGE)
+#include <net/rtl/features/fast_bridge.h>
+#endif
 #if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_NET_SCHED) && defined(CONFIG_RTL_LAYERED_DRIVER)
 #include <net/rtl/rtl865x_outputQueue.h>
 #endif
@@ -98,6 +104,10 @@
 
 #if defined(CONFIG_RTL_HW_STP)
 #include <net/rtl/rtk_stp.h>
+#endif
+
+#if defined(CONFIG_RTL_8196C_ESD) || defined(CONFIG_RTL_8198_ESD)
+#include <linux/reboot.h>
 #endif
 
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
@@ -117,12 +127,23 @@ extern uint32 br0SwFwdPortMask;
 #endif
 #endif
 
+#if defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT)
+uint32 nicIgmpModuleIndex_2=0xFFFFFFFF;
+extern uint32 brIgmpModuleIndex_2;
+#define VLAN_CONFIG_SIZE sizeof(vlanconfig)/sizeof(struct rtl865x_vlanConfig)
+#define VLAN_CONFIG_PPPOE_INDEX (VLAN_CONFIG_SIZE-1)
+#endif
+
 #if defined (CONFIG_RTL_8198_INBAND_AP) || defined (CONFIG_RTL_8198_NFBI_BOARD)
 #define CONFIG_819X_PHY_RW 1
 #endif
 
 static unsigned int curLinkPortMask=0;
 static unsigned int newLinkPortMask=0;
+
+#ifdef CONFIG_RTL_8197D_DYN_THR
+static int _8197d_link_check = 0;
+#endif
 
 #define SET_MODULE_OWNER(dev) do { } while (0)
 
@@ -135,6 +156,23 @@ static unsigned int newLinkPortMask=0;
 #include "RTL8366RB_DRIVER/rtl8366rb_apiBasic.h"
 #endif
 
+#ifdef CONFIG_RTK_VOIP_PORT_LINK
+#include <net/netlink.h>
+#include <linux/rtnetlink.h>
+static int rtnl_fill_ifinfo_voip(struct sk_buff *skb, struct net_device *dev,
+			int type, u32 pid, u32 seq, u32 change, unsigned int flags);
+static void rtmsg_ifinfo_voip(int type, struct net_device *dev, unsigned change);
+#endif
+
+#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP
+void voip_dsp_L2_pkt_rx(unsigned char* eth_pkt);
+#endif
+
+#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP
+//merged from r8627 may conflict later
+void ( *voip_dsp_L2_pkt_rx_trap )(unsigned char* eth_pkt, unsigned long size) = NULL;	// pkshih: eth_pkt content may be modified!!
+#endif
+
 #if (defined(CONFIG_RTL_CUSTOM_PASSTHRU) && !defined(CONFIG_RTL8196_RTL8366))
 __DRAM_FWD static int oldStatus;
 static struct proc_dir_entry *res=NULL;
@@ -144,7 +182,7 @@ static int32 rtl8651_initStormCtrl(void);
 static inline int32 rtl_isPassthruFrame(uint8 *data);
 #endif
 
-#if (defined(CONFIG_RTL_8198))
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 static struct proc_dir_entry *phyTest_entry=NULL;
 #endif
 
@@ -181,6 +219,13 @@ EXPORT_SYMBOL(wirelessnet_hook);
 #endif
 #endif
 
+#if defined(BR_SHORTCUT_C2)
+__DRAM_FWD  unsigned char cached_eth_addr2[ETHER_ADDR_LEN];
+EXPORT_SYMBOL(cached_eth_addr2);
+__DRAM_FWD  struct net_device *cached_dev2;
+EXPORT_SYMBOL(cached_dev2);
+int last_used = 1;
+#endif
 
 #if defined(CONFIG_RTL_REINIT_SWITCH_CORE)
 #define STATE_NO_ERROR 0
@@ -213,6 +258,23 @@ static void linkup_time_handle(unsigned long arg);
 static int32 initPortStateCtrl(void);
 static void  exitPortStateCtrl(void);
 #endif
+
+#ifdef CONFIG_RTL_HW_VLAN_SUPPORT
+#define PORT_NUMBER 6
+struct hw_vlan_port_setting{
+	  int32 vlan_port_enabled;
+	  int32 vlan_port_bridge;
+	  int32 vlan_port_tag;
+	  int32 vlan_port_vid;
+};
+int rtl_hw_vlan_ignore_tagged_mc = 1;
+
+struct hw_vlan_port_setting hw_vlan_info[PORT_NUMBER];
+
+int32     rtl_hw_vlan_enable = 0;
+#endif
+
+
 #if defined(CONFIG_RTL_ETH_PRIV_SKB)
 __MIPS16 __IRAM_FWD static struct sk_buff *dev_alloc_skb_priv_eth(unsigned int size);
 static void init_priv_eth_skb_buf(void);
@@ -221,14 +283,25 @@ static void init_priv_eth_skb_buf(void);
 #if defined(CONFIG_RTK_QOS_FOR_CABLE_MODEM)
 static void rtl_initVlanTableForCableMode(void);
 #endif
+
+static int32 rtl819x_eee_proc_init(void);
+
 __DRAM_FWD static struct ring_que	rx_skb_queue;
 int skb_num=0;
 
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
+#define MULTICAST_NETIF_VLAN_ID		678
+static char multiCastNetIf[20]={"multiCastNetIf"};
+static char multiCastNetIfMac[6]={ 0x00, 0x11, 0x12, 0x13, 0x14, 0x15 };
 static struct net_device *rtl_multiWan_net_dev;
 static int rtl_regist_multipleWan_dev(void);
 static int rtl_config_multipleWan_netif(int32 cmd);
 static int rtl_port_used_by_device(uint32 portMask);
+static int rtl865x_addMultiCastNetif(void);
+#if 0
+static int rtl865x_delMultiCastNetif(void);
+int rtl865x_setMultiCastSrcMac(unsigned char *srcMac);
+#endif
 #endif
 
 int32 rtl865x_init(void);
@@ -276,6 +349,14 @@ __IRAM_GEN static inline void rtl_link_change_interrupt_process(unsigned int sta
 static int rtl_rxTxDoneCnt = 0;
 static atomic_t rtl_devOpened;
 
+#if defined(CONFIG_RTL_PROC_DEBUG)
+extern unsigned int tx_ringFull_cnt;
+#endif
+
+#if defined(CONFIG_RTL_819XD)
+static int rtl_port0Refined = 0;
+#endif
+
 __MIPS16 __IRAM_GEN void rtl_rxSetTxDone(int enable)
 {
 	if (unlikely(rtl_devOpened.counter==0))
@@ -309,12 +390,30 @@ static unsigned int rxRingSize[RTL865X_SWNIC_RXRING_HW_PKTDESC] =
 	NUM_RX_PKTHDR_DESC3,
 	NUM_RX_PKTHDR_DESC4,
 	NUM_RX_PKTHDR_DESC5};
+
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E) 
+static unsigned int txRingSize[RTL865X_SWNIC_TXRING_HW_PKTDESC] =
+	{NUM_TX_PKTHDR_DESC,
+	NUM_TX_PKTHDR_DESC1,
+	NUM_TX_PKTHDR_DESC2,
+	NUM_TX_PKTHDR_DESC3
+	};
+#else
 static unsigned int txRingSize[RTL865X_SWNIC_TXRING_HW_PKTDESC] =
 	{NUM_TX_PKTHDR_DESC,
 	NUM_TX_PKTHDR_DESC1};
+#endif
 
 #if defined (CONFIG_RTL_MULTI_LAN_DEV)||defined(CONFIG_RTK_VLAN_SUPPORT)
 static  struct rtl865x_vlanConfig packedVlanConfig[NETIF_NUMBER];
+#endif
+
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	int  vlan_tag;
+	int  vlan_host_pri;
+	int  vlan_bridge_tag;
+	int  vlan_bridge_port;
+    int  vlan_bridge_multicast_tag;
 #endif
 
 /*
@@ -352,6 +451,9 @@ static struct rtl865x_vlanConfig vlanconfig[] = {
 #ifdef CONFIG_8198_PORT5_GMII
 	{	RTL_DRV_LAN_P5_NETIF_NAME, 	0,	 IF_ETHER,	RTL_LANVLANID,	RTL_LAN_FID,		RTL_LANPORT_MASK_5, 	RTL_LANPORT_MASK_5, 	1500,	{ { 0x00, 0x12, 0x34, 0x56, 0x78, 0x95 } }, 0	},
 #endif //CONFIG_8198_PORT5_GMII
+#ifdef CONFIG_RTK_VLAN_NEW_FEATURE
+	{	RTL_DRV_LAN_P7_NETIF_NAME,	0,	 IF_ETHER,	RTL_LANVLANID,	RTL_LAN_FID,	0, 	0, 	1500,	{ { 0x00, 0x12, 0x34, 0x56, 0x78, 0x97 } }, 0	},
+#endif
 #endif
 #endif
 #else	/*CONFIG_BRIDGE*/
@@ -368,6 +470,9 @@ static struct rtl865x_vlanConfig vlanconfig[] = {
 	{	RTL_DRV_LAN_P1_NETIF_NAME,	0,   IF_ETHER, 	RTL_LANVLANID,	RTL_LAN_FID,		RTL_LANPORT_MASK_3, 	RTL_LANPORT_MASK_3,		1500, 	{ { 0x00, 0x12, 0x34, 0x56, 0x78, 0x92 } }, 0	},
 	{	RTL_DRV_LAN_P2_NETIF_NAME, 	0,   IF_ETHER, 	RTL_LANVLANID,	RTL_LAN_FID,		RTL_LANPORT_MASK_2, 	RTL_LANPORT_MASK_2,		1500, 	{ { 0x00, 0x12, 0x34, 0x56, 0x78, 0x93 } }, 0	},
 	{	RTL_DRV_LAN_P3_NETIF_NAME, 	0,   IF_ETHER, 	RTL_LANVLANID, 	RTL_LAN_FID,		RTL_LANPORT_MASK_1, 	RTL_LANPORT_MASK_1,		1500, 	{ { 0x00, 0x12, 0x34, 0x56, 0x78, 0x94 } }, 0	},
+#ifdef CONFIG_RTK_VLAN_NEW_FEATURE
+	{	RTL_DRV_LAN_P7_NETIF_NAME,	0,	 IF_ETHER,	RTL_LANVLANID,	RTL_LAN_FID,	0,	0,	1500,	{ { 0x00, 0x12, 0x34, 0x56, 0x78, 0x97 } }, 0	},
+#endif
 #endif
 #endif
 #endif
@@ -399,6 +504,11 @@ __DRAM_FWD static struct list_head eth_skbbuf_list;
 __DRAM_FWD int eth_skb_free_num;
 EXPORT_SYMBOL(eth_skb_free_num);
 extern struct sk_buff *dev_alloc_8190_skb(unsigned char *data, int size);
+struct sk_buff *priv_skb_copy(struct sk_buff *skb);
+#endif
+
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+	struct vlan_info management_vlan;
 #endif
 
 #ifdef CONFIG_POCKET_AP_SUPPORT
@@ -438,8 +548,22 @@ static int read_proc_vlan(char *page, char **start, off_t off,int count, int *eo
 static int write_proc_vlan(struct file *file, const char *buffer,unsigned long count, void *data);
 static int32 rtk_vlan_support_read( char *page, char **start, off_t off, int count, int *eof, void *data );
 static int32 rtk_vlan_support_write( struct file *filp, const char *buff,unsigned long len, void *data );
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+static int rtk_vlan_management_read(char *page, char **start, off_t off, int count, int *eof, void *data);
+static int rtk_vlan_management_write(struct file *file, const char *buffer, unsigned long len, void *data);
+#endif
+
 //__DRAM_FWD int rtk_vlan_support_enable;
 int rtk_vlan_support_enable;
+
+
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+static int32 rtk_vlan_wan_tag_getportmask(int bridge_port);
+static int32 rtk_vlan_wan_tag_support_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+static int32 rtk_vlan_wan_tag_support_write( struct file *filp, const char *buff,unsigned long len, void *data );
+#endif
+
+
 #if defined(CONFIG_819X_PHY_RW) //#if defined(CONFIG_RTK_VLAN_FOR_CABLE_MODEM)
 static int32 rtl_phy_status_read( char *page, char **start, off_t off, int count, int *eof, void *data );
 static int32 rtl_phy_status_write( struct file *filp, const char *buff,unsigned long len, void *data );
@@ -508,6 +632,15 @@ struct port_mibStatistics  {
 };
 #endif	//#if defined(CONFIG_819X_PHY_RW)
 #endif
+
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+static int32 rtl_hw_vlan_support_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+static int32 rtl_hw_vlan_support_write( struct file *filp, const char *buff,unsigned long len, void *data );
+static int32 rtl_hw_vlan_tagged_bridge_multicast_read( char *page, char **start, off_t off, int count, int *eof, void *data );
+static int32 rtl_hw_vlan_tagged_bridge_multicast_write( struct file *filp, const char *buff,unsigned long len, void *data );
+int rtl_process_hw_vlan_tx(rtl_nicTx_info *txInfo);
+#endif
+
 
 #if defined(RTL8196C_EEE_MAC)
 extern int eee_enabled;
@@ -734,6 +867,90 @@ void disable_led_ctrl(int port)
 }
 #endif // PATCH_GPIO_FOR_LED
 
+#if defined(CONFIG_RTL_819XD)&&defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
+int lanPortMask = 0x10f;
+int wanPortMask = 0x10;
+#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
+int  lanPortMask1 = 0x8;
+int  lanPortMask2 = 0x4;
+int  lanPortMask3 = 0x2;
+int  lanPortMask4 = 0x1;
+#endif
+
+#undef	RTL_WANPORT_MASK
+#undef	RTL_LANPORT_MASK
+#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
+#undef 	RTL_LANPORT_MASK_1
+#undef	RTL_LANPORT_MASK_2
+#undef 	RTL_LANPORT_MASK_3
+#undef 	RTL_LANPORT_MASK_4
+#endif
+
+#define	RTL_WANPORT_MASK		wanPortMask
+#define	RTL_LANPORT_MASK		lanPortMask
+#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
+#define 	RTL_LANPORT_MASK_1	lanPortMask1
+#define	RTL_LANPORT_MASK_2	lanPortMask2
+#define 	RTL_LANPORT_MASK_3	lanPortMask3
+#define 	RTL_LANPORT_MASK_4	lanPortMask4
+#endif
+
+void rtl_setPppMask(void)
+{
+	int i;
+	int totalVlans;
+	totalVlans=((sizeof(vlanconfig))/(sizeof(struct rtl865x_vlanConfig)))-1;
+	for(i=0;i<totalVlans;i++)
+	{
+		if(vlanconfig[i].if_type==IF_PPPOE){
+			vlanconfig[i].memPort = 0x1;
+			vlanconfig[i].untagSet = 0x1;
+		}
+	}
+}
+
+void rtl_resetRegisterNotFound8211ds(void)
+{
+	REG32(0xbb804104) =0x00FF2039;
+	REG32(0xbb80414c) =0;
+	REG32(0xbb804100) =0;
+}
+
+void rtl_setPortMask(uint32 reg_data)
+{
+	if((reg_data != 0)&&(reg_data != 0xFFFF))
+	{
+		/*8211ds is found*/
+		lanPortMask   = 0x11e;
+		wanPortMask = 0x1;
+		#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
+		lanPortMask1 = 0x10;
+		lanPortMask2 = 0x8;
+		lanPortMask3 = 0x4;
+		lanPortMask4 = 0x2;
+		#endif
+		rtl_setPppMask();
+
+		// Flow control DSC tolerance: change to 32 pages to fix "port 0 (8211D) has Rx CRC" issue.
+		REG32(MACCR) = (REG32(MACCR) & ~CF_FCDSC_MASK) | (0x20 << CF_FCDSC_OFFSET);
+	}
+	else
+	{
+		/*8211ds is not found*/
+		lanPortMask   = 0x10f;
+		wanPortMask = 0x10;
+		#if defined(CONFIG_RTK_VLAN_SUPPORT) || defined (CONFIG_RTL_MULTI_LAN_DEV)
+		lanPortMask1 = 0x8;
+		lanPortMask2 = 0x4;
+		lanPortMask3 = 0x2;
+		lanPortMask4 = 0x1;
+		#endif
+		rtl_resetRegisterNotFound8211ds();
+	}
+}
+#endif
+
+
 /*
 device mapping mainten
 */
@@ -894,7 +1111,7 @@ static void re865x_set_rx_mode (struct net_device *dev){
  void  re865x_accumulate_port_stats(uint32 portnum, struct net_device_stats *net_stats)
 {
 	uint32 addrOffset_fromP0 =0;
-
+	extern uint64 rtl865xC_returnAsicCounter64(uint32 offset);
 	if( portnum < 0 ||  portnum > CPU)
 			return ;
 	addrOffset_fromP0 = portnum * MIB_ADDROFFSETBYPORT;
@@ -907,8 +1124,8 @@ static void re865x_set_rx_mode (struct net_device *dev){
 	net_stats->tx_packets += rtl8651_returnAsicCounter( OFFSET_IFOUTMULTICASTPKTS_P0 + addrOffset_fromP0 ) ;
 	net_stats->tx_packets += rtl8651_returnAsicCounter( OFFSET_IFOUTBROADCASTPKTS_P0 + addrOffset_fromP0 ) ;
 
-	net_stats->rx_bytes += rtl8651_returnAsicCounter( OFFSET_IFINOCTETS_P0 + addrOffset_fromP0 ) ;
-	net_stats->tx_bytes += rtl8651_returnAsicCounter( OFFSET_IFOUTOCTETS_P0 + addrOffset_fromP0 ) ;
+	net_stats->rx_bytes += rtl865xC_returnAsicCounter64( OFFSET_IFINOCTETS_P0 + addrOffset_fromP0 ) ;
+	net_stats->tx_bytes += rtl865xC_returnAsicCounter64( OFFSET_IFOUTOCTETS_P0 + addrOffset_fromP0 ) ;
 	/*rx_errors = CRC error + Jabber error  + Fragment error*/
 	net_stats->rx_errors += rtl8651_returnAsicCounter( OFFSET_DOT3STATSFCSERRORS_P0 + addrOffset_fromP0 ) ;
 	net_stats->rx_errors += rtl8651_returnAsicCounter( OFFSET_ETHERSTATSJABBERS_P0 + addrOffset_fromP0 ) ;
@@ -1078,10 +1295,27 @@ static void rtl865x_disableDevPortForward(struct net_device *dev, struct dev_pri
 		}
 	}
 #ifdef CONFIG_RTL_8196C_ESD
-	_96c_esd_counter = 0;		// stop counting
+	if ((cp->portmask) & 0x10)			// port 4
+		_96c_esd_counter = 0;		// stop counting
 #endif
 }
-#if defined(CONFIG_819X_PHY_RW)//#if defined(CONFIG_RTK_VLAN_FOR_CABLE_MODEM)
+
+#if !defined(CONFIG_RTL_8196C)
+static void rtl865x_restartDevPHYNway(struct net_device *dev, struct dev_priv *cp)
+{
+	int port;
+	for(port=0;port<RTL8651_AGGREGATOR_NUMBER;port++)
+	{
+		if((1<<port) & cp->portmask)
+		{
+			rtl8651_restartAsicEthernetPHYNway(port);
+		}
+	}
+	return;
+}
+#endif
+
+#if defined(CONFIG_819X_PHY_RW) || defined(CONFIG_RTL_HW_VLAN_SUPPORT)
 static void rtl865x_setPortForward(int port_num, int forward)
 {
 	if(port_num < 0 || port_num >= RTL8651_AGGREGATOR_NUMBER)
@@ -1090,11 +1324,20 @@ static void rtl865x_setPortForward(int port_num, int forward)
 	if(forward == FALSE) {
 		REG32(PCRP0+(port_num<<2))= ((REG32(PCRP0+(port_num<<2)))&(~EnablePHYIf));
 #ifdef CONFIG_RTL_8196C_ESD
-		_96c_esd_counter = 0;		// stop counting
+		if (port_num == 4)				// port 4
+			_96c_esd_counter = 0;		// stop counting
 #endif
 	}
-	else
+	else {
 		REG32(PCRP0+(port_num<<2))= ((REG32(PCRP0+(port_num<<2)))|(EnablePHYIf));
+
+#ifdef CONFIG_RTL_8196C_ESD
+		if (port_num == 4) {				// port 4
+			_96c_esd_counter = 1;		// start counting and check ESD
+			_96c_esd_reboot_counter = 0;	// reset counter
+		}
+#endif
+	}
 	TOGGLE_BIT_IN_REG_TWICE(PCRP0+(port_num<<2),EnForceMode);
 
 }
@@ -1118,8 +1361,10 @@ static void rtl865x_enableDevPortForward(struct net_device *dev, struct dev_priv
 		}
 	}
 #ifdef CONFIG_RTL_8196C_ESD
-	_96c_esd_counter = 1;		// start counting and check ESD
-	_96c_esd_reboot_counter = 0;	// reset counter
+	if ((cp->portmask) & 0x10) {			// port 4
+		_96c_esd_counter = 1;		// start counting and check ESD
+		_96c_esd_reboot_counter = 0;	// reset counter
+	}
 #endif
 }
 
@@ -1139,6 +1384,17 @@ static void rtk_queue_init(struct ring_que *que)
 	memset(que->ring, 0, (sizeof(struct sk_buff *))*(rtl865x_maxPreAllocRxSkb+1));
 	que->qmax = rtl865x_maxPreAllocRxSkb;
 }
+
+static void rtk_queue_exit(struct ring_que *que)
+{
+
+	if(que->ring!=NULL)
+	{		
+		kfree(que->ring);
+		que->ring=NULL;
+	}
+}
+
 
 __MIPS16
 __IRAM_FWD
@@ -1209,9 +1465,9 @@ static void refill_rx_skb(void)
 	idx = RTL865X_SWNIC_RXRING_MAX_PKTDESC -1;
 
 #ifdef DELAY_REFILL_ETH_RX_BUF
-	while (rx_skb_queue.qlen < rtl865x_maxPreAllocRxSkb || ((idx>=0)&&(SUCCESS==check_rx_pkthdr_ring(idx, &idx)))) 
+	while (rx_skb_queue.qlen < rtl865x_maxPreAllocRxSkb || ((idx>=0)&&(SUCCESS==check_rx_pkthdr_ring(idx, &idx))))
 #else
-	while (rx_skb_queue.qlen < rtl865x_maxPreAllocRxSkb) 
+	while (rx_skb_queue.qlen < rtl865x_maxPreAllocRxSkb)
 #endif
 	{
 		#if defined(CONFIG_RTL_ETH_PRIV_SKB)
@@ -1294,6 +1550,10 @@ unsigned char *alloc_rx_buf(void **skb, int buflen)
 	if (new_skb == NULL)
 		return NULL;
 
+#if 0//defined(CONFIG_RTL_ULINKER_BRSC)
+	skb_reserve(new_skb, 2);
+#endif
+
 	*skb = new_skb;
 
 	return new_skb->data;
@@ -1363,7 +1623,7 @@ void tx_done_callback(void *skb)
 				((struct sk_buff *)skb)->srcVlanPriority=0;
 #endif
 
-#if defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT)|| defined(CONFIG_RTL_FAST_FILTER) || defined(CONFIG_RTL_QOS_PATCH)
+#if defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT)|| defined(CONFIG_RTL_FAST_FILTER) || defined(CONFIG_RTL_QOS_PATCH) || defined(CONFIG_RTK_VOIP_QOS) || defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT) ||defined(CONFIG_RTL_MAC_FILTER_CARE_INPORT)
 				((struct sk_buff *)skb)->srcPhyPort=0xFF;
 				((struct sk_buff *)skb)->dstPhyPort=0xFF;
 #endif
@@ -1620,6 +1880,11 @@ static inline void re865x_relayTrappedMCast(struct sk_buff *skb, unsigned int vi
 	rtl_nicTx_info	nicTx;
  	struct sk_buff *skb2=NULL;
 
+    #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	struct sk_buff *skb_wan=NULL;
+	rtl_nicTx_info	nicTx_wan;
+	#endif
+
 	if(mcastFwdPortMask==0)
 	{
 		return;
@@ -1636,17 +1901,54 @@ static inline void re865x_relayTrappedMCast(struct sk_buff *skb, unsigned int vi
 
        if(skb2!=NULL)
        {
+
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+		if( vlan_bridge_tag && vlan_bridge_multicast_tag &&(vid == vlan_bridge_tag)&&(mcastFwdPortMask & RTL_WANPORT_MASK))
+		{
+			mcastFwdPortMask &= (~RTL_WANPORT_MASK);
+			skb_wan = skb_copy(skb, GFP_ATOMIC);
+			 if(skb_wan!=NULL)
+		     {
+		       	nicTx_wan.txIdx=0;
+                nicTx_wan.vid = vlan_bridge_multicast_tag;
+				nicTx_wan.portlist = RTL_WANPORT_MASK;
+				nicTx_wan.srcExtPort = 0;
+				
+				nicTx_wan.tagport = RTL_WANPORT_MASK;
+				
+				// flush cache 0515 by tim
+				_dma_cache_wback_inv((unsigned long) skb_wan->data, skb_wan->len);
+				if (swNic_send((void *)skb_wan, skb_wan->data, skb_wan->len, &nicTx_wan) < 0)
+				{
+					dev_kfree_skb_any(skb_wan);
+				}
+		}
+	}
+
+		if(!mcastFwdPortMask)
+		{
+			dev_kfree_skb_any(skb2);
+			return;
+	}
+#endif
        	nicTx.txIdx=0;
-#if defined(CONFIG_RTL_QOS_PATCH)
-	if(((struct sk_buff *)skb)->srcPhyPort == QOS_PATCH_RX_FROM_LOCAL){
+#if defined(CONFIG_RTL_QOS_PATCH)|| defined(CONFIG_RTK_VOIP_QOS)
+	if(((struct sk_buff *)skb)->srcPhyPort == QOS_PATCH_RX_FROM_LOCAL)
+{
 		nicTx.priority = QOS_PATCH_HIGH_QUEUE_PRIO;
 		nicTx.txIdx=RTL865X_SWNIC_TXRING_MAX_PKTDESC-1;	//use the highest tx ring index, note: not RTL865X_SWNIC_TXRING_HW_PKTDESC-1
 	}
 #endif
 		nicTx.vid = vid;
-		nicTx.portlist = mcastFwdPortMask;
+		nicTx.portlist = mcastFwdPortMask&((struct dev_priv *)(skb->dev->priv))->portmask;
 		nicTx.srcExtPort = 0;
 		nicTx.flags = (PKTHDR_USED|PKT_OUTGOING);
+	#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT	
+		if( (vlan_tag && vid == vlan_tag) || (vlan_bridge_tag && (vid == vlan_bridge_tag)))
+		{
+			nicTx.tagport = RTL_WANPORT_MASK;
+		}	
+	#endif	
 		_dma_cache_wback_inv((unsigned long)skb2->data, skb2->len);
 		if (swNic_send((void *)skb2, skb2->data, skb2->len, &nicTx) < 0)
 		{
@@ -1716,7 +2018,16 @@ static bool rtl_MulticastRxFilterOff(struct sk_buff *skb, int ipversion)
 		skb->data = skb->data+ETH_HLEN;
 
 	if(ipversion ==4)
+	{
+		struct net_device	*origDev=skb->dev;
+		if((skb->dev->br_port!=NULL))
+		{
+			skb->dev=__dev_get_by_name(dev_net(skb->dev),RTL_PS_BR0_DEV_NAME);
+			
+		}
 		ret = ((IgmpRxFilter_Hook(skb, NF_INET_PRE_ROUTING,  skb->dev, NULL,dev_net(skb->dev)->ipv4.iptable_filter)) !=NF_ACCEPT);
+		skb->dev=origDev;
+	}
 	else if(ipversion ==6)
 		ret = false;//ipv6 hava no iptables rule now
 
@@ -1756,6 +2067,11 @@ int  rtl_MulticastRxCheck(struct sk_buff *skb,rtl_nicRx_info *info)
 		return -1;
 	}
 
+	//when tag ignore is set, vid from packet buffer is zero , so get vid from pvid
+	//if(vid == 0)
+	//	rtl8651_getAsicPVlanId(pid,&vid);
+
+
 	/*set flooding port mask first*/
 	vlanRelayPortMask=rtl865x_getVlanPortMask(vid) & (~(1<<pid)) & ((1<<RTL8651_MAC_NUMBER)-1);
 
@@ -1786,13 +2102,47 @@ int  rtl_MulticastRxCheck(struct sk_buff *skb,rtl_nicRx_info *info)
 
 				/*relay packets which are trapped by hardware multicast table*/
 				#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+                #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+				if(vlan_bridge_tag && !strcmp(cp_this->dev->name,RTL_PS_ETH_NAME_ETH2))
+				{
+					if(igmpsnoopenabled && (nicIgmpModuleIndex_2!=0xFFFFFFFF))
+					{
+						multicastDataInfo.ipVersion=4;
+						multicastDataInfo.sourceIp[0]=  (uint32)(iph->saddr);
+						multicastDataInfo.groupAddr[0]=  (uint32)(iph->daddr);
+						ret=rtl_getMulticastDataFwdInfo(nicIgmpModuleIndex_2, &multicastDataInfo, &nicMCastFwdInfo);
+						vlanRelayPortMask=rtl865x_getVlanPortMask(vid)& (~(1<<pid)) & nicMCastFwdInfo.fwdPortMask & ((1<<RTL8651_MAC_NUMBER)-1);
+						if(ret==SUCCESS)
+						{
+
+						}
+						else
+						{
+							ret=rtl_getMulticastDataFwdInfo(brIgmpModuleIndex_2, &multicastDataInfo, &br0MCastFwdInfo);
+							if(ret==SUCCESS)
+							{
+								/*there is wireless client,can not flooding in vlan */
+								vlanRelayPortMask=0;
+							}
+						}
+
+					}
+				}
+				else
+				#endif
 				if(igmpsnoopenabled && (nicIgmpModuleIndex!=0xFFFFFFFF))
 				{
 					multicastDataInfo.ipVersion=4;
+				#if defined(CONFIG_RTL_ULINKER_BRSC) // assign value will cause coredump
+					memcpy(&multicastDataInfo.sourceIp, &iph->saddr, 4);
+					memcpy(&multicastDataInfo.groupAddr, &iph->daddr, 4);
+				#else
 					multicastDataInfo.sourceIp[0]=  (uint32)(iph->saddr);
 					multicastDataInfo.groupAddr[0]=  (uint32)(iph->daddr);
+				#endif
+
 					ret=rtl_getMulticastDataFwdInfo(nicIgmpModuleIndex, &multicastDataInfo, &nicMCastFwdInfo);
-					vlanRelayPortMask=rtl865x_getVlanPortMask(vid)& (~(1<<pid)) & nicMCastFwdInfo.fwdPortMask & ((1<<RTL8651_MAC_NUMBER)-1);
+					vlanRelayPortMask=rtl865x_getVlanPortMask(vid)& (~(1<<pid)) & nicMCastFwdInfo.fwdPortMask &cp_this->portmask& ((1<<RTL8651_MAC_NUMBER)-1);
 
 					if(ret==SUCCESS)
 					{
@@ -1814,6 +2164,20 @@ int  rtl_MulticastRxCheck(struct sk_buff *skb,rtl_nicRx_info *info)
 			}
 			else if(l4Protocol==IPPROTO_IGMP)
 			{
+                #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+				if(vlan_bridge_tag && !strcmp(cp_this->dev->name,RTL_PS_ETH_NAME_ETH2))
+				{
+
+					if(igmpsnoopenabled && (nicIgmpModuleIndex_2!=0xFFFFFFFF))
+					{
+						rtl_igmpMldProcess(nicIgmpModuleIndex_2, skb->data, pid, &vlanRelayPortMask);
+						//just flooding
+						vlanRelayPortMask=rtl865x_getVlanPortMask(vid) & (~(1<<pid)) & ((1<<RTL8651_MAC_NUMBER)-1);
+					}
+				}
+				else
+				{	
+				#endif
 				if(igmpsnoopenabled && (nicIgmpModuleIndex!=0xFFFFFFFF))
 				{
 					/*igmp packet*/
@@ -1824,7 +2188,9 @@ int  rtl_MulticastRxCheck(struct sk_buff *skb,rtl_nicRx_info *info)
 					rtl_igmpMldProcess(nicIgmpModuleIndex, skb->data, pid, &vlanRelayPortMask);
 					vlanRelayPortMask=rtl865x_getVlanPortMask(vid) & vlanRelayPortMask & ((1<<RTL8651_MAC_NUMBER)-1);
 				}
-
+		#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+				}
+		#endif
 				re865x_relayTrappedMCast( skb, vid, vlanRelayPortMask, TRUE);
 
 			}
@@ -1886,7 +2252,7 @@ int  rtl_MulticastRxCheck(struct sk_buff *skb,rtl_nicRx_info *info)
 
 					ret=rtl_getMulticastDataFwdInfo(nicIgmpModuleIndex, &multicastDataInfo, &nicMCastFwdInfo);
 
-					vlanRelayPortMask=rtl865x_getVlanPortMask(vid)& (~(1<<pid)) & nicMCastFwdInfo.fwdPortMask & ((1<<RTL8651_MAC_NUMBER)-1);
+					vlanRelayPortMask=rtl865x_getVlanPortMask(vid)& (~(1<<pid)) & nicMCastFwdInfo.fwdPortMask &cp_this->portmask& ((1<<RTL8651_MAC_NUMBER)-1);
 					if(ret==SUCCESS)
 					{
 
@@ -2144,17 +2510,20 @@ static inline int32 rtl_decideRxDevice(rtl_nicRx_info *info)
 	#if defined(CONFIG_RTL_STP)
 	int32 			dev_no;
 	#endif
-	#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+	#if defined(CONFIG_RTL_CUSTOM_PASSTHRU_PPPOE)
 	unsigned char dest_mac[MAX_ADDR_LEN];
 	#endif
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	int32 vid=0;
+	vid = info->vid;
+#endif
 	pid = info->pid;
 	skb = info->input;
 	data = skb->data;
-	#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+	#if defined(CONFIG_RTL_CUSTOM_PASSTHRU_PPPOE)
 	memcpy(dest_mac, data, 6);
 	#endif
-
 
 	info->isPdev=FALSE;
 	ret = SUCCESS;
@@ -2180,25 +2549,27 @@ static inline int32 rtl_decideRxDevice(rtl_nicRx_info *info)
 	#endif
 	{
 		#if defined(CONFIG_RTL_MULTIPLE_WAN)
-		//mac based decision
-		for(i = 0; i < ETH_INTF_NUM; i++)
-		{
-                        cp = ((struct dev_priv *)_rtl86xx_dev.dev[i]->priv);
-                        if(cp && cp->opened && memcmp(skb->data,cp->dev->dev_addr,6) == 0)
-                        {
-                                info->priv = cp;
-                                goto out;
-                        }
-              }
-		//rtl_multiWan_config
-		if(rtl_multiWan_net_dev)
-		{
-			cp = (struct dev_priv *)rtl_multiWan_net_dev->priv;
-			if(cp && cp->opened && memcmp(skb->data,cp->dev->dev_addr,6) == 0)
-	               {
-	               	info->priv = cp;
-	                      goto out;
+		if(rtl865x_curOpMode == GATEWAY_MODE){
+			//mac based decision
+			for(i = 0; i < ETH_INTF_NUM; i++)
+			{
+	                        cp = ((struct dev_priv *)_rtl86xx_dev.dev[i]->priv);
+	                        if(cp && cp->opened && memcmp(skb->data,cp->dev->dev_addr,6) == 0)
+	                        {
+	                                info->priv = cp;
+	                                goto out;
+	                        }
 	              }
+			//rtl_multiWan_config
+			if(rtl_multiWan_net_dev)
+			{
+				cp = (struct dev_priv *)rtl_multiWan_net_dev->priv;
+				if(cp && cp->opened && memcmp(skb->data,cp->dev->dev_addr,6) == 0)
+		               {
+		               	info->priv = cp;
+		                      goto out;
+		              }
+			}
 		}
 		#endif
 
@@ -2206,11 +2577,53 @@ static inline int32 rtl_decideRxDevice(rtl_nicRx_info *info)
 		{
 			cp = ((struct dev_priv *)_rtl86xx_dev.dev[i]->priv);
 			//printk("=========%s(%d),cp(%s),i(%d)\n",__FUNCTION__,__LINE__,cp->dev->name,i);
+ #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+			if(*((unsigned short *)(skb->data+(ETH_ALEN<<1)))== __constant_htons(ETH_P_8021Q))   
+        	{
+        		vid = *((unsigned short *)(skb->data+(ETH_ALEN<<1)+2))&0x0fff;
+			
+				if( vlan_tag && vid == vlan_tag)
+				{
+					if(rtl865x_curOpMode == BRIDGE_MODE)
+						vid = RTL_LANVLANID;
+				}
+				else if (vlan_bridge_tag && vid == vlan_bridge_tag)
+       			{
+					vid = vlan_bridge_tag;
+				}
+				else if(vlan_bridge_multicast_tag && vid == vlan_bridge_multicast_tag)
+                {
+					vid = vlan_bridge_tag;
+                }
+				#ifdef CONFIG_VLAN_8021Q
+				else
+                {
+					vid = vlanconfig[1].vid;//default from WAN eth1
+                }
+				#endif
+				if(cp && cp->opened && (vid==cp->id))
+				{
+					info->priv = cp;
+					ret = SUCCESS;
+					break;
+				}
+			}
+			else
+			{
+				if(cp && cp->opened && (cp->portmask & (1<<pid)))
+				{
+						info->priv = cp;
+						ret = SUCCESS;
+						break;
+					}
+				}
+		#else
 			if(cp && cp->opened && (cp->portmask & (1<<pid)))
 			{
 				info->priv = cp;
 				break;
 			}
+		#endif
 		}
 
 		//printk("====%s(%d),dev(%s),i(%d)\n",__FUNCTION__,__LINE__,cp->dev->name,i);
@@ -2218,11 +2631,14 @@ static inline int32 rtl_decideRxDevice(rtl_nicRx_info *info)
 		{
 			info->priv = NULL;
 			dev_kfree_skb_any(skb);
-			ret = FAILED;;
+			ret = FAILED;
 		}
 		#if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
 		else if (SUCCESS==rtl_isPassthruFrame(data)&&(rtl_isWanDev(cp)==TRUE)
-			&& (compare_ether_addr((char* )cp->dev->dev_addr, (char*)dest_mac)))
+			#if defined(CONFIG_RTL_CUSTOM_PASSTHRU_PPPOE)
+			&& (compare_ether_addr((char* )cp->dev->dev_addr, (char*)dest_mac))
+			#endif
+			)
 		{
 			info->priv = _rtl86xx_dev.pdev->priv;
 			info->isPdev=TRUE;
@@ -2235,35 +2651,105 @@ out:
 	return ret;
 }
 
+#if defined(CONFIG_RTL_ULINKER_BRSC)
+#include "linux/ulinker_brsc.h"
+#endif
+
 #if defined(BR_SHORTCUT)
 __MIPS16
 __IRAM_FWD
 static inline int32 rtl_processBridgeShortCut(struct sk_buff *skb, struct dev_priv *cp_this, rtl_nicRx_info *info)
 {
 	struct net_device *dev;
+	/*2011-09-13 fix wlan sta can not access internet when wan mac clone sta mac*/
+	if(rtl_isWanDev(cp_this) && (rtl865x_curOpMode == GATEWAY_MODE))
+	{
+		return FAILED;
+	}
+
+	/*if lltd, don't go shortcut*/
+	if(*(unsigned short *)(skb->data+ETH_ALEN*2)==htons(0x88d9))
+		return FAILED;
 
 	if (
 		#if 0
 		(eth_flag & BIT(2)) &&
 		#endif
-#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
+#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT) || defined(CONFIG_RTL_ULINKER)
 				(skb->data[37] != 68) && /*port 68 is dhcp dest port. In order to hack dns ip, so dhcp packag                                                           can't enter bridge short cut.*/
 #endif
 	#if defined(CONFIG_WIRELESS_LAN_MODULE)
 		(wirelessnet_hook_shortcut !=NULL ) && ((dev = wirelessnet_hook_shortcut(skb->data)) != NULL)
 	#else
+	  #if defined(CONFIG_RTL_ULINKER_BRSC)
+		(((dev=brsc_get_cached_dev(0, skb->data))!=NULL) || ((dev = get_shortcut_dev(skb->data)) != NULL)) 
+	  #else
 		((dev = get_shortcut_dev(skb->data)) != NULL)
+	  #endif
+	#endif
+    #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+		&& rtl865x_same_root(skb->dev,dev)
 	#endif
 	)
+	{
+	#if defined(CONFIG_RTL_ULINKER_BRSC)
+		if (cached_usb.dev && dev == cached_usb.dev) {
+			BRSC_COUNTER_UPDATE(tx_eth_sc);		
+			BDBG_BRSC("BRSC: get shortcut dev[%s]\n", cached_usb.dev->name);
+
+			if (skb->dev)
+				brsc_cache_dev(2, skb->dev, skb->data+ETH_ALEN);
+		}
+		else
+	#endif /* #if defined(CONFIG_RTL_ULINKER_BRSC) */
 	{
 		#if defined(CONFIG_RTL_HARDWARE_NAT)
 		if (memcmp(&skb->data[ETH_ALEN], cp_this->dev->dev_addr, ETH_ALEN))
 		#endif
 		{
+			#ifdef BR_SHORTCUT_C2
+			/*
+			if (cached_dev == NULL) {
+				memcpy(cached_eth_addr, &skb->data[ETH_ALEN], ETH_ALEN);
+				cached_dev = cp_this->dev;
+				last_used = 0;
+			}
+
+			else if (cached_dev2 == NULL) {
+				memcpy(cached_eth_addr2, &skb->data[ETH_ALEN], ETH_ALEN);
+				cached_dev2 = cp_this->dev;
+				last_used = 1;
+			}
+
+			else */
+			if (memcmp(cached_eth_addr, &skb->data[ETH_ALEN], ETH_ALEN) == 0) {
+				//memcpy(cached_eth_addr, &skb->data[ETH_ALEN], ETH_ALEN);
+				cached_dev = cp_this->dev;
+				last_used = 0;
+			}
+			else if (memcmp(cached_eth_addr2, &skb->data[ETH_ALEN], ETH_ALEN) == 0) {
+				//memcpy(cached_eth_addr2, &skb->data[ETH_ALEN], ETH_ALEN);
+				cached_dev2 = cp_this->dev;
+				last_used = 1;
+			}
+			else if (last_used == 1) {
+				memcpy(cached_eth_addr, &skb->data[ETH_ALEN], ETH_ALEN);
+				cached_dev = cp_this->dev;
+				last_used = 0;
+			}
+			else if (last_used == 0) {
+				memcpy(cached_eth_addr2, &skb->data[ETH_ALEN], ETH_ALEN);
+				cached_dev2 = cp_this->dev;
+				last_used = 1;
+			}
+
+
+			#else
 			memcpy(cached_eth_addr, &skb->data[ETH_ALEN], ETH_ALEN);
 			cached_dev = cp_this->dev;
+			#endif
 		}
-
+	}
 		#if defined(CONFIG_RTL_HW_QOS_SUPPORT) && defined(CONFIG_RTL_HARDWARE_NAT)
 		skb->cb[0] = info->rxPri;
 		#endif
@@ -2291,6 +2777,7 @@ static inline int32 rtl_processBridgeShortCut(struct sk_buff *skb, struct dev_pr
 	return FAILED;
 }
 #elif defined(CONFIG_RTL_HARDWARE_NAT)&&(defined(CONFIG_RTL8192SE)||defined(CONFIG_RTL8192CD))
+#if 0
 __MIPS16
 __IRAM_FWD
 static inline int32 rtl_processExtensionPortShortCut(struct sk_buff *skb, struct dev_priv *cp_this, rtl_nicRx_info *info)
@@ -2330,6 +2817,7 @@ static inline int32 rtl_processExtensionPortShortCut(struct sk_buff *skb, struct
 
 	return FAILED;
 }
+#endif
 #endif
 
 __MIPS16
@@ -2377,12 +2865,16 @@ static inline void rtl_processRxFrame(rtl_nicRx_info *info)
 		goto RxToPs;
 	}
 #endif
-
+#if 0
 	/*	sanity check	*/
 	if  ((memcmp(&data[ETH_ALEN], cp_this->dev->dev_addr, ETH_ALEN)==0)||PKTHDR_EXTPORT_MAGIC2==vid||PKTHDR_EXTPORT_MAGIC==vid)// check source mac
 	{
 		#if	defined(CONFIG_RTL_HARDWARE_NAT)&&(defined(CONFIG_RTL8192SE)||defined(CONFIG_RTL8192CD))
+                #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+		if ((PKTHDR_EXTPORT_MAGIC!=vid)||(info->pid!=PKTHDR_EXTPORT_P3 &&info->pid!=PKTHDR_EXTPORT_P2))
+                 #else
 		if ((PKTHDR_EXTPORT_MAGIC!=vid)||(info->pid!=PKTHDR_EXTPORT_P3))
+		#endif
 		#endif
 		{
 			cp_this->net_stats.rx_dropped++;
@@ -2390,7 +2882,7 @@ static inline void rtl_processRxFrame(rtl_nicRx_info *info)
 			return;
 		}
 	}
-
+#endif
 	if (skb->head==NULL||skb->end==NULL)
 	{
 		dev_kfree_skb_any(skb);
@@ -2405,7 +2897,23 @@ static inline void rtl_processRxFrame(rtl_nicRx_info *info)
 	skb->dev=info->isPdev?_rtl86xx_dev.pdev:info->priv->dev;
 	//skb->dev=cp_this->dev;
 
-#if defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT) || defined(CONFIG_RTL_FAST_FILTER) || defined(CONFIG_RTL_QOS_PATCH)
+#ifdef CONFIG_RTK_VOIP_ETHERNET_DSP
+	//merged from r8627 may conflict later
+	//printk("type: %x, skb->mac=%p, skb->data=%p\n", skb->mac.ethernet->h_proto, skb->mac.ethernet, skb->data);
+	//extern void voip_dsp_L2_pkt_rx(unsigned char* eth_pkt);
+	if (*(uint16*)(&(skb->data[12])) == htons(0x8899) && voip_dsp_L2_pkt_rx_trap )
+	{
+		//dsp_id = *(uint16*)(&(skb->data[14]);
+		voip_dsp_L2_pkt_rx_trap(skb->data, skb->len);
+		dev_kfree_skb_any(skb);
+		//printk("0x%x ", *(uint16*)(&(skb->data[12])));
+		return;
+	}
+#endif
+
+
+
+#if defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT) || defined(CONFIG_RTL_FAST_FILTER) || defined(CONFIG_RTL_QOS_PATCH) || defined(CONFIG_RTK_VOIP_QOS) || defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT) ||defined(CONFIG_RTL_MAC_FILTER_CARE_INPORT)
 	skb->srcPhyPort=(uint8)pid;
 #endif
 	//printk("=======%s(%d),cp_this(%s)\n",__FUNCTION__,__LINE__,cp_this->dev->name);
@@ -2413,12 +2921,27 @@ static inline void rtl_processRxFrame(rtl_nicRx_info *info)
 	#if defined(CONFIG_RTK_VLAN_SUPPORT)
 	if (rtk_vlan_support_enable && cp_this->vlan_setting.global_vlan)
 	{
+	#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+		struct sk_buff *new_skb = NULL;
+		int vlan_check;
+		vlan_check = rx_vlan_process(cp_this->dev, &cp_this->vlan_setting, skb, &new_skb);
+		if((vlan_check==0) && new_skb){
+			rtl_processRxToProtcolStack(new_skb, cp_this);
+		}else if(vlan_check == 1){
+			cp_this->net_stats.rx_dropped++;
+			dev_kfree_skb_any(skb);
+			return;
+		}else if((vlan_check == 2) && new_skb){
+			dev_kfree_skb_any(new_skb);
+		}
+	#else
 		if (rx_vlan_process(cp_this->dev, &cp_this->vlan_setting, skb))
 		{
 			cp_this->net_stats.rx_dropped++;
 			dev_kfree_skb_any(skb);
 			return;
 		}
+	#endif
 
 		#if defined(CONFIG_RTK_VLAN_FOR_CABLE_MODEM)
 		if(rtk_vlan_support_enable == 2)
@@ -2447,14 +2970,68 @@ static inline void rtl_processRxFrame(rtl_nicRx_info *info)
 	#endif	/*	defined(CONFIG_RTK_VLAN_SUPPORT)	*/
 
 	if (*((uint16*)(skb->data+(ETH_ALEN<<1))) == __constant_htons(ETH_P_8021Q)) {
+		#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+		if((skb->data[0]&1)||((skb->data[0]==0x33)&&(skb->data[1]==0x33)&&(skb->data[2]!=0xFF)))
+		{
+			memcpy(&skb->tag, skb->data+ETH_ALEN*2, sizeof(struct vlan_tag));
+		}
+		#endif
 		vid = *((unsigned short *)(data+(ETH_ALEN<<1)+2));
 		#if	defined(CONFIG_RTL_QOS_8021P_SUPPORT)
 		skb->srcVlanPriority = (vid>>13)&0x7;
 		#endif
 		vid &= 0x0fff;
 
+	#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+		//for later arp reply to WAN port 
+		//memcpy(&(skb->tag), skb->data+ETH_ALEN*2, VLAN_HLEN);
+	
+		if(vlan_tag && vid == vlan_tag)
+		{
+			goto Remove_tag;
+		}
+		else if(vlan_bridge_tag && vid == vlan_bridge_tag)
+		{
+			if(vlan_bridge_multicast_tag)
+			{ 
+				if((skb->data[0]==0x01) && (skb->data[1]==0x00) && (skb->data[2]==0x5e))
+				{
+					cp_this->net_stats.rx_dropped++;
+					dev_kfree_skb_any(skb);
+					return;
+				}
+			}
+			goto Remove_tag;
+		}
+		else if(vlan_bridge_multicast_tag && vid == vlan_bridge_multicast_tag)
+		{
+			if((skb->data[0]==0x01) && (skb->data[1]==0x00) && (skb->data[2]==0x5e))
+			{
+				info->vid = vlan_bridge_tag;//for later check ???
+				goto Remove_tag;
+			}
+		}
+		else
+		{
+		#ifndef CONFIG_VLAN_8021Q
+			cp_this->net_stats.rx_dropped++;
+			dev_kfree_skb_any(skb);
+			return; 
+		#endif
+		}
+	#ifdef CONFIG_VLAN_8021Q
+		goto Reserve_tag;
+	#endif
+Remove_tag:
+	#endif
 		memmove(data + VLAN_HLEN, data, VLAN_ETH_ALEN<<1);
 		skb_pull(skb, VLAN_HLEN);
+
+#ifdef CONFIG_VLAN_8021Q
+Reserve_tag:
+	;//don't remove tag
+#endif
+	
 	}
 	/*	vlan process end (vlan tag has already stripped)	*/
 
@@ -2474,11 +3051,17 @@ static inline void rtl_processRxFrame(rtl_nicRx_info *info)
 			return;
 		}
 		#elif defined(CONFIG_RTL_HARDWARE_NAT)&&(defined(CONFIG_RTL8192SE)||defined(CONFIG_RTL8192CD))
+		/*	
 		if (SUCCESS==rtl_processExtensionPortShortCut(skb,cp_this, info)) {
 			return;
 		}
+		*/
 		#endif
 
+		#if defined(CONFIG_RTL_FASTBRIDGE)
+		if (RTL_FB_RETURN_SUCCESS==rtl_fb_process_in_nic(skb, cp_this->dev))
+			return;
+		#endif
 		/*	shortcut process end	*/
 
 		/*	unknow unicast control	*/
@@ -2542,7 +3125,7 @@ __IRAM_FWD static void interrupt_dsr_rx_done(rtlInterruptRxData *rxData)
 
 	local_irq_save(flags);
 	rtl_rxSetTxDone(TRUE);
-    	REG32(CPUIIMR) |= (RX_DONE_IP_ALL);
+    	REG32(CPUIIMR) |= (RX_DONE_IE_ALL | PKTHDR_DESC_RUNOUT_IE_ALL);
 	rtl_rx_tasklet_running = 0;
 	local_irq_restore(flags);
 #endif
@@ -2681,9 +3264,9 @@ static int re865x_setPhyGrayCode(void)
 
 				/*=========== ###02 ===========*/
 				/*
-				  1.      reg17 = 0x1f10¡Aread reg29, for SNR
-				  2.      reg17 =  0x1f11¡Aread reg29, for AGC
-				  3.      reg17 = 0x1f18¡Aread reg29, for cb0
+				  1.      reg17 = 0x1f10ï¼Œread reg29, for SNR
+				  2.      reg17 =  0x1f11ï¼Œread reg29, for AGC
+				  3.      reg17 = 0x1f18ï¼Œread reg29, for cb0
 				 */
 				// 1. for SNR
 				snr = 0;
@@ -2783,7 +3366,7 @@ static int re865x_checkPhySnr(void)
 		if((1<<port) & (newLinkPortMask & (~curLinkPortMask)) )
 		{
 			snr=re865x_getPhySnr(port);
-		
+
 			// 3. for cb0
                         rtl8651_getAsicEthernetPHYReg( port, 17, &val );
                         val = (val & 0xfff0) | 0x8;
@@ -2797,7 +3380,7 @@ static int re865x_checkPhySnr(void)
 			//printk("snr is %d\n",snr);
 			//printk("cb0 is 0x%x,agc is 0x%x\n",cb0,agc);
 			//if( ((cb0 & 0x80) != 0)|| (snr>4155))
-		  	if ( ( ( ((agc & 0x70) >> 4) < 4    ) && ((cb0 & 0x80) != 0) ) || (snr > 4155) ) 
+		  	if ( ( ( ((agc & 0x70) >> 4) < 4    ) && ((cb0 & 0x80) != 0) ) || (snr > 4155) )
 			{
 				//printk("restart nway\n");
 				rtl8651_restartAsicEthernetPHYNway(port);
@@ -2889,7 +3472,7 @@ unsigned int rtl865x_getPhysicalPortLinkStatus(void)
 }
 
 #if defined(CONFIG_RTL_REPORT_LINK_STATUS)
-unsigned int rtl865x_setLinkStatusFlag(unsigned int newportmask)
+unsigned int rtl865x_setLinkStatusFlag(unsigned int curLinkPortMask, unsigned int newportmask)
 {
 	int i;
 	struct dev_priv * cp=NULL;
@@ -2898,7 +3481,7 @@ unsigned int rtl865x_setLinkStatusFlag(unsigned int newportmask)
 		for(i = 0; i < ETH_INTF_NUM; i++)
 		{
 			cp = ((struct dev_priv *)_rtl86xx_dev.dev[i]->priv);
-			if(cp &&  cp->opened && rtl_isWanDev(cp) && (cp->portmask & newportmask))
+			if(cp &&  cp->opened && rtl_isWanDev(cp) && ((cp->portmask & curLinkPortMask)==0) && (cp->portmask & newportmask))
 			{
 				wan_linkStatus[0] = 1;
 				return SUCCESS;
@@ -2909,11 +3492,22 @@ unsigned int rtl865x_setLinkStatusFlag(unsigned int newportmask)
 }
 #endif
 
+
+#ifdef CONFIG_RTL_819X_SWCORE
+int cnt_swcore = 0;
+int cnt_swcore_tx = 0;
+int cnt_swcore_rx = 0;
+int cnt_swcore_link = 0;
+int cnt_swcore_err = 0;
+#endif
+
+
 #ifdef CONFIG_RTL_8198_ESD
 static uint32 phy_reg30[RTL8651_PHY_NUMBER] = { 0, 0, 0, 0, 0};
 static int one_second_counter = 0;
 static int first_time_read_reg6 = 1;
 static int need_to_check_esd2 = 1;
+static int esd3_skip_one = 1;
 
 inline static int diff_more_than_1(uint32 a, uint32 b)
 {
@@ -2951,6 +3545,70 @@ static int esd_recovery(void)
 }
 #endif
 
+#if defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+/*
+krammer add this according to " Jim Hsieh/5458 "'s algorithm
+Description:
+when phy0's link partner link in force mode, we will force to half duplex mode,
+in this condition, if there is some traffic in port0's rx, sometimes port0 will die.
+so we add this patch, only work when phy0's link state change, if link partner
+is link in force mode, we will change our port0 into full duplex.
+*/
+void rtl819x_port0_force_refined(void){
+	unsigned int regData;
+
+	if((curLinkPortMask & 0x01) == (newLinkPortMask & 0x01)){
+		//no change -> return
+		return;
+	}
+
+	//default disable phy i/f(0xbb804104 b0=0)
+	REG32(PCRP0) &= ~(EnablePHYIf);
+
+	//if port#0=link up
+	if(newLinkPortMask & 0x01){
+		//if AN =0(reg6[0])
+		rtl8651_getAsicEthernetPHYReg(rtl8651_tblAsicDrvPara.externalPHYId[0], 6, &regData);
+		if((regData & 0x01) == 0){
+			rtl8651_getAsicEthernetPHYReg(rtl8651_tblAsicDrvPara.externalPHYId[0], 5, &regData);
+			if(regData & 0x080){//if spd = 100M(reg5[7])
+				//force MAC 100M Full duplex
+				//(set 0xbb804104 b25=1 b24=1 b23=0 b20-19=1 b18=1 b17-16=0x3)
+				regData = REG32(PCRP0);
+				regData |= (EnForceMode | PollLinkStatus | ForceDuplex | PauseFlowControlEtxErx);
+				regData &= ~(ForceLink | ForceSpeedMask);
+				regData |= (ForceSpeed100M);
+				//panic_printk("phy0 link partner is force 100M, we force to 100M Full duplex!regData = 0x%x\n", regData);
+				REG32(PCRP0) = regData;
+			}
+			else if(regData & 0x20){//else spd = 10M(reg5[5])
+				//force MAC 10M Full duplex
+				//(set 0xbb804104 b25=1 b24=1 b23=0 b20-19=0 b18=1 b17-16=0x3)
+				regData = REG32(PCRP0);
+				regData |= (EnForceMode | PollLinkStatus | ForceDuplex | PauseFlowControlEtxErx);
+				regData &= ~(ForceLink | ForceSpeedMask);
+				regData |= (ForceSpeed10M);
+				//panic_printk("phy0 link partner is force 10M, we force to 10M Full duplex!regData = 0x%x\n", regData);
+				REG32(PCRP0) = regData;
+			}
+		}
+		//enable phy i/f
+		//set 0xbb804104 b0=1
+		REG32(PCRP0) |= EnablePHYIf;
+		//panic_printk("phy0 link up, PCRP0 = 0x%x\n", REG32(PCRP0));
+	}
+	else{//if port#0=link down
+		//recovery MAC AN setting and disable phy i/f
+		//(set 0xbb804104 b25=0 b20-18 0x7 b0=0)
+		regData = REG32(PCRP0);
+		regData &= ~(EnForceMode | EnablePHYIf);
+		regData |= (ForceSpeed1000M | ForceDuplex);
+		//panic_printk("phy0 link down, we reset phy0!regData = 0x%x\n", regData);
+		REG32(PCRP0) = regData;
+	}
+}
+#endif
+
 static void interrupt_dsr_link(unsigned long task_priv)
 {
 #ifdef CONFIG_RTL_8198_ESD
@@ -2964,8 +3622,13 @@ static void interrupt_dsr_link(unsigned long task_priv)
 
 	newLinkPortMask=rtl865x_getPhysicalPortLinkStatus();
 
+#ifdef CONFIG_RTL_8197D_DYN_THR
+	rtl819x_setQosThreshold(curLinkPortMask, newLinkPortMask);
+#endif
+
 #if defined(CONFIG_RTL_REPORT_LINK_STATUS)
-		rtl865x_setLinkStatusFlag(newLinkPortMask);
+//		rtl865x_setLinkStatusFlag(newLinkPortMask);
+		rtl865x_setLinkStatusFlag(curLinkPortMask, newLinkPortMask);
 #endif
 #if defined(CONFIG_RTL_IGMP_SNOOPING)
 		rtl865x_igmpSyncLinkStatus();
@@ -2978,6 +3641,14 @@ static void interrupt_dsr_link(unsigned long task_priv)
 #if defined(CONFIG_RTL_8196C) && defined(CONFIG_RTL_PHY_PATCH)
 		re865x_checkPhySnr();
 #endif
+
+#if defined(CONFIG_RTL_819XD)
+	if (rtl_port0Refined == 1)
+	{
+		rtl819x_port0_force_refined();
+	}
+#endif
+
 	curLinkPortMask=newLinkPortMask;
 
 #ifdef LINK_TASKLET
@@ -2996,12 +3667,12 @@ __IRAM_GEN static inline void rtl_rx_interrupt_process(unsigned int status, stru
 	}
 	#endif
 
-	//if (status & (RX_DONE_IP_ALL))
+	//if (status & (RX_DONE_IP_ALL | PKTHDR_DESC_RUNOUT_IP_ALL))
 	{
 		#if defined(RX_TASKLET)
 		if (rtl_rx_tasklet_running==0) {
 			rtl_rx_tasklet_running=1;
-			REG32(CPUIIMR) &= ~(RX_DONE_IE_ALL);
+			REG32(CPUIIMR) &= ~(RX_DONE_IE_ALL | PKTHDR_DESC_RUNOUT_IE_ALL);
 			rtl_rxSetTxDone(FALSE);
 			tasklet_hi_schedule(&cp->rx_dsr_tasklet);
 		}
@@ -3044,6 +3715,10 @@ __IRAM_GEN static inline void rtl_link_change_interrupt_process(unsigned int sta
 	  	#else
 			interrupt_dsr_link((unsigned long)cp);
   		#endif
+  		#ifdef CONFIG_RTK_VOIP_PORT_LINK
+		if(cp->opened)
+			rtmsg_ifinfo_voip(RTM_LINKCHANGE, cp->dev, ~0U);
+		#endif
 	}
 }
 #endif
@@ -3059,6 +3734,18 @@ irqreturn_t interrupt_isr(int irq, void *dev_instance)
 	status = REG32(CPUIISR);
 	REG32(CPUIISR) = status;
 	status &= REG32(CPUIIMR);
+
+#ifdef CONFIG_RTL_819X_SWCORE
+	cnt_swcore++;
+	if (status & (RX_DONE_IP_ALL))
+ 		cnt_swcore_rx++;
+	if (status & TX_ALL_DONE_IP_ALL)
+		cnt_swcore_tx++;
+	if (status&LINK_CHANGE_IP)
+		cnt_swcore_link++;
+	if (status&(PKTHDR_DESC_RUNOUT_IP_ALL|MBUF_DESC_RUNOUT_IP_ALL))
+		cnt_swcore_err++;
+#endif
 
 	rtl_rx_interrupt_process(status, cp);
 
@@ -3118,12 +3805,48 @@ static void reset_hw_mib_counter(struct net_device *dev)
 }
 #endif
 
+#if defined (CONFIG_RTL_8197D)
+extern void rtl819x_poll_sw(void);
+#endif
+
 #ifdef CONFIG_RTL8196C_GREEN_ETHERNET
 int total_time_for_5_port = 15*HZ;
 int port_pwr_save_low = 0;
 #endif
 
-#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198) || defined(RTL8196C_EEE_MAC) || defined(RTL_CPU_QOS_ENABLED)
+#ifdef CONFIG_RTL_8196E
+void	refine_phy_setting(void)
+{
+	int i, start_port = 0;
+	uint32 val;
+
+	val = (REG32(BOND_OPTION) & BOND_ID_MASK);
+	if (val == BOND_8196ES)
+		return;
+	
+	if (val == BOND_8196EU)
+		start_port = 4;
+	
+	for (i=start_port; i<5; i++) {
+		rtl8651_setAsicEthernetPHYReg( i, 25, 0x6964);
+		rtl8651_getAsicEthernetPHYReg(i, 26, &val);
+		rtl8651_setAsicEthernetPHYReg(i, 26, ((val & (0xff00)) | 0x9E) );
+
+		rtl8651_getAsicEthernetPHYReg(i, 17, &val);
+		rtl8651_setAsicEthernetPHYReg( i, 17, ((val & (0xfff0)) | 0x8)  );
+
+		rtl8651_getAsicEthernetPHYReg( i, 29, &val );
+		if ((val & 0x8080) == 0x8080) {
+			rtl8651_getAsicEthernetPHYReg( i, 21, &val );
+			rtl8651_setAsicEthernetPHYReg( i, 21, (val  | 0x8000) );
+			rtl8651_setAsicEthernetPHYReg( i, 21, (val & ~0x8000) );
+		}
+	}	
+	return;
+}
+#endif
+
+#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198) || defined(RTL8196C_EEE_MAC) || defined(RTL_CPU_QOS_ENABLED) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 static void one_sec_timer(unsigned long task_priv)
 {
 	unsigned long		flags;
@@ -3179,6 +3902,17 @@ static void one_sec_timer(unsigned long task_priv)
     if (cp->rx_avarage > cp->rx_peak)
         cp->rx_peak = cp->rx_avarage;
     cp->rx_byte_cnt = 0;
+#endif
+
+#ifdef CONFIG_RTL_8197D_DYN_THR
+	if (_8197d_link_check == 0) {
+		newLinkPortMask=rtl865x_getPhysicalPortLinkStatus();
+
+		rtl819x_setQosThreshold(curLinkPortMask, newLinkPortMask);
+
+		curLinkPortMask=newLinkPortMask;
+		_8197d_link_check = 1;
+	}
 #endif
 
 #ifdef CONFIG_RTL8196C_REVISION_B
@@ -3266,7 +4000,8 @@ static void one_sec_timer(unsigned long task_priv)
 				if ((val & 0xffff) != 0xAE04)
 				{
 					panic_printk("  ESD-1\n");
-					do {} while(1); // reboot
+					//do {} while(1); // reboot
+					machine_restart(NULL);
 				}
 
 				if (need_to_check_esd2) {
@@ -3279,7 +4014,8 @@ static void one_sec_timer(unsigned long task_priv)
 					if ((val & 0xff) != 0xFC)
 					{
 						panic_printk("  ESD-2\n");
-						do {} while(1); // reboot
+						//do {} while(1); // reboot
+						machine_restart(NULL);
 					}
 				}
 
@@ -3287,20 +4023,27 @@ static void one_sec_timer(unsigned long task_priv)
 				rtl8651_setAsicEthernetPHYReg( phy, 22, ((val & (0xff00)) | 0x17) );
 				rtl8651_getAsicEthernetPHYReg( phy, 30, &val );
 
+				if (esd3_skip_one == 1) {
+					phy_reg30[phy] = BIT(31) | (val & 0xfff);
+				}
+				else
 				if ((phy_reg30[phy] & 0xfff) != (val & 0xfff)) {
 					if (diff_more_than_1((phy_reg30[phy] & 0xf), (val & 0xf)) ||
 						diff_more_than_1(((phy_reg30[phy] >> 4) & 0xf), ((val >> 4) & 0xf)) ||
 						diff_more_than_1(((phy_reg30[phy] >> 8) & 0xf), ((val >> 8) & 0xf))
 						) {
 						panic_printk("  ESD-3: old= 0x%x, new= 0x%x\n", phy_reg30[phy] & 0xfff, val & 0xfff);
-						do {} while(1); // reboot
+						//do {} while(1); // reboot
+						machine_restart(NULL);
 					}
 					phy_reg30[phy] = BIT(31) | (val & 0xfff);
 				}
 			}
 
 		}
-
+		if (esd3_skip_one == 1) {
+			esd3_skip_one = 0;
+		}
 		one_second_counter = 0;
 	}
 	}
@@ -3311,32 +4054,16 @@ static void one_sec_timer(unsigned long task_priv)
 #define panic_printk         printk
 #endif
 	if (_96c_esd_counter) {
-
-		extern int is_fault;
-#if 0
-		if (++_96c_esd_counter >= 20) {
-
-			if( (RTL_R32(PCRP4) & EnablePHYIf) == 0)
-			{
-				panic_printk("  ESD reboot...\n");
-				is_fault = 1;
-			}
-			_96c_esd_counter = 1;
-		}
-#else
 		if( (RTL_R32(PCRP4) & EnablePHYIf) == 0)
 		{
 			if (++_96c_esd_reboot_counter >= 20) {
 				panic_printk("  ESD reboot...\n");
-				is_fault = 1;
+				machine_restart(NULL);
 			}
 		}
 		else {
 			_96c_esd_reboot_counter = 0;
 		}
-#endif
-
-
 	}
 #endif
 
@@ -3345,10 +4072,17 @@ static void one_sec_timer(unsigned long task_priv)
 	{
 		struct dev_priv *tmp_cp;
 
-		int portnum;
+		int portnum, startport=0;
 		tmp_cp = ((struct dev_priv *)_rtl86xx_dev.dev[i]->priv);
 		if(tmp_cp && tmp_cp->portmask && tmp_cp->opened) {
-			for(portnum=0;portnum<5;portnum++)
+
+#if defined(CONFIG_RTL_819XD)
+			if (rtl_port0Refined == 1)
+			{
+				startport = 1;
+			}
+#endif
+			for(portnum=startport;portnum<5;portnum++)
 			{
 				if(tmp_cp->portmask & (1<<portnum))
 					break;
@@ -3401,7 +4135,16 @@ static void one_sec_timer(unsigned long task_priv)
 			}
 		}
 	}
+	
+#if defined (CONFIG_RTL_8197D) || defined(CONFIG_RTL_8196D)
+	rtl819x_poll_sw();
 #endif
+
+#endif
+#ifdef CONFIG_RTL_8196E
+	refine_phy_setting();
+#endif
+
 	mod_timer(&cp->expire_timer, jiffies + HZ);
 
 	//spin_unlock_irqrestore(&cp->lock, flags);
@@ -3452,6 +4195,12 @@ static int re865x_open (struct net_device *dev)
 		/* this is the first open dev */
 		/* should not call rtl865x_down() here */
 		/* rtl865x_down();*/
+#ifdef CONFIG_RTL_8198
+		{
+		extern void disable_phy_power_down(void);	
+		disable_phy_power_down();
+		}
+#endif
 		//spin_lock_irqsave(&cp->lock, flags);
 		local_irq_save(flags);
 		rtk_queue_init(&rx_skb_queue);
@@ -3500,7 +4249,7 @@ static int re865x_open (struct net_device *dev)
 
 	netif_start_queue(dev);
 
-#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL8196C_REVISION_B)|| defined(CONFIG_RTL_8198) || defined(RTL8196C_EEE_MAC)
+#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL8196C_REVISION_B)|| defined(CONFIG_RTL_8198) || defined(RTL8196C_EEE_MAC) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	#if !defined(CONFIG_RTL8186_TR)
 	if (dev->name[3] == '0')
 	#endif
@@ -3608,6 +4357,9 @@ static int re865x_close (struct net_device *dev)
 		memset(re865x_restartNWayCtrl,0, sizeof(re865x_restartNWayCtrl));
 #endif
 		free_rx_skb();
+
+		rtk_queue_exit(&rx_skb_queue);
+
 	}
 
 	memset(&cp->net_stats, '\0', sizeof(struct net_device_stats));
@@ -3623,10 +4375,14 @@ static int re865x_close (struct net_device *dev)
 	#endif
 	{
 		rtl865x_disableDevPortForward(dev, cp);
+#if !defined(CONFIG_RTL_8196C)
+		/*for lan dhcp client to renew ip address*/
+		rtl865x_restartDevPHYNway(dev, cp);
+#endif
 		rtl8186_stop_hw(dev, cp);
 	}
 
-#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(BR_SHORTCUT) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198)
+#if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(BR_SHORTCUT) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
     if (timer_pending(&cp->expire_timer))
         del_timer_sync(&cp->expire_timer);
 #endif
@@ -3649,6 +4405,11 @@ static int re865x_close (struct net_device *dev)
 #ifdef BR_SHORTCUT
 	if (dev == cached_dev)
 		cached_dev=NULL;
+#endif
+
+#ifdef BR_SHORTCUT_C2
+	if (dev == cached_dev2)
+		cached_dev2=NULL;
 #endif
 
 #ifdef CONFIG_RTL_HARDWARE_NAT
@@ -3691,6 +4452,10 @@ static int re865x_pseudo_close (struct net_device *dev)
 #ifdef BR_SHORTCUT
 	if (dev == cached_dev)
 		cached_dev=NULL;
+#endif
+#ifdef BR_SHORTCUT_C2
+	if (dev == cached_dev2)
+		cached_dev2=NULL;
 #endif
 	return SUCCESS;
 }
@@ -3841,6 +4606,11 @@ int re865x_setMCastTxInfo(struct sk_buff *skb,struct net_device *dev, rtl_nicTx_
 	struct rtl_multicastDataInfo multicastDataInfo;
 	struct rtl_multicastFwdInfo multicastFwdInfo;
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	struct sk_buff *skb_wan=NULL;
+	rtl_nicTx_info	nicTx_wan;
+#endif
+
 	if((skb==NULL) || (dev==NULL) ||(nicTx==NULL))
 	{
 		return -1;
@@ -3883,6 +4653,33 @@ int re865x_setMCastTxInfo(struct sk_buff *skb,struct net_device *dev, rtl_nicTx_
 
 
 			}
+            #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+			//fix tim; upnp
+                	if( vlan_bridge_multicast_tag)
+				{
+					if((cp->id == vlan_bridge_tag) && (nicTx->portlist & RTL_WANPORT_MASK))
+					{
+						nicTx->portlist &= (~RTL_WANPORT_MASK);
+						skb_wan = skb_copy(skb, GFP_ATOMIC);
+						 if(skb_wan!=NULL)
+					     {
+					       	nicTx_wan.txIdx=0;
+                            nicTx_wan.vid = vlan_bridge_multicast_tag;
+							nicTx_wan.portlist = RTL_WANPORT_MASK;
+							nicTx_wan.srcExtPort = 0;
+							nicTx_wan.flags = (PKTHDR_USED|PKT_OUTGOING);
+						nicTx_wan.tagport = RTL_WANPORT_MASK;
+							_dma_cache_wback_inv((unsigned long) skb_wan->data, skb_wan->len);
+							if (swNic_send((void *)skb_wan, skb_wan->data, skb_wan->len, &nicTx_wan) < 0)
+							{
+								dev_kfree_skb_any(skb_wan);
+							}
+						}
+			}
+
+					}//hw-vlan
+			#endif
+
 		}
 	}
 #if defined (CONFIG_RTL_MLD_SNOOPING)
@@ -3980,6 +4777,58 @@ static inline int rtl_process_stp_tx(rtl_nicTx_info *txInfo)
 }
 #endif
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+static inline int rtl_process_vlan_tag(rtl_nicTx_info *txInfo)
+{
+
+	struct sk_buff *skb = NULL;	
+	struct sk_buff *newskb;
+	struct net_device *dev;
+	struct dev_priv *cp;
+	
+	skb = txInfo->out_skb;
+	dev = skb->dev;
+	cp = dev->priv;	
+	
+	if(vlan_tag && skb->srcPhyPort == RX_FROM_LOCAL)
+	{
+		if((rtl865x_curOpMode == GATEWAY_MODE && cp->id == vlanconfig[1].vid )||(rtl865x_curOpMode == BRIDGE_MODE))
+		{
+		
+			newskb = NULL;
+			if (skb_cloned(skb))
+			{
+				newskb = skb_copy(skb, GFP_ATOMIC);
+				if (newskb == NULL) 
+				{
+					cp->net_stats.tx_dropped++;
+					dev_kfree_skb_any(skb);
+					return FAILED;		
+				}
+				dev_kfree_skb_any(skb);
+				skb = newskb;
+				txInfo->out_skb = skb;
+			}
+			if (*((unsigned short *)(skb->data+ETH_ALEN*2)) != __constant_htons(ETH_P_8021Q))
+			{
+				if (skb_headroom(skb) < VLAN_HLEN && skb_cow(skb, VLAN_HLEN) !=0 )
+				{
+					printk("%s-%d: error! (skb_headroom(skb) == %d < %d). Enlarge it!\n",
+					__FUNCTION__, __LINE__, skb_headroom(skb), VLAN_HLEN);
+					while (1) ;
+				}
+				skb_push(skb, VLAN_HLEN);
+				memmove(skb->data, skb->data + VLAN_HLEN, VLAN_ETH_ALEN<<1);
+				*(uint16*)(&(skb->data[12])) = __constant_htons(ETH_P_8021Q); 
+				*(uint16*)(&(skb->data[14])) = htons(vlan_tag)&0x0fff;// VID 
+				*(uint8*)(&(skb->data[14])) |= (((uint8)vlan_host_pri)&0x7) << 5;
+			}
+		}
+	}
+	return SUCCESS;
+}
+#endif
+
 //__MIPS16
 #if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
 static inline int rtl_process_passthru_tx(rtl_nicTx_info *txInfo)
@@ -4029,7 +4878,11 @@ static inline int rtl_process_rtk_vlan_tx(rtl_nicTx_info *txInfo)
 			newskb = NULL;
 			if (skb_cloned(skb))
 			{
+				#if defined(CONFIG_RTL_ETH_PRIV_SKB)
+				newskb = priv_skb_copy(skb);
+				#else
 				newskb = skb_copy(skb, GFP_ATOMIC);
+				#endif
 				if (newskb == NULL)
 				{
 					cp->net_stats.tx_dropped++;
@@ -4076,12 +4929,20 @@ static inline int rtl_preProcess_xmit(rtl_nicTx_info *txInfo)
 	if(FAILED == retval)
 		return retval;
 	#endif
+	#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+	retval = rtl_process_hw_vlan_tx(txInfo);
+	if(FAILED == retval)
+		return retval;
+	#endif
 	#if defined(CONFIG_RTK_VLAN_SUPPORT)
 	retval = rtl_process_rtk_vlan_tx(txInfo);
 	if(FAILED == retval)
 		return retval;
 	#endif
-
+        #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	retval = rtl_process_vlan_tag(txInfo);
+		return retval;
+	#endif
 	#if defined(CONFIG_RTL_REINIT_SWITCH_CORE)
 	if(rtl865x_duringReInitSwtichCore==1) {
 		dev_kfree_skb_any(txInfo->out_skb);
@@ -4106,6 +4967,14 @@ static inline void rtl_hwLookup_txInfo(rtl_nicTx_info *txInfo)
 	txInfo->flags = (PKTHDR_USED|PKTHDR_HWLOOKUP|PKTHDR_BRIDGING|PKT_OUTGOING);
 }
 
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+static inline void rtl_hwLookup_txInfo2(rtl_nicTx_info *txInfo)
+{
+	txInfo->portlist = RTL8651_CPU_PORT;		/* must be set 0x7 */
+	txInfo->srcExtPort = PKTHDR_EXTPORT_LIST_P2;//2->7
+	txInfo->flags = (PKTHDR_USED|PKTHDR_HWLOOKUP|PKTHDR_BRIDGING|PKT_OUTGOING);
+}
+#endif
 static inline int rtl_ip_option_check(struct sk_buff *skb)
 {
 	int flag = FALSE;
@@ -4135,6 +5004,12 @@ static inline int rtl_isHwlookup(struct sk_buff *skb, struct dev_priv *cp, uint3
 		flag = FALSE;
 	}
 
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+	if((rtk_vlan_support_enable == 0) && ((!memcmp(cp->dev->name, "eth2", 5)) ||
+	  (!memcmp(cp->dev->name, "eth3", 5)) ||(!memcmp(cp->dev->name, "eth4", 5))))
+		flag = FALSE;
+#endif
+
 #if defined (CONFIG_RTL_LOCAL_PUBLIC)
 	//hyking:
 	//when hw local public and sw localpublic exist at same time,
@@ -4148,7 +5023,7 @@ static inline int rtl_isHwlookup(struct sk_buff *skb, struct dev_priv *cp, uint3
 	} else
 #endif
 	if (flag==FALSE) {
-#if defined(CONFIG_RTL_MULTI_LAN_DEV) || defined(CONFIG_POCKET_ROUTER_SUPPORT) || defined(CONFIG_RTK_VLAN_SUPPORT)
+#if defined(CONFIG_RTL_MULTI_LAN_DEV) ||defined (CONFIG_POCKET_ROUTER_SUPPORT)||defined(CONFIG_RTK_VLAN_SUPPORT)
 assign_portmask:
 #endif
 		*portlist = cp->portmask;
@@ -4164,6 +5039,9 @@ static inline int rtl_fill_txInfo(rtl_nicTx_info *txInfo)
 	cp = skb->dev->priv;
 	txInfo->vid = cp->id;
 
+	#if defined(CONFIG_RTK_VOIP_QOS)
+	txInfo->priority  = 0 ;
+	#endif
 	#if	defined(CONFIG_RTL_HW_QOS_SUPPORT)
 	txInfo->priority= rtl_qosGetPriorityByVid(cp->id, skb->mark);
 	#endif
@@ -4171,17 +5049,31 @@ static inline int rtl_fill_txInfo(rtl_nicTx_info *txInfo)
 	//default output queue is 0
 	txInfo->txIdx = 0;
 
+	#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	txInfo->tagport = 0 ;
+	#endif
+	
 	if((skb->data[0]&0x01)==0)
 	{
+
 		if(rtl_isHwlookup(skb, cp, &portlist) == TRUE)
 		{
+        #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+			if ( vlan_bridge_tag && cp->id == vlan_bridge_tag)
+			{
+				rtl_hwLookup_txInfo2(txInfo);
+			}
+			else
+		#endif
 			rtl_hwLookup_txInfo(txInfo);
 		}
 		else
 		{
 			rtl_direct_txInfo(portlist, txInfo);
 		}
-	} else {
+	}
+	else 
+	{
 		/*multicast process*/
 		rtl_direct_txInfo(cp->portmask,txInfo);
 #if defined (CONFIG_RTL_IGMP_SNOOPING)
@@ -4197,6 +5089,13 @@ static inline int rtl_fill_txInfo(rtl_nicTx_info *txInfo)
 #endif
 
 	}
+	
+	//for WAN Tag
+	#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	if((vlan_bridge_tag && cp->id == vlan_bridge_tag) || (vlan_tag && cp->id == vlan_tag))
+		txInfo->tagport = RTL_WANPORT_MASK;
+	#endif		
+	
 	if(txInfo->portlist==0)
 	{
 		dev_kfree_skb_any(skb);
@@ -4204,6 +5103,26 @@ static inline int rtl_fill_txInfo(rtl_nicTx_info *txInfo)
 	}
 	return SUCCESS;
 }
+
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+static int rtl_bridge_wan_start_xmit(struct sk_buff *skb, struct net_device *dev)
+{
+	struct net_device *wan_dev = NULL;
+	if(!memcmp(lan_macaddr,skb->data+6, 6)) {
+		dev_kfree_skb_any(skb);
+		return 0;
+	}
+	//printk("[%s][%d]-skb->dev[%s],proto(0x%x)\n", __FUNCTION__, __LINE__, skb->dev->name,skb->protocol);
+	wan_dev = rtl_get_wan_from_vlan_info();
+
+	if(wan_dev){
+		skb->dev = wan_dev;
+		wan_dev->netdev_ops->ndo_start_xmit(skb, wan_dev);
+		}
+	return 0;
+}
+#endif
+
 
 #define	RTL_NIC_TX_RETRY_MAX		(128)
 __MIPS16
@@ -4215,29 +5134,27 @@ static int re865x_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct sk_buff *tx_skb;
 	rtl_nicTx_info	nicTx;
 
+
 	nicTx.out_skb = skb;
 	retval = rtl_preProcess_xmit(&nicTx);
 
 	if(FAILED == retval)
-	{
 		return 0;
-	}
+
 	tx_skb = nicTx.out_skb;
 	cp = tx_skb->dev->priv;
 
 	if((cp->id==0) || (cp->portmask ==0)) {
-		dev_kfree_skb_any(tx_skb);		
+		dev_kfree_skb_any(tx_skb);
 		return 0;
 	}
 
-#if defined (CONFIG_RTL_IGMP_SNOOPING)
+
 	retval = rtl_fill_txInfo(&nicTx);
 	if(FAILED == retval)
-	{
 		return 0;
-	}
 
-#if defined(CONFIG_RTL_QOS_PATCH)
+#if defined(CONFIG_RTL_QOS_PATCH) || defined(CONFIG_RTK_VOIP_QOS)
 	if(((struct sk_buff *)tx_skb)->srcPhyPort == QOS_PATCH_RX_FROM_LOCAL){
 		nicTx.priority = QOS_PATCH_HIGH_QUEUE_PRIO;
 		nicTx.txIdx=RTL865X_SWNIC_TXRING_MAX_PKTDESC-1;	//use the highest tx ring index, note: not RTL865X_SWNIC_TXRING_HW_PKTDESC-1
@@ -4247,7 +5164,10 @@ static int re865x_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	_dma_cache_wback_inv((unsigned long) tx_skb->data, tx_skb->len);
 	tx_retry_cnt = 0;
 	while(swNic_send((void *)tx_skb, tx_skb->data, tx_skb->len, &nicTx) < 0)
-	{		
+	{
+		#if defined(CONFIG_RTL_PROC_DEBUG)
+		tx_ringFull_cnt++;
+		#endif
 		swNic_txDone(nicTx.txIdx);
 		if ((tx_retry_cnt++)>RTL_NIC_TX_RETRY_MAX) {
 			dev_kfree_skb_any(tx_skb);
@@ -4255,9 +5175,7 @@ static int re865x_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		}
 	}
 
-#else //CONFIG_RTL_IGMP_SNOOPING
-	#error "By default should define CONFIG_RTL_IGMP_SNOOPING"
-#endif
+
 
 	rtl_pstProcess_xmit(cp,tx_skb->len);
 	//cp->net_stats.tx_packets++;
@@ -4358,10 +5276,12 @@ int re865x_priv_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	{
 	     case RTL819X_IOCTL_READ_PORT_STATUS:
 		 	rc = rtl819x_get_port_status(portnum,&port_status); //portnumber
-		 	if(rc != 0)
+		 	if(rc != 0) {
 				return -EFAULT;
-		 	if (copy_to_user((void *)rq->ifr_data, (void *)&port_status, sizeof(struct lan_port_status)))
+			}
+		 	if (copy_to_user((void *)rq->ifr_data, (void *)&port_status, sizeof(struct lan_port_status))) {
 				return -EFAULT;
+			}
 		 	break;
 	     case RTL819X_IOCTL_READ_PORT_STATS:
 		 	rc = rtl819x_get_port_stats(portnum,&port_stats); //portnumber
@@ -4389,6 +5309,19 @@ int re865x_ioctl (struct net_device *dev, struct ifreq *rq, int cmd)
 	#if defined(CONFIG_RTL8186_KB)||defined(CONFIG_RTL8186_GR)
 	uint32	*pU32;
 	#endif
+
+	if (cmd ==	RTL8651_IOCTL_CLEARBRSHORTCUTENTRY)
+	{
+		#ifdef BR_SHORTCUT
+		cached_dev=NULL;
+		#endif
+
+		#ifdef BR_SHORTCUT_C2
+		cached_dev2=NULL;
+		#endif
+
+		return 0;
+	}
 
 	if (cmd != SIOCDEVPRIVATE)
 	{
@@ -4451,7 +5384,6 @@ int re865x_ioctl (struct net_device *dev, struct ifreq *rq, int cmd)
 					if(vlanconfig[i].isWan==TRUE)
 						wanPortMask = vlanconfig[i].memPort;
 				}
-
 				if (wanPortMask==0)
 				{
 					/* no wan port exist */
@@ -5043,6 +5975,26 @@ static const struct net_device_ops rtl819x_netdev_ops = {
 	.ndo_change_mtu		= rtl865x_set_mtu,
 
 };
+
+#if !defined(CONFIG_COMPAT_NET_DEV_OPS) && defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+static const struct net_device_ops rtl819x_netdev_ops_bridge = {
+	.ndo_open		= re865x_open,
+	.ndo_stop		= re865x_close,
+	.ndo_validate_addr	= eth_validate_addr,
+	.ndo_set_mac_address 	= rtl865x_set_hwaddr,
+	.ndo_set_multicast_list	= re865x_set_rx_mode,
+	.ndo_get_stats		= re865x_get_stats,
+	.ndo_do_ioctl		= re865x_ioctl,
+	.ndo_start_xmit		= rtl_bridge_wan_start_xmit,
+	.ndo_tx_timeout		= re865x_tx_timeout,
+#if defined(CP_VLAN_TAG_USED)
+	.ndo_vlan_rx_register	= cp_vlan_rx_register,
+#endif
+	.ndo_change_mtu		= rtl865x_set_mtu,
+
+};
+#endif
+
 #endif
 
 
@@ -5136,9 +6088,11 @@ static int rtl865x_addAclForMldSnooping(struct rtl865x_vlanConfig* vlanConfig)
 		}
 
 		#if defined(CONFIG_RTL_IPTABLES_RULE_2_ACL)
-		#else
-		rtl865x_reConfigDefaultAcl(pVlanConfig[i].ifname);
+		if(rtl865x_curOpMode == WISP_MODE)
 		#endif
+			rtl865x_reConfigDefaultAcl(pVlanConfig[i].ifname);
+
+		
 	}
 
 	return SUCCESS;
@@ -5231,6 +6185,9 @@ int  __init re865x_probe (void)
 #if defined(CONFIG_RTL_REPORT_LINK_STATUS)  ||  defined(CONFIG_RTK_VLAN_SUPPORT)
 	struct proc_dir_entry *res_stats_root;
 #endif
+#if defined(CONFIG_RTL_819XD)&&defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
+	uint32 reg_tmp=0;
+#endif
 
 #if defined(CONFIG_RTL_REPORT_LINK_STATUS)
 	struct proc_dir_entry *rtk_link_status_entry;
@@ -5239,6 +6196,9 @@ int  __init re865x_probe (void)
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
 	struct proc_dir_entry *res_stats;
 	struct proc_dir_entry *rtk_vlan_support_entry;
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+	struct proc_dir_entry *rtk_vlan_management_entry;
+#endif
 #if defined(CONFIG_819X_PHY_RW)//#if defined(CONFIG_RTK_VLAN_FOR_CABLE_MODEM)
 	uint32 portnum;
 	char port_mibEntry_name[10];
@@ -5248,6 +6208,12 @@ int  __init re865x_probe (void)
 #endif	//#if defined(CONFIG_819X_PHY_RW)
 #endif
 
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+	struct proc_dir_entry *rtl_hw_vlan_support_entry;
+	struct proc_dir_entry *rtl_hw_vlan_tagged_bridge_multicast_entry;
+	memset(hw_vlan_info, 0, PORT_NUMBER*sizeof(struct hw_vlan_port_setting));
+#endif
+
 #if defined (CONFIG_RTL_LOCAL_PUBLIC)
 	struct rtl865x_interface_info ifInfo;
 #endif
@@ -5255,6 +6221,11 @@ int  __init re865x_probe (void)
 #if defined(PATCH_GPIO_FOR_LED)
 	int port;
 #endif
+
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	struct proc_dir_entry *rtk_vlan_wan_tag_support_entry;
+#endif
+
 	//WRITE_MEM32(PIN_MUX_SEL_2, 0x7<<21);
 
 	rtlglue_printf("\n\n\nProbing RTL8186 10/100 NIC-kenel stack size order[%d]...\n", THREAD_SIZE_ORDER);
@@ -5262,19 +6233,15 @@ int  __init re865x_probe (void)
     	REG32(CPUICR) &= ~(TXCMD | RXCMD);
 	rxMbufRing=NULL;
 
-	/*Initial ASIC table*/
-#ifdef CONFIG_RTL8198_REVISION_B
- 	if (REG32(BSP_REVR) >= BSP_RTL8198_REVISION_B)
+#if defined(CONFIG_RTL_819XD)
+	if ((REG32(REVR) == 0x8197C000) || (REG32(REVR) == 0x8197C001))
 	{
-	  	REG32(SYS_CLK_MAG)&=(~(SYS_SW_RESET));
-		mdelay(300);
-		REG32(SYS_CLK_MAG)|=(SYS_SW_RESET);
-		mdelay(50);
+		rtl_port0Refined = 1;
 	}
-	else
 #endif
-		FullAndSemiReset();
 
+	/*Initial ASIC table*/
+	FullAndSemiReset();
 	{
 		rtl8651_tblAsic_InitPara_t para;
 
@@ -5291,7 +6258,7 @@ int  __init re865x_probe (void)
 #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER_L3
 		INIT_CHECK(rtl865x_initAsicL3());
 #endif
-#if defined(CONFIG_RTL_LAYERED_ASIC_DRIVER_L4) && defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_LAYERED_ASIC_DRIVER_L4) && (defined(CONFIG_RTL_8198) ||defined(CONFIG_RTL_8196CT) ||defined(CONFIG_RTL_819XDT))
 		INIT_CHECK(rtl865x_initAsicL4());
 #endif
 
@@ -5370,7 +6337,11 @@ int  __init re865x_probe (void)
 #ifdef BR_SHORTCUT
 	cached_dev=NULL;
 #endif
+#ifdef BR_SHORTCUT_C2
+	cached_dev2=NULL;
+#endif
 	/*init PHY LED style*/
+#if !defined(CONFIG_RTL_819XD) && !defined(CONFIG_RTL_8196E)
 #if defined(CONFIG_RTL865X_BICOLOR_LED)
 	#ifdef BICOLOR_LED_VENDOR_BXXX
 	REG32(LEDCR) |= (1 << 19); // 5 ledmode set to 1 for bi-color LED
@@ -5387,11 +6358,18 @@ int  __init re865x_probe (void)
 #else /* CONFIG_RTL865X_BICOLOR_LED */
 
 	/* config LED mode */
+#if defined(CONFIG_RTK_VOIP_BOARD)
+		WRITE_MEM32(LEDCR, 0x00055500 ); // 15 LED
+		//avoiv bad voip quality
+		WRITE_MEM32(0xb8000048, REG32(0xb8000048)&0xfffffff3);
+#else
 	WRITE_MEM32(LEDCR, 0x00000000 ); // 15 LED
+#endif
 	WRITE_MEM32(SWTAA, PORT5_PHY_CONTROL);
 	WRITE_MEM32(TCR0, 0x000002C7); //8651 demo board default: 15 LED boards
 	WRITE_MEM32(SWTACR, CMD_FORCE | ACTION_START); // force add
 #endif /* CONFIG_RTL865X_BICOLOR_LED */
+#endif
 
 /*2007-12-19*/
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
@@ -5401,6 +6379,10 @@ int  __init re865x_probe (void)
 
 #endif
 
+#if defined(CONFIG_RTL_819XD)&&defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
+	rtl8651_getAsicEthernetPHYReg(0x6, 0, &reg_tmp);
+	rtl_setPortMask(reg_tmp);
+#endif
 
 	INIT_CHECK(rtl865x_init());
 
@@ -5465,6 +6447,13 @@ int  __init re865x_probe (void)
 		dev->open = re865x_open;
 		dev->stop = re865x_close;
 		dev->set_multicast_list = re865x_set_rx_mode;
+		#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+		if(memcmp((vlanconfig[i].ifname), RTL_DRV_LAN_P7_NETIF_NAME, 4) == 0){
+			memcpy((char*)dev->name, (char*)(&(vlanconfig[i].ifname)), 5);
+			dev->hard_start_xmit = rtl_bridge_wan_start_xmit;
+		}
+		else
+		#endif
 		dev->hard_start_xmit = re865x_start_xmit;
 		dev->get_stats = re865x_get_stats;
 		dev->do_ioctl = re865x_ioctl;
@@ -5481,7 +6470,14 @@ int  __init re865x_probe (void)
 #endif
 
 #else
-		dev->netdev_ops = &rtl819x_netdev_ops;
+		#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+			if(memcmp((vlanconfig[i].ifname), RTL_DRV_LAN_P7_NETIF_NAME, 4) == 0){
+				memcpy((char*)dev->name, (char*)(&(vlanconfig[i].ifname)), 5);
+				dev->netdev_ops = &rtl819x_netdev_ops_bridge;
+			}
+			else
+		#endif
+			dev->netdev_ops = &rtl819x_netdev_ops;
 #endif
 		dev->watchdog_timeo = TX_TIMEOUT;
 #if 0
@@ -5493,6 +6489,7 @@ int  __init re865x_probe (void)
 
 		dev->irq = BSP_SWCORE_IRQ;
 		rc = register_netdev(dev);
+
 		if(!rc){
 			_rtl86xx_dev.dev[i]=dev;
 			rtl_add_ps_drv_netif_mapping(dev,vlanconfig[i].ifname);
@@ -5522,7 +6519,7 @@ int  __init re865x_probe (void)
 #if defined(CONFIG_RTL_REPORT_LINK_STATUS)
 		/*FIXME if mutliple-WAN*/
 		wan_linkStatus[0]=0;
-		rtk_link_status_entry=create_proc_entry("up_flag",0,res_stats_root);
+		rtk_link_status_entry=create_proc_entry("up_event",0,res_stats_root);
 		if(rtk_link_status_entry)
 		{
 			rtk_link_status_entry->read_proc=rtk_link_status_read;
@@ -5534,7 +6531,8 @@ int  __init re865x_probe (void)
 	}
 
 #if defined(CONFIG_RTL_MULTIPLE_WAN)
-	retVal = rtl_config_multipleWan_netif(RTL_MULTIWAN_ADD);
+	rtl_config_multipleWan_netif(RTL_MULTIWAN_ADD);
+	rtl865x_addMultiCastNetif();
 	rtl_regist_multipleWan_dev();
 #endif
 
@@ -5557,7 +6555,7 @@ int  __init re865x_probe (void)
 		rtl_setIgmpSnoopingModuleDevInfo(nicIgmpModuleIndex, &devInfo);
 	}
 	#endif
-	rtl_setIpv4UnknownMCastFloodMap(nicIgmpModuleIndex, 0x0);
+	rtl_setIpv4UnknownMCastFloodMap(nicIgmpModuleIndex, 0xFFFFFFFF);
 	rtl_setIpv6UnknownMCastFloodMap(nicIgmpModuleIndex, 0xFFFFFFFF);
 
 	curLinkPortMask=rtl865x_getPhysicalPortLinkStatus();
@@ -5645,7 +6643,9 @@ int  __init re865x_probe (void)
 #endif
 	rtl8651_initStormCtrl();
 
-#if (defined(CONFIG_RTL_8198))
+	rtl819x_eee_proc_init();
+
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	// initial proc for phyRegTest
 	phyRegTest_init();
 #endif
@@ -5667,7 +6667,42 @@ int  __init re865x_probe (void)
 	    rtk_vlan_support_entry->read_proc=rtk_vlan_support_read;
 	    rtk_vlan_support_entry->write_proc=rtk_vlan_support_write;
 	}
+
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+	memset(&management_vlan, 0, sizeof(struct vlan_info*));
+	rtk_vlan_management_entry = create_proc_entry("rtk_vlan_management_entry", 0, NULL);
+	if(rtk_vlan_management_entry)
+	{
+		rtk_vlan_management_entry->read_proc=rtk_vlan_management_read;
+		rtk_vlan_management_entry->write_proc=rtk_vlan_management_write;
+	}
 #endif
+#endif
+
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+	rtk_vlan_wan_tag_support_entry = create_proc_entry("rtk_vlan_wan_tag",0,NULL);
+	if (rtk_vlan_wan_tag_support_entry)
+	{
+	    rtk_vlan_wan_tag_support_entry->read_proc=rtk_vlan_wan_tag_support_read;
+	    rtk_vlan_wan_tag_support_entry->write_proc=rtk_vlan_wan_tag_support_write;
+	}
+#endif
+
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+	rtl_hw_vlan_support_entry = create_proc_entry("rtl_hw_vlan_support", 0, NULL);
+	if (rtl_hw_vlan_support_entry)
+	{
+	    rtl_hw_vlan_support_entry->read_proc=rtl_hw_vlan_support_read;
+	    rtl_hw_vlan_support_entry->write_proc=rtl_hw_vlan_support_write;
+	}
+	rtl_hw_vlan_tagged_bridge_multicast_entry = create_proc_entry("rtl_hw_vlan_tagged_mc", 0, NULL);
+	if (rtl_hw_vlan_tagged_bridge_multicast_entry)
+	{
+	    rtl_hw_vlan_tagged_bridge_multicast_entry->read_proc=rtl_hw_vlan_tagged_bridge_multicast_read;
+	    rtl_hw_vlan_tagged_bridge_multicast_entry->write_proc=rtl_hw_vlan_tagged_bridge_multicast_write;
+	}
+#endif
+
 
 #if defined(CONFIG_819X_PHY_RW)
 //#if defined(CONFIG_RTK_VLAN_FOR_CABLE_MODEM)
@@ -5766,6 +6801,18 @@ int  __init re865x_probe (void)
 	#if defined(TX_TASKLET)
 	rtl_tx_tasklet_running=0;
 	#endif
+#if defined (CONFIG_RTL_SOCK_DEBUG)
+	rtl865x_creatSockDebugProc();
+#endif
+
+#if 0//def CONFIG_RTL_ULINKER //led
+	REG32(PIN_MUX_SEL_2) = REG32(PIN_MUX_SEL_2) | 0x00003000;
+	REG32(PABCD_CNR)     = REG32(PABCD_CNR) & ~(0x00004000);
+	REG32(PABCD_DIR)     = REG32(PABCD_DIR) | 0x00004000;
+	REG32(PABCD_DAT)     = REG32(PABCD_DAT) & ~(0x00004000);
+#endif
+
+	memset(&rx_skb_queue, 0, sizeof(struct ring_que));
 
 	return 0;
 }
@@ -5925,9 +6972,11 @@ EXPORT_SYMBOL(priv_skb_copy);
 static void __exit re865x_exit (void)
 {
 
-#ifdef RTL865X_DRIVER_DEBUG_FLAG
+#if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
+
 	rtl865x_proc_debug_cleanup();
 #endif
+
 
 #if defined(CONFIG_PROC_FS) && defined(CONFIG_NET_SCHED) && defined(CONFIG_RTL_LAYERED_DRIVER)
 #if defined(CONFIG_RTL_HW_QOS_SUPPORT)
@@ -5945,8 +6994,236 @@ static void __exit re865x_exit (void)
 	return;
 }
 
+#ifdef CONFIG_RTK_FAKE_ETH
+
+int32 rtl8651_EthernetPowerDown(void)
+{
+ uint32 statCtrlReg0;
+ int i;
+
+ //## from rtl8651_setAllAsicEthernetPHYPowerDown
+ for (i=0; i<5; i++) {
+
+  /* read current PHY reg 0 value */
+  rtl8651_getAsicEthernetPHYReg( i, 0, &statCtrlReg0 );
+
+  REG32(PCRP0+(i*4)) |= EnForceMode;
+  statCtrlReg0 |= POWER_DOWN;
+
+  /* write PHY reg 0 */
+  rtl8651_setAsicEthernetPHYReg( i, 0, statCtrlReg0 );
+ }
+ //#######################################
+
+ //then set bit 9 of 0xb800-0010 to 0. deactive switch core
+
+ REG32(SYS_CLK_MAG)&=(~(SYS_SW_CLK_ENABLE));
+
+ return SUCCESS;
+}
+
+int re865x_ioctl_fake (struct net_device *dev, struct ifreq *rq, int cmd)
+{
+	int32 rc = 0;
+	unsigned long *data;
+	int32 args[4];
+	int32  * pRet;
+
+	data = (unsigned long *)rq->ifr_data;
+
+	if (copy_from_user(args, data, 4*sizeof(unsigned long)))
+	{
+		return -EFAULT;
+	}
+
+	switch (args[0])
+	{
+		case RTL8651_IOCTL_GETWANLINKSTATUS:
+			{
+				pRet = (int32 *)args[3];
+				*pRet = FAILED;
+				rc = SUCCESS;
+
+				break;
+			}
+
+		case RTL8651_IOCTL_GETWANLINKSPEED:
+			{
+				int wanPortMask;
+
+				pRet = (int32 *)args[3];
+				*pRet = FAILED;
+				rc = SUCCESS;
+
+				wanPortMask = 0;
+
+				/* no wan port exist */
+				break;
+			}
+		default:
+			rc = SUCCESS;
+			break;
+	}
+
+	return rc;
+
+}
+
+
+static int rtl865x_set_mtu_fake(struct net_device *dev, int new_mtu)
+{
+	unsigned long flags;
+
+ 	local_irq_save(flags);
+	dev->mtu = new_mtu;
+
+	local_irq_restore(flags);
+
+	return SUCCESS;
+}
+
+static int rtl865x_set_hwaddr_fake(struct net_device *dev, void *addr)
+{
+	unsigned long flags;
+	int i;
+	unsigned char *p;
+
+	p = ((struct sockaddr *)addr)->sa_data;
+ 	local_irq_save(flags);
+
+	for (i = 0; i<ETHER_ADDR_LEN; ++i) {
+		dev->dev_addr[i] = p[i];
+	}
+
+	local_irq_restore(flags);
+	return SUCCESS;
+}
+
+static int re865x_start_xmit_fake(struct sk_buff *skb, struct net_device *dev)
+{
+
+	dev_kfree_skb_any(skb);
+	return 0;
+
+}
+
+static int re865x_open_fake (struct net_device *dev)
+{
+	struct dev_priv *cp;
+
+	cp = dev->priv;
+	//cp = netdev_priv(dev);
+	if (cp->opened)
+		return SUCCESS;
+
+	cp->opened = 1;
+	netif_start_queue(dev);
+	return SUCCESS;
+}
+
+
+static int re865x_close_fake (struct net_device *dev)
+{
+	struct dev_priv *cp;
+
+	cp = dev->priv;
+//	cp = netdev_priv(dev);
+
+	if (!cp->opened)
+		return SUCCESS;
+	netif_stop_queue(dev);
+
+//	memset(&cp->net_stats, '\0', sizeof(struct net_device_stats));
+	cp->opened = 0;
+
+#ifdef BR_SHORTCUT
+	if (dev == cached_dev)
+		cached_dev=NULL;
+#endif
+	return SUCCESS;
+}
+
+#if defined(CONFIG_COMPAT_NET_DEV_OPS)
+#else
+static const struct net_device_ops rtl819x_netdev_ops_fake = {
+	.ndo_open		= re865x_open_fake,
+	.ndo_stop		= re865x_close_fake,
+//	.ndo_validate_addr	= eth_validate_addr_fake,
+	.ndo_set_mac_address 	= rtl865x_set_hwaddr_fake,
+//	.ndo_set_multicast_list	= re865x_set_rx_mode_fake,
+//	.ndo_get_stats		= re865x_get_stats_fake,
+	.ndo_do_ioctl		= re865x_ioctl_fake,
+	.ndo_start_xmit		= re865x_start_xmit_fake,
+//	.ndo_tx_timeout		= re865x_tx_timeout_fake,
+//#if defined(CP_VLAN_TAG_USED)
+//	.ndo_vlan_rx_register	= cp_vlan_rx_register,
+//endif
+	.ndo_change_mtu		= rtl865x_set_mtu_fake,
+
+};
+#endif
+
+
+int  __init re865x_probe_fake (void)
+{
+	struct net_device *dev;
+    struct dev_priv	  *dp;
+	int rc;
+
+	dev = alloc_etherdev(sizeof(struct dev_priv));
+	if (!dev) {
+		printk("failed to allocate dev %d", 0);
+		return -1;
+	}
+
+    dp = dev->priv;
+	memset(dp,0,sizeof(*dp));
+	dp->dev = dev;
+
+	memcpy((char*)dev->dev_addr,(char*)(&(vlanconfig[0].mac)),ETHER_ADDR_LEN); //mark_FIXME.
+
+#if defined(CONFIG_COMPAT_NET_DEV_OPS)
+		dev->open = re865x_open_fake;
+		dev->stop = re865x_close_fake;
+		//dev->set_multicast_list = re865x_set_rx_mode;
+		dev->hard_start_xmit = re865x_start_xmit_fake;
+		//dev->get_stats = re865x_get_stats;
+		dev->do_ioctl = re865x_ioctl_fake;
+		//dev->tx_timeout = re865x_tx_timeout;
+		dev->set_mac_address = rtl865x_set_hwaddr_fake;
+		dev->change_mtu = rtl865x_set_mtu_fake;
+#else
+		dev->netdev_ops = &rtl819x_netdev_ops_fake;
+#endif
+
+	dev->watchdog_timeo = TX_TIMEOUT;
+
+	rc = register_netdev(dev);
+
+#ifdef BR_SHORTCUT
+	cached_dev=NULL;
+#endif
+
+	if(rc)
+		rtlglue_printf("Failed to allocate eth%d\n", 0);
+
+	rc = rtl8651_EthernetPowerDown();
+
+	return 0;
+}
+static void __exit re865x_exit_fake (void)
+{
+	return ;
+}
+#endif
+
+#ifdef CONFIG_RTK_FAKE_ETH
+module_init(re865x_probe_fake);
+module_exit(re865x_exit_fake);
+#else
 module_init(re865x_probe);
 module_exit(re865x_exit);
+#endif
 
 /*
 @func enum RTL_RESULT | rtl865x_init | Initialize light rome driver and RTL865x ASIC.
@@ -6024,7 +7301,7 @@ int32 rtl865x_init(void)
 #endif
 
 /*layer4*/
-#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && (defined(CONFIG_RTL_8198) ||defined(CONFIG_RTL_8196CT) ||defined(CONFIG_RTL_819XDT))
 	rtl865x_nat_init();
 #endif
 
@@ -6036,7 +7313,8 @@ int32 rtl865x_init(void)
 
 	rtl8651_setAsicOutputQueueNumber(CPU, RTL_CPU_RX_RING_NUM);
 
-#ifdef RTL865X_DRIVER_DEBUG_FLAG
+/*CONFIG_RTL_PROC_DEBUG:marco forproc debug. CONFIG_RTL_DEBUG_TOOL: marco for debug tool*/
+#if defined(CONFIG_RTL_PROC_DEBUG)||defined(CONFIG_RTL_DEBUG_TOOL)
 	rtl865x_proc_debug_init();
 #endif
 
@@ -6177,6 +7455,19 @@ int32 rtl865x_config(struct rtl865x_vlanConfig vlanconfig[])
 	rtl865x_initOutputQueue((uint8 **)netIfName);
 	#endif
 
+	#ifdef CONFIG_RTK_VOIP_QOS
+	rtl8651_setAsicOutputQueueNumber(0,QNUM3);
+	rtl8651_setAsicOutputQueueNumber(1,QNUM3);
+	rtl8651_setAsicOutputQueueNumber(2,QNUM3);
+	rtl8651_setAsicOutputQueueNumber(3,QNUM3);
+	rtl8651_setAsicOutputQueueNumber(4,QNUM3);
+	rtl8651_setAsicOutputQueueNumber(6,QNUM2);
+	REG32(CPUQIDMCR0)=0x55550000;
+	rtl8651_setAsicPriorityDecision(2, 1, 2, 1, 1);
+	rtl8651_resetAsicOutputQueue();
+	#endif
+
+
 	#if defined (CONFIG_RTL_UNKOWN_UNICAST_CONTROL)
 	{
 		rtl865x_tblAsicDrv_rateLimitParam_t	asic_rl;
@@ -6315,7 +7606,7 @@ static int re865x_reInitIgmpSetting(int mode)
 		}
 
 		//rtl_setIgmpSnoopingModuleUnknownMCastFloodMap(nicIgmpModuleIndex, 0x0);
-		rtl_setIpv4UnknownMCastFloodMap(nicIgmpModuleIndex, 0x0);
+		rtl_setIpv4UnknownMCastFloodMap(nicIgmpModuleIndex, 0xFFFFFFFF);
 		rtl_setIpv6UnknownMCastFloodMap(nicIgmpModuleIndex, 0xFFFFFFFF);
 
 	}
@@ -6365,7 +7656,7 @@ static int32 rtl_reinit_hw_table(void)
 	rtl865x_reInitEventMgr();
 
 	/*l4*/
-	#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && defined(CONFIG_RTL_8198)
+	#if defined(CONFIG_RTL_LAYERED_DRIVER_L4) && (defined(CONFIG_RTL_8198) ||defined(CONFIG_RTL_8196CT) ||defined(CONFIG_RTL_819XDT))
 	rtl865x_nat_reinit();
 	#endif
 
@@ -6515,6 +7806,7 @@ static int rtl_config_lanwan_dev_vlanconfig(int mode)
 		vlanconfig[1].untagSet = RTL_WANPORT_MASK;
 		((struct dev_priv *)_rtl86xx_dev.dev[1]->priv)->portmask = RTL_WANPORT_MASK; //eth1
 		((struct dev_priv *)_rtl86xx_dev.dev[1]->priv)->id = RTL_WANVLANID; //eth1
+
 	#endif //endif CONFIG_POCKET_ROUTER_SUPPORT
 
 #else
@@ -6612,6 +7904,9 @@ static int rtl_config_vlanconfig(int mode)
 
 int32 rtl865x_changeOpMode(int mode)
 {
+#ifdef CONFIG_RTK_FAKE_ETH
+	return SUCCESS;
+#endif
 #if defined (CONFIG_RTL_LOCAL_PUBLIC)
 	struct rtl865x_interface_info ifInfo;
 #endif
@@ -6763,12 +8058,18 @@ int32 rtl865x_changeOpMode(int mode)
 
 	//setAsicOperationLayer
 	rtl_config_operation_layer(mode);
+	#if defined(CONFIG_RTL_MULTIPLE_WAN)
+	if(rtl865x_curOpMode != GATEWAY_MODE)
+		rtl865xC_setNetDecisionPolicy(NETIF_PORT_BASED);
+	#endif
 
+#ifdef CONFIG_RTL_LAYERED_DRIVER_L3
 	//always init the default route...
 	if(rtl8651_getAsicOperationLayer() >2)
 	{
 		rtl865x_addRoute(0,0,0,RTL_DRV_WAN0_NETIF_NAME,0);
 	}
+#endif
 
 	//checksum control register
 	switch(mode)
@@ -6879,6 +8180,7 @@ static int32 reinit_vlan_configure(struct rtl865x_vlanConfig new_vlanconfig[])
 
 	#if defined(CONFIG_RTL_MULTIPLE_WAN)
 	rtl_config_multipleWan_netif(RTL_MULTIWAN_ADD);
+	rtl865x_addMultiCastNetif();
 	#endif
 
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
@@ -6907,11 +8209,75 @@ static int32 reinit_vlan_configure(struct rtl865x_vlanConfig new_vlanconfig[])
 			rtl865x_setPortToNetif(pvlanconfig[j].ifname, i);
 		}
 	}
+
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+        if(rtl_hw_vlan_enable)
+        {
+        	if((hw_vlan_info[1].vlan_port_enabled)&&hw_vlan_info[1].vlan_port_tag){
+            		 rtl865x_setVlanPortTag(vlanconfig[1].vid,RTL_WANPORT_MASK,1); //eth1 vlan port 1 tag
+        	}
+	         swNic_setVlanPortTag(RTL_WANPORT_MASK);//packet from CPU, HW add tag
+
+                if((hw_vlan_info[0].vlan_port_enabled)&&(hw_vlan_info[0].vlan_port_bridge == 1)){
+                        rtl865x_addVlan(hw_vlan_info[0].vlan_port_vid);
+                        rtl865x_addVlanPortMember(hw_vlan_info[0].vlan_port_vid, RTL_LANPORT_MASK_4|RTL_WANPORT_MASK);
+                        rtl865x_setVlanPortTag(hw_vlan_info[0].vlan_port_vid, RTL_WANPORT_MASK,1); //wan port tag
+			  if(hw_vlan_info[0].vlan_port_tag){
+					rtl865x_setVlanPortTag(hw_vlan_info[0].vlan_port_vid, RTL_LANPORT_MASK_4,1); //wan port tag
+			  }
+			  rtl865x_setVlanFilterDatabase(hw_vlan_info[0].vlan_port_vid,0);
+                        rtl8651_setAsicPvid(0, hw_vlan_info[0].vlan_port_vid); //port vid
+			  rtl865x_setPortForward(RTL_LANPORT_MASK_4, TRUE);
+                }
+                if((hw_vlan_info[2].vlan_port_enabled)&&(hw_vlan_info[2].vlan_port_bridge == 1)){
+                        rtl865x_addVlan(hw_vlan_info[2].vlan_port_vid);
+                        rtl865x_addVlanPortMember(hw_vlan_info[2].vlan_port_vid, RTL_LANPORT_MASK_3|RTL_WANPORT_MASK);
+                        rtl865x_setVlanPortTag(hw_vlan_info[2].vlan_port_vid, RTL_WANPORT_MASK,1); //wan port tag
+			  if(hw_vlan_info[2].vlan_port_tag){
+					 rtl865x_setVlanPortTag(hw_vlan_info[2].vlan_port_vid, RTL_LANPORT_MASK_3,1); //wan port tag
+			  }
+			  rtl865x_setVlanFilterDatabase(hw_vlan_info[2].vlan_port_vid,0);
+                        rtl8651_setAsicPvid(1, hw_vlan_info[2].vlan_port_vid); //port vid
+                        rtl865x_setPortForward(RTL_LANPORT_MASK_3, TRUE);
+                }
+                if((hw_vlan_info[3].vlan_port_enabled)&&(hw_vlan_info[3].vlan_port_bridge == 1)){
+                        rtl865x_addVlan(hw_vlan_info[3].vlan_port_vid);
+                        rtl865x_addVlanPortMember(hw_vlan_info[3].vlan_port_vid, RTL_LANPORT_MASK_2|RTL_WANPORT_MASK);
+                        rtl865x_setVlanPortTag(hw_vlan_info[3].vlan_port_vid, RTL_WANPORT_MASK,1); //wan port tag
+			  if(hw_vlan_info[3].vlan_port_tag){
+				 	rtl865x_setVlanPortTag(hw_vlan_info[3].vlan_port_vid, RTL_LANPORT_MASK_2,1); //wan port tag
+			  }
+			  rtl865x_setVlanFilterDatabase(hw_vlan_info[3].vlan_port_vid,0);
+                        rtl8651_setAsicPvid(2, hw_vlan_info[3].vlan_port_vid); //port vid
+                        rtl865x_setPortForward(RTL_LANPORT_MASK_2, TRUE);
+                }
+		 if((hw_vlan_info[4].vlan_port_enabled)&&(hw_vlan_info[4].vlan_port_bridge == 1)){
+                        rtl865x_addVlan(hw_vlan_info[4].vlan_port_vid);
+                        rtl865x_addVlanPortMember(hw_vlan_info[4].vlan_port_vid, RTL_LANPORT_MASK_1|RTL_WANPORT_MASK);
+                        rtl865x_setVlanPortTag(hw_vlan_info[4].vlan_port_vid, RTL_WANPORT_MASK,1); //wan port tag
+			  if(hw_vlan_info[4].vlan_port_tag){
+				 	rtl865x_setVlanPortTag(hw_vlan_info[4].vlan_port_vid, RTL_LANPORT_MASK_1,1); //wan port tag
+			  }
+			  rtl865x_setVlanFilterDatabase(hw_vlan_info[4].vlan_port_vid,0);
+                        rtl8651_setAsicPvid(3, hw_vlan_info[4].vlan_port_vid); //port vid
+                        rtl865x_setPortForward(RTL_LANPORT_MASK_1, TRUE);
+                }
+        }
+        else{
+                swNic_setVlanPortTag(0);
+        }
+#endif
+
 #ifdef CONFIG_RTL_STP
 	re865x_stp_mapping_reinit();
 #endif
 
 	rtl_config_operation_layer(rtl865x_curOpMode);
+
+	#if defined(CONFIG_RTL_MULTIPLE_WAN)
+	if(rtl865x_curOpMode != GATEWAY_MODE)
+		rtl865xC_setNetDecisionPolicy(NETIF_PORT_BASED);
+	#endif
 
 	return SUCCESS;
 }
@@ -6943,6 +8309,216 @@ static int32 rtk_link_status_write( struct file *filp, const char *buff,unsigned
 }
 #endif
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
+#ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+static int32 rtk_vlan_wan_tag_getportmask(int bridge_port)
+{
+	int32 port_mask = 0x80;// PKTHDR_EXTPORT_LIST_P2 2=> bit 7
+
+	if(vlan_bridge_port&(1<<3))
+		port_mask |= RTL_LANPORT_MASK_1;
+
+	if(vlan_bridge_port&(1<<2))
+		port_mask |= RTL_LANPORT_MASK_2;
+
+	if(vlan_bridge_port&(1<<1))
+		port_mask |= RTL_LANPORT_MASK_3;
+
+	if(vlan_bridge_port&(1<<0))
+		port_mask |= RTL_LANPORT_MASK_4;
+
+	return port_mask;
+}
+static int32 rtk_vlan_wan_tag_support_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	char tmpbuf[100];
+	int lan_portmask;
+	int num ;
+	int i=0;
+	int j=0;
+	struct net_device *dev;
+	struct dev_priv	  *dp;
+	#ifdef CONFIG_RTL_IGMP_SNOOPING
+		int ret = 0;
+		rtl_multicastDeviceInfo_t devInfo;
+	#endif
+
+        if (buff && !copy_from_user(tmpbuf, buff, len))
+        {
+
+		num = sscanf(tmpbuf, "%d %d %d %d %d", &vlan_tag,  &vlan_host_pri, &vlan_bridge_tag, &vlan_bridge_port,&vlan_bridge_multicast_tag);
+		if (num !=  5) {
+                    printk("invalid rtk_vlan_wan_tag_support_write parameter!\n");
+                    return len;
+            }
+		if(rtl865x_curOpMode == WISP_MODE) //not support in WISP mode
+			{
+			vlan_tag = 0;
+			vlan_bridge_tag = 0;
+			}
+		else if(rtl865x_curOpMode == BRIDGE_MODE)
+		{
+			vlan_bridge_tag = 0;
+		}
+		if(vlan_bridge_tag == vlan_tag)
+			vlan_bridge_tag = 0;
+
+			rtl_config_rtkVlan_vlanconfig(rtl865x_curOpMode);
+
+		//Reset PPPoE vlan id to original
+		vlanconfig[VLAN_CONFIG_PPPOE_INDEX].vid = RTL_WANVLANID;
+	
+	
+	            lan_portmask =  0;
+
+		if(vlan_bridge_tag)  
+	            {
+                    lan_portmask = rtk_vlan_wan_tag_getportmask(vlan_bridge_port);
+	            	vlanconfig[2] .vid = vlan_bridge_tag;
+	            	vlanconfig[2].memPort = lan_portmask|RTL_WANPORT_MASK;
+					vlanconfig[2].untagSet = lan_portmask;
+
+					//need verify
+					vlanconfig[2].fid = 1;
+					((struct dev_priv *)_rtl86xx_dev.dev[2]->priv)->portmask = lan_portmask|RTL_WANPORT_MASK;
+					((struct dev_priv *)_rtl86xx_dev.dev[2]->priv)->id = vlan_bridge_tag; //eth2
+			//vlanconfig[0].vid= RTL_LANVLANID;			
+	            vlanconfig[0].memPort = RTL_LANPORT_MASK &(~lan_portmask);
+	            vlanconfig[0].untagSet = RTL_LANPORT_MASK &(~lan_portmask);
+	            ((struct dev_priv *)_rtl86xx_dev.dev[0]->priv)->portmask = RTL_LANPORT_MASK &(~lan_portmask); //eth0
+			//((struct dev_priv *)_rtl86xx_dev.dev[0]->priv)->id = RTL_LANVLANID;
+		}
+
+		if(rtl865x_curOpMode == GATEWAY_MODE && vlan_tag)
+		{
+	            vlanconfig[1].vid = vlan_tag;
+	            vlanconfig[1].memPort = RTL_WANPORT_MASK;
+	            vlanconfig[1].untagSet = 0; // need tag
+	            ((struct dev_priv *)_rtl86xx_dev.dev[1]->priv)->portmask = RTL_WANPORT_MASK; //eth1
+	            ((struct dev_priv *)_rtl86xx_dev.dev[1]->priv)->id = vlan_tag; //eth1
+	             //PPPOE
+			vlanconfig[VLAN_CONFIG_PPPOE_INDEX].vid = vlan_tag;	
+	        }
+
+		re865x_packVlanConfig(vlanconfig, packedVlanConfig);
+			rtl_reinit_hw_table();
+		if(vlan_bridge_tag)
+	        {
+			packedVlanConfig[2].memPort &= (~0x100); //eth2 use port 7, not port 8
+			packedVlanConfig[2].untagSet &= (~0x100);
+		}
+		reinit_vlan_configure(packedVlanConfig);
+
+		if(rtl865x_curOpMode == GATEWAY_MODE && vlan_tag)
+		{
+			rtl865x_setVlanPortTag(vlan_tag, RTL_WANPORT_MASK, true); //eth1 vlan port 1 tag
+		}
+		if(rtl865x_curOpMode == BRIDGE_MODE && vlan_tag)
+				{
+			rtl865x_addVlan(vlan_tag);
+			rtl865x_addVlanPortMember(vlan_tag,RTL_LANPORT_MASK | RTL_WANPORT_MASK);
+			rtl865x_setVlanPortTag(vlan_tag, (RTL_LANPORT_MASK|RTL_WANPORT_MASK)&(~0x100),1);
+			rtl865x_setVlanFilterDatabase(vlan_tag,0);
+		}
+
+		if(vlan_bridge_tag)
+		{
+			rtl865x_setVlanPortTag(vlan_bridge_tag, RTL_WANPORT_MASK, true); //eth1 vlan port 1 tag
+					if(nicIgmpModuleIndex_2==0xFFFFFFFF)
+					{
+						ret = rtl_registerIgmpSnoopingModule(&nicIgmpModuleIndex_2);
+					#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+						memset(&devInfo, 0, sizeof(rtl_multicastDeviceInfo_t ));
+						strcpy(devInfo.devName, RTL_PS_ETH_NAME_ETH2);
+						if(ret==0)
+							 rtl_setIgmpSnoopingModuleDevInfo(nicIgmpModuleIndex_2,&devInfo);
+					#endif
+					}
+			if(vlan_bridge_multicast_tag)
+			{
+				if (vlan_bridge_multicast_tag == vlan_bridge_tag)
+				{
+					vlan_bridge_multicast_tag = 0;
+				}
+				else
+					{
+                        rtl865x_addVlan(vlan_bridge_multicast_tag);
+                        rtl865x_addVlanPortMember(vlan_bridge_multicast_tag,RTL_WANPORT_MASK);
+                        rtl865x_setVlanPortTag(vlan_bridge_multicast_tag,RTL_WANPORT_MASK,1); //wan port tag
+					rtl865x_setVlanFilterDatabase(vlan_bridge_multicast_tag,1);
+				}
+                    }
+				}
+				else
+				{
+					if(nicIgmpModuleIndex_2!=0xFFFFFFFF)
+						rtl_unregisterIgmpSnoopingModule(nicIgmpModuleIndex_2);
+				//rtl865x_setVlanPortTag(vlanconfig[1].vid,RTL_WANPORT_MASK,false); //eth1 vlan port 1 tag
+            #ifdef CONFIG_RTL_IGMP_SNOOPING
+				if(nicIgmpModuleIndex_2!=0xFFFFFFFF)
+					rtl_unregisterIgmpSnoopingModule(nicIgmpModuleIndex_2);
+			#endif
+	        }
+
+				/*update dev port number*/
+				for(i=0; vlanconfig[i].vid != 0; i++)
+				{
+					if (IF_ETHER!=vlanconfig[i].if_type)
+					{
+						continue;
+					}
+
+					dev=_rtl86xx_dev.dev[i];
+					dp = dev->priv;
+					dp->portnum  = 0;
+					for(j=0;j<RTL8651_AGGREGATOR_NUMBER;j++)
+					{
+						if(dp->portmask & (1<<j))
+							dp->portnum++;
+					}
+
+				}
+
+			#if defined (CONFIG_RTL_IGMP_SNOOPING)
+				re865x_reInitIgmpSetting(rtl865x_curOpMode);
+				#if defined (CONFIG_RTL_MLD_SNOOPING)
+				if(mldSnoopEnabled)
+				{
+					re865x_packVlanConfig(vlanconfig, packedVlanConfig);
+					rtl865x_addAclForMldSnooping(packedVlanConfig);
+				}
+				#endif
+			#endif
+
+				//always init the default route...
+				if(rtl8651_getAsicOperationLayer() >2)
+				{
+#ifdef CONFIG_RTL_LAYERED_DRIVER_L3
+					rtl865x_addRoute(0,0,0,RTL_DRV_WAN0_NETIF_NAME,0);
+#endif
+				}
+		WRITE_MEM32(SWTCR0,(READ_MEM32(SWTCR0)| EnUkVIDtoCPU));
+
+
+        }
+
+        return len;
+}
+static int32 rtk_vlan_wan_tag_support_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+        int len;
+        len = sprintf(page, "vlan_tag: %d vlan_host_pri: %d \nvlan_bridge_tag: %d, vlan_bridge_port: 0x%x vlan_bridge_stream_tag: %d\n",
+        vlan_tag, vlan_host_pri, vlan_bridge_tag, vlan_bridge_port,vlan_bridge_multicast_tag);
+        if (len <= off+count) *eof = 1;
+        *start = page + off;
+        len -= off;
+        if (len>count)
+                len = count;
+        if (len<0)
+                len = 0;
+        return len;
+}
+
+#endif
 static int32 rtk_vlan_support_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	int len;
@@ -6959,7 +8535,6 @@ static int32 rtk_vlan_support_read( char *page, char **start, off_t off, int cou
 
 	return len;
 }
-
 static int32 rtk_vlan_support_write( struct file *filp, const char *buff,unsigned long len, void *data )
 {
 	char 		tmpbuf[32];
@@ -7055,7 +8630,9 @@ static int32 rtk_vlan_support_write( struct file *filp, const char *buff,unsigne
 		//always init the default route...
 		if(rtl8651_getAsicOperationLayer() >2)
 		{
+#ifdef CONFIG_RTL_LAYERED_DRIVER_L3
 			rtl865x_addRoute(0,0,0,RTL_DRV_WAN0_NETIF_NAME,0);
+#endif
 		}
 
 	}
@@ -7472,9 +9049,17 @@ static int read_proc_vlan(char *page, char **start, off_t off,
     int len;
 
 	cp = dev->priv;
-    len = sprintf(page, "gvlan=%d, lan=%d, vlan=%d, tag=%d, vid=%d, priority=%d, cfi=%d\n",
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+		len = sprintf(page, "gvlan=%d, lan=%d, vlan=%d, tag=%d, vid=%d, priority=%d, cfi=%d, forwarding_rule=%d\n",
+#else
+		len = sprintf(page, "gvlan=%d, lan=%d, vlan=%d, tag=%d, vid=%d, priority=%d, cfi=%d\n",
+#endif
 		cp->vlan_setting.global_vlan, cp->vlan_setting.is_lan, cp->vlan_setting.vlan, cp->vlan_setting.tag,
-		cp->vlan_setting.id, cp->vlan_setting.pri, cp->vlan_setting.cfi);
+		cp->vlan_setting.id, cp->vlan_setting.pri, cp->vlan_setting.cfi
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+		,cp->vlan_setting.forwarding_rule
+#endif
+		);
 
     if (len <= off+count)
         *eof = 1;
@@ -7505,16 +9090,33 @@ static int write_proc_vlan(struct file *file, const char *buffer,
 
 	if (buffer && !copy_from_user(tmp, buffer, VLAN_MAX_INPUT_LEN))
 	{
-		int num = sscanf(tmp, "%d %d %d %d %d %d %d",
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+			int num = sscanf(tmp, "%d %d %d %d %d %d %d %d",
+#else
+			int num = sscanf(tmp, "%d %d %d %d %d %d %d",
+#endif
 			&cp->vlan_setting.global_vlan, &cp->vlan_setting.is_lan,
 			&cp->vlan_setting.vlan, &cp->vlan_setting.tag,
 			&cp->vlan_setting.id, &cp->vlan_setting.pri,
-			&cp->vlan_setting.cfi);
+			&cp->vlan_setting.cfi
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+			, &cp->vlan_setting.forwarding_rule
+#endif
+			);
 
-		if (num !=  7) {
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+		if (num !=8)
+#else
+		if (num !=7)
+#endif
+		{
 			printk("invalid vlan parameter!\n");
 			goto out;
 		}
+
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+		rtl_add_vlan_info(&cp->vlan_setting, dev);
+#endif
 		#if 0
 		printk("===%s(%d), cp->name(%s),global_vlan(%d),is_lan(%d),vlan(%d),tag(%d),id(%d),pri(%d),cfi(%d)",__FUNCTION__,__LINE__,
 			cp->dev->name,cp->vlan_setting.global_vlan,cp->vlan_setting.is_lan,cp->vlan_setting.vlan,cp->vlan_setting.tag,
@@ -7529,6 +9131,367 @@ out:
 	return count;
 }
 #endif // CONFIG_RTK_VLAN_SUPPORT
+
+#if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+static int rtk_vlan_management_read(char *page, char **start, off_t off,
+        int count, int *eof, void *data)
+{
+
+    int len;
+
+    len = sprintf(page, "Management vlan: vid=%d, priority=%d, cfi=%d\n",
+		management_vlan.id, management_vlan.pri, management_vlan.cfi
+		);
+
+    if (len <= off+count)
+        *eof = 1;
+    *start = page + off;
+    len -= off;
+    if (len > count)
+        len = count;
+    if (len < 0)
+        len = 0;
+    return len;
+}
+
+static int rtk_vlan_management_write(struct file *file, const char *buffer,
+              unsigned long len, void *data)
+{
+	char tmpbuf[128];
+	int num;
+
+	if (buffer && !copy_from_user(tmpbuf, buffer, len))
+	{
+		tmpbuf[len] = '\0';
+
+		num = sscanf(tmpbuf, "%d %d %d",
+			&management_vlan.id, &management_vlan.pri,
+			&management_vlan.cfi);
+
+		if (num !=  3) {
+			printk("invalid vlan parameter!\n");
+		}
+
+	}
+
+	return len;
+}
+
+#endif
+
+#if defined(CONFIG_RTL_HW_VLAN_SUPPORT)
+
+uint32 rtl_hw_vlan_get_tagged_portmask(void)
+{
+	uint32 portmask = 0;
+	int i, temp;
+
+	for(i=0; i<PORT_NUMBER; i++)
+	{
+		if((hw_vlan_info[i].vlan_port_enabled) && (hw_vlan_info[i].vlan_port_tag))
+		{
+			temp = (i==0)?0:(i-1);
+			portmask |= 1<<temp;
+		}
+	}
+
+	return portmask;
+}
+
+int rtl_process_hw_vlan_tx(rtl_nicTx_info *txInfo)
+{
+	int i, temp;
+	int flag = 0;
+	unsigned short vid;
+	struct sk_buff *newskb;
+	struct sk_buff *skb = NULL;
+	unsigned short vid;
+	struct vlan_tag tag, port_tag;
+	struct vlan_tag *adding_tag = NULL;
+	struct net_device *dev;
+	struct dev_priv *cp;
+
+	memset(&tag, 0, sizeof(struct vlan_tag));
+	memset(&port_tag, 0, sizeof(struct vlan_tag));
+	skb = txInfo->out_skb;
+	dev = skb->dev;
+	cp = dev->priv;
+
+	newskb = NULL;
+	if (skb_cloned(skb))
+	{
+		newskb = skb_copy(skb, GFP_ATOMIC);
+		if (newskb == NULL)
+		{
+			cp->net_stats.tx_dropped++;
+			dev_kfree_skb_any(skb);
+			return FAILED;
+		}
+		dev_kfree_skb_any(skb);
+		skb = newskb;
+		txInfo->out_skb = skb;
+	}
+
+	//if((skb->data[0]&1) ||((skb->data[0]==0x33) &&(skb->data[1]==0x33) && (skb->data[2]!=0xFF)))
+	{
+		if(skb->tag.f.tpid == htons(ETH_P_8021Q))
+		{
+			vid = ntohs(skb->tag.f.pci & 0xfff);
+			for(i=0; i<PORT_NUMBER; i++)
+			{
+				temp = (i==0)?i:(i-1);
+				if((((struct dev_priv*)skb->dev->priv)->portmask & (0x1<<temp))&&(vid == hw_vlan_info[i].vlan_port_vid)&&
+					(hw_vlan_info[i].vlan_port_bridge == 1)&&(hw_vlan_info[i].vlan_port_tag)&&(hw_vlan_info[i].vlan_port_enabled))
+					{
+						flag = 1;
+						break;
+					}
+			}
+
+			if(flag)
+			{
+				//printk("dev name is %s, portmask is 0x%x, i is %d, vid is %d\n", skb->dev->name, ((struct dev_priv*)skb->dev->priv)->portmask, i, vid);
+				adding_tag = &skb->tag;
+			}
+		}else{
+			for(i=0; i<PORT_NUMBER; i++)
+			{
+				if(((struct dev_priv*)skb->dev->priv)->portmask & (0x1<<i))
+				{
+					flag = 1;
+					break;
+				}
+			}
+			temp = (i==0)?i:(i+1);
+			if((flag)&&(hw_vlan_info[temp].vlan_port_bridge == 1)&& (hw_vlan_info[temp].vlan_port_tag) &&
+			   (hw_vlan_info[temp].vlan_port_enabled))
+			{
+				port_tag.f.tpid =  htons(ETH_P_8021Q);
+				port_tag.f.pci = (unsigned short) ((0x3 << 13) |(0x1 << 12) |
+							((unsigned short)(hw_vlan_info[temp].vlan_port_vid&0xfff)));
+				port_tag.f.pci =  htons(port_tag.f.pci);
+				adding_tag = &port_tag;
+			}
+		}
+
+		if(adding_tag != NULL)
+		{
+			memcpy(&tag, skb->data+ETH_ALEN*2, VLAN_HLEN);
+			if (tag.f.tpid !=  htons(ETH_P_8021Q)) { // tag not existed, insert tag
+			if (skb_headroom(skb) < VLAN_HLEN && skb_cow(skb, VLAN_HLEN) !=0 ) {
+				printk("%s-%d: error! (skb_headroom(skb) == %d < 4). Enlarge it!\n",
+				__FUNCTION__, __LINE__, skb_headroom(skb));
+				while (1) ;
+			}
+			skb_push(skb, VLAN_HLEN);
+			memmove(skb->data, skb->data+VLAN_HLEN, ETH_ALEN*2);
+			}
+
+			memcpy(skb->data+ETH_ALEN*2, adding_tag, VLAN_HLEN);
+		}
+
+	}
+
+	return SUCCESS;
+
+}
+
+static int32 rtl_hw_vlan_support_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+        int len;
+	 int i;
+
+	 len = sprintf(page, "rtl_hw_vlan_enable: %d\n", rtl_hw_vlan_enable);
+	 for(i=0; i<PORT_NUMBER; i++)
+	 {
+	 	if(i == 1)
+			continue;
+
+		len += sprintf(page + len, "lan_%d_bridge_enabled: %d, lan_%d_bridge: %d, lan_%d_tag: %d, lan_%d_vid: %d\n",
+			((i==0)? i: i-1), hw_vlan_info[i].vlan_port_enabled, ((i==0)? i: i-1), hw_vlan_info[i].vlan_port_bridge, ((i==0)? i: i-1), hw_vlan_info[i].vlan_port_tag,
+			((i==0)? i: i-1), hw_vlan_info[i].vlan_port_vid);
+	 }
+
+	len += sprintf(page + len, "wan_port_enabled: %d, wan_port_tag: %d, wan_port_vid: %d\n", hw_vlan_info[1].vlan_port_enabled, hw_vlan_info[1].vlan_port_tag, hw_vlan_info[1].vlan_port_vid);
+
+	if (len <= off+count) *eof = 1;
+        *start = page + off;
+        len -= off;
+        if (len>count)
+                len = count;
+        if (len<0)
+                len = 0;
+        return len;
+}
+
+
+static int32 rtl_hw_vlan_support_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+        char tmpbuf[100];
+        int lan_portmask = 0;
+        int num=0 ;
+	 int i=0;
+	 int j=0;
+	 int bridge_num = 0;
+	 struct net_device *dev;
+	 struct dev_priv	  *dp;
+
+        if (buff && !copy_from_user(tmpbuf, buff, len))
+        {
+		num = sscanf(tmpbuf, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+			&rtl_hw_vlan_enable, &hw_vlan_info[1].vlan_port_enabled, &hw_vlan_info[1].vlan_port_tag, &hw_vlan_info[1].vlan_port_vid,
+			&hw_vlan_info[0].vlan_port_enabled, &hw_vlan_info[0].vlan_port_bridge, &hw_vlan_info[0].vlan_port_tag, &hw_vlan_info[0].vlan_port_vid,
+			&hw_vlan_info[2].vlan_port_enabled, &hw_vlan_info[2].vlan_port_bridge, &hw_vlan_info[2].vlan_port_tag, &hw_vlan_info[2].vlan_port_vid,
+			&hw_vlan_info[3].vlan_port_enabled, &hw_vlan_info[3].vlan_port_bridge, &hw_vlan_info[3].vlan_port_tag, &hw_vlan_info[3].vlan_port_vid,
+			&hw_vlan_info[4].vlan_port_enabled, &hw_vlan_info[4].vlan_port_bridge, &hw_vlan_info[4].vlan_port_tag, &hw_vlan_info[4].vlan_port_vid
+			);
+
+               if (num !=  20) {
+                    printk("invalid rtl_hw_vlan_support_write parameter!\n");
+                    return len;
+               }
+
+		rtl_config_rtkVlan_vlanconfig(rtl865x_curOpMode);
+
+		/*get rid of port who bridge with wan from RTL_LANPORT_MASK*/
+	       if(rtl_hw_vlan_enable && (rtl865x_curOpMode == GATEWAY_MODE))
+	       {
+	            lan_portmask =  RTL_LANPORT_MASK;
+
+			if((hw_vlan_info[0].vlan_port_enabled == 1)&&(hw_vlan_info[0].vlan_port_bridge == 1))
+				lan_portmask &= ~RTL_LANPORT_MASK_4;  //port0 is bridge, so port0 need to get out of lan_port_mask
+			if((hw_vlan_info[2].vlan_port_enabled == 1)&&(hw_vlan_info[2].vlan_port_bridge == 1))
+				lan_portmask &= ~RTL_LANPORT_MASK_3;
+			if((hw_vlan_info[3].vlan_port_enabled == 1)&&(hw_vlan_info[3].vlan_port_bridge == 1))
+				lan_portmask &= ~RTL_LANPORT_MASK_2;
+			if((hw_vlan_info[4].vlan_port_enabled == 1)&&(hw_vlan_info[4].vlan_port_bridge == 1))
+				lan_portmask &= ~RTL_LANPORT_MASK_1;
+
+	            vlanconfig[0].memPort = lan_portmask;
+	            vlanconfig[0].vid= RTL_LANVLANID;
+	            vlanconfig[0].untagSet = lan_portmask;
+	            ((struct dev_priv *)_rtl86xx_dev.dev[0]->priv)->portmask = lan_portmask; //eth0
+	            ((struct dev_priv *)_rtl86xx_dev.dev[0]->priv)->id = RTL_LANVLANID;
+
+	            vlanconfig[1].vid = hw_vlan_info[1].vlan_port_vid;
+	            vlanconfig[1].memPort = RTL_WANPORT_MASK;
+	            vlanconfig[1].untagSet = 0; // need tag
+	            ((struct dev_priv *)_rtl86xx_dev.dev[1]->priv)->portmask = RTL_WANPORT_MASK; //eth1
+	            ((struct dev_priv *)_rtl86xx_dev.dev[1]->priv)->id = hw_vlan_info[1].vlan_port_vid; //eth1
+
+			for(i=0; i<PORT_NUMBER; i++)
+			{
+				if(i==1)	/*bypass eth1*/
+					continue;
+
+				if((hw_vlan_info[i].vlan_port_enabled == 1)&&(hw_vlan_info[i].vlan_port_bridge == 1))
+				{
+					if(i == 0)
+					{
+						vlanconfig[2+bridge_num].memPort = 1<<i;
+						vlanconfig[2+bridge_num].vid = hw_vlan_info[i].vlan_port_vid;
+						vlanconfig[2+bridge_num].untagSet = 1<<i;
+						((struct dev_priv *)_rtl86xx_dev.dev[2+bridge_num]->priv)->portmask = 1<<i;
+						((struct dev_priv *)_rtl86xx_dev.dev[2+bridge_num]->priv)->id = hw_vlan_info[i].vlan_port_vid;
+						bridge_num ++;
+					}else{
+						vlanconfig[2+bridge_num].memPort = 1<<(i-1);
+						vlanconfig[2+bridge_num].vid = hw_vlan_info[i].vlan_port_vid;
+						vlanconfig[2+bridge_num].untagSet = 1<<(i-1);
+						((struct dev_priv *)_rtl86xx_dev.dev[2+bridge_num]->priv)->portmask = 1<<(i-1);
+						((struct dev_priv *)_rtl86xx_dev.dev[2+bridge_num]->priv)->id = hw_vlan_info[i].vlan_port_vid;
+						bridge_num ++;
+					}
+				}
+			}
+			//PPPOE
+			   vlanconfig[5].vid = hw_vlan_info[1].vlan_port_vid;
+	        }
+
+
+		re865x_packVlanConfig(vlanconfig, packedVlanConfig);
+
+		rtl_reinit_hw_table();
+		reinit_vlan_configure(packedVlanConfig);
+
+		//unknow vlan drop
+		//REG32(SWTCR0) &= ~(1 << 15);
+
+		/*update dev port number*/
+		for(i=0; vlanconfig[i].vid != 0; i++)
+		{
+			if (IF_ETHER!=vlanconfig[i].if_type)
+			{
+				continue;
+			}
+
+			dev=_rtl86xx_dev.dev[i];
+			dp = dev->priv;
+			dp->portnum  = 0;
+			for(j=0;j<RTL8651_AGGREGATOR_NUMBER;j++)
+			{
+				if(dp->portmask & (1<<j))
+					dp->portnum++;
+			}
+
+		}
+
+		#if defined (CONFIG_RTL_IGMP_SNOOPING)
+			re865x_reInitIgmpSetting(rtl865x_curOpMode);
+		#if defined (CONFIG_RTL_MLD_SNOOPING)
+			if(mldSnoopEnabled && (rtk_vlan_support_enable==0))
+			{
+				re865x_packVlanConfig(vlanconfig, packedVlanConfig);
+				rtl865x_addAclForMldSnooping(packedVlanConfig);
+			}
+		#endif
+		#endif
+
+		//always init the default route...
+		if(rtl8651_getAsicOperationLayer() >2)
+		{
+			rtl865x_addRoute(0,0,0,RTL_DRV_WAN0_NETIF_NAME,0);
+		}
+
+               rtl8651_setAsicMulticastEnable(TRUE);
+        }
+        return len;
+}
+
+
+static int32 rtl_hw_vlan_tagged_bridge_multicast_read( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	len = sprintf(page, "%s %d\n", "rtl_hw_vlan_tagged_mc:",rtl_hw_vlan_ignore_tagged_mc);
+
+
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count)
+		len = count;
+	if (len<0)
+	  	len = 0;
+
+	return len;
+}
+
+static int32 rtl_hw_vlan_tagged_bridge_multicast_write( struct file *filp, const char *buff,unsigned long len, void *data )
+{
+	char 		tmpbuf[32];
+
+	if (buff && !copy_from_user(tmpbuf, buff, len))
+	{
+		tmpbuf[len] = '\0';
+
+		rtl_hw_vlan_ignore_tagged_mc = tmpbuf[0] - '0';
+	}
+	return len;
+}
+
+
+#endif
+
 
 #if (defined(CONFIG_RTL_CUSTOM_PASSTHRU) && !defined(CONFIG_RTL8196_RTL8366))
 
@@ -7819,7 +9782,7 @@ void __exit rtl8651_exitStormCtrl(void)
 
 #endif
 
-#if defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 static int32 proc_phyTest_read( char *page, char **start, off_t off, int count, int *eof, void *data )
 {
 	return 0;
@@ -8173,7 +10136,7 @@ int32 rtl8651_initMldSnooping(void)
 void __exit rtl8651_exitMldSnoopingCtrl(void)
 {
 	if (mldSnoopingProc) {
-		remove_proc_entry("mldSnooping", mldSnoopingProc);
+		remove_proc_entry("br_mldsnoop", mldSnoopingProc);
 		mldSnoopingProc = NULL;
 	}
 }
@@ -8563,6 +10526,7 @@ static int rtl_regist_multipleWan_dev(void)
 #endif
 
 	dev->irq = 0;
+	memcpy((char*)dev->name,rtl_multiWan_config.ifname,MAX_IFNAMESIZE);
 	rc = register_netdev(dev);
 	if(!rc){
 		rtl_multiWan_net_dev = dev;
@@ -8571,6 +10535,7 @@ static int rtl_regist_multipleWan_dev(void)
 	}else
 		printk("===%s(%d) Failed to allocate,rc(%d)\n",__FUNCTION__,__LINE__,rc);
 
+	return SUCCESS;
 	//
 }
 #if 0
@@ -8639,6 +10604,100 @@ static int rtl_config_multipleWan_netif(int32 cmd)
 
 	return retval;
 }
+
+static int rtl865x_addMultiCastNetif(void)
+{
+	rtl865x_netif_t netif;
+	int ret=FAILED;
+
+	rtl865x_delVlan(MULTICAST_NETIF_VLAN_ID);
+	rtl865x_addVlan(MULTICAST_NETIF_VLAN_ID);
+	ret=rtl865x_addVlanPortMember(MULTICAST_NETIF_VLAN_ID, rtl_multiWan_config.memPort);
+	ret=rtl865x_setVlanFilterDatabase(MULTICAST_NETIF_VLAN_ID, rtl_multiWan_config.fid);
+
+	if(_rtl865x_getNetifByName(multiCastNetIf)!=NULL)
+	{
+		return SUCCESS;
+	}
+
+	memset(&netif, 0, sizeof(rtl865x_netif_t));
+	strcpy(netif.name, multiCastNetIf);
+	memcpy(&netif.macAddr, multiCastNetIfMac, 6);
+	netif.mtu = 1500;
+	netif.if_type = IF_ETHER;
+	netif.vid = MULTICAST_NETIF_VLAN_ID;
+	netif.is_wan = 1;
+	netif.is_slave = 0;
+	netif.enableRoute=1;
+	netif.forMacBasedMCast=TRUE;
+	//printk("%s:%d,entry->lpNetif is %s \n",__FUNCTION__,__LINE__,entry->lpNetif);
+	ret = rtl865x_addNetif(&netif);
+	if(ret!=SUCCESS)
+	{
+		rtl865x_delVlan(MULTICAST_NETIF_VLAN_ID);
+		return FAILED;
+	}
+
+#if defined(CONFIG_RTK_VLAN_SUPPORT)
+	{
+		rtl865x_AclRule_t	rule;
+		bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
+		rule.ruleType_ = RTL865X_ACL_MAC;
+		rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
+		rule.actionType_ = RTL865X_ACL_PERMIT;
+		ret=rtl865x_add_acl(&rule, multiCastNetIf, RTL865X_ACL_SYSTEM_USED);
+	}
+#endif
+
+	return ret;
+}
+
+#if 0
+static int rtl865x_delMultiCastNetif(void)
+{
+	int ret=FAILED;
+
+#if defined(CONFIG_RTK_VLAN_SUPPORT)
+	{
+		rtl865x_AclRule_t	rule;
+		bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
+		rule.ruleType_ = RTL865X_ACL_MAC;
+		rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
+		rule.actionType_ = RTL865X_ACL_PERMIT;
+		ret=rtl865x_del_acl(&rule, multiCastNetIf, RTL865X_ACL_SYSTEM_USED);
+	}
+#endif
+
+	ret=rtl865x_delNetif(multiCastNetIf);
+
+	if(ret==SUCCESS)
+	{
+		ret=rtl865x_delVlan(MULTICAST_NETIF_VLAN_ID);
+	}
+	return ret;
+
+}
+
+int rtl865x_setMultiCastSrcMac(unsigned char *srcMac)
+{
+
+	if(srcMac==NULL)
+	{
+		return FAILED;
+	}
+
+	memcpy(multiCastNetIfMac, srcMac, 6);
+
+	if(_rtl865x_getNetifByName(multiCastNetIf)!=NULL)
+	{
+		rtl865x_delMCastNetif();
+		rtl865x_addMCastNetif();
+	}
+
+	return SUCCESS;
+}
+#endif
+
 #endif
 
 
@@ -8647,23 +10706,14 @@ int  re865x_reProbe (void)
 {
 	rtl8651_tblAsic_InitPara_t para;
 	unsigned long flags;
+#if defined(CONFIG_RTL_819XD)&&defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
+	uint32 reg_tmp=0;
+#endif
 
 	local_irq_save(flags);
 	//WRITE_MEM32(PIN_MUX_SEL_2, 0x7<<21);
 	/*Initial ASIC table*/
-
-#ifdef CONFIG_RTL8198_REVISION_B
- 	if (REG32(BSP_REVR) >= BSP_RTL8198_REVISION_B)
-	{
-	  	REG32(SYS_CLK_MAG)&=(~(SYS_SW_RESET));
-		mdelay(300);
-		REG32(SYS_CLK_MAG)|=(SYS_SW_RESET);
-		mdelay(100);
-
-	}
-	else
-#endif
-		FullAndSemiReset();
+	FullAndSemiReset();
 
 	memset(&para, 0, sizeof(rtl8651_tblAsic_InitPara_t));
 
@@ -8676,12 +10726,13 @@ int  re865x_reProbe (void)
 #ifdef CONFIG_RTL_LAYERED_ASIC_DRIVER_L3
 	INIT_CHECK(rtl865x_initAsicL3());
 #endif
-#if defined(CONFIG_RTL_LAYERED_ASIC_DRIVER_L4) && defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_LAYERED_ASIC_DRIVER_L4) && (defined(CONFIG_RTL_8198) ||defined(CONFIG_RTL_8196CT) ||defined(CONFIG_RTL_819XDT))
 	INIT_CHECK(rtl865x_initAsicL4());
 #endif
 
 
 	/*init PHY LED style*/
+#if !defined(CONFIG_RTL_819XD) && !defined(CONFIG_RTL_8196E)
 #if defined(CONFIG_RTL865X_BICOLOR_LED)
 	#ifdef BICOLOR_LED_VENDOR_BXXX
 	REG32(LEDCR) |= (1 << 19); // 5 ledmode set to 1 for bi-color LED
@@ -8703,13 +10754,18 @@ int  re865x_reProbe (void)
 	WRITE_MEM32(TCR0, 0x000002C7); //8651 demo board default: 15 LED boards
 	WRITE_MEM32(SWTACR, CMD_FORCE | ACTION_START); // force add
 #endif /* CONFIG_RTL865X_BICOLOR_LED */
+#endif
 
 /*2007-12-19*/
 #if defined(CONFIG_RTK_VLAN_SUPPORT)
 		//port based decision
 	rtl865xC_setNetDecisionPolicy(NETIF_PORT_BASED);
 	WRITE_MEM32(PLITIMR,0);
+#endif
 
+#if defined(CONFIG_RTL_819XD)&&defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
+	rtl8651_getAsicEthernetPHYReg(0x6, 0, &reg_tmp);
+	rtl_setPortMask(reg_tmp);
 #endif
 
 	/*queue id & rx ring descriptor mapping*/
@@ -8734,6 +10790,21 @@ int  re865x_reProbe (void)
 	rtl8651_setAsicMulticastEnable(FALSE);
 #endif
 #endif
+
+#ifdef CONFIG_RTL_8198_ESD
+	esd3_skip_one = 1;
+	one_second_counter = 0;
+	first_time_read_reg6 = 1;
+	phy_reg30[0] = phy_reg30[1] = phy_reg30[2] = phy_reg30[3] = phy_reg30[4] = 0;
+#endif		
+
+#ifdef CONFIG_RTL_8198
+	{
+	extern void disable_phy_power_down(void);
+	disable_phy_power_down();
+	}
+#endif
+
 	local_irq_restore(flags);
 	return 0;
 }
@@ -8754,7 +10825,8 @@ int rtl865x_reinitSwitchCore(void)
 	/*enable switch core interrupt*/
 
 	REG32(CPUICR) = TXCMD | RXCMD | BUSBURST_32WORDS | MBUF_2048BYTES;
-	REG32(CPUIIMR) = RX_DONE_IE_ALL | TX_ALL_DONE_IE_ALL | LINK_CHANGE_IE;
+	REG32(CPUIIMR) = RX_DONE_IE_ALL | TX_ALL_DONE_IE_ALL | LINK_CHANGE_IE | PKTHDR_DESC_RUNOUT_IE_ALL;
+	REG32(SIRR) |= TRXRDY;
 	REG32(GIMR) |= (BSP_SW_IE);
 
 	rtl865x_duringReInitSwtichCore=0;
@@ -8842,5 +10914,242 @@ void __exit rtl865x_destroyReInitResetSwitchCore(void)
 
 #endif
 
+#ifdef CONFIG_RTK_VOIP_QOS
+int wan_port_check(int port)
+{
+	if(1<<port & RTL_WANPORT_MASK)
+		return TRUE;
+	else
+		return FALSE;
+} 
+#endif
 
+#ifdef CONFIG_RTK_VOIP_PORT_LINK
+static int rtnl_fill_ifinfo_voip(struct sk_buff *skb, struct net_device *dev,
+                            int type, u32 pid, u32 seq, u32 change,
+                            unsigned int flags)
+{
+        struct ifinfomsg *ifm;
+        struct nlmsghdr *nlh;
+
+        nlh = nlmsg_put(skb, pid, seq, type, sizeof(*ifm), flags);
+        if (nlh == NULL)
+                return -ENOBUFS;
+
+        ifm = nlmsg_data(nlh);
+        ifm->ifi_family = AF_UNSPEC;
+        ifm->__ifi_pad = 0;
+        ifm->ifi_type = dev->type;
+        ifm->ifi_index = dev->ifindex;
+        ifm->ifi_flags = dev_get_flags(dev);
+        ifm->ifi_change = change;
+        return nlmsg_end(skb, nlh);
+}
+static void rtmsg_ifinfo_voip(int type, struct net_device *dev, unsigned change)
+{
+        struct net *net = dev_net(dev);
+        struct sk_buff *skb;
+        int err = -ENOBUFS;
+
+        skb = nlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
+        if (skb == NULL)
+                goto errout;
+
+        err = rtnl_fill_ifinfo_voip(skb, dev, type, 0, 0, change, 0);
+        if (err < 0) {
+                /* -EMSGSIZE implies BUG in if_nlmsg_size() */
+                WARN_ON(err == -EMSGSIZE);
+                kfree_skb(skb);
+                goto errout;
+        }
+        rtnl_notify(skb, net, 0, RTNLGRP_LINK, NULL, GFP_ATOMIC);
+        return;
+errout:
+        if (err < 0)
+                rtnl_set_sk_err(net, RTNLGRP_LINK, err);
+}
+#endif
+
+
+#if defined (CONFIG_RTL_SOCK_DEBUG)
+static struct proc_dir_entry *rtl865x_sockDebugProc=NULL;
+extern int dumpRawSockInfo(void);
+extern int dumpUdpSockInfo(void);
+extern int dumpTcpSockInfo(void);
+static int rtl865x_sockDebugReadProc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int len=0;
+	len = 0;
+
+	if (len <= off+count)
+		*eof = 1;
+
+	*start = page + off;
+	len -= off;
+
+	if (len>count)
+		len = count;
+
+	if (len<0) len = 0;
+
+	return len;
+}
+
+static int rtl865x_sockDebugWriteProc(struct file *file, const char *buffer,
+		      unsigned long count, void *data)
+{
+	char tmpBuf[256];
+	char		*strptr;
+	char		*tokptr;
+	unsigned int tmp;
+
+	if (buffer && !copy_from_user(tmpBuf, buffer, count))
+	{
+		tmpBuf[count-1]=0;
+		strptr=tmpBuf;
+
+		tokptr = strsep(&strptr," ");
+		if (tokptr==NULL)
+		{
+			goto errOut;
+		}
+
+		//printk("here to reset switch core\n");
+		tmp=simple_strtol(tokptr, NULL, 0);
+		if(tmp==1)
+		{
+			dumpRawSockInfo();
+			dumpUdpSockInfo();
+			dumpTcpSockInfo();
+
+		}
+
+
+		return count;
+	}
+
+errOut:
+	return -EFAULT;
+}
+
+
+int  rtl865x_creatSockDebugProc(void)
+{
+	rtl865x_sockDebugProc = create_proc_entry("sockDebug", 0, NULL);
+	if(rtl865x_sockDebugProc)
+	{
+		rtl865x_sockDebugProc->read_proc = rtl865x_sockDebugReadProc;
+		rtl865x_sockDebugProc->write_proc = rtl865x_sockDebugWriteProc;
+	}
+
+	return 0;
+}
+
+void __exit rtl865x_removeSockDebugProc(void)
+{
+	if (rtl865x_sockDebugProc) {
+		remove_proc_entry("sockDebug", rtl865x_sockDebugProc);
+		rtl865x_sockDebugProc = NULL;
+	}
+}
+#endif
+
+#ifdef CONFIG_RTL_ULINKER
+void eth_led_recover(void)
+{
+	REG32(PIN_MUX_SEL_2) = REG32(PIN_MUX_SEL_2) & ~(0x00003000);
+}
+#endif
+
+extern int eee_enabled;
+#if defined(RTL8198_EEE_MAC)
+extern void eee_phy_enable_98(void);
+extern void eee_phy_disable_98(void);
+#endif
+
+static struct proc_dir_entry *res_eee=NULL;
+static int eee_read_proc(char *page, char **start, off_t off, int count, int *eof, void *data);
+static int eee_write_proc(struct file *file, const char *buffer, unsigned long count, void *data);
+extern void enable_EEE(void);
+extern void disable_EEE(void);
+
+static int32 rtl819x_eee_proc_init(void)
+{
+	res_eee = create_proc_entry("eee", 0, NULL);
+	if(res_eee)
+	{
+		res_eee->read_proc = eee_read_proc;
+		res_eee->write_proc = eee_write_proc;
+	}
+	return 0;
+}
+
+void __exit rtl819x_eee_proc_exit(void)
+{
+	if (res_eee) {
+		remove_proc_entry("eee", res_eee);
+		res_eee = NULL;
+	}
+}
+
+static int eee_read_proc(char *page, char **start, off_t off,
+		     int count, int *eof, void *data)
+{
+	int len=0;
+
+	len += sprintf(page+len, "eee %sabled.\n", ((eee_enabled) ? "en" : "dis")  );
+
+	if (len <= off+count)
+		*eof = 1;
+
+	*start = page + off;
+	len -= off;
+
+	if (len>count)
+		len = count;
+
+	if (len<0) len = 0;
+
+	return len;
+}
+
+static int eee_write_proc(struct file *file, const char *buffer,
+		      unsigned long count, void *data)
+{
+	char tmpBuf[32];
+
+	if (buffer && !copy_from_user(tmpBuf, buffer, count))
+	{
+		if (tmpBuf[0] == '0') {
+			eee_enabled = FALSE;
+			disable_EEE();
+		}
+		else if (tmpBuf[0] == '1') {
+			eee_enabled = TRUE;
+			enable_EEE();
+		}
+#ifdef CONFIG_RTL_8198_ESD
+		esd3_skip_one = 1;
+#endif		
+		return count;
+	}
+	return -EFAULT;
+}
+#ifdef CONFIG_RTL865X_LANPORT_RESTRICTION
+char *rtl_getDevNameByPort(int32 port_num)
+{
+	int i;
+	struct dev_priv *cp;
+
+	for(i = 0; i < ETH_INTF_NUM; i++)
+	{
+		cp = ((struct dev_priv *)_rtl86xx_dev.dev[i]->priv);
+		if(cp && cp->opened && (cp->portmask & (1<<port_num)))
+			return cp->dev->name;
+	}
+
+	return NULL;
+}
+#endif
 

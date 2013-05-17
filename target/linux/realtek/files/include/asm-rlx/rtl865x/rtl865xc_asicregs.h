@@ -1098,7 +1098,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 /* CSCR, CCR - Checksum Control Register */
 #define EnL4ChkCal                          (1<<5)                   /* Enable L4 Checksum Re-calculation */
 #define EnL3ChkCal                          (1<<4)                   /* Enable L3 Checksum Re-calculation */
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define AcceptL2Err                          (1<<3)                   /* CPU port L2 CRC Error Allow; 0: Not Allowed, 1: Allowed (default) */
 #endif
 #define L4ChkSErrAllow                      (1<<2)                   /* L4 Checksum Error Allow */
@@ -1145,7 +1145,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define Port0_TypeCfg_UTP                   (0<< 0)
 #define Port0_TypeCfg_GMII_MII_RGMII        (1<< 0)
 
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 
 #define GIGA_P5_PHYID	0x16
 /* 0xBB804104 ~ 0xBB804124 */
@@ -1369,7 +1369,7 @@ to forward packet to the unauthorized node. Otherwise, it is not allowed.
 #define CVIDR                               (0x00+SWMISC_BASE)     /* Chip Version ID Register */
 #define SSIR						        (0x04+SWMISC_BASE)     /* System Initial and Reset Registe*/
 
-#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)
+#if defined(CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 #define CRMR                                (0x08+SWMISC_BASE)     /* Chip Revision Management Register */
 #define BISTCR                              (0x0C+SWMISC_BASE)     /* BIST control */
 #define BISTTSDR0                           (0x38+SWMISC_BASE)     /* BIST Test Status Diagnostic Register 0 */

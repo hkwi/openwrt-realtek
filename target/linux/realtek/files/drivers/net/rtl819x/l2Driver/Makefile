@@ -8,7 +8,7 @@
 # Note 2! The CFLAGS definitions are now in the main makefile...
 #Add mips16 Support
 
-DIR_RTLASIC = $(TOPDIR)/drivers/net/rtl819x/
+DIR_RTLASIC = $(DIR_LINUX)/drivers/net/rtl819x/
 
 ifdef CONFIG_RTL865X_KERNEL_MIPS16_LAYERDRIVER
 	CFLAGS_rtl865x_fdb.o		= -mips16
@@ -21,7 +21,9 @@ endif
 			obj-y += rtl865x_outputQueue.o
 		endif
 	endif
-
+	ifdef CONFIG_RTL_HW_QOS_SUPPORT
+	obj-y += rtl865x_hw_qos_config.o
+	endif
 ifeq ($(CONFIG_RTL_STP),y)
 	obj-y += rtl865x_stp.o
 endif

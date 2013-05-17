@@ -1,3 +1,11 @@
+/*
+ *
+ *  Copyright (c) 2011 Realtek Semiconductor Corp.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
+ */
 /* SPI Flash driver
  *
  * Written by sam (sam@realtek.com)
@@ -79,7 +87,8 @@
 #define SFCR_SPI_CLK_DIV(val)	((val) << 29)
 #define SFCR_RBO(val)			((val) << 28)
 #define SFCR_WBO(val)			((val) << 27)
-#define SFCR_SPI_TCS(val)		((val) << 23)			/*4 bit, 1111 */
+//#define SFCR_SPI_TCS(val)		((val) << 23)	//8196B		/*4 bit, 1111 */
+#define SFCR_SPI_TCS(val)		((val) << 22)	//8196C Later		/*5 bit, 11111 */
 
 /* SPI Flash Configuration Register(SFCR2) (0xb800-1204) */
 #define SFCR2						0xb8001204
@@ -110,9 +119,12 @@
 /* SPI Flash Data Register(SFDR2)(0xb8001210) */
 #define SFDR2					0xb8001210
 
+
 #define SPI_BLOCK_SIZE			0x10000				/* 64KB */
 #define SPI_SECTOR_SIZE			0x1000				/* 4KB */
 #define SPI_PAGE_SIZE			0x100				/* 256B */
+
+
 
 #define SPICMD_WREN			(0x06 << 24)	/* 06 xx xx xx xx sets the (WEL) write enable latch bit */
 #define SPICMD_WRDI			(0x04 << 24)	/* 04 xx xx xx xx resets the (WEL) write enable latch bit*/
@@ -155,7 +167,7 @@
 /****** EON ******/
 
 /****** SPANSION ******/
-#define SPICMD_SPAN_QOR			(0x6b << 24)	/* 3 0 1 (1 to ∞) Quad Ou// write sector use malloc buffer */
+#define SPICMD_SPAN_QOR			(0x6b << 24)	/* 3 0 1 (1 to ?? Quad Ou// write sector use malloc buffer */
 #define SPICMD_SPAN_QPP			(0x32 << 24)	/* Quad Page Programming */
 #define SPAN_CONF_QUAD			0x01
 
@@ -212,6 +224,7 @@
 #define W25Q80			0x00EF4014
 #define W25Q16			0x00EF4015
 #define W25Q32			0x00EF4016
+#define W25Q64			0x00EF4017
 
 /* Eon Flash */
 #define EN25F32			0x001c3116
@@ -220,9 +233,13 @@
 #define EN25Q16			0x001c3015
 
 /* GigaDevice Flash */
-#define GD25Q16			0x00c84015
-#define GD25Q32			0x00c84016
-#define GD25Q64			0x00c84017
+#define GIGADEVICE		0x00c80000		/*factory_id*/
+#define GD_Q			0x00c84000		/*memory_type*/
+#define GD25Q8			0x00c84014 /*20120302 Verified OK*/
+#define GD25Q16			0x00c84015 /*20120305 Verified OK*/
+#define GD25Q32			0x00c84016  /*20120305 Verified OK*/
+#define GD25Q64			0x00c84017  /*20120305 Verified OK*/
+#define GD25Q128			0x00c84018  /*No sample ,Supposed OK*/
 
 /* Atmel Flash */
 #define AT25DF161		0x001f4602
@@ -243,8 +260,13 @@
 #define SIZE_004K	0x1000
 #define SIZE_064K	0x10000
 
-#define SPI_REG_READ(reg)		*((volatile unsigned int *)(reg))
-#define SPI_REG_LOAD(reg,val)	while((*((volatile unsigned int *)SFCSR) & (SFCSR_SPI_RDY(1))) == 0); *((volatile unsigned int *)(reg)) = (val)
+#define SPI_REG_READ(reg)	*((volatile unsigned int *)(reg))
+#define SPI_REG_LOAD(reg,val)	\
+do { \
+	while((*((volatile unsigned int *)SFCSR) & (SFCSR_SPI_RDY(1))) == 0) \
+		; \
+	*((volatile unsigned int *)(reg)) = (val); \
+} while(0)
 
 #define IOWIDTH_SINGLE			0x00
 #define IOWIDTH_DUAL			0x01
@@ -278,17 +300,18 @@ struct spi_flash_known spi_flash_registed[] = {
 //#define MX25L1605D		0x00C22015
 {0x00C22015, 0x00, SIZE2N_02MB, SIZE_064K, SIZE_004K, SIZE_256B, "MX25L1605D/E"
 #if (SPI_DRIVER_MODE == 1)
-, 86, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #else
-, 86, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
-//#define MX25L3205D		0x00C22016
-{0x00C22016, 0x00, SIZE2N_04MB, SIZE_064K, SIZE_004K, SIZE_256B, "MX25L3205D/E"
+//#define MX25L3205D		20MHZ
+//#define MX25L3206E		0x00C22016
+{0x00C22016, 0x00, SIZE2N_04MB, SIZE_064K, SIZE_004K, SIZE_256B, "MX25L3206E"
 #if (SPI_DRIVER_MODE == 1)
-, 86, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #else
-, 86, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 //#define MX25L6405D		0x00C22017
@@ -296,18 +319,18 @@ struct spi_flash_known spi_flash_registed[] = {
 //#define MX25L6445E		0x00C22017
 {0x00C22017, 0x00, SIZE2N_08MB, SIZE_064K, SIZE_004K, SIZE_256B, "MX6405D/05E/45E"
 #if (SPI_DRIVER_MODE == 1)
-, 86, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #else
-, 86, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 //#defien MX25L12805D		0x00C22018
 //#define MX25L12845E		0x00C22018
 {0x00C22018, 0x00, SIZE2N_16MB, SIZE_064K, SIZE_004K, SIZE_256B, "MX25L12805D/45E"
 #if (SPI_DRIVER_MODE == 1)
-, 86, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #else
-, 86, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 //#define MX25L1635D		0x00C22415
@@ -321,9 +344,9 @@ struct spi_flash_known spi_flash_registed[] = {
 //#define MX25L1635E		0x00C22515 (clock 108 down to 54)
 {0x00C22515, 0x00, SIZE2N_02MB, SIZE_064K, SIZE_004K, SIZE_256B, "MX25L1635E/36E"
 #if (SPI_DRIVER_MODE == 1)
-, 108, ComSrlCmd_SE,  SpiRead_1443EB, mxic_spi_setQEBit,  PageWrite_144038
+, 50, ComSrlCmd_SE,  SpiRead_1443EB, mxic_spi_setQEBit,  PageWrite_144038
 #else
-, 108, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 50, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 //#define MX25L3235D		0x00C25E16
@@ -402,12 +425,20 @@ struct spi_flash_known spi_flash_registed[] = {
 #endif
 },
 /****************************************** GigaDevice Flash ******************************************/
+//#define GD25Q8			0x00c84014
+{0x00c84014, 0x00, SIZE2N_01MB, SIZE_064K, SIZE_004K, SIZE_256B, "GD25Q8"
+#if (SPI_DRIVER_MODE == 1)
+, 80, ComSrlCmd_SE, SpiRead_1443EB, gd_spi_setQEBit, PageWrite_111002
+#else
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+#endif
+},
 //#define GD25Q16			0x00c84015
 {0x00c84015, 0x00, SIZE2N_02MB, SIZE_064K, SIZE_004K, SIZE_256B, "GD25Q16"
 #if (SPI_DRIVER_MODE == 1)
-, 90, ComSrlCmd_SE, SpiRead_1443EB, gd_spi_setQEBit, PageWrite_111002
+, 80, ComSrlCmd_SE, SpiRead_1443EB, gd_spi_setQEBit, PageWrite_111002
 #else
-, 120, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 //#define GD25Q32			0x00c84016
@@ -415,7 +446,7 @@ struct spi_flash_known spi_flash_registed[] = {
 #if (SPI_DRIVER_MODE == 1)
 , 80, ComSrlCmd_SE, SpiRead_1443EB, gd_spi_setQEBit, PageWrite_114032
 #else
-, 100, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 //#define GD25Q64			0x00c84017
@@ -423,48 +454,64 @@ struct spi_flash_known spi_flash_registed[] = {
 #if (SPI_DRIVER_MODE == 1)
 , 80, ComSrlCmd_SE, SpiRead_1443EB, gd_spi_setQEBit, PageWrite_114032
 #else
-, 100, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+#endif
+},
+//#define GD25Q128			0x00c84018
+{0x00c84018, 0x00, SIZE2N_16MB, SIZE_064K, SIZE_004K, SIZE_256B, "GD25Q128"
+#if (SPI_DRIVER_MODE == 1)
+, 84, ComSrlCmd_SE, SpiRead_1443EB, gd_spi_setQEBit, PageWrite_114032
+#else
+, 84, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 /****************************************** WinBond Flash ******************************************/
 //#define W25Q16			0x00EF4015
 {0x00EF4015, 0x00, SIZE2N_02MB, SIZE_064K, SIZE_004K, SIZE_256B, "W25Q16"
 #if (SPI_DRIVER_MODE == 1)
-, 104, ComSrlCmd_SE, SpiRead_1443EB, wb_spi_setQEBit, PageWrite_114032
+, 80, ComSrlCmd_SE, SpiRead_1443EB, wb_spi_setQEBit, PageWrite_114032
 #else
-, 104, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
-},
+}, 
 //#define W25Q32			0x00EF4016
 {0x00EF4016, 0x00, SIZE2N_04MB, SIZE_064K, SIZE_004K, SIZE_256B, "W25Q32"
 #if (SPI_DRIVER_MODE == 1)
-, 104, ComSrlCmd_SE, SpiRead_1443EB, wb_spi_setQEBit, PageWrite_114032
+, 80, ComSrlCmd_SE, SpiRead_1443EB, wb_spi_setQEBit, PageWrite_114032
 #else
-, 104, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+#endif
+},
+//#define W25Q64                        0x00EF4017
+{0x00EF4017, 0x00, SIZE2N_08MB, SIZE_064K, SIZE_004K, SIZE_256B, "W25Q64"
+#if (SPI_DRIVER_MODE == 1)
+, 80, ComSrlCmd_SE, SpiRead_1443EB, wb_spi_setQEBit, PageWrite_114032
+#else
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 //#define W25X16			0x00EF3015
 {0x00EF3015, 0x00, SIZE2N_02MB, SIZE_064K, SIZE_004K, SIZE_256B, "W25X16"
 #if (SPI_DRIVER_MODE == 1)
-, 104, ComSrlCmd_SE, SpiRead_11213B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE, SpiRead_11213B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #else
-, 104, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 //#define W25X32			0x00EF3016
 {0x00EF3016, 0x00, SIZE2N_04MB, SIZE_064K, SIZE_004K, SIZE_256B, "W25X32"
 #if (SPI_DRIVER_MODE == 1)
-, 104, ComSrlCmd_SE, SpiRead_11213B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE, SpiRead_11213B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #else
-, 104, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 //#define W25X64			0x00EF3017
 {0x00EF3016, 0x00, SIZE2N_08MB, SIZE_064K, SIZE_004K, SIZE_256B, "W25X64"
 #if (SPI_DRIVER_MODE == 1)
-, 104, ComSrlCmd_SE, SpiRead_11213B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE, SpiRead_11213B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #else
-, 104, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
+, 80, ComSrlCmd_SE,  SpiRead_11110B, ComSrlCmd_NoneQeBit,  PageWrite_111002
 #endif
 },
 /****************************************** ATMEL Flash ******************************************/
@@ -499,7 +546,7 @@ struct spi_flash_known spi_flash_registed[] = {
 // spi flash probe
 void spi_regist(unsigned char ucChip)
 {
-	unsigned int ui, i, uiCount, uiRems;
+	unsigned int ui, i, uiCount;
 	unsigned char pucBuffer[4];
 
 	ui = ComSrlCmd_RDID(ucChip, 4);
@@ -573,8 +620,10 @@ void set_flash_info(unsigned char ucChip, unsigned int chip_id, unsigned int dev
 unsigned int CheckDramFreq(void)                       //JSW:For 8196C
 {
 	unsigned short usFreqBit;
-#ifdef CONFIG_RTL8198
+#if defined(CONFIG_RTL8198)
 	unsigned short usFreqVal[] = {65, 181, 150, 125, 156, 168, 237, 193};
+#elif defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+	unsigned short usFreqVal[] = {156, 193, 181, 231, 212, 125, 237, 168};
 #else
 	unsigned short usFreqVal[] = {65, 78, 125, 150, 156, 168, 193, 193};
 #endif
@@ -723,7 +772,7 @@ void SFCSR_CS_H(unsigned char ucChip, unsigned char ucLen, unsigned char ucIOWid
 unsigned int ComSrlCmd_RDID(unsigned char ucChip, unsigned int uiLen)
 {
 	unsigned int ui;
-	SPI_REG_LOAD(SFCR, (SFCR_SPI_CLK_DIV(7) | SFCR_RBO(1) | SFCR_WBO(1) | SFCR_SPI_TCS(15)));		//SFCR default setting
+	SPI_REG_LOAD(SFCR, (SFCR_SPI_CLK_DIV(7) | SFCR_RBO(1) | SFCR_WBO(1) | SFCR_SPI_TCS(31)));		//SFCR default setting
 	rstSPIFlash(ucChip);
 	SFCSR_CS_L(ucChip, 0, IOWIDTH_SINGLE);
 	SPI_REG_LOAD(SFDR, SPICMD_RDID);

@@ -38,7 +38,7 @@ enum _TX_QUEUE_ {
 static __inline__ void init_txdesc(struct rtl8192cd_priv *priv, struct tx_desc *pdesc,
 				unsigned long ringaddr, unsigned int i)
 {
-	if (i == (NUM_TX_DESC - 1))
+	if (i == (CURRENT_NUM_TX_DESC - 1))
 		(pdesc + i)->Dword10 = set_desc(ringaddr); // NextDescAddress
 	else
 		(pdesc + i)->Dword10 = set_desc(ringaddr + (i+1) * sizeof(struct tx_desc)); // NextDescAddress
@@ -49,9 +49,9 @@ static __inline__ unsigned int get_mpdu_len(struct tx_insn *txcfg, unsigned int 
 	return (txcfg->hdr_len + txcfg->llc + txcfg->iv + txcfg->icv + txcfg->mic + _CRCLNG_ + fr_len);
 }
 
-#define txdesc_rollover(ptxdesc, ptxhead)	(*ptxhead = (*ptxhead + 1) % NUM_TX_DESC)
+#define txdesc_rollover(ptxdesc, ptxhead)	(*ptxhead = (*ptxhead + 1) % CURRENT_NUM_TX_DESC)
 
-#define txdesc_rollback(ptxhead)			(*ptxhead = (*ptxhead == 0)? (NUM_TX_DESC - 1) : (*ptxhead - 1))
+#define txdesc_rollback(ptxhead)			(*ptxhead = (*ptxhead == 0)? (CURRENT_NUM_TX_DESC - 1) : (*ptxhead - 1))
 
 static __inline__ void tx_poll(struct rtl8192cd_priv *priv, int q_num)
 {
