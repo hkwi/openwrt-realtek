@@ -1,0 +1,713 @@
+--- librtk-inband-0.1/inband_api.c	1970-01-01 03:00:00.000000000 +0300
++++ rtk_inbandLib/inband_api.c	2013-05-02 01:48:34.833223731 +0300
+@@ -0,0 +1,348 @@
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <signal.h>
++#include <unistd.h>
++#include <sys/ioctl.h>
++#include <errno.h>
++
++#include <linux/if_ether.h>
++#include <linux/if_packet.h>
++#ifndef __IOH_H
++#include "ioh.h"
++#endif
++#include <linux/if_arp.h>
++#include "wireless_copy.h"
++#ifdef INBAND_HOST
++#else
++#include <net80211/ieee80211.h>
++#include <net80211/ieee80211_crypto.h>
++#include <net80211/ieee80211_ioctl.h>
++#endif
++
++#define INBAND_INTF		"br0"
++#define INBAND_SLAVE	("001234567899")
++#define INBAND_IOCTL_TYPE	0x8899
++#define INBAND_NETLINK_TYPE 0x9000
++#define INBAND_DEBUG 0
++#define RX_EXPIRE_PERIOD 3	//in secs
++
++#define IWREQ_LEN 32
++#define INBAND_IOCTLTYPE_LEN	4
++#define INBAND_IOCTLHDR_LEN	6
++#define INBAND_PENDING_START(data) data+INBAND_IOCTLHDR_LEN+IWREQ_LEN
++#define INBAND_IOCTLRET_PTR(data) data+INBAND_IOCTLTYPE_LEN
++#define IOH_HDR_LEN sizeof(struct ioh_header)
++#ifdef INBAND_HOST
++#define MAXDATALEN      1560    // jimmylin: org:256, enlarge for pass EAP packet by event queue
++#define DOT11_EVENT_REQUEST 2
++#define SIOCGIWIND 0x89ff
++#endif
++#define ioctl_cmd_type 0x05
++#define sycall_cmd_type 0x04
++
++#ifdef DEBUG
++#define DEBUG_PRINT(fmt, args...) printf("[Inband]%s %d:"fmt,__FUNCTION__ , __LINE__ , ## args)
++#else
++#define DEBUG_PRINT(fmt, args...)
++#endif
++
++#ifdef IEEE80211_IOCTL_SETWMMPARAMS
++/* Assume this is built against realtek-ng */
++#define REALTEK_NG
++#endif /* IEEE80211_IOCTL_SETWMMPARAMS */
++//#define RTL8192CD_IOCTL_DEL_STA	0x89f7
++//#define SIOCGIWIND      		0x89ff
++//#defein SIOCIWLASTPRIV		0x8BFF
++
++typedef struct _DOT11_REQUEST{
++        unsigned char   EventId;
++}DOT11_REQUEST;
++
++unsigned int get_random(int max)
++{
++	struct timeval tod;
++
++	gettimeofday(&tod , NULL);
++	srand(tod.tv_usec);
++	return rand()%max;
++}
++
++static int rx_expired(struct timeval *start)
++{
++	struct timeval now;
++
++	gettimeofday(&now , NULL);
++
++	return (now.tv_sec-start->tv_sec<RX_EXPIRE_PERIOD)?0:1;
++}
++
++/****************************************************
++
++	tx_data will be formatted as following:
++	+--------------+------------+--------------+--------------+
++	| ioctl number | req length | struct iwreq | pending data |
++	+--------------+------------+--------------+--------------+
++
++	
++ ****************************************************/
++int
++inband_ioctl(int ioctl_op, void *req)
++{
++	int ret=-1, ext_len=0, sq=0, rcv_sq=0, inband_channel=-1, iw=0;
++	unsigned char cmd_type=0x04, buf[BUF_SIZE], *rx_buf;
++	struct iwreq *local_iwr, *rsp_iwr;
++	struct timeval start;
++	int ioctl_op_endian;
++	int local_iwr_pointer;
++	struct ifreq *ifr_ptr;
++
++	switch(ioctl_op) {
++#ifdef INBAND_HOST
++		case SIOCGIFADDR:
++		case SIOCGIFINDEX:
++			iw = 0x0;
++		case SIOCGIFHWADDR:
++			iw = 0x0;
++			break;
++		default:
++			iw = 0x11;
++			break;
++#else
++		case IEEE80211_IOCTL_FILTERFRAME:
++		case IEEE80211_IOCTL_SETPARAM:
++		case IEEE80211_IOCTL_DELKEY:
++			iw = 0x10;
++			break;
++		case IEEE80211_IOCTL_SETMLME:
++		case IEEE80211_IOCTL_SETKEY:
++			//printf("~~~%s %d\n",__FUNCTION__,__LINE__);
++			//hex_dump(((struct iwreq *)req)->u.data.pointer,((struct iwreq *)req)->u.data.length);
++#ifdef REALTEK_NG
++		case IEEE80211_IOCTL_STA_STATS:
++#else
++		case IEEE80211_IOCTL_GETSTASTATS:
++#endif
++		case IEEE80211_IOCTL_SET_APPIEBUF:
++		case SIOCGIWRANGE:
++		case SIOCSIWESSID:
++		case SIOCGIWESSID:
++		case SIOCSIWENCODE:
++		case IEEE80211_IOCTL_WDSADDMAC:
++		case IEEE80211_IOCTL_WDSDELMAC:
++		case IEEE80211_IOCTL_GET_APPIEBUF:
++		case 0x89f7: //RTL8192CD_IOCTL_DEL_STA
++		case 0x89ff: //SIOCGIWIND
++		case 0x8bff:	//SIOCIWLASTPRIV
++			iw = 0x11;
++			break;
++		case SIOCGIFINDEX:
++		case SIOCGIFFLAGS:
++		case SIOCGIFHWADDR:
++                        iw = 0x0;
++                        break;
++                case SIOCSIFHWADDR:			
++			ifr_ptr = (struct ifreq *)req;
++			ifr_ptr->ifr_hwaddr.sa_family = htons(ifr_ptr->ifr_hwaddr.sa_family);
++			iw = 0x0;
++			break;
++		case SIOCSIFFLAGS:
++			ifr_ptr = (struct ifreq *)req;
++			ifr_ptr->ifr_flags = htons(ifr_ptr->ifr_flags);
++			iw = 0x0;
++			break;
++		case SIOCSIFMTU:
++			ifr_ptr = (struct ifreq *)req;
++			ifr_ptr->ifr_mtu = htonl(ifr_ptr->ifr_mtu);
++			iw = 0x0;
++			break;
++		default:
++			printf("Unknown ioctl number:%d\n",ioctl_op);
++			return -1;
++#endif
++	}
++
++	inband_channel = inband_open(INBAND_INTF, INBAND_SLAVE, INBAND_IOCTL_TYPE, INBAND_DEBUG);
++
++	if( inband_channel < 0 ) {
++		printf("ioctl(inband channel open) failed %x\n",ioctl_op);
++		goto out;
++	}
++	
++	ioctl_op_endian = htonl(ioctl_op);//mark_endian
++	memset(buf,0,BUF_SIZE);
++	memcpy(buf,(unsigned char *)&ioctl_op_endian,INBAND_IOCTLTYPE_LEN);	
++	if( iw & 0x1 ) {
++		local_iwr = (struct iwreq *)req;
++		ext_len = local_iwr->u.data.length;
++		local_iwr_pointer = (int)local_iwr->u.data.pointer;		
++		local_iwr->u.data.length = htons(ext_len); 
++		local_iwr->u.data.flags = htons(local_iwr->u.data.flags);
++		//memcpy(INBAND_PENDING_START(buf),local_iwr->u.data.pointer, local_iwr->u.data.length);
++		memcpy(INBAND_PENDING_START(buf),local_iwr->u.data.pointer, ext_len);
++	}
++	memcpy(buf+INBAND_IOCTLHDR_LEN,(unsigned char *)req,IWREQ_LEN);
++	
++	buf[INBAND_IOCTLTYPE_LEN] = iw&0x10>>4;
++	buf[INBAND_IOCTLTYPE_LEN+1] = iw&0x1;
++	sq = get_random(65536);
++
++	//printf("inband ioctl %d >>> \n",sq);
++	if( inband_write(inband_channel, sq, ioctl_cmd_type, buf, INBAND_IOCTLHDR_LEN+IWREQ_LEN+ext_len, 0) < 0) {
++		DEBUG_PRINT("inband ioctl message send failed\n");
++		goto out;
++	}
++	else {
++		ret = 0;
++
++		switch(ioctl_op) {
++#ifdef INBAND_HOST
++		case SIOCGIFADDR:
++		case SIOCGIFINDEX:
++		case SIOCGIFHWADDR:
++			break;
++		default:
++			ret = 0;
++			goto out;
++#else
++#ifdef REALTEK_NG
++		case IEEE80211_IOCTL_STA_STATS:
++#else
++		case IEEE80211_IOCTL_GETSTASTATS:
++#endif
++		case SIOCGIWRANGE:
++		case SIOCGIWESSID:
++		case IEEE80211_IOCTL_GET_APPIEBUF:
++		case 0x89ff: //SIOCGIWIND
++		case 0x8bff:	//SIOCIWLASTPRIV
++		case SIOCGIFINDEX:
++		case SIOCGIFFLAGS:
++		case SIOCGIFHWADDR:
++			break;
++		default:
++			ret = 0;
++			goto out;
++#endif
++		}
++		
++		gettimeofday(&start,NULL);
++
++rx_retry:
++		if( inband_rcv_data_and_seq(inband_channel, &rcv_sq, &cmd_type, &rx_buf, 500) < 0 ) {
++			if(!rx_expired(&start)) {
++				goto rx_retry;
++			} else {
++				DEBUG_PRINT("inband ioctl message not receive response\n");
++				ret = -1;
++				goto out;
++			}
++		}
++
++		if( sq != rcv_sq )
++			goto rx_retry;
++
++		memcpy(&ret,rx_buf,sizeof(int));
++		DEBUG_PRINT("inband ioctl retVal:%d\n",ret);
++		
++		memcpy((unsigned char *)req,rx_buf+INBAND_IOCTLHDR_LEN,IWREQ_LEN);	
++
++		if( iw & 0x1 )
++		{
++			local_iwr = (struct iwreq *)req;
++			rsp_iwr = (struct iwreq *)INBAND_IOCTLRET_PTR(rx_buf);
++			//memcpy((int *)local_iwr_pointer, INBAND_PENDING_START(rx_buf), ext_len);
++			memcpy((int *)local_iwr_pointer, INBAND_PENDING_START(rx_buf), rsp_iwr->u.data.length);
++			//local_iwr->u.data.length = ext_len;
++			local_iwr->u.data.length = rsp_iwr->u.data.length;
++			local_iwr->u.data.pointer = (int *)local_iwr_pointer; 
++			local_iwr->u.data.flags =  ntohs(local_iwr->u.data.flags);
++		}
++		else if (iw == 0x0) //ifreq ;
++		{
++			switch(ioctl_op) {
++			case SIOCGIFINDEX:
++			ifr_ptr = (struct ifreq *)req;
++			ifr_ptr->ifr_ifindex = ntohl(ifr_ptr->ifr_ifindex);	
++				break;
++			case SIOCGIFFLAGS:
++			ifr_ptr = (struct ifreq *)req;
++			ifr_ptr->ifr_flags = ntohs(ifr_ptr->ifr_flags);	
++				break;
++			//case SIOCGIFHWADDR:
++			default:
++				break;
++			}	
++
++		} 
++	}
++
++out:
++	if( inband_channel >= 0 )
++		inband_close(inband_channel);
++
++	return ret;
++}
++
++
++int
++inband_remote_cmd(unsigned char *cmd)
++{
++	unsigned char *buf;
++	unsigned int channel = -1;
++
++	channel = inband_open(INBAND_INTF,INBAND_SLAVE,INBAND_IOCTL_TYPE,INBAND_DEBUG);
++	if( channel < 0 || inband_write(channel, get_random(65535), sycall_cmd_type, cmd, strlen(cmd), 0) < 0) {
++		printf("inband sent remote command failed\n");
++	}/* else {
++		if( inband_rcv_data(channel, &syscall_cmd_type, &buf, -1) < 0 )
++			printf("inband try to receive respone but failed\n");
++		inband_close(channel);
++	}*/
++	inband_close(channel);
++}
++
++#ifdef INBAND_HOST
++int InbandRequestIndication(
++	char *                 ifname,
++	char *		       out,
++	int  *		       outlen)
++{
++
++	struct iwreq          wrq;
++	DOT11_REQUEST	      * req;
++
++
++
++  	/* Get wireless name */
++	memset(wrq.ifr_name, 0, sizeof wrq.ifr_name);
++  	strncpy(wrq.ifr_name, ifname, IFNAMSIZ);
++
++	req = (DOT11_REQUEST *)malloc(MAXDATALEN);
++	wrq.u.data.pointer = (caddr_t)req;
++	req->EventId = DOT11_EVENT_REQUEST;
++	wrq.u.data.length = sizeof(DOT11_REQUEST);
++
++	//iw_message(MESS_DBG_IWCONTROL, "[RequestIndication] : Start\n");
++	printf("\n[RequestIndication] : Start\n");
++  	if(inband_ioctl(SIOCGIWIND, &wrq) < 0)
++	{
++    	// If no wireless name : no wireless extensions
++		free(req);
++		strerror(errno);
++		printf("\n[RequestIndication] : Failed\n");
++    		return(-1);
++	}
++  	else{
++		//iw_message(MESS_DBG_IWCONTROL, "[RequestIndication]"," : Return\n");
++		//iw_ctldump("RequestIndication", wrq.u.data.pointer, wrq.u.data.length, "receive message from driver");
++		printf("\n[RequestIndication] : End with data len:%d\n",*outlen);
++		memcpy(out, wrq.u.data.pointer, wrq.u.data.length);
++		*outlen = wrq.u.data.length;
++		//write(1, "RequestIndication<1>\n", sizeof("RequestIndication<1>\n"));
++
++	}
++	free(req);
++	return 1;
++}
++#endif
++
+--- librtk-inband-0.1/inband_if.c	2013-05-10 15:34:50.402663545 +0300
++++ rtk_inbandLib/inband_if.c	2013-05-02 01:48:34.833223731 +0300
+@@ -20,7 +20,8 @@ struct inband_header {
+ 	unsigned char inband_cmd;
+ 	unsigned short inband_seq;
+ 	unsigned short inband_frag;
+-	unsigned char inband_reserved[2];
++	unsigned char inband_index;
++	unsigned char inband_reserved;
+ 	unsigned short inband_data_len;
+ } __attribute__((packed));
+ 
+@@ -46,12 +47,12 @@ struct inband_class {
+ //header : 4 sign , 4 opttion , 4 offset, 4 len
+ #define FM_HEADER_LEN_OFFSET 12
+ 
+-#define MAX_INBAND_CHAN 1
++#define MAX_INBAND_CHAN 2
+ #define MAX_PREALLOC_INBAND_CHAN MAX_INBAND_CHAN
+ 
+ int inband_rcv_timeout=0; //mark_issue, not implement now
+ 
+-static struct inband_class inband_obj[MAX_INBAND_CHAN];
++struct inband_class inband_obj[MAX_INBAND_CHAN];
+ static int inband_ready=0;
+ 
+ static void init_inband_obj(struct inband_class *ib_obj)
+@@ -84,7 +85,7 @@ static unsigned int get_free_chan()
+ 	return chan;	
+ }
+ 
+-static struct inband_class *get_chan_obj(unsigned int chan)
++struct inband_class *get_chan_obj(unsigned int chan)
+ {
+ 	return (struct inband_class *)&inband_obj[chan];
+ }
+@@ -97,7 +98,7 @@ static void inband_init_all()
+ int inband_open(char *netif_name,char *slave_mac,unsigned short eth_type,int debug)
+ {	
+ 	int ret;
+-	unsigned int chan;
++	unsigned int chan=0;
+ 	struct inband_class *inband_obj_p;
+ 	struct ioh_class *ioh_obj_p;
+ 
+@@ -108,8 +109,9 @@ int inband_open(char *netif_name,char *s
+ 	}
+ 
+ 	chan = get_free_chan();
+-	if(chan < 0)
++	if(chan < 0) {
+ 		return -1;
++	}
+ 
+ 	inband_obj_p = (struct inband_class *)get_chan_obj(chan);
+ 
+@@ -117,8 +119,9 @@ int inband_open(char *netif_name,char *s
+ 		
+ 	ret = ioh_open(ioh_obj_p, netif_name, slave_mac,eth_type, debug);
+ 
+-	if(ret < 0 )
++	if(ret < 0 ) {
+ 		return -1;
++	}
+ 
+ 	init_inband_obj(inband_obj_p);
+ 
+@@ -167,14 +170,36 @@ static int inband_recv(struct inband_cla
+         int rx_len;
+ 
+         rx_len = ioh_recv(ioh_obj_p, timeout);
+-        if (rx_len < 0)
++        if (rx_len < 0) {
+                         return ERROR_TIMOUT;
++		}
+         if(ib_obj->rx_header->rrcp_type != RRCP_P_IOH)
+                 return -1;
+ 
+         return rx_len;
+ }
+ 
++static int inband_indexed_recv(struct inband_class *ib_obj,unsigned char idx,int timeout)
++{
++        struct ioh_class *ioh_obj_p = &ib_obj->ioh_obj;
++        int rx_len;
++
++        rx_len = ioh_recv(ioh_obj_p, timeout);
++        if (rx_len < 0) {
++           return ERROR_TIMOUT;
++		}
++        if(ib_obj->rx_header->rrcp_type != RRCP_P_IOH)
++                return -1;
++
++		if(idx != ib_obj->rx_header->inband_index) {
++			printf("%s %d idx:%d != inband_index:%d, dropped!!\n",__FUNCTION__,__LINE__);
++			return -1;
++		}
++
++        return rx_len;
++}
++
++
+ static int send_frag_ack(struct inband_class *ib_obj)
+ {
+ 	struct ioh_class *ioh_obj_p = &ib_obj->ioh_obj;
+@@ -241,14 +266,8 @@ static int init_defragment_process(struc
+ 	}
+ 	p_frag_info->buf_ptr = p_frag_info->buf;
+ 	p_frag_info->inband_frag = FIRST_FRAG_ID;
+-
+-#ifdef WPAS_INB
+-	p_frag_info->inband_cmd = ntohs(ib_obj->rx_header->inband_cmd);
+-	p_frag_info->inband_seq = ntohs(ib_obj->rx_header->inband_seq);
+-#else
+ 	p_frag_info->inband_cmd = ib_obj->rx_header->inband_cmd;
+ 	p_frag_info->inband_seq = ib_obj->rx_header->inband_seq;
+-#endif
+ 	
+ 	//copy first frame to buffer
+ 	memcpy(p_frag_info->buf,ib_obj->rx_data,ntohs(ib_obj->rx_header->inband_data_len));
+@@ -362,6 +381,52 @@ int inband_rcv_data(int chan,char *cmd_t
+ 	
+ }
+ 
++int inband_rcv_indexed_data(int chan,char *cmd_type,char **data,int timout_ms,unsigned char idx) //return data length
++{	
++	int rx_len,data_len=0;
++	struct inband_class *inband_obj_p;
++	struct ioh_class *ioh_obj_p;
++
++	inband_obj_p = (struct inband_class *)get_chan_obj(chan);	
++	ioh_obj_p = &inband_obj_p->ioh_obj;	
++
++	
++	//timout_ms will be used only for the first pkt. if the pkt is fragmented then every packet will
++	//follow fragment_timout_ms
++	//rx_len = inband_recv(inband_obj_p, timout_ms); // -1 = wait until rec
++	rx_len = inband_recv(inband_obj_p, timout_ms); // -1 = wait until rec
++	if (rx_len < 0)
++	{
++		perror("inband_rcv_data:");
++		return -1;
++    }
++	//printf("inband_rcv_data:\n");
++	//hex_dump(ioh_obj_p->rx_buffer, ntohs(inband_obj_p->rx_header->inband_data_len) + sizeof(*inband_obj_p->rx_header)); //mark_test		
++
++	if( idx != inband_obj_p->rx_header->inband_index ) {
++		printf("Error: if_index:%d != %d \n",idx,inband_obj_p->rx_header->inband_index);
++		return -1;
++	}
++
++	//cache for tx dest mac
++	if( memcmp(ioh_obj_p->dest_mac,ioh_obj_p->rx_header->sa,6)) //mark_test
++		memcpy(ioh_obj_p->dest_mac,ioh_obj_p->rx_header->sa,6);
++
++	//single pkt	
++	if( inband_obj_p->rx_header->inband_frag  == ntohs(SINGLE_FRAME)) //mark_endian
++	{		
++		*cmd_type = inband_obj_p->rx_header->inband_cmd;
++		data_len =  ntohs(inband_obj_p->rx_header->inband_data_len);		
++		*data = inband_obj_p->rx_data ; //or memcpy;	
++	}
++	else //fragment process
++		data_len = inband_rcv_fragment(inband_obj_p,cmd_type,data);
++
++	return data_len;
++	
++}
++
++
+ //if seq is need in your application
+ int inband_rcv_data_and_seq(int chan,unsigned int *seq,char *cmd_type,char **data,int timout_ms) //return data length
+ {
+@@ -417,6 +482,49 @@ static int inband_send_data(struct inban
+ 	return ioh_send(ioh_obj_p,sizeof(struct inband_header)+last_num);		
+ }
+ 
++static int inband_send_indexed_data(struct inband_class *ib_obj,char *data, unsigned char idx, int data_len)
++{	
++	char *frag_ptr;
++	unsigned short id=0,total_frag=0;
++	unsigned int last_num;
++	struct ioh_class *ioh_obj_p = &ib_obj->ioh_obj;
++
++	total_frag = (unsigned short)(data_len / MAX_INBAND_PAYLOAD_LEN);
++		
++	if( total_frag > MAX_FRAG_ID)
++		return -1;
++
++	ib_obj->tx_header->inband_frag =0;
++	frag_ptr = data;
++
++	for(id=0;id<total_frag;id++)
++	{
++		ib_obj->tx_header->inband_data_len = htons(MAX_INBAND_PAYLOAD_LEN);
++		ib_obj->tx_header->inband_frag = htons(id );
++		memcpy(&ib_obj->tx_data[0], frag_ptr,MAX_INBAND_PAYLOAD_LEN );		
++		if( ioh_send(ioh_obj_p, sizeof(struct inband_header) + MAX_INBAND_PAYLOAD_LEN ) < 0)
++			return -1;
++		//if(id>= 1){
++		if(check_frag_ack(ib_obj) != 1)
++			return -1;			
++		//}	
++		frag_ptr += MAX_INBAND_PAYLOAD_LEN;
++	}
++	last_num = data_len % MAX_INBAND_PAYLOAD_LEN;
++	//EOF fragment	
++	ib_obj->tx_header->inband_frag = id;
++	ib_obj->tx_header->inband_frag |=EOF_BIT;
++	ib_obj->tx_header->inband_frag = htons(ib_obj->tx_header->inband_frag);
++	ib_obj->tx_header->inband_data_len = htons(last_num);
++	if(last_num >0)
++		memcpy(&ib_obj->tx_data[0], frag_ptr,last_num );
++
++	ib_obj->tx_header->inband_index = idx;
++
++	return ioh_send(ioh_obj_p,sizeof(struct inband_header)+last_num);		
++}
++
++
+ int inband_write(int chan,unsigned int seq,char cmd,char *data,int data_len,int reply)
+ {
+ 	struct inband_class *inband_obj_p;
+@@ -441,3 +549,30 @@ int inband_write(int chan,unsigned int s
+ 	return inband_send_data(inband_obj_p,data,data_len);
+ }
+ 
++int inband_indexed_write(int chan,unsigned int seq,char cmd,char *data,int data_len,int reply,unsigned char idx)
++{
++	struct inband_class *inband_obj_p;
++
++	inband_obj_p = (struct inband_class *)get_chan_obj(chan);	
++
++	inband_obj_p->tx_header->rrcp_type = RRCP_P_IOH;  //mark_inband
++	//fill inband header , cmd
++	inband_obj_p->tx_header->inband_cmd = cmd;
++
++	//reply = 0(request) ,reply = 1(good reply),reply = 2(bad reply)
++	if(reply == 2)
++		inband_obj_p->tx_header->inband_cmd |= CMD_ERROR_REPLY_BIT;
++
++	//fill inband header , seq
++	if(!reply) 
++		inband_obj_p->tx_header->inband_seq = htons(seq);
++	else //seq is not used when the packet is for reply
++		inband_obj_p->tx_header->inband_seq = inband_obj_p->rx_header->inband_seq;	
++
++	inband_obj_p->tx_header->inband_index = idx;
++	
++	//fill data, data_len , and send
++	return inband_send_indexed_data(inband_obj_p,data,idx,data_len);
++}
++
++
+--- librtk-inband-0.1/inband_if.h	2013-05-10 15:34:50.403663545 +0300
++++ rtk_inbandLib/inband_if.h	2013-05-02 01:48:34.833223731 +0300
+@@ -24,7 +24,9 @@ int inband_open(char *netif_name,char *s
+ void inband_close(int chan);
+ void inband_free_buf(char *data_buf,int data_len);
+ int inband_rcv_data(int chan,char *cmd_type,char **data,int timout_ms); //return data length
++int inband_rcv_indexed_data(int chan,char *cmd_type,char **data,int timout_ms,unsigned char idx); //return data length
+ int inband_rcv_data_and_seq(int chan,unsigned int *seq,char *cmd_type,char **data,int timout_ms); //return data length
+ int inband_write(int chan,unsigned int seq,char cmd,char *data,int data_len,int reply);
++int inband_indexed_write(int chan,unsigned int seq,char cmd,char *data,int data_len,int reply,unsigned char idx);
+ 
+ #endif
+--- librtk-inband-0.1/ioh.c	2013-05-10 15:34:50.405663544 +0300
++++ rtk_inbandLib/ioh.c	2013-05-02 01:48:34.833223731 +0300
+@@ -182,7 +183,7 @@ int ioh_open(struct ioh_class *obj, char
+ 	if((bind(obj->sockfd, (struct sockaddr *) &obj->socket_address, 
+ 		sizeof(obj->socket_address)))== -1)
+ 	{
+-		perror("Error binding socket to interface\n");
++		printf("Error binding socket to interface\n");
+ 		return -1;
+ 	}
+ 
+@@ -235,7 +236,7 @@ int ioh_send(struct ioh_class *obj , uns
+ 	return sent;
+ }
+ 
+-static int check_rcv_header(struct ioh_class *obj,int rx_len)
++int check_rcv_header(struct ioh_class *obj,int rx_len)
+ {	
+ 	if (rx_len < 0)
+ 	{
+@@ -285,8 +286,8 @@ int ioh_recv(struct ioh_class *obj, int
+ 	}
+ 	else
+ 	{
+-		timeout.tv_sec = 0;
+-		timeout.tv_usec = timeout_ms * 1000;
++		timeout.tv_sec = timeout_ms/1000;
++		timeout.tv_usec = (timeout_ms%1000) * 1000;
+ 		retval = select(obj->sockfd + 1, &rfds, NULL, NULL, &timeout);
+ 	}
+ 	
+--- librtk-inband-0.1/ioh.h	2013-05-10 15:34:50.405663544 +0300
++++ rtk_inbandLib/ioh.h	2013-05-02 01:48:34.834223731 +0300
+@@ -21,10 +21,6 @@
+ 
+ #define ETH_FRAME_TOTALLEN 1518          /*Header: 14 + User Data: 1500 FCS: 4*/
+ 
+-#ifndef WPAS_INB
+-#define WPAS_INB
+-#endif
+-
+ struct ioh_header {
+ 	unsigned char da[ETH_ALEN];
+ 	unsigned char sa[ETH_ALEN];
+@@ -61,4 +57,11 @@ int bin2hex(const unsigned char *bin, ch
+ int hex2bin(const char *hex, unsigned char *bin, const int len);
+ void hex_dump(void *data, int size);
+ 
++//#ifdef INBAND_HOST
++#if 0
++typedef struct _DOT11_REQUEST{
++	unsigned char   EventId;
++}DOT11_REQUEST;
++#endif
++
+ #endif
+--- librtk-inband-0.1/Makefile	2013-05-10 15:34:50.402663545 +0300
++++ rtk_inbandLib/Makefile	2013-05-02 01:48:34.832223731 +0300
+@@ -1,21 +1,23 @@
+-INCLUDES=-Iinclude
++#CFLAGS = -Wall -g -Os
++#CFLAGS += -DRT_WLAN
++CFLAGS = -I./
++#include ../../linux-2.4.18/.config
+ 
+-LIBNAME=librtk-inband.so
+-APPNAME=rtk-inband
++CFLAGS += -Os -DINBAND_HOST
+ 
+-all: $(LIBNAME) $(APPNAME)
++SRCS = ioh.c inband_if.c inband_api.c
+ 
+-%.o: %.c
+-	$(CC) -c -o $@ $(INCLUDES) $(CFLAGS) $<
++OBJS = $(SRCS:.c $(CFLAGS) =.o)
+ 
+-OBJ=inband_if.o ioh.o
++#CC = mips-linux-gcc
++#LD = mips-linux-gcc
++CC = rsdk-linux-gcc
++LD = rsdk-linux-gcc
+ 
+-LIB_OBJ=hapd_api.o $(OBJ)
+-APP_OBJ=inband_cmd.o $(OBJ)
++all: inband.a 
+ 
++inband.a:inband_api.o ioh.o inband_if.o
++	$(AR) rcs $@ inband_api.o ioh.o inband_if.o
+ 
+-$(APPNAME):$(APP_OBJ)
+-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
+-
+-$(LIBNAME): $(LIB_OBJ) 
+-	$(CC) $(CFLAGS) -shared -o $@ $^
++clean:
++	-rm -f *.elf *.gdb *.o *.a $(EXEC)
