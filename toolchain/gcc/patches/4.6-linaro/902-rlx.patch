@@ -1,0 +1,153 @@
+Index: gcc-linaro-4.5-2011.08/gcc/config/mips/mips.c
+===================================================================
+--- gcc-linaro-4.5-2011.08.orig/gcc/config/mips/mips.c
++++ gcc-linaro-4.5-2011.08/gcc/config/mips/mips.c
+@@ -669,6 +669,12 @@ static const struct mips_cpu_info mips_c
+   { "r3000", PROCESSOR_R3000, 1, 0 },
+   { "r2000", PROCESSOR_R3000, 1, 0 },
+   { "r3900", PROCESSOR_R3900, 1, 0 },
++  { "lx4180", PROCESSOR_LX4180, 1, 0 },
++  { "rlx4181", PROCESSOR_RLX4181, 1, 0 },
++  { "rlx4281", PROCESSOR_RLX4281, 1, 0 },
++  { "rlx5181", PROCESSOR_RLX5181, 1, 0 },
++  { "lx5280", PROCESSOR_LX5280, 1, 0 },
++  { "rlx5281", PROCESSOR_RLX5281, 1, 0 },
+ 
+   /* MIPS II processors.  */
+   { "r6000", PROCESSOR_R6000, 2, 0 },
+@@ -6575,7 +6581,7 @@ mips_block_move_straight (rtx dest, rtx 
+   if (MEM_ALIGN (src) == BITS_PER_WORD / 2
+       && MEM_ALIGN (dest) == BITS_PER_WORD / 2)
+     bits = BITS_PER_WORD / 2;
+-  else if (TARGET_LEXRA)
++  else if (TARGET_LEXRA || TARGET_RLX)
+     bits = MIN (MEM_ALIGN (src), MEM_ALIGN (dest));
+   else
+     bits = BITS_PER_WORD;
+@@ -6958,7 +6964,7 @@ mips_expand_ext_as_unaligned_load (rtx d
+     }
+   else
+     {
+-      if (TARGET_LEXRA)
++      if (TARGET_LEXRA || TARGET_RLX)
+        return false;
+       emit_insn (gen_mov_lwl (temp, src, left));
+       emit_insn (gen_mov_lwr (dest, copy_rtx (src), right, temp));
+@@ -6993,7 +6999,7 @@ mips_expand_ins_as_unaligned_store (rtx 
+     }
+   else
+     {
+-      if (TARGET_LEXRA)
++      if (TARGET_LEXRA || TARGET_RLX)
+        return false;
+       emit_insn (gen_mov_swl (dest, src, left));
+       emit_insn (gen_mov_swr (copy_rtx (dest), copy_rtx (src), right));
+@@ -15281,14 +15287,25 @@ mips_matching_cpu_name_p (const char *ca
+ 
+   /* If not, try comparing based on numerical designation alone.
+      See if GIVEN is an unadorned number, or 'r' followed by a number.  */
+-  if (TOLOWER (*given) == 'r')
++  if (TOLOWER (given[0]) == 'l' && TOLOWER (given[1]) == 'x')
++    given += 2;
++  else if (TOLOWER (given[0]) == 'r' &&
++           TOLOWER (given[1]) == 'l' && TOLOWER (given[2]) == 'x')
++    given += 3;
++  else if (TOLOWER (*given) == 'r')
+     given++;
++
+   if (!ISDIGIT (*given))
+     return false;
+ 
+   /* Skip over some well-known prefixes in the canonical name,
+      hoping to find a number there too.  */
+-  if (TOLOWER (canonical[0]) == 'v' && TOLOWER (canonical[1]) == 'r')
++  if (TOLOWER (canonical[0]) == 'l' && TOLOWER (canonical[1]) == 'x')
++    canonical += 2;
++  else if (TOLOWER (canonical[0]) == 'r' &&
++           TOLOWER (canonical[1]) == 'l' && TOLOWER (canonical[2]) == 'x')
++    canonical += 3;
++  else if (TOLOWER (canonical[0]) == 'v' && TOLOWER (canonical[1]) == 'r')
+     canonical += 2;
+   else if (TOLOWER (canonical[0]) == 'r' && TOLOWER (canonical[1]) == 'm')
+     canonical += 2;
+Index: gcc-linaro-4.5-2011.08/gcc/config/mips/mips.md
+===================================================================
+--- gcc-linaro-4.5-2011.08.orig/gcc/config/mips/mips.md
++++ gcc-linaro-4.5-2011.08/gcc/config/mips/mips.md
+@@ -3756,7 +3756,7 @@
+ 	(unspec:GPR [(match_operand:BLK 1 "memory_operand" "m")
+ 		     (match_operand:QI 2 "memory_operand" "m")]
+ 		    UNSPEC_LOAD_LEFT))]
+-  "!TARGET_MIPS16 && !TARGET_LEXRA && mips_mem_fits_mode_p (<MODE>mode, operands[1])"
++  "!TARGET_MIPS16 && !TARGET_LEXRA && !TARGET_RLX && mips_mem_fits_mode_p (<MODE>mode, operands[1])"
+   "<load>l\t%0,%2"
+   [(set_attr "move_type" "load")
+    (set_attr "mode" "<MODE>")])
+@@ -3767,7 +3767,7 @@
+ 		     (match_operand:QI 2 "memory_operand" "m")
+ 		     (match_operand:GPR 3 "register_operand" "0")]
+ 		    UNSPEC_LOAD_RIGHT))]
+-  "!TARGET_MIPS16 && !TARGET_LEXRA && mips_mem_fits_mode_p (<MODE>mode, operands[1])"
++  "!TARGET_MIPS16 && !TARGET_LEXRA && !TARGET_RLX && mips_mem_fits_mode_p (<MODE>mode, operands[1])"
+   "<load>r\t%0,%2"
+   [(set_attr "move_type" "load")
+    (set_attr "mode" "<MODE>")])
+@@ -3777,7 +3777,7 @@
+ 	(unspec:BLK [(match_operand:GPR 1 "reg_or_0_operand" "dJ")
+ 		     (match_operand:QI 2 "memory_operand" "m")]
+ 		    UNSPEC_STORE_LEFT))]
+-  "!TARGET_MIPS16 && !TARGET_LEXRA && mips_mem_fits_mode_p (<MODE>mode, operands[0])"
++  "!TARGET_MIPS16 && !TARGET_LEXRA && !TARGET_RLX && mips_mem_fits_mode_p (<MODE>mode, operands[0])"
+   "<store>l\t%z1,%2"
+   [(set_attr "move_type" "store")
+    (set_attr "mode" "<MODE>")])
+@@ -3788,7 +3788,7 @@
+ 		     (match_operand:QI 2 "memory_operand" "m")
+ 		     (match_dup 0)]
+ 		    UNSPEC_STORE_RIGHT))]
+-  "!TARGET_MIPS16 && !TARGET_LEXRA && mips_mem_fits_mode_p (<MODE>mode, operands[0])"
++  "!TARGET_MIPS16 && !TARGET_LEXRA && !TARGET_RLX && mips_mem_fits_mode_p (<MODE>mode, operands[0])"
+   "<store>r\t%z1,%2"
+   [(set_attr "move_type" "store")
+    (set_attr "mode" "<MODE>")])
+--- a/gcc/config/mips/mips.h	2012-12-12 19:05:23.000000000 +0200
++++ b/gcc/config/mips/mips.h	2013-05-25 01:03:54.327971627 +0300
+@@ -223,6 +223,15 @@
+ #define TARGET_MIPS4000             (mips_arch == PROCESSOR_R4000)
+ #define TARGET_MIPS4120             (mips_arch == PROCESSOR_R4120)
+ #define TARGET_MIPS4130             (mips_arch == PROCESSOR_R4130)
++#define TARGET_MIPS4180		    (mips_arch == PROCESSOR_LX4180)
++#define TARGET_MIPS4181		    (mips_arch == PROCESSOR_RLX4181)
++#define TARGET_MIPS4281		    (mips_arch == PROCESSOR_RLX4281)
++#define TARGET_MIPS5181		    (mips_arch == PROCESSOR_RLX5181)
++#define TARGET_MIPS5280		    (mips_arch == PROCESSOR_LX5280)
++#define TARGET_MIPS5281		    (mips_arch == PROCESSOR_RLX5281)
++#define TARGET_RLX		    (TARGET_MIPS4180 || TARGET_MIPS4181 || \
++					TARGET_MIPS4281 || TARGET_MIPS4181 || \
++					TARGET_MIPS5280 || TARGET_MIPS5281)
+ #define TARGET_MIPS5400             (mips_arch == PROCESSOR_R5400)
+ #define TARGET_MIPS5500             (mips_arch == PROCESSOR_R5500)
+ #define TARGET_MIPS7000             (mips_arch == PROCESSOR_R7000)
+@@ -244,12 +253,21 @@
+ #define TUNE_LOONGSON_2EF           (mips_tune == PROCESSOR_LOONGSON_2E	\
+ 				     || mips_tune == PROCESSOR_LOONGSON_2F)
+ #define TUNE_LOONGSON_3A            (mips_tune == PROCESSOR_LOONGSON_3A)
+-#define TUNE_MIPS3000               (mips_tune == PROCESSOR_R3000)
++#define TUNE_MIPS3000              ((mips_tune == PROCESSOR_R3000) || TUNE_RLX)
+ #define TUNE_MIPS3900               (mips_tune == PROCESSOR_R3900)
+ #define TUNE_MIPS4000               (mips_tune == PROCESSOR_R4000)
+ #define TUNE_MIPS4120               (mips_tune == PROCESSOR_R4120)
+ #define TUNE_MIPS4130               (mips_tune == PROCESSOR_R4130)
++#define TUNE_MIPS4180		    (mips_tune == PROCESSOR_LX4180)
++#define TUNE_MIPS4181		    (mips_tune == PROCESSOR_RLX4181)
++#define TUNE_MIPS4281		    (mips_tune == PROCESSOR_RLX4281)
+ #define TUNE_MIPS5000               (mips_tune == PROCESSOR_R5000)
++#define TUNE_MIPS5181		    (mips_tune == PROCESSOR_RLX5181)
++#define TUNE_MIPS5280		    (mips_tune == PROCESSOR_LX5280)
++#define TUNE_MIPS5281		    (mips_tune == PROCESSOR_RLX5281)
++#define TUNE_RLX		    (TUNE_MIPS4180 || TUNE_MIPS4181 || \
++					TUNE_MIPS4281 || TUNE_MIPS4181 || \
++					TUNE_MIPS5280 || TUNE_MIPS5281)
+ #define TUNE_MIPS5400               (mips_tune == PROCESSOR_R5400)
+ #define TUNE_MIPS5500               (mips_tune == PROCESSOR_R5500)
+ #define TUNE_MIPS6000               (mips_tune == PROCESSOR_R6000)

@@ -1,0 +1,99 @@
+Index: gcc-linaro-4.5-2011.08/gcc/config/mips/mips.c
+===================================================================
+--- gcc-linaro-4.5-2011.08.orig/gcc/config/mips/mips.c
++++ gcc-linaro-4.5-2011.08/gcc/config/mips/mips.c
+@@ -6575,6 +6575,8 @@ mips_block_move_straight (rtx dest, rtx 
+   if (MEM_ALIGN (src) == BITS_PER_WORD / 2
+       && MEM_ALIGN (dest) == BITS_PER_WORD / 2)
+     bits = BITS_PER_WORD / 2;
++  else if (TARGET_LEXRA)
++    bits = MIN (MEM_ALIGN (src), MEM_ALIGN (dest));
+   else
+     bits = BITS_PER_WORD;
+ 
+@@ -6956,6 +6958,8 @@ mips_expand_ext_as_unaligned_load (rtx d
+     }
+   else
+     {
++      if (TARGET_LEXRA)
++       return false;
+       emit_insn (gen_mov_lwl (temp, src, left));
+       emit_insn (gen_mov_lwr (dest, copy_rtx (src), right, temp));
+     }
+@@ -6989,6 +6993,8 @@ mips_expand_ins_as_unaligned_store (rtx 
+     }
+   else
+     {
++      if (TARGET_LEXRA)
++       return false;
+       emit_insn (gen_mov_swl (dest, src, left));
+       emit_insn (gen_mov_swr (copy_rtx (dest), copy_rtx (src), right));
+     }
+Index: gcc-linaro-4.5-2011.08/gcc/config/mips/mips.md
+===================================================================
+--- gcc-linaro-4.5-2011.08.orig/gcc/config/mips/mips.md
++++ gcc-linaro-4.5-2011.08/gcc/config/mips/mips.md
+@@ -63,6 +63,12 @@
+   sb1a
+   sr71000
+   xlr
++  lx4180
++  rlx4181
++  rlx4281
++  rlx5181
++  lx5280
++  rlx5281
+ ])
+ 
+ (define_c_enum "unspec" [
+@@ -3756,7 +3756,7 @@
+ 	(unspec:GPR [(match_operand:BLK 1 "memory_operand" "m")
+ 		     (match_operand:QI 2 "memory_operand" "m")]
+ 		    UNSPEC_LOAD_LEFT))]
+-  "!TARGET_MIPS16 && mips_mem_fits_mode_p (<MODE>mode, operands[1])"
++  "!TARGET_MIPS16 && !TARGET_LEXRA && mips_mem_fits_mode_p (<MODE>mode, operands[1])"
+   "<load>l\t%0,%2"
+   [(set_attr "move_type" "load")
+    (set_attr "mode" "<MODE>")])
+@@ -3767,7 +3767,7 @@
+ 		     (match_operand:QI 2 "memory_operand" "m")
+ 		     (match_operand:GPR 3 "register_operand" "0")]
+ 		    UNSPEC_LOAD_RIGHT))]
+-  "!TARGET_MIPS16 && mips_mem_fits_mode_p (<MODE>mode, operands[1])"
++  "!TARGET_MIPS16 && !TARGET_LEXRA && mips_mem_fits_mode_p (<MODE>mode, operands[1])"
+   "<load>r\t%0,%2"
+   [(set_attr "move_type" "load")
+    (set_attr "mode" "<MODE>")])
+@@ -3777,7 +3777,7 @@
+ 	(unspec:BLK [(match_operand:GPR 1 "reg_or_0_operand" "dJ")
+ 		     (match_operand:QI 2 "memory_operand" "m")]
+ 		    UNSPEC_STORE_LEFT))]
+-  "!TARGET_MIPS16 && mips_mem_fits_mode_p (<MODE>mode, operands[0])"
++  "!TARGET_MIPS16 && !TARGET_LEXRA && mips_mem_fits_mode_p (<MODE>mode, operands[0])"
+   "<store>l\t%z1,%2"
+   [(set_attr "move_type" "store")
+    (set_attr "mode" "<MODE>")])
+@@ -3788,7 +3788,7 @@
+ 		     (match_operand:QI 2 "memory_operand" "m")
+ 		     (match_dup 0)]
+ 		    UNSPEC_STORE_RIGHT))]
+-  "!TARGET_MIPS16 && mips_mem_fits_mode_p (<MODE>mode, operands[0])"
++  "!TARGET_MIPS16 && !TARGET_LEXRA && mips_mem_fits_mode_p (<MODE>mode, operands[0])"
+   "<store>r\t%z1,%2"
+   [(set_attr "move_type" "store")
+    (set_attr "mode" "<MODE>")])
+Index: gcc-linaro-4.5-2011.08/gcc/config/mips/mips.opt
+===================================================================
+--- gcc-linaro-4.5-2011.08.orig/gcc/config/mips/mips.opt
++++ gcc-linaro-4.5-2011.08/gcc/config/mips/mips.opt
+@@ -244,6 +244,10 @@ mpaired-single
+ Target Report Mask(PAIRED_SINGLE_FLOAT)
+ Use paired-single floating-point instructions
+ 
++mlexra
++Target Report Mask(LEXRA)
++Do not use lwl/lwr/swl/swr instructions absent in Lexra chips
++
+ mr10k-cache-barrier=
+ Target Joined RejectNegative
+ -mr10k-cache-barrier=SETTING	Specify when r10k cache barriers should be inserted
