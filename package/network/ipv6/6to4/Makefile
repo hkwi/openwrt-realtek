@@ -8,14 +8,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=6to4
-PKG_VERSION:=11
+PKG_VERSION:=12
 PKG_RELEASE:=1
 
 include $(INCLUDE_DIR)/package.mk
 
 define Package/6to4
-  SECTION:=ipv6
-  CATEGORY:=IPv6
+  SECTION:=net
+  CATEGORY:=Network
   DEPENDS:=+kmod-ipv6 +kmod-sit
   TITLE:=IPv6-to-IPv4 configuration support
   MAINTAINER:=Jo-Philipp Wich <xm@subsignal.org>

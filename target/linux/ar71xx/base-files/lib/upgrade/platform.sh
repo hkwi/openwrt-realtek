@@ -88,7 +88,9 @@ platform_check_image() {
 	ap113 | \
 	ap121 | \
 	ap121-mini | \
-	ap136 | \
+	ap136-010 | \
+	ap136-020 | \
+	ap135-020 | \
 	ap96 | \
 	db120 | \
 	hornet-ub | \
@@ -102,9 +104,12 @@ platform_check_image() {
 		;;
 	ap81 | \
 	ap83 | \
+	ap132 | \
 	dir-600-a1 | \
 	dir-615-c1 | \
 	dir-615-e4 | \
+	dir-825-c1 | \
+	dir-835-a1 | \
 	ew-dorin | \
 	ew-dorin-router | \
 	mzk-w04nu | \
@@ -117,6 +122,7 @@ platform_check_image() {
 	nanostation-m | \
 	rocket-m | \
 	rw2458n | \
+	wndap360 | \
 	wzr-hp-g300nh2 | \
 	wzr-hp-g300nh | \
 	wzr-hp-g450h | \
@@ -141,6 +147,7 @@ platform_check_image() {
 		;;
 
 	mr600 | \
+	mr600v2 | \
 	om2p | \
 	om2p-hs | \
 	om2p-lc)
@@ -151,12 +158,16 @@ platform_check_image() {
 	tl-mr3020 | \
 	tl-mr3040 | \
 	tl-mr3220 | \
+	tl-mr3220-v2 | \
 	tl-mr3420 | \
+	tl-mr3420-v2 | \
 	tl-wa7510n | \
 	tl-wa901nd | \
 	tl-wa901nd-v2 | \
+	tl-wdr3500 | \
 	tl-wdr4300 | \
 	tl-wr703n | \
+	tl-wr720n-v3 | \
 	tl-wr741nd | \
 	tl-wr741nd-v4 | \
 	tl-wr841n-v1 | \
@@ -190,6 +201,13 @@ platform_check_image() {
 			return 1
 		}
 
+		return 0
+		;;
+	uap-pro)
+		[ "$magic_long" != "19852003" ] && {
+			echo "Invalid image type."
+			return 1
+		}
 		return 0
 		;;
 	wndr3700)
@@ -271,6 +289,7 @@ platform_do_upgrade() {
 		platform_do_upgrade_dir825b "$ARGV"
 		;;
 	mr600 | \
+	mr600v2 | \
 	om2p | \
 	om2p-hs | \
 	om2p-lc)

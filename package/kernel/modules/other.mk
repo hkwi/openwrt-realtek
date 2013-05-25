@@ -132,6 +132,22 @@ endef
 $(eval $(call KernelPackage,gpio-dev))
 
 
+define KernelPackage/gpio-mcp23s08
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=Microchip MCP23xxx I/O expander
+  DEPENDS:=@GPIO_SUPPORT
+  KCONFIG:=CONFIG_GPIO_MCP23S08
+  FILES:=$(LINUX_DIR)/drivers/gpio/gpio-mcp23s08.ko
+  AUTOLOAD:=$(call AutoLoad,40,gpio-mcp23s08)
+endef
+
+define KernelPackage/gpio-mcp23s08/description
+  Kernel module for Microchip MCP23xxx SPI/I2C I/O expander
+endef
+
+$(eval $(call KernelPackage,gpio-mcp23s08))
+
+
 define KernelPackage/gpio-nxp-74hc164
   SUBMENU:=$(OTHER_MENU)
   TITLE:=NXP 74HC164 GPIO expander support
@@ -146,157 +162,20 @@ endef
 
 $(eval $(call KernelPackage,gpio-nxp-74hc164))
 
-define KernelPackage/hid
+define KernelPackage/gpio-pcf857x
   SUBMENU:=$(OTHER_MENU)
-  TITLE:=HID Devices
-  KCONFIG:=CONFIG_HID
-  FILES:=$(LINUX_DIR)/drivers/hid/hid.ko
-  AUTOLOAD:=$(call AutoLoad,61,hid)
-  $(call AddDepends/input,+kmod-input-evdev)
+  DEPENDS:=@GPIO_SUPPORT +kmod-i2c-core
+  TITLE:=PCX857x, PCA967x and MAX732X I2C GPIO expanders
+  KCONFIG:=CONFIG_GPIO_PCF857X
+  FILES:=$(LINUX_DIR)/drivers/gpio/gpio-pcf857x.ko
+  AUTOLOAD:=$(call AutoLoad,55,gpio-pcf857x)
 endef
 
-define KernelPackage/hid/description
- Kernel modules for HID devices
+define KernelPackage/gpio-pcf857x/description
+  Kernel module for PCF857x, PCA{85,96}7x, and MAX732[89] I2C GPIO expanders
 endef
 
-$(eval $(call KernelPackage,hid))
-
-
-define KernelPackage/input-core
-  SUBMENU:=$(OTHER_MENU)
-  TITLE:=Input device core
-  KCONFIG:=CONFIG_INPUT
-  FILES:=$(LINUX_DIR)/drivers/input/input-core.ko
-  AUTOLOAD:=$(call AutoLoad,19,input-core)
-endef
-
-define KernelPackage/input-core/description
- Kernel modules for support of input device
-endef
-
-$(eval $(call KernelPackage,input-core))
-
-
-define KernelPackage/input-evdev
-  SUBMENU:=$(OTHER_MENU)
-  TITLE:=Input event device
-  KCONFIG:=CONFIG_INPUT_EVDEV
-  FILES:=$(LINUX_DIR)/drivers/input/evdev.ko
-  AUTOLOAD:=$(call AutoLoad,60,evdev)
-  $(call AddDepends/input)
-endef
-
-define KernelPackage/input-evdev/description
- Kernel modules for support of input device events
-endef
-
-$(eval $(call KernelPackage,input-evdev))
-
-
-define KernelPackage/input-gpio-buttons
-  SUBMENU:=$(OTHER_MENU)
-  TITLE:=Polled GPIO buttons input device
-  DEPENDS:=@GPIO_SUPPORT +kmod-input-polldev
-  KCONFIG:= \
-	CONFIG_INPUT_GPIO_BUTTONS \
-	CONFIG_INPUT_MISC=y
-  FILES:=$(LINUX_DIR)/drivers/input/misc/gpio_buttons.ko
-  AUTOLOAD:=$(call AutoLoad,62,gpio_buttons)
-endef
-
-define KernelPackage/input-gpio-buttons/description
- Kernel module for support polled GPIO buttons input device
-endef
-
-$(eval $(call KernelPackage,input-gpio-buttons))
-
-
-define KernelPackage/input-gpio-keys
-  SUBMENU:=$(OTHER_MENU)
-  TITLE:=GPIO key support
-  DEPENDS:= @GPIO_SUPPORT
-  KCONFIG:= \
-	CONFIG_KEYBOARD_GPIO \
-	CONFIG_INPUT_KEYBOARD=y
-  FILES:=$(LINUX_DIR)/drivers/input/keyboard/gpio_keys.ko
-  AUTOLOAD:=$(call AutoLoad,60,gpio_keys)
-  $(call AddDepends/input)
-endef
-
-define KernelPackage/input-gpio-keys/description
- This driver implements support for buttons connected
- to GPIO pins of various CPUs (and some other chips).
-endef
-
-$(eval $(call KernelPackage,input-gpio-keys))
-
-
-define KernelPackage/input-gpio-keys-polled
-  SUBMENU:=$(OTHER_MENU)
-  TITLE:=Polled GPIO key support
-  DEPENDS:=@GPIO_SUPPORT +kmod-input-polldev
-  KCONFIG:= \
-	CONFIG_KEYBOARD_GPIO_POLLED \
-	CONFIG_INPUT_KEYBOARD=y
-  FILES:=$(LINUX_DIR)/drivers/input/keyboard/gpio_keys_polled.ko
-  AUTOLOAD:=$(call AutoLoad,62,gpio_keys_polled)
-  $(call AddDepends/input)
-endef
-
-define KernelPackage/input-gpio-keys-polled/description
- Kernel module for support polled GPIO keys input device
-endef
-
-$(eval $(call KernelPackage,input-gpio-keys-polled))
-
-
-define KernelPackage/input-gpio-encoder
-  SUBMENU:=$(OTHER_MENU)
-  TITLE:=GPIO rotay encoder
-  KCONFIG:=CONFIG_INPUT_GPIO_ROTARY_ENCODER
-  FILES:=$(LINUX_DIR)/drivers/input/misc/rotary_encoder.ko
-  AUTOLOAD:=$(call AutoLoad,62,rotary_encoder)
-  $(call AddDepends/input,@GPIO_SUPPORT)
-endef
-
-define KernelPackage/gpio-encoder/description
- Kernel module to use rotary encoders connected to GPIO pins
-endef
-
-$(eval $(call KernelPackage,input-gpio-encoder))
-
-
-define KernelPackage/input-joydev
-  SUBMENU:=$(OTHER_MENU)
-  TITLE:=Joystick device support
-  KCONFIG:=CONFIG_INPUT_JOYDEV
-  FILES:=$(LINUX_DIR)/drivers/input/joydev.ko
-  AUTOLOAD:=$(call AutoLoad,62,joydev)
-  $(call AddDepends/input)
-endef
-
-define KernelPackage/input-joydev/description
-  Kernel module for joystick support
-endef
-
-$(eval $(call KernelPackage,input-joydev))
-
-
-define KernelPackage/input-polldev
-  SUBMENU:=$(OTHER_MENU)
-  TITLE:=Polled Input device support
-  KCONFIG:=CONFIG_INPUT_POLLDEV
-  FILES:=$(LINUX_DIR)/drivers/input/input-polldev.ko
-  AUTOLOAD:=$(call AutoLoad,20,input-polldev)
-  $(call AddDepends/input)
-endef
-
-define KernelPackage/input-polldev/description
- Kernel module for support of polled input devices
-endef
-
-$(eval $(call KernelPackage,input-polldev))
-
+$(eval $(call KernelPackage,gpio-pcf857x))
 
 define KernelPackage/lp
   SUBMENU:=$(OTHER_MENU)
@@ -464,14 +343,14 @@ $(eval $(call KernelPackage,wdt-omap))
 define KernelPackage/wdt-orion
   SUBMENU:=$(OTHER_MENU)
   TITLE:=Marvell Orion Watchdog timer
-  DEPENDS:=@TARGET_orion||@TARGET_kirkwood
+  DEPENDS:=@TARGET_orion||TARGET_kirkwood||TARGET_mvebu
   KCONFIG:=CONFIG_ORION_WATCHDOG
   FILES:=$(LINUX_DIR)/drivers/$(WATCHDOG_DIR)/orion_wdt.ko
   AUTOLOAD:=$(call AutoLoad,50,orion_wdt)
 endef
 
 define KernelPackage/wdt-orion/description
-  Kernel module for Marvell orion watchdog timer.
+  Kernel module for Marvell Orion, Kirkwood and Armada XP/370 watchdog timer.
 endef
 
 $(eval $(call KernelPackage,wdt-orion))
@@ -524,11 +403,28 @@ endef
 $(eval $(call KernelPackage,pwm-gpio))
 
 
+define KernelPackage/rtc-isl1208
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=Intersil ISL1208 RTC support
+  $(call AddDepends/rtc)
+  DEPENDS+=+kmod-i2c-core
+  KCONFIG:=CONFIG_RTC_DRV_ISL1208
+  FILES:=$(LINUX_DIR)/drivers/rtc/rtc-isl1208.ko
+  AUTOLOAD:=$(call AutoLoad,60,rtc-isl1208)
+endef
+
+define KernelPackage/rtc-isl1208/description
+ Kernel module for Intersil ISL1208 RTC.
+endef
+
+$(eval $(call KernelPackage,rtc-isl1208))
+
+
 define KernelPackage/rtc-marvell
   SUBMENU:=$(OTHER_MENU)
   TITLE:=Marvell SoC built-in RTC support
   $(call AddDepends/rtc)
-  DEPENDS+=@TARGET_kirkwood||TARGET_orion
+  DEPENDS+=@TARGET_kirkwood||TARGET_orion||TARGET_mvebu
   KCONFIG:=CONFIG_RTC_DRV_MV
   FILES:=$(LINUX_DIR)/drivers/rtc/rtc-mv.ko
   AUTOLOAD:=$(call AutoLoad,60,rtc-mv)
@@ -655,7 +551,7 @@ define KernelPackage/serial-8250
 	CONFIG_SERIAL_8250_SHARE_IRQ=y \
 	CONFIG_SERIAL_8250_DETECT_IRQ=n \
 	CONFIG_SERIAL_8250_RSA=n
-  FILES:=$(LINUX_DIR)/drivers/tty/serial/8250/8250.ko
+  FILES:=$(LINUX_DIR)/drivers/tty/serial/8250/8250$(if $(call kernel_patchver_ge,3.7),$(if $(call kernel_patchver_le,3.9),_core)).ko
 endef
 
 define KernelPackage/serial-8250/description
@@ -665,30 +561,19 @@ endef
 $(eval $(call KernelPackage,serial-8250))
 
 
-define KernelPackage/acpi-button
-  SUBMENU:=$(OTHER_MENU)
-  TITLE:=ACPI Button Support
-  DEPENDS:=@(TARGET_x86_generic||TARGET_x86_kvm_guest||TARGET_x86_xen_domu) +kmod-input-evdev
-  KCONFIG:=CONFIG_ACPI_BUTTON
-  FILES:=$(LINUX_DIR)/drivers/acpi/button.ko
-  AUTOLOAD:=$(call AutoLoad,06,button)
-endef
-
-define KernelPackage/acpi-button/description
- Kernel module for ACPI Button support
-endef
-
-$(eval $(call KernelPackage,acpi-button))
-
 define KernelPackage/regmap
   SUBMENU:=$(OTHER_MENU)
   TITLE:=Generic register map support
-  KCONFIG:=CONFIG_REGMAP=y \
+  DEPENDS:=+kmod-lib-lzo +kmod-i2c-core
+  KCONFIG:=CONFIG_REGMAP \
 	   CONFIG_REGMAP_SPI \
-	   CONFIG_REGMAP_I2C
-  FILES:=$(LINUX_DIR)/drivers/base/regmap/regmap-i2c.ko \
-	 $(LINUX_DIR)/drivers/base/regmap/regmap-spi.ko
-  AUTOLOAD:=$(call AutoLoad,10,regmap-i2c regmap-spi)
+	   CONFIG_REGMAP_I2C \
+	   CONFIG_SPI=y
+  FILES:= \
+	$(LINUX_DIR)/drivers/base/regmap/regmap-core.ko \
+	$(LINUX_DIR)/drivers/base/regmap/regmap-i2c.ko \
+	$(LINUX_DIR)/drivers/base/regmap/regmap-spi.ko
+  AUTOLOAD:=$(call AutoLoad,21,regmap-core regmap-i2c regmap-spi)
 endef
 
 define KernelPackage/regmap/description
@@ -711,3 +596,91 @@ define KernelPackage/ikconfig/description
 endef
 
 $(eval $(call KernelPackage,ikconfig))
+
+
+define KernelPackage/zram
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=ZRAM
+  DEPENDS:=@!LINUX_3_3 +kmod-lib-lzo
+  KCONFIG:= \
+	CONFIG_ZSMALLOC \
+	CONFIG_ZRAM \
+	CONFIG_ZRAM_DEBUG=n
+  FILES:= \
+	$(LINUX_DIR)/drivers/staging/zsmalloc/zsmalloc.ko \
+	$(LINUX_DIR)/drivers/staging/zram/zram.ko
+  AUTOLOAD:=$(call AutoLoad,20,zsmalloc zram)
+endef
+
+define KernelPackage/zram/description
+ Compressed RAM block device support
+endef
+
+$(eval $(call KernelPackage,zram))
+
+
+define KernelPackage/mvsdio
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=Marvell SDIO support
+  DEPENDS:=@TARGET_orion||TARGET_kirkwood||TARGET_mvebu +kmod-mmc
+  KCONFIG:=CONFIG_MMC_MVSDIO
+  FILES:=$(LINUX_DIR)/drivers/mmc/host/mvsdio.ko
+  AUTOLOAD:=$(call AutoLoad,91,mvsdio)
+endef
+
+define KernelPacakge/mvsdio/description
+  Kernel support for the Marvell SDIO controller
+endef
+
+$(eval $(call KernelPackage,mvsdio))
+
+
+define KernelPackage/pps
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=PPS support
+  KCONFIG:=CONFIG_PPS
+  FILES:=$(LINUX_DIR)/drivers/pps/pps_core.ko
+  AUTOLOAD:=$(call AutoLoad,20,pps_core)
+endef
+
+define KernelPacakge/pps/description
+  PPS (Pulse Per Second) is a special pulse provided by some GPS
+  antennae. Userland can use it to get a high-precision time
+  reference.
+endef
+
+$(eval $(call KernelPackage,pps))
+
+
+define KernelPackage/ptp
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=PTP clock support
+  DEPENDS:=+kmod-pps
+  KCONFIG:=CONFIG_PTP_1588_CLOCK
+  FILES:=$(LINUX_DIR)/drivers/ptp/ptp.ko
+  AUTOLOAD:=$(call AutoLoad,25,ptp)
+endef
+
+define KernelPacakge/ptp/description
+  The IEEE 1588 standard defines a method to precisely
+  synchronize distributed clocks over Ethernet networks.
+endef
+
+$(eval $(call KernelPackage,ptp))
+
+
+define KernelPackage/ptp-gianfar
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=Freescale Gianfar PTP support
+  DEPENDS:=@TARGET_mpc85xx +kmod-gianfar +kmod-ptp
+  KCONFIG:=CONFIG_PTP_1588_CLOCK_GIANFAR
+  FILES:=$(LINUX_DIR)/drivers/net/ethernet/freescale/gianfar_ptp.ko
+  AUTOLOAD:=$(call AutoLoad,51,gianfar_ptp)
+endef
+
+define KernelPacakge/ptp-gianfar/description
+  Kernel module for IEEE 1588 support for Freescale
+  Gianfar Ethernet drivers.
+endef
+
+$(eval $(call KernelPackage,ptp-gianfar))

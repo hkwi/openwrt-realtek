@@ -1,6 +1,6 @@
 --- a/mm/shmem.c
 +++ b/mm/shmem.c
-@@ -2769,6 +2769,15 @@ EXPORT_SYMBOL_GPL(shmem_truncate_range);
+@@ -2781,6 +2781,15 @@ EXPORT_SYMBOL_GPL(shmem_truncate_range);
  
  /* common code */
  
@@ -16,7 +16,7 @@
  /**
   * shmem_file_setup - get an unlinked file living in tmpfs
   * @name: name for dentry (to be seen in /proc/<pid>/maps
-@@ -2845,11 +2854,8 @@ int shmem_zero_setup(struct vm_area_stru
+@@ -2857,11 +2866,8 @@ int shmem_zero_setup(struct vm_area_stru
  	file = shmem_file_setup("dev/zero", size, vma->vm_flags);
  	if (IS_ERR(file))
  		return PTR_ERR(file);
@@ -59,7 +59,7 @@
   * When we die, we re-parent all our children, and try to:
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -3565,6 +3565,7 @@ int can_nice(const struct task_struct *p
+@@ -3566,6 +3566,7 @@ int can_nice(const struct task_struct *p
  	return (nice_rlim <= task_rlimit(p, RLIMIT_NICE) ||
  		capable(CAP_SYS_NICE));
  }
@@ -69,7 +69,7 @@
  
 --- a/mm/memory.c
 +++ b/mm/memory.c
-@@ -1415,6 +1415,7 @@ void zap_page_range(struct vm_area_struc
+@@ -1420,6 +1420,7 @@ void zap_page_range(struct vm_area_struc
  	mmu_notifier_invalidate_range_end(mm, start, end);
  	tlb_finish_mmu(&tlb, start, end);
  }

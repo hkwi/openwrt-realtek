@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2007-2012 OpenWrt.org
+# Copyright (C) 2007-2013 OpenWrt.org
 # Copyright (C) 2010 Vertical Communications
 #
 # This is free software, licensed under the GNU General Public License v2.
@@ -11,10 +11,11 @@ include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/version.mk
 
 PKG_NAME:=base-files
-PKG_RELEASE:=120
+PKG_RELEASE:=138
 
 PKG_FILE_DEPENDS:=$(PLATFORM_DIR)/ $(GENERIC_PLATFORM_DIR)/base-files/
 PKG_BUILD_DEPENDS:=opkg/host
+PKG_CONFIG_DEPENDS:=CONFIG_PROCD_INIT
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -28,7 +29,7 @@ endif
 define Package/base-files
   SECTION:=base
   CATEGORY:=Base system
-  DEPENDS:=+netifd +libc
+  DEPENDS:=+netifd +libc +procd
   TITLE:=Base filesystem for OpenWrt
   URL:=http://openwrt.org/
   VERSION:=$(PKG_RELEASE)-$(REVISION)
@@ -54,6 +55,18 @@ endef
 define Package/base-files/description
  This package contains a base filesystem and system scripts for OpenWrt.
 endef
+
+define Package/base-files/config
+config PROCD_INIT
+	bool "Use procd as the init process"
+	default n
+endef
+
+ifeq ($(CONFIG_PROCD_INIT),)
+define InstallOldFiles
+	$(CP) ./files.old/* $(1)/
+endef
+endif
 
 ifneq ($(CONFIG_PREINITOPT),)
 define ImageConfigOptions
@@ -87,6 +100,7 @@ define Package/base-files/install
 	if [ -d $(GENERIC_PLATFORM_DIR)/base-files/. ]; then \
 		$(CP) $(GENERIC_PLATFORM_DIR)/base-files/* $(1)/; \
 	fi
+	$(call InstallOldFiles,$(1))
 	if [ -d $(PLATFORM_DIR)/base-files/. ]; then \
 		$(CP) $(PLATFORM_DIR)/base-files/* $(1)/; \
 	fi

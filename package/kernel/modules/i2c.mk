@@ -8,7 +8,7 @@
 I2C_MENU:=I2C support
 
 ModuleConfVar=$(word 1,$(subst :,$(space),$(1)))
-ModuleFullPath=$(if $(findstring y,$($(call ModuleConfVar,$(1)))),,$(LINUX_DIR)/$(word 2,$(subst :,$(space),$(1))).ko)
+ModuleFullPath=$(LINUX_DIR)/$(word 2,$(subst :,$(space),$(1))).ko
 ModuleKconfig=$(foreach mod,$(1),$(call ModuleConfVar,$(mod)))
 ModuleFiles=$(foreach mod,$(1),$(call ModuleFullPath,$(mod)))
 ModuleAuto=$(call AutoLoad,$(1),$(foreach mod,$(2),$(basename $(notdir $(call ModuleFullPath,$(mod))))),$(3))
@@ -24,10 +24,13 @@ I2C_CORE_MODULES:= \
   CONFIG_I2C:drivers/i2c/i2c-core \
   CONFIG_I2C_CHARDEV:drivers/i2c/i2c-dev
 
+ifeq (CONFIG_OF,y)
+  I2C_CORE_MODULES+=CONFIG_OF_I2C:drivers/of/of_i2c
+endif
+
 define KernelPackage/i2c-core
   $(call i2c_defaults,$(I2C_CORE_MODULES),51)
   TITLE:=I2C support
-  DEPENDS:=@!TARGET_etrax
 endef
 
 define KernelPackage/i2c-core/description
@@ -101,23 +104,6 @@ endef
 
 $(eval $(call KernelPackage,i2c-gpio))
 
-
-OF_I2C_MODULES:=\
-  CONFIG_OF_I2C:drivers/of/of_i2c
-
-define KernelPackage/of-i2c
-  $(call i2c_defaults,$(OF_I2C_MODULES),58)
-  TITLE:=OpenFirmware I2C accessors
-  DEPENDS:=@TARGET_ppc40x||TARGET_ppc4xx||TARGET_mpc52xx||TARGET_mpc83xx||TARGET_mpc85xx \
-          kmod-i2c-core
-endef
-
-define KernelPackage/of-i2c/description
- Kernel module for OpenFirmware I2C accessors.
-endef
-
-$(eval $(call KernelPackage,of-i2c))
-
 I2C_MPC_MODULES:=\
   CONFIG_I2C_MPC:drivers/i2c/busses/i2c-mpc
 
@@ -125,7 +111,7 @@ define KernelPackage/i2c-mpc
   $(call i2c_defaults,$(I2C_MPC_MODULES),59)
   TITLE:=MPC I2C accessors
   DEPENDS:=@TARGET_mpc52xx||TARGET_mpc83xx||TARGET_mpc85xx \
-          +kmod-i2c-core +kmod-of-i2c
+          +kmod-i2c-core
 endef
 
 define KernelPackage/i2c-mpc/description
@@ -140,7 +126,7 @@ I2C_IBM_IIC_MODULES:=\
 define KernelPackage/i2c-ibm-iic
   $(call i2c_defaults,$(OF_I2C_MODULES),59)
   TITLE:=IBM PPC 4xx on-chip I2C interface support
-  DEPENDS:=@TARGET_ppc40x||TARGET_ppc4xx +kmod-i2c-core +kmod-of-i2c
+  DEPENDS:=@TARGET_ppc40x||TARGET_ppc4xx +kmod-i2c-core
 endef
 
 define KernelPackage/i2c-ibm-iic/description
@@ -155,11 +141,11 @@ I2C_MV64XXX_MODULES:=\
 define KernelPackage/i2c-mv64xxx
   $(call i2c_defaults,$(I2C_MV64XXX_MODULES),59)
   TITLE:=Orion Platform I2C interface support
-  DEPENDS:=@TARGET_kirkwood||TARGET_orion +kmod-i2c-core
+  DEPENDS:=@TARGET_kirkwood||TARGET_orion||TARGET_mvebu +kmod-i2c-core
 endef
 
 define KernelPackage/i2c-mv64xxx/description
- Kernel module for I2C interface on the Kirkwood and Orion
+ Kernel module for I2C interface on the Kirkwood, Orion and Armada XP/370
  family processors.
 endef
 

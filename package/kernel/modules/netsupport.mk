@@ -231,9 +231,10 @@ $(eval $(call KernelPackage,ipip))
 
 
 IPSEC-m:= \
-	key/af_key \
+	$(if $(CONFIG_LINUX_3_3),,xfrm/xfrm_algo) \
 	xfrm/xfrm_ipcomp \
 	xfrm/xfrm_user \
+	key/af_key \
 
 define KernelPackage/ipsec
   SUBMENU:=$(NETWORK_SUPPORT_MENU)
@@ -444,6 +445,22 @@ endef
 $(eval $(call KernelPackage,gre))
 
 
+define KernelPackage/gre6
+  SUBMENU:=$(NETWORK_SUPPORT_MENU)
+  TITLE:=GRE support over IPV6
+  DEPENDS:=+kmod-ipv6 +kmod-ip6-tunnel @!LINUX_3_3 @!LINUX_3_6
+  KCONFIG:=CONFIG_IPV6_GRE
+  FILES:=$(LINUX_DIR)/net/ipv6/ip6_gre.ko
+  AUTOLOAD:=$(call AutoLoad,39,ip6_gre)
+endef
+
+define KernelPackage/gre6/description
+ Generic Routing Encapsulation support over IPv6
+endef
+
+$(eval $(call KernelPackage,gre6))
+
+
 define KernelPackage/tun
   SUBMENU:=$(NETWORK_SUPPORT_MENU)
   TITLE:=Universal TUN/TAP driver
@@ -457,6 +474,23 @@ define KernelPackage/tun/description
 endef
 
 $(eval $(call KernelPackage,tun))
+
+
+define KernelPackage/veth
+  SUBMENU:=$(NETWORK_SUPPORT_MENU)
+  TITLE:=Virtual ethernet pair device
+  KCONFIG:=CONFIG_VETH
+  FILES:=$(LINUX_DIR)/drivers/net/veth.ko
+  AUTOLOAD:=$(call AutoLoad,30,veth)
+endef
+
+define KernelPackage/veth/description
+ This device is a local ethernet tunnel. Devices are created in pairs.
+ When one end receives the packet it appears on its pair and vice
+ versa.
+endef
+
+$(eval $(call KernelPackage,veth))
 
 
 define KernelPackage/ppp
@@ -819,7 +853,12 @@ define KernelPackage/sctp
      CONFIG_SCTP_DBG_OBJCNT=n \
      CONFIG_SCTP_HMAC_NONE=n \
      CONFIG_SCTP_HMAC_SHA1=n \
-     CONFIG_SCTP_HMAC_MD5=y
+     CONFIG_SCTP_HMAC_MD5=y \
+     CONFIG_SCTP_COOKIE_HMAC_SHA1=n \
+     CONFIG_SCTP_COOKIE_HMAC_MD5=y \
+     CONFIG_SCTP_DEFAULT_COOKIE_HMAC_NONE=n \
+     CONFIG_SCTP_DEFAULT_COOKIE_HMAC_SHA1=n \
+     CONFIG_SCTP_DEFAULT_COOKIE_HMAC_MD5=y
   FILES:= $(LINUX_DIR)/net/sctp/sctp.ko
   AUTOLOAD:= $(call AutoLoad,32,sctp)
   DEPENDS:=+kmod-lib-crc32c +kmod-crypto-md5 +kmod-crypto-hmac

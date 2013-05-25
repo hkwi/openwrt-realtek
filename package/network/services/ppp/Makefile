@@ -10,7 +10,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=ppp
 PKG_VERSION:=2.4.5
-PKG_RELEASE:=7
+PKG_RELEASE:=9
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=ftp://ftp.samba.org/pub/ppp/
@@ -158,7 +158,7 @@ $(call Build/Configure/Default,, \
 	mkdir -p $(PKG_BUILD_DIR)/pppd/plugins/pppoatm/linux
 	cp \
 		$(LINUX_DIR)/include/linux/compiler.h \
-		$(LINUX_DIR)/include/linux/atm*.h \
+		$(LINUX_DIR)/include/$(LINUX_UAPI_DIR)linux/atm*.h \
 		$(PKG_BUILD_DIR)/pppd/plugins/pppoatm/linux/
 endef
 

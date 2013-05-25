@@ -1,5 +1,5 @@
 # 
-# Copyright (C) 2006-2012 OpenWrt.org
+# Copyright (C) 2006-2013 OpenWrt.org
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=busybox
 PKG_VERSION:=1.19.4
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 PKG_FLAGS:=essential
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
@@ -17,6 +17,7 @@ PKG_SOURCE_URL:=http://www.busybox.net/downloads \
 		http://distfiles.gentoo.org/distfiles/
 PKG_MD5SUM:=9c0cae5a0379228e7b55e5b29528df8e
 
+PKG_CONFIG_DEPENDS:=CONFIG_PROCD_INIT
 PKG_BUILD_DEPENDS:=BUSYBOX_CONFIG_FEATURE_HAVE_RPC:librpc
 PKG_BUILD_PARALLEL:=1
 
@@ -61,7 +62,7 @@ endef
 define Build/Configure
 	rm -f $(PKG_BUILD_DIR)/.configured*
 	grep 'CONFIG_BUSYBOX_' $(TOPDIR)/.config | sed -e "s,\\(# \)\\?CONFIG_BUSYBOX_\\(.*\\),\\1\\2,g" > $(PKG_BUILD_DIR)/.config
-	yes '' | $(MAKE) -C $(PKG_BUILD_DIR) \
+	yes 'n' | $(MAKE) -C $(PKG_BUILD_DIR) \
 		CC="$(TARGET_CC)" \
 		CROSS_COMPILE="$(TARGET_CROSS)" \
 		KBUILD_HAVE_NLS=no \

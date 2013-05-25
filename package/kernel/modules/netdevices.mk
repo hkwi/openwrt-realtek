@@ -15,7 +15,7 @@ define KernelPackage/sis190
   FILES:=$(LINUX_DIR)/drivers/net/ethernet/sis/sis190.ko
   AUTOLOAD:=$(call AutoLoad,50,sis190)
 endef
- 
+
 $(eval $(call KernelPackage,sis190))
 
 define KernelPackage/skge
@@ -419,7 +419,7 @@ $(eval $(call KernelPackage,e1000e))
 define KernelPackage/b44
   TITLE:=Broadcom 44xx driver
   KCONFIG:=CONFIG_B44
-  DEPENDS:=@PCI_SUPPORT +kmod-ssb
+  DEPENDS:=@PCI_SUPPORT +!TARGET_brcm47xx:kmod-ssb
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   FILES:=$(LINUX_DIR)/drivers/net/ethernet/broadcom/b44.ko
   AUTOLOAD:=$(call AutoLoad,50,b44)
@@ -473,7 +473,7 @@ $(eval $(call KernelPackage,pcnet32))
 define KernelPackage/tg3
   TITLE:=Broadcom Tigon3 Gigabit Ethernet
   KCONFIG:=CONFIG_TIGON3
-  DEPENDS:=+!TARGET_brcm47xx:kmod-libphy
+  DEPENDS:=+!TARGET_brcm47xx:kmod-libphy +!LINUX_3_3:kmod-hwmon-core +(LINUX_3_8||LINUX_3_9):kmod-ptp
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   FILES:=$(LINUX_DIR)/drivers/net/ethernet/broadcom/tg3.ko
   AUTOLOAD:=$(call AutoLoad,50,tg3)
@@ -581,7 +581,7 @@ define KernelPackage/tulip
     CONFIG_DE4X5 \
     CONFIG_WINBOND_840 \
     CONFIG_DM9102 \
-    CONFIG_ULI526X 
+    CONFIG_ULI526X
   FILES:= \
 	$(LINUX_DIR)/drivers/net/ethernet/dec/tulip/tulip.ko \
 	$(LINUX_DIR)/drivers/net/ethernet/dec/tulip/de2104x.ko \
@@ -663,3 +663,64 @@ define KernelPackage/dm9000/description
 endef
 
 $(eval $(call KernelPackage,dm9000))
+
+define KernelPackage/forcedeth
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+  TITLE:=nForce Ethernet support
+  DEPENDS:=@PCI_SUPPORT
+  KCONFIG:=CONFIG_FORCEDETH
+  FILES:=$(LINUX_DIR)/drivers/net/ethernet/nvidia/forcedeth.ko
+  AUTOLOAD:=$(call AutoLoad,50,forcedeth)
+endef
+
+define KernelPackage/forcedeth/description
+ Kernel driver for Nvidia Ethernet support
+endef
+
+$(eval $(call KernelPackage,forcedeth))
+
+define KernelPackage/of-mdio
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+  TITLE:=OpenFirmware MDIO support
+  DEPENDS:=+kmod-libphy
+  KCONFIG:=CONFIG_OF_MDIO
+  FILES:=$(LINUX_DIR)/drivers/of/of_mdio.ko
+  AUTOLOAD:=$(call AutoLoad,41,of_mdio)
+endef
+
+define KernelPackage/of-mdio/description
+ Kernel driver for OpenFirmware MDIO support
+endef
+
+$(eval $(call KernelPackage,of-mdio))
+
+define KernelPackage/fsl-pq-mdio
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+  TITLE:=Freescale PQ MDIO bus support
+  DEPENDS:=@TARGET_mpc85xx +kmod-of-mdio
+  KCONFIG:=CONFIG_FSL_PQ_MDIO
+  FILES:=$(LINUX_DIR)/drivers/net/ethernet/freescale/fsl_pq_mdio.ko
+  AUTOLOAD:=$(call AutoLoad,42,fsl_pq_mdio)
+endef
+
+define KernelPackage/fsl-pq-mdio/description
+ Kernel driver for the Freescale PQ MDIO bus
+endef
+
+$(eval $(call KernelPackage,fsl-pq-mdio))
+
+
+define KernelPackage/gianfar
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+  TITLE:=Gianfar Ethernet support
+  DEPENDS:=@TARGET_mpc85xx +kmod-fsl-pq-mdio
+  KCONFIG:=CONFIG_GIANFAR
+  FILES:=$(LINUX_DIR)/drivers/net/ethernet/freescale/gianfar_driver.ko
+  AUTOLOAD:=$(call AutoLoad,50,gianfar_driver)
+endef
+
+define KernelPackage/gianfar/description
+ Kernel driver for Freescale Gianfar Ethernet support
+endef
+
+$(eval $(call KernelPackage,gianfar))

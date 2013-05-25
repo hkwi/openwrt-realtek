@@ -12,7 +12,9 @@
 #include <linux/gpio.h>
 
 #include <asm/mach-ath79/ath79.h>
+#include <asm/mach-ath79/ar71xx_regs.h>
 
+#include "common.h"
 #include "dev-eth.h"
 #include "dev-gpio-buttons.h"
 #include "dev-leds-gpio.h"
@@ -85,7 +87,12 @@ static void __init common_setup(void)
 	u8 *mac = (u8 *) KSEG1ADDR(0x1f01fc00);
 	u8 *ee = (u8 *) KSEG1ADDR(0x1fff1000);
 
-	ath79_setup_ar933x_phy4_switch(false, true);
+	/* Disable hardware control LAN1 and LAN2 LEDs, enabling GPIO14 and GPIO15 */
+	ath79_gpio_function_disable(AR933X_GPIO_FUNC_ETH_SWITCH_LED1_EN |
+				    AR933X_GPIO_FUNC_ETH_SWITCH_LED2_EN);
+
+	/* disable PHY_SWAP and PHY_ADDR_SWAP bits */
+	ath79_setup_ar933x_phy4_switch(false, false);
 
 	ath79_register_m25p80(&tl_mr11u_flash_data);
 	ath79_register_leds_gpio(-1, ARRAY_SIZE(tl_mr11u_leds_gpio),
@@ -97,7 +104,6 @@ static void __init common_setup(void)
 
 	ath79_register_mdio(0, 0x0);
 	ath79_register_eth(0);
-	ath79_eth0_data.phy_mask = BIT(0);
 
 	ath79_register_wmac(ee, mac);
 }

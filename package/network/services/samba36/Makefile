@@ -8,13 +8,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=samba
-PKG_VERSION:=3.6.5
+PKG_VERSION:=3.6.11
 PKG_RELEASE:=2
 
 PKG_SOURCE_URL:=http://ftp.samba.org/pub/samba \
 	http://ftp.samba.org/pub/samba/old-versions
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_MD5SUM:=2f0c14547333c1b48fd4728b031e7040
+PKG_MD5SUM:=9039e0ab3e4fc632ff0a1a8f2433edb4
 
 PKG_LICENSE:=GPLv3
 PKG_LICENSE_FILES:=COPYING
@@ -49,7 +49,7 @@ endef
 define Package/samba36-server/config
 	config PACKAGE_SAMBA_MAX_DEBUG_LEVEL
 		int "Maximum level of compiled-in debug messages"
-		depends PACKAGE_samba36-server || PACKAGE_samba36-client
+		depends on PACKAGE_samba36-server || PACKAGE_samba36-client
 		default -1
 
 endef

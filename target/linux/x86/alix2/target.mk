@@ -12,14 +12,14 @@ DEFAULT_PACKAGES += \
 			kmod-i2c-scx200-acb \
 			kmod-usb-core kmod-usb2 kmod-usb-ohci \
 			kmod-cfg80211 kmod-mac80211 \
-			kmod-mppe kmod-pppoe kmod-pppo2ltp \
+			kmod-mppe kmod-pppoe kmod-pppol2tp \
 			kmod-ath5k kmod-ath9k \
 			kmod-leds-gpio kmod-input-gpio-keys-polled \
 			kmod-button-hotplug \
 			kmod-ledtrig-heartbeat kmod-ledtrig-gpio \
 			kmod-ledtrig-netdev \
 			kmod-cpu-msr hwclock wpad
-
+LINUX_VERSION:=3.8.12
 CS5535_MASK:=0x0b000042
 
 CFLAGS += -march=geode -Os -mmmx -m3dnow -fno-align-jumps -fno-align-functions \

@@ -9,13 +9,11 @@ include $(TOPDIR)/rules.mk
 BOARD:=lantiq
 BOARDNAME:=Lantiq GPON/XWAY/SVIP
 FEATURES:=squashfs jffs2
-SUBTARGETS:=danube ar9 vr9 falcon svip_be
-LINUX_VERSION:=3.3.8
+SUBTARGETS=xway ase falcon
 
-#SUBTARGETS=xway ase
-#LINUX_VERSION:=3.6.8
+LINUX_VERSION:=3.8.12
 
-CFLAGS=-Os -pipe -mips32r2 -mtune=mips32r2 -fno-caller-saves
+CFLAGS=-Os -pipe -mips32r2 -mtune=mips32r2 -fno-caller-saves -mno-branch-likely
 
 define Target/Description
 	Build firmware images for Lantiq SoC

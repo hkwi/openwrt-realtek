@@ -9,13 +9,13 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=kmod-switch
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 
 include $(INCLUDE_DIR)/package.mk
 
 define KernelPackage/switch
   SUBMENU:=Other modules
-  DEPENDS:=@TARGET_brcm47xx||TARGET_brcm63xx
+  DEPENDS:=@TARGET_brcm47xx
   TITLE:=Switch drivers
   FILES:= \
 	$(PKG_BUILD_DIR)/switch-core.ko \

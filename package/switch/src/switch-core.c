@@ -26,7 +26,7 @@
  *   enable_vlan:            "0", "1"
  *   port/<port-number>/
  *     enabled:              "0", "1"
- *     media:                "AUTO", "100FD", "100HD", "10FD", "10HD"
+ *     media:                "AUTO", "1000FD", "1000HD", "100FD", "100HD", "10FD", "10HD"
  *   vlan/<port-number>/
  *     ports: same syntax as for nvram's vlan*ports (eg. "1 2 3 4 5*")
  */
@@ -138,6 +138,30 @@ static int handle_driver_version(void *driver, char *buf, int nr)
 	return sprintf(buf, "%s\n", version);
 }
 
+static int handle_driver_cpuport(void *driver, char *buf, int nr)
+{
+	int cpuport = ((switch_driver *) driver)->cpuport;
+	return sprintf(buf, "%i\n", cpuport);
+}
+
+static int handle_driver_ports(void *driver, char *buf, int nr)
+{
+	int ports = ((switch_driver *) driver)->ports;
+	return sprintf(buf, "%i\n", ports);
+}
+
+static int handle_driver_vlans(void *driver, char *buf, int nr)
+{
+	int vlans = ((switch_driver *) driver)->vlans;
+	return sprintf(buf, "%i\n", vlans);
+}
+
+static int handle_driver_dev_name(void *driver, char *buf, int nr)
+{
+	char *dev_name = ((switch_driver *) driver)->dev_name;
+	return sprintf(buf, "%s\n", dev_name);
+}
+
 static void add_handler(switch_driver *driver, const switch_config *handler, struct proc_dir_entry *parent, int nr)
 {
 	switch_priv *priv = (switch_priv *) driver->data;
@@ -221,6 +245,10 @@ static void do_unregister(switch_driver *driver)
 switch_config global_driver_handlers[] = {
 	{"driver", handle_driver_name, NULL},
 	{"version", handle_driver_version, NULL},
+	{"cpuport", handle_driver_cpuport, NULL},
+	{"ports", handle_driver_ports, NULL},
+	{"vlans", handle_driver_vlans, NULL},
+	{"dev_name", handle_driver_dev_name, NULL},
 	{NULL, NULL, NULL}
 };
 
@@ -305,6 +333,10 @@ int switch_parse_media(char *buf)
 
 	if (strncmp(str, "AUTO", 4) == 0)
 		return SWITCH_MEDIA_AUTO;
+	else if (strncmp(str, "1000FD", 6) == 0)
+		return SWITCH_MEDIA_1000 | SWITCH_MEDIA_FD;
+	else if (strncmp(str, "1000HD", 6) == 0)
+		return SWITCH_MEDIA_1000;
 	else if (strncmp(str, "100FD", 5) == 0)
 		return SWITCH_MEDIA_100 | SWITCH_MEDIA_FD;
 	else if (strncmp(str, "100HD", 5) == 0)
@@ -322,14 +354,18 @@ int switch_print_media(char *buf, int media)
 
 	if (media & SWITCH_MEDIA_AUTO)
 		len = sprintf(buf, "Auto");
+	else if (media == (SWITCH_MEDIA_1000 | SWITCH_MEDIA_FD))
+		len = sprintf(buf, "1000FD");
+	else if (media == SWITCH_MEDIA_1000)
+		len = sprintf(buf, "1000HD");
 	else if (media == (SWITCH_MEDIA_100 | SWITCH_MEDIA_FD))
 		len = sprintf(buf, "100FD");
 	else if (media == SWITCH_MEDIA_100)
-		len = sprintf(buf,  "100HD");
+		len = sprintf(buf, "100HD");
 	else if (media == SWITCH_MEDIA_FD)
-		len = sprintf(buf,  "10FD");
+		len = sprintf(buf, "10FD");
 	else if (media == 0)
-		len = sprintf(buf,  "10HD");
+		len = sprintf(buf, "10HD");
 	else
 		len = sprintf(buf, "Invalid");
 

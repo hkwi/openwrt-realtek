@@ -116,9 +116,9 @@ endef
 
 define CatFiles
 	if [ `stat -c%s "$(1)"` -gt $(2) ]; then \
-		echo "Warning: $(1) is too big"; \
+		echo "Warning: $(1) is too big" >&2; \
 	else if [ `stat -c%s $(3)` -gt $(4) ]; then \
-		echo "Warning: $(3) is too big"; \
+		echo "Warning: $(3) is too big" >&2; \
 	else \
 		( dd if=$(1) bs=$(2) conv=sync; dd if=$(3) ) > $(5); \
 	fi; fi
@@ -165,10 +165,13 @@ ap96_mtdlayout=mtdparts=spi0.0:192k(u-boot)ro,64k(u-boot-env)ro,6144k(rootfs),17
 ap113_mtd_layout=mtdparts=spi0.0:64k(u-boot),3008k(rootfs),896k(uImage),64k(NVRAM),64k(ART),3904k@0x10000(firmware)
 ap121_mtdlayout_2M=mtdparts=spi0.0:64k(u-boot)ro,1216k(rootfs),704k(kernel),64k(art)ro,1920k@0x10000(firmware)
 ap121_mtdlayout_4M=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,2752k(rootfs),896k(kernel),64k(nvram),64k(art)ro,3648k@0x50000(firmware)
+ap132_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,1408k(kernel),6400k(rootfs),64k(art),7808k@0x50000(firmware)
+ap135_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,14528k(rootfs),1472k(kernel),64k(art)ro,16000k@0x50000(firmware)
 ap136_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,6336k(rootfs),1408k(kernel),64k(mib0),64k(art)ro,7744k@0x50000(firmware)
-cameo7240_mtdlayout=mtdparts=spi0.0:192k(u-boot)ro,64k(nvram)ro,960k(kernel),2752k(rootfs),64k(mac)ro,64k(art)ro,3712k@0x40000(firmware)
-cameo913x_mtdlayout=mtdparts=spi0.0:128k(u-boot)ro,64k(config)ro,960k(kernel),2880k(rootfs),64k(art)ro,3840k@0x30000(firmware)
-cameo933x_mtdlayout=mtdparts=spi0.0:64k(u-boot)ro,64k(art)ro,64k(mac)ro,64k(nvram)ro,192k(language)ro,896k(kernel),2752k(rootfs),3648k@0x70000(firmware)
+cameo7240_mtdlayout=mtdparts=spi0.0:192k(u-boot)ro,64k(nvram)ro,1024k(kernel),2688k(rootfs),64k(mac)ro,64k(art)ro,3712k@0x40000(firmware)
+cameo913x_mtdlayout=mtdparts=spi0.0:128k(u-boot)ro,64k(config)ro,1024k(kernel),2752k(rootfs),64k(art)ro,3840k@0x30000(firmware)
+cameo933x_mtdlayout=mtdparts=spi0.0:64k(u-boot)ro,64k(art)ro,64k(mac)ro,64k(nvram)ro,192k(language)ro,1024k(kernel),2624k(rootfs),3648k@0x70000(firmware)
+cameo934x_mtdlayout=mtdparts=spi0.0:64k(uboot)ro,64k(nvram)ro,1280k(kernel),14656k(rootfs),192k(lang)ro,64k(mac)ro,64k(art)ro,15936k@0x20000(firmware)
 cap4200ag_mtdlayout=mtdparts=spi0.0:256k(u-boot),64k(u-boot-env),320k(custom)ro,1536k(kernel),12096k(rootfs),2048k(failsafe),64k(art),13632k@0xa0000(firmware)
 db120_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,6336k(rootfs),1408k(kernel),64k(nvram),64k(art)ro,7744k@0x50000(firmware)
 dir825b1_mtdlayout=mtdparts=spi0.0:256k(uboot)ro,64k(config)ro,1024k(kernel),5184k(rootfs),64k(caldata)ro,1600k(unknown)ro,6208k@0x50000(firmware),64k@0x7f0000(caldata_copy)
@@ -177,12 +180,16 @@ ew-dorin_mtdlayout_4M=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env),1024k(kerne
 dlrtdev_mtdlayout=mtdparts=spi0.0:256k(uboot)ro,64k(config)ro,1024k(kernel),5184k(rootfs),64k(caldata)ro,640k(certs),960k(unknown)ro,6208k@0x50000(firmware),64k@0x7f0000(caldata_copy)
 dlrtdev_mtdlayout_fat=mtdparts=spi0.0:256k(uboot)ro,64k(config)ro,1024k(kernel),6544k(rootfs),640k(certs),64k(caldata)ro,7168k@0x50000(firmware),64k@0x660000(caldata_orig),6208k@0x50000(firmware_orig)
 pb92_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,2752k(rootfs),896k(kernel),64k(nvram),64k(art)ro,3648k@0x50000(firmware)
-planex_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,960k(kernel),6784k(rootfs),128k(art)ro,7744k@0x50000(firmware)
+planex_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,1024k(kernel),6656k(rootfs),128k(art)ro,7744k@0x50000(firmware)
 ubntxm_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,1024k(kernel),6528k(rootfs),256k(cfg)ro,64k(EEPROM)ro,7552k@0x50000(firmware)
+uap_pro_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,1536k(kernel),14208k(rootfs),256k(cfg)ro,64k(EEPROM)ro,15744k@0x50000(firmware)
 ubdev_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,1024k(kernel),6464k(rootfs),64k(certs),256k(cfg)ro,64k(EEPROM)ro,7488k@0x50000(firmware)
-whrhpg300n_mtdlayout=mtdparts=spi0.0:248k(u-boot)ro,8k(u-boot-env)ro,960k(kernel),2816k(rootfs),64k(art)ro,3712k@0x40000(firmware)
+whrhpg300n_mtdlayout=mtdparts=spi0.0:248k(u-boot)ro,8k(u-boot-env)ro,1024k(kernel),2752k(rootfs),64k(art)ro,3712k@0x40000(firmware)
+wndap360_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,1728k(kernel),6080k(rootfs),64k(art)ro,7808k@0x50000(firmware)
+wnr2000v3_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,1024k(kernel),2688k(rootfs),64k(art)ro,3712k@0x50000(firmware)
 wndr3700_mtdlayout=mtdparts=spi0.0:320k(u-boot)ro,128k(u-boot-env)ro,1024k(kernel),6656k(rootfs),64k(art)ro,7680k@0x70000(firmware)
 wndr3700v2_mtdlayout=mtdparts=spi0.0:320k(u-boot)ro,128k(u-boot-env)ro,1024k(kernel),14848k(rootfs),64k(art)ro,15872k@0x70000(firmware)
+wndr4300_mtdlayout=mtdparts=ar934x-nfc:256k(u-boot)ro,256k(u-boot-env)ro,256k(caldata),512k(pot),2048k(language),512k(config),3072k(traffic_meter),1152k(kernel),24448k(rootfs),25600k@0x6c0000(firmware),256k(caldata_backup),-(reserved)
 zcn1523h_mtdlayout=mtdparts=spi0.0:256k(u-boot)ro,64k(u-boot-env)ro,6208k(rootfs),1472k(kernel),64k(configure)ro,64k(mfg)ro,64k(art)ro,7680k@0x50000(firmware)
 
 define Image/BuildKernel
@@ -214,7 +221,7 @@ define Image/Build/DIR825B1
 			echo -n "$(4)"; \
 		) > $(call imgname,$(1),$(2))-backup-loader.bin; \
 		if [ `stat -c%s $(call sysupname,$(1),$(2))` -gt 4194304 ]; then \
-			echo "Warning: $(call sysupname,$(1),$(2)) is too big"; \
+			echo "Warning: $(call sysupname,$(1),$(2)) is too big" >&2; \
 		else \
 			( \
 				dd if=$(call sysupname,$(1),$(2)) bs=4096k conv=sync; \
@@ -242,7 +249,7 @@ define Image/Build/DLRTDEV
 			echo -n "$(4)"; \
 		) > $(call imgname,$(1),$(2))-backup-loader.bin; \
 		if [ `stat -c%s $(call sysupname,$(1),$(2))` -gt 4194304 ]; then \
-			echo "Warning: $(call sysupname,$(1),$(2)) is too big"; \
+			echo "Warning: $(call sysupname,$(1),$(2)) is too big" >&2; \
 		else \
 			( \
 				dd if=$(call sysupname,$(1),$(2)) bs=4096k conv=sync; \
@@ -279,9 +286,13 @@ define Image/Build/WZRHPG30XNH
 	fi
 endef
 
+define Image/Build/WZRHPG30XNH/initramfs
+	$(call MkuImageLzma/initramfs,$(2),$(3) $(4))
+endef
+
 define Image/Build/WHRHPG300N
 	$(call MkuImageLzma,$(2),$(3) $(4))
-	$(call Sysupgrade/KRuImage,$(1),$(2),983040,2883584)
+	$(call Sysupgrade/KRuImage,$(1),$(2),1048576,2818048)
 	if [ -e "$(call sysupname,$(1),$(2))" ]; then \
 		( \
 			echo -n -e "# Airstation Public Fmt1\x00\x00\x00\x00\x00\x00\x00\x00"; \
@@ -317,16 +328,15 @@ define Image/Build/CameoHornet
 	$(call MkuImageLzma,$(2),$(3) $(4))
 	$(call Sysupgrade/KRuImage,$(1),$(2),$(5),$(6))
 	if [ -e "$(call sysupname,$(1),$(2))" ]; then \
-		mkcameofw -M HORNET -R "DEF" -S $(7) -V "1.99" \
-			-K $(5) -I $$$$(($(5)+$(6))) \
-			-k $(KDIR_TMP)/vmlinux-$(2).uImage \
-			-r $(BIN_DIR)/$(IMG_PREFIX)-root.$(1) \
+		mkcameofw -M HORNET -R "DEF" -S $(7) -V "1.99" -c \
+			-K 0xe0000 -I $$$$(($(5)+$(6))) \
+			-k "$(call sysupname,$(1),$(2))" \
 			-o $(call factoryname,$(1),$(2)); \
 	fi
 endef
 
 define Image/Build/Cameo913x
-	$(call Image/Build/Cameo,$(1),$(2),$(3),$(cameo913x_mtdlayout),983040,2949120,$(4))
+	$(call Image/Build/Cameo,$(1),$(2),$(3),$(cameo913x_mtdlayout),1048576,2883584,$(4))
 endef
 
 define Image/Build/Cameo913x/initramfs
@@ -334,7 +344,7 @@ define Image/Build/Cameo913x/initramfs
 endef
 
 define Image/Build/Cameo7240
-	$(call Image/Build/Cameo,$(1),$(2),$(3),$(cameo7240_mtdlayout),983040,2818048,$(4))
+	$(call Image/Build/Cameo,$(1),$(2),$(3),$(cameo7240_mtdlayout),1048576,2752512,$(4))
 endef
 
 define Image/Build/Cameo7240/initramfs
@@ -342,11 +352,19 @@ define Image/Build/Cameo7240/initramfs
 endef
 
 define Image/Build/Cameo933x
-	$(call Image/Build/CameoHornet,$(1),$(2),$(3),$(cameo933x_mtdlayout),917504,2818048,$(4))
+	$(call Image/Build/CameoHornet,$(1),$(2),$(3),$(cameo933x_mtdlayout),1048576,2686976,$(4))
 endef
 
 define Image/Build/Cameo933x/initramfs
 	$(call MkuImageLzma/initramfs,$(2),$(3) $(cameo933x_mtdlayout))
+endef
+
+define Image/Build/Cameo934x
+	$(call Image/Build/Cameo,$(1),$(2),$(3),$(cameo934x_mtdlayout),1310720,15007718,$(4))
+endef
+
+define Image/Build/Cameo934x/initramfs
+	$(call Image/Build/Cameo,$(1),$(2),$(3),$(cameo934x_mtdlayout))
 endef
 
 define Image/Build/Ath
@@ -398,6 +416,30 @@ define Image/Build/MyLoader
 		$(call imgname,$(1),$(2))-$(5)-factory.img
 endef
 
+define Image/Build/UAPPRO
+	$(call MkuImageLzma,$(2),$(3) $(uap_pro_mtdlayout))
+	-rm -rf $(KDIR_TMP)/$(2)
+	mkdir -p $(KDIR_TMP)/$(2)/image
+	cp $(KDIR_TMP)/vmlinux-$(2).uImage $(KDIR_TMP)/$(2)/image/kernel0
+	$(STAGING_DIR_HOST)/bin/mkfs.jffs2 \
+		--pad --big-endian --squash-uids -v -e 64KiB \
+		-o $(KDIR_TMP)/$(2)-kernel.jffs2 \
+		-d $(KDIR_TMP)/$(2)/image \
+		2>&1 1>/dev/null | awk '/^.+$$$$/'
+	-rm -rf $(KDIR_TMP)/$(2)
+	$(STAGING_DIR_HOST)/bin/padjffs2 $(KDIR_TMP)/$(2)-kernel.jffs2 64
+	$(call CatFiles,$(KDIR_TMP)/$(2)-kernel.jffs2,1572864,$(KDIR)/root.$(1),14548992,$(call sysupname,$(1),$(2)))
+	-$(STAGING_DIR_HOST)/bin/mkfwimage2 -f 0x9f000000 \
+		-v $(5).$(6).v6.0.0-OpenWrt-$(REVISION) \
+		-p jffs2:0x50000:0xf60000:0:0:$(call sysupname,$(1),$(2)) \
+		-o $(call factoryname,$(1),$(2))
+	-rm -f $(KDIR_TMP)/$(2)-kernel.jffs2
+endef
+
+define Image/Build/UAPPRO/initramfs
+	$(call MkuImageLzma/initramfs,$(2),$(3) $(uap_pro_mtdlayout))
+endef
+
 define Image/Build/UBNTXM
 	$(call MkuImageLzma,$(2),$(3) $(ubntxm_mtdlayout))
 	$(call Sysupgrade/KRuImage,$(1),$(2),1048576,6684672)
@@ -408,7 +450,6 @@ define Image/Build/UBNTXM
 		-r $(BIN_DIR)/$(IMG_PREFIX)-root.$(1) \
 		-o $(call factoryname,$(1),$(2))
 endef
-
 
 define Image/Build/UBDEV
 	$(call MkuImageLzma,$(2),$(3) $(ubdev_mtdlayout))
@@ -447,7 +488,7 @@ define Image/Build/Planex
 		dd if=$(KDIR_TMP)/vmlinux-$(2).uImage bs=8k count=1 conv=sync; \
 		dd if=$(KDIR_TMP)/vmlinux-$(2).okli; \
 	) > $(KDIR_TMP)/kernel-$(2).bin
-	$(call Sysupgrade/KR,$(1),$(KDIR_TMP)/kernel-$(2).bin,983040,6815744,$(2))
+	$(call Sysupgrade/KR,$(1),$(KDIR_TMP)/kernel-$(2).bin,1048576,6750208,$(2))
 	if [ -e "$(call sysupname,$(1),$(2))" ]; then \
 		$(STAGING_DIR_HOST)/bin/mkplanexfw \
 			-B $(2) \
@@ -662,13 +703,17 @@ define Image/Build/Netgear/initramfs
 		$(5)
 endef
 
+define Image/Build/NetgearNAND/initramfs
+	$(call Image/Build/Netgear/initramfs,$(1),$(2),$(3),$(4),$(5))
+endef
+
 ifdef CONFIG_PACKAGE_uboot-ar71xx-nbg460n_550n_550nh
   define Image/Build/ZyXEL
 	$(call MkuImageLzma,$(2),$(3))
 	$(call Sysupgrade/KRuImage,$(1),$(2),917504,2752512)
 	if [ -e "$(call sysupname,$(1),$(2))" ]; then \
 		if [ ! -f $(BIN_DIR)/$(IMG_PREFIX)-$(2)-u-boot.bin ]; then \
-			echo "Warning: $(IMG_PREFIX)-$(2)-u-boot.bin not found"; \
+			echo "Warning: $(IMG_PREFIX)-$(2)-u-boot.bin not found" >&2; \
 		else \
 			$(STAGING_DIR_HOST)/bin/mkzynfw \
 				-B $(4) \
@@ -791,7 +836,10 @@ $(eval $(call SingleProfile,AthLzma,$(fs_64k),AP113,ap113,AP113,ttyS0,115200,$$(
 $(eval $(call SingleProfile,AthLzma,$(fs_64k),AP121_2M,ap121-2M,AP121,ttyATH0,115200,$$(ap121_mtdlayout_2M),720896,1245184,RKuImage))
 $(eval $(call SingleProfile,AthLzma,$(fs_64k),AP121_4M,ap121-4M,AP121,ttyATH0,115200,$$(ap121_mtdlayout_4M),917504,2818048,RKuImage))
 $(eval $(call SingleProfile,AthLzma,$(fs_64k),AP121MINI,ap121-mini,AP121-MINI,ttyATH0,115200,$$(ap121_mtdlayout_4M),917504,2818048,RKuImage))
-$(eval $(call SingleProfile,AthLzma,$(fs_64k),AP136,ap136,AP136,ttyS0,115200,$$(ap136_mtdlayout),1441792,6488064,RKuImage))
+$(eval $(call SingleProfile,AthLzma,$(fs_64k),AP132,ap132,AP132,ttyS0,115200,$$(ap132_mtdlayout),1441792,6553600,KRuImage))
+$(eval $(call SingleProfile,AthLzma,$(fs_64k),AP135,ap135-020,AP135-020,ttyS0,115200,$$(ap135_mtdlayout),1507328,14876672,RKuImage))
+$(eval $(call SingleProfile,AthLzma,$(fs_64k),AP136_010,ap136-010,AP136-010,ttyS0,115200,$$(ap136_mtdlayout),1441792,6488064,RKuImage))
+$(eval $(call SingleProfile,AthLzma,$(fs_64k),AP136_020,ap136-020,AP136-020,ttyS0,115200,$$(ap136_mtdlayout),1441792,6488064,RKuImage))
 $(eval $(call SingleProfile,AthLzma,$(fs_64k),CAP4200AG,cap4200ag,CAP4200AG,ttyS0,115200,$$(cap4200ag_mtdlayout),1572864,12386304,KRuImage))
 $(eval $(call SingleProfile,AthLzma,$(fs_64k),DB120,db120,DB120,ttyS0,115200,$$(db120_mtdlayout),1441792,6488064,RKuImage))
 $(eval $(call SingleProfile,AthLzma,$(fs_64k),EWDORINAP,ew-dorin,EW-DORIN,ttyATH0,115200,$$(ew-dorin_mtdlayout_4M),1048576,2752512,KRuImage))
@@ -811,6 +859,9 @@ $(eval $(call SingleProfile,Cameo913x,$(fs_squash),TEW652BRP_RECOVERY,tew-652brp
 
 $(eval $(call SingleProfile,Cameo933x,$(fs_squash),TEW712BR,tew-712br,TEW-712BR,ttyATH0,115200,"HORNET-RT-TEW712BR-3"))
 
+$(eval $(call SingleProfile,Cameo934x,$(fs_64k),DIR825C1,dir-825-c1,DIR-825-C1,ttyS0,115200,"00DB120AR9344-RT-101214-00"))
+$(eval $(call SingleProfile,Cameo934x,$(fs_64k),DIR835A1,dir-835-a1,DIR-835-A1,ttyS0,115200,"00DB120AR9344-RT-101214-00"))
+
 $(eval $(call SingleProfile,CyberTAN,$(fs_64k),WRT160NL,wrt160nl,WRT160NL,ttyS0,115200,1.00.01))
 
 $(eval $(call SingleProfile,DIR825B1,$(fs_64k),DIR825B1,dir-825-b1,DIR-825-B1,ttyS0,115200,01AP94-AR7161-RT-080619-00,00AP94-AR7161-RT-080619-00))
@@ -826,11 +877,16 @@ $(eval $(call SingleProfile,MyLoader,$(fs_64k),WPE72_4M,wpe72,,ttyS0,115200,0x40
 $(eval $(call SingleProfile,MyLoader,$(fs_64k),WPE72_8M,wpe72,,ttyS0,115200,0x800000,8M))
 $(eval $(call SingleProfile,MyLoader,$(fs_64k),WPE72_16M,wpe72,,ttyS0,115200,0x1000000,16M))
 
+# This is used with AthGzip profile for now
+$(eval $(call SingleProfile,AthGzip,$(fs_64k),WNDAP360,wndap360,WNDAP360,ttyS0,9600,$$(wndap360_mtdlayout),1769472,6225920,KRuImage))
+$(eval $(call SingleProfile,Netgear,$(fs_64k),WNR2000V3,wnr2000v3,WNR2000V3,ttyS0,115200,$$(wnr2000v3_mtdlayout),2003,WNR2000V3,"" NA,))
 $(eval $(call SingleProfile,Netgear,$(fs_64k),WNDR3700V1,wndr3700,WNDR3700,ttyS0,115200,$$(wndr3700_mtdlayout),3700,WNDR3700,"" NA,))
 $(eval $(call SingleProfile,Netgear,$(fs_64k),WNDR3700V2,wndr3700v2,WNDR3700,ttyS0,115200,$$(wndr3700v2_mtdlayout),3701,WNDR3700v2,"",-H 29763654+16+64))
 $(eval $(call SingleProfile,Netgear,$(fs_64k),WNDR3800,wndr3800,WNDR3700,ttyS0,115200,$$(wndr3700v2_mtdlayout),3701,WNDR3800,"",-H 29763654+16+128))
 $(eval $(call SingleProfile,Netgear,$(fs_64k),WNDRMAC,wndrmac,WNDR3700,ttyS0,115200,$$(wndr3700v2_mtdlayout),3701,WNDRMAC,"",-H 29763654+16+64))
 $(eval $(call SingleProfile,Netgear,$(fs_64k),WNDRMACV2,wndrmacv2,WNDR3700,ttyS0,115200,$$(wndr3700v2_mtdlayout),3701,WNDRMACv2,"",-H 29763654+16+128))
+
+$(eval $(call SingleProfile,NetgearNAND,$(fs_64k),WNDR4300,wndr4300,WNDR4300,ttyS0,115200,$$(wndr4300_mtdlayout),3703,WNDR4300,"",-H 29763948+0+128+128+2x2+3x3))
 
 $(eval $(call SingleProfile,OpenMesh,$(fs_squash),OM2P,om2p,,,,OM2P))
 $(eval $(call SingleProfile,OpenMesh,$(fs_squash),MR600,mr600,,,,MR600))
@@ -848,17 +904,20 @@ $(eval $(call SingleProfile,Planex,$(fs_64k),MZKW300NH,mzk-w300nh,MZK-W300NH,tty
 
 $(eval $(call SingleProfile,TPLINKOLD,$(fs_squash),TLWR841NV15,tl-wr841nd-v1.5,TL-WR841N-v1.5,ttyS0,115200,0x08410002,2,4M))
 
-$(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLMR3220,tl-mr3220-v1,TL-MR3220,ttyS0,115200,0x32200001,1,4M))
-$(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLMR3420,tl-mr3420-v1,TL-MR3420,ttyS0,115200,0x34200001,1,4M))
+$(eval $(call SingleProfile,TPLINK,$(fs_64kraw),RNXN360RT,rnx-n360rt,TL-WR941ND,ttyS0,115200,0x09410002,0x00420001,4M))
+$(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLMR3220V1,tl-mr3220-v1,TL-MR3220,ttyS0,115200,0x32200001,1,4M))
+$(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLMR3420V1,tl-mr3420-v1,TL-MR3420,ttyS0,115200,0x34200001,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWA701,tl-wa701n-v1,TL-WA901ND,ttyS0,115200,0x07010001,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWA7510NV1,tl-wa7510n,TL-WA7510N,ttyS0,115200,0x75100001,1,4M))
+$(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWA801NV1,tl-wa801nd-v1,TL-WA901ND,ttyS0,115200,0x08010001,1,4M))
+$(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWA830RV1,tl-wa830re-v1,TL-WA901ND,ttyS0,115200,0x08300010,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWA901NV1,tl-wa901nd-v1,TL-WA901ND,ttyS0,115200,0x09010001,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWA901NV2,tl-wa901nd-v2,TL-WA901ND-v2,ttyS0,115200,0x09010002,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR740NV1,tl-wr740n-v1,TL-WR741ND,ttyS0,115200,0x07400001,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR740NV3,tl-wr740n-v3,TL-WR741ND,ttyS0,115200,0x07400003,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR741NV1,tl-wr741nd-v1,TL-WR741ND,ttyS0,115200,0x07410001,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR741NV2,tl-wr741nd-v2,TL-WR741ND,ttyS0,115200,0x07410001,1,4M))
-$(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR743,tl-wr743nd-v1,TL-WR741ND,ttyS0,115200,0x07430001,1,4M))
+$(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR743NV1,tl-wr743nd-v1,TL-WR741ND,ttyS0,115200,0x07430001,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR841NV3,tl-wr841nd-v3,TL-WR941ND,ttyS0,115200,0x08410003,3,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR841NV5,tl-wr841nd-v5,TL-WR741ND,ttyS0,115200,0x08410005,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR841NV7,tl-wr841nd-v7,TL-WR841N-v7,ttyS0,115200,0x08410007,1,4M))
@@ -868,18 +927,26 @@ $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR941NV3,tl-wr941nd-v3,TL-WR94
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR941NV4,tl-wr941nd-v4,TL-WR741ND,ttyS0,115200,0x09410004,1,4M))
 $(eval $(call SingleProfile,TPLINK,$(fs_64kraw),TLWR1043,tl-wr1043nd-v1,TL-WR1043ND,ttyS0,115200,0x10430001,1,8M))
 
-$(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLMR11U,tl-mr11u-v1,TL-MR11U,ttyATH0,115200,0x00110101,1,4Mlzma))
+$(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLMR11UV1,tl-mr11u-v1,TL-MR11U,ttyATH0,115200,0x00110101,1,4Mlzma))
+$(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLMR11UV2,tl-mr11u-v2,TL-MR11U,ttyATH0,115200,0x00110102,1,4Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLMR3020,tl-mr3020-v1,TL-MR3020,ttyATH0,115200,0x30200001,1,4Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLMR3040,tl-mr3040-v1,TL-MR3040,ttyATH0,115200,0x30400001,1,4Mlzma))
+$(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLMR3220V2,tl-mr3220-v2,TL-MR3220-v2,ttyATH0,115200,0x32200002,1,4Mlzma))
+$(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLMR3420V2,tl-mr3420-v2,TL-MR3420-v2,ttyS0,115200,0x34200002,1,4Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWR703,tl-wr703n-v1,TL-WR703N,ttyATH0,115200,0x07030101,1,4Mlzma))
+$(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWR720NV3,tl-wr720n-v3,TL-WR720N-v3,ttyATH0,115200,0x07200103,1,4Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWR740NV4,tl-wr740n-v4,TL-WR741ND-v4,ttyATH0,115200,0x07400004,1,4Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWR741NV4,tl-wr741nd-v4,TL-WR741ND-v4,ttyATH0,115200,0x07410004,1,4Mlzma))
+$(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWR743NV2,tl-wr743nd-v2,TL-WR741ND-v4,ttyATH0,115200,0x07430002,1,4Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWR841NV8,tl-wr841n-v8,TL-WR841N-v8,ttyS0,115200,0x08410008,1,4Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWR1041,tl-wr1041n-v2,TL-WR1041N-v2,ttyS0,115200,0x10410002,1,4Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWR2543,tl-wr2543-v1,TL-WR2543N,ttyS0,115200,0x25430001,1,8Mlzma,-v 3.13.99))
+$(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWDR3500V1,tl-wdr3500-v1,TL-WDR3500,ttyS0,115200,0x35000001,1,8Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWDR3600V1,tl-wdr3600-v1,TL-WDR4300,ttyS0,115200,0x36000001,1,8Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWDR4300V1,tl-wdr4300-v1,TL-WDR4300,ttyS0,115200,0x43000001,1,8Mlzma))
 $(eval $(call SingleProfile,TPLINK-LZMA,$(fs_64kraw),TLWDR4310V1,tl-wdr4310-v1,TL-WDR4300,ttyS0,115200,0x43100001,1,8Mlzma))
+
+$(eval $(call SingleProfile,UAPPRO,$(fs_64k),UAPPRO,ubnt-uap-pro,UAP-PRO,ttyS0,115200,BZ,BZ,ar934x))
 
 $(eval $(call SingleProfile,UBDEV,$(fs_64k),UBDEV01,ubdev01,UBNT-UF,ttyS0,115200,XM,XM,ar7240))
 
@@ -906,6 +973,7 @@ $(eval $(call SingleProfile,WZRHPG30XNH,$(fs_128k),WZRHPG300NH,wzr-hp-g300nh,WZR
 $(eval $(call SingleProfile,WZRHPG30XNH,$(fs_64k),WZRHPG300NH2,wzr-hp-g300nh2,WZR-HP-G300NH2,ttyS0,115200,WZR-HP-G300NH2))
 $(eval $(call SingleProfile,WZRHPG30XNH,$(fs_64k),WZRHPAG300H,wzr-hp-ag300h,WZR-HP-AG300H,ttyS0,115200,WZR-HP-AG300H))
 $(eval $(call SingleProfile,WZRHPG30XNH,$(fs_64k),WZRHPG450H,wzr-hp-g450h,WZR-HP-G450H,ttyS0,115200,WZR-HP-AG450H))
+$(eval $(call SingleProfile,WZRHPG30XNH,$(fs_64k),WZR600DHP,wzr-600dhp,WZR-HP-AG300H,ttyS0,115200,WZR-600DHP))
 
 $(eval $(call SingleProfile,Zcomax,$(fs_64k),ZCN1523H28,zcn-1523h-2-8,ZCN-1523H-2,ttyS0,115200,$$(zcn1523h_mtdlayout)))
 $(eval $(call SingleProfile,Zcomax,$(fs_64k),ZCN1523H516,zcn-1523h-5-16,ZCN-1523H-5,ttyS0,115200,$$(zcn1523h_mtdlayout)))
@@ -913,16 +981,25 @@ $(eval $(call SingleProfile,Zcomax,$(fs_64k),ZCN1523H516,zcn-1523h-5-16,ZCN-1523
 $(eval $(call SingleProfile,ZyXEL,$(fs_64k),NBG_460N_550N_550NH,nbg460n_550n_550nh,NBG460N,ttyS0,115200,NBG-460N))
 
 $(eval $(call MultiProfile,AP121,AP121_2M AP121_4M))
+$(eval $(call MultiProfile,AP136,AP136_010 AP136_020))
 $(eval $(call MultiProfile,EWDORIN, EWDORINAP EWDORINRT))
+$(eval $(call MultiProfile,OPENMESH,OM2P MR600))
 $(eval $(call MultiProfile,TEW652BRP,TEW652BRP_FW TEW652BRP_RECOVERY))
+$(eval $(call MultiProfile,TLMR11U,TLMR11UV1 TLMR11UV2))
+$(eval $(call MultiProfile,TLMR3220,TLMR3220V1 TLMR3220V2))
+$(eval $(call MultiProfile,TLMR3420,TLMR3420V1 TLMR3420V2))
+$(eval $(call MultiProfile,TLWA801,TLWA801NV1))
+$(eval $(call MultiProfile,TLWA830,TLWA830RV1))
 $(eval $(call MultiProfile,TLWA901,TLWA901NV1 TLWA901NV2))
 $(eval $(call MultiProfile,TLWA7510,TLWA7510NV1))
+$(eval $(call MultiProfile,TLWR720,TLWR720NV3))
 $(eval $(call MultiProfile,TLWR740,TLWR740NV1 TLWR740NV3 TLWR740NV4))
 $(eval $(call MultiProfile,TLWR741,TLWR741NV1 TLWR741NV2 TLWR741NV4))
+$(eval $(call MultiProfile,TLWR743,TLWR743NV1 TLWR743NV2))
 $(eval $(call MultiProfile,TLWR841,TLWR841NV15 TLWR841NV3 TLWR841NV5 TLWR841NV7 TLWR841NV8))
 $(eval $(call MultiProfile,TLWR941,TLWR941NV2 TLWR941NV3 TLWR941NV4))
-$(eval $(call MultiProfile,TLWDR4300,TLWDR3600V1 TLWDR4300V1 TLWDR4310V1))
-$(eval $(call MultiProfile,UBNT,UBNTAIRROUTER UBNTRS UBNTRSPRO UBNTLSSR71 UBNTBULLETM UBNTROCKETM UBNTNANOM UBNTUNIFI UBNTUNIFIOUTDOOR))
+$(eval $(call MultiProfile,TLWDR4300,TLWDR3500V1 TLWDR3600V1 TLWDR4300V1 TLWDR4310V1))
+$(eval $(call MultiProfile,UBNT,UBNTAIRROUTER UBNTRS UBNTRSPRO UBNTLSSR71 UBNTBULLETM UBNTROCKETM UBNTNANOM UBNTUNIFI UBNTUNIFIOUTDOOR UAPPRO))
 $(eval $(call MultiProfile,WNDR3700,WNDR3700V1 WNDR3700V2 WNDR3800 WNDRMAC WNDRMACV2))
 $(eval $(call MultiProfile,WP543,WP543_2M WP543_4M WP543_8M WP543_16M))
 $(eval $(call MultiProfile,WPE72,WPE72_4M WPE72_8M WPE72_16M))

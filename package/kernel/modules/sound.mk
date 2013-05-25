@@ -32,6 +32,14 @@ SOUNDCORE_FILES ?= \
 	$(LINUX_DIR)/sound/core/oss/snd-mixer-oss.ko \
 	$(LINUX_DIR)/sound/core/oss/snd-pcm-oss.ko
 
+ifeq ($(strip $(call CompareKernelPatchVer,$(KERNEL_PATCHVER),ge,3.3.0)),1)
+SOUNDCORE_LOAD += \
+	snd-compress
+
+SOUNDCORE_FILES += \
+	$(LINUX_DIR)/sound/core/snd-compress.ko
+endif
+
 define KernelPackage/sound-core
   SUBMENU:=$(SOUND_MENU)
   TITLE:=Sound support
@@ -50,7 +58,8 @@ define KernelPackage/sound-core
 	CONFIG_HOSTAUDIO \
 	CONFIG_SND_PCM_OSS \
 	CONFIG_SND_MIXER_OSS \
-	CONFIG_SOUND_OSS_CORE_PRECLAIM=y
+	CONFIG_SOUND_OSS_CORE_PRECLAIM=y \
+	CONFIG_SND_COMPRESS_OFFLOAD
   FILES:=$(SOUNDCORE_FILES)
   AUTOLOAD:=$(call AutoLoad,30,$(SOUNDCORE_LOAD))
   $(call AddDepends/input)
@@ -81,7 +90,7 @@ define KernelPackage/ac97
   KCONFIG:=CONFIG_SND_AC97_CODEC
   FILES:= \
 	$(LINUX_DIR)/sound/ac97_bus.ko \
-	$(LINUX_DIR)/sound/pci/ac97/snd-ac97-codec.ko 
+	$(LINUX_DIR)/sound/pci/ac97/snd-ac97-codec.ko
   AUTOLOAD:=$(call AutoLoad,35,ac97_bus snd-ac97-codec)
   $(call AddDepends/sound)
 endef
@@ -121,7 +130,7 @@ endef
 
 define KernelPackage/sound-i8x0/description
  support for the integrated AC97 sound device on motherboards
- with Intel/SiS/nVidia/AMD chipsets, or ALi chipsets using 
+ with Intel/SiS/nVidia/AMD chipsets, or ALi chipsets using
  the M5455 Audio Controller.
 endef
 
@@ -146,8 +155,10 @@ $(eval $(call KernelPackage,sound-cs5535audio))
 
 define KernelPackage/sound-soc-core
   TITLE:=SoC sound support
+  DEPENDS:=+kmod-regmap
   KCONFIG:= \
 	CONFIG_SND_SOC \
+	CONFIG_SND_SOC_DMAENGINE_PCM=y \
 	CONFIG_SND_SOC_ALL_CODECS=n
   FILES:=$(LINUX_DIR)/sound/soc/snd-soc-core.ko
   AUTOLOAD:=$(call AutoLoad,55, snd-soc-core)

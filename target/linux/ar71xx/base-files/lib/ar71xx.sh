@@ -62,18 +62,31 @@ tplink_get_hwid() {
 	dd if=$part bs=4 count=1 skip=16 2>/dev/null | hexdump -v -n 4 -e '1/1 "%02x"'
 }
 
+tplink_get_mid() {
+	local part
+
+	part=$(find_mtd_part firmware)
+	[ -z "$part" ] && return 1
+
+	dd if=$part bs=4 count=1 skip=17 2>/dev/null | hexdump -v -n 4 -e '1/1 "%02x"'
+}
+
 tplink_board_detect() {
 	local model="$1"
 	local hwid
 	local hwver
 
 	hwid=$(tplink_get_hwid)
+	mid=$(tplink_get_mid)
 	hwver=${hwid:6:2}
 	hwver="v${hwver#0}"
 
 	case "$hwid" in
 	"070300"*)
 		model="TP-Link TL-WR703N"
+		;;
+	"072001"*)
+		model="TP-Link TL-WR720N"
 		;;
 	"070100"*)
 		model="TP-Link TL-WA701N/ND"
@@ -87,6 +100,12 @@ tplink_board_detect() {
 	"074300"*)
 		model="TP-Link TL-WR743N/ND"
 		;;
+	"080100"*)
+		model="TP-Link TL-WA801N/ND"
+		;;
+	"083000"*)
+		model="TP-Link TL-WA830RE"
+		;;
 	"084100"*)
 		model="TP-Link TL-WR841N/ND"
 		;;
@@ -97,7 +116,12 @@ tplink_board_detect() {
 		model="TP-Link TL-WA901N/ND"
 		;;
 	"094100"*)
-		model="TP-Link TL-WR941N/ND"
+		if [ "$hwid" == "09410002" -a "$mid" == "00420001" ]; then
+			model="Rosewill RNX-N360RT"
+			hwver=""
+		else
+			model="TP-Link TL-WR941N/ND"
+		fi
 		;;
 	"104100"*)
 		model="TP-Link TL-WR1041N/ND"
@@ -122,6 +146,9 @@ tplink_board_detect() {
 		;;
 	"342000"*)
 		model="TP-Link TL-MR3420"
+		;;
+	"350000"*)
+		model="TP-Link TL-WDR3500"
 		;;
 	"360000"*)
 		model="TP-Link TL-WDR3600"
@@ -174,8 +201,17 @@ ar71xx_board_detect() {
 	*AP121-MINI)
 		name="ap121-mini"
 		;;
-	*"AP136 reference board")
-		name="ap136"
+	*"AP132 reference board")
+		name="ap132"
+		;;
+	*"AP136-010 reference board")
+		name="ap136-010"
+		;;
+	*"AP136-020 reference board")
+		name="ap136-020"
+		;;
+	*"AP135-020 reference board")
+		name="ap135-020"
 		;;
 	*AP81)
 		name="ap81"
@@ -204,6 +240,12 @@ ar71xx_board_detect() {
 	*"DIR-825 rev. B1")
 		name="dir-825-b1"
 		;;
+	*"DIR-825 rev. C1")
+		name="dir-825-c1"
+		;;
+	*"DIR-835 rev. A1")
+		name="dir-835-a1"
+		;;
 	*EAP7660D)
 		name="eap7660d"
 		;;
@@ -227,6 +269,9 @@ ar71xx_board_detect() {
 		;;
 	*LS-SR71)
 		name="ls-sr71"
+		;;
+	*MR600v2)
+		name="mr600v2"
 		;;
 	*MR600)
 		name="mr600"
@@ -297,6 +342,9 @@ ar71xx_board_detect() {
 	*"RouterBOARD 751G")
 		name="rb-751g"
 		;;
+	*"RouterBOARD 951G-2HnD")
+		name="rb-951g-2hnd"
+		;;
 	*"RouterBOARD 2011L")
 		name="rb-2011l"
 		;;
@@ -345,8 +393,14 @@ ar71xx_board_detect() {
 	*TL-MR3220)
 		name="tl-mr3220"
 		;;
+	*"TL-MR3220 v2")
+		name="tl-mr3220-v2"
+		;;
 	*TL-MR3420)
 		name="tl-mr3420"
+		;;
+	*"TL-MR3420 v2")
+		name="tl-mr3420-v2"
 		;;
 	*TL-WA7510N)
 		name="tl-wa7510n"
@@ -356,6 +410,9 @@ ar71xx_board_detect() {
 		;;
 	*"TL-WA901ND v2")
 		name="tl-wa901nd-v2"
+		;;
+	*"TL-WDR3500")
+		name="tl-wdr3500"
 		;;
 	*"TL-WDR3600/4300/4310")
 		name="tl-wdr4300"
@@ -381,11 +438,17 @@ ar71xx_board_detect() {
 	*"TL-WR703N v1")
 		name="tl-wr703n"
 		;;
+	*"TL-WR720N v3")
+		name="tl-wr720n-v3"
+		;;
 	*"TL-MR11U")
 		name="tl-mr11u"
 		;;
 	*UniFi)
 		name="unifi"
+		;;
+	*"UniFi AP Pro")
+		name="uap-pro"
 		;;
 	*WHR-G301N)
 		name="whr-g301n"
@@ -405,8 +468,17 @@ ar71xx_board_detect() {
 	*WPE72)
 		name="wpe72"
 		;;
+	*WNDAP360)
+		name="wndap360"
+		;;
 	*"WNDR3700/WNDR3800/WNDRMAC")
 		wndr3700_board_detect "$machine"
+		;;
+	*"WNDR4300")
+		name="wndr4300"
+		;;
+	*"WNR2000 V3")
+		name="wnr2000-v3"
 		;;
 	*WNR2000)
 		name="wnr2000"
@@ -417,7 +489,7 @@ ar71xx_board_detect() {
 	*WRT400N)
 		name="wrt400n"
 		;;
-	*WZR-HP-AG300H)
+	*"WZR-HP-AG300H/WZR-600DHP")
 		name="wzr-hp-ag300h"
 		;;
 	*WZR-HP-G300NH)
@@ -447,7 +519,7 @@ ar71xx_board_detect() {
 	esac
 
 	case "$machine" in
-	*TL-WR* | *TL-WA* | *TL-MR*)
+	*TL-WR* | *TL-WA* | *TL-MR* | *TL-WD*)
 		tplink_board_detect "$machine"
 		;;
 	esac

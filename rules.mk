@@ -60,11 +60,29 @@ ifneq ($(filter -march=armv%,$(TARGET_OPTIMIZATION)),)
   ARCH_SUFFIX:=_$(patsubst -march=arm%,%,$(filter -march=armv%,$(TARGET_OPTIMIZATION)))
   GCC_ARCH:=$(patsubst -march=%,%,$(filter -march=armv%,$(TARGET_OPTIMIZATION)))
 endif
-ifneq ($(findstring -mips32r2,$(TARGET_OPTIMIZATION)),)
+ifneq ($(filter -mips%r2,$(TARGET_OPTIMIZATION)),)
   ARCH_SUFFIX:=_r2
+endif
+ifneq ($(filter -mdsp,$(TARGET_OPTIMIZATION)),)
+  ARCH_SUFFIX:=$(ARCH_SUFFIX)_dsp
+endif
+ifneq ($(filter -mdspr2,$(TARGET_OPTIMIZATION)),)
+  ARCH_SUFFIX:=$(ARCH_SUFFIX)_dspr2
+endif
+ifdef CONFIG_USE_MIPS16
+   TARGET_OPTIMIZATION+= -minterlink-mips16 -mips16
+endif
+ifneq ($(findstring -mips16,$(TARGET_OPTIMIZATION)),)
+  TARGET_ASFLAGS_OVERRIDE:=-mno-mips16
+  ARCH_SUFFIX:= $(ARCH_SUFFIX)_m16
 endif
 ifdef CONFIG_HAS_SPE_FPU
   TARGET_SUFFIX:=$(TARGET_SUFFIX)spe
+endif
+ifdef CONFIG_MIPS64_ABI
+  ifneq ($(CONFIG_MIPS64_ABI_O32),y)
+     ARCH_SUFFIX:=$(ARCH_SUFFIX)_$(subst ",,$(CONFIG_MIPS64_ABI))
+  endif
 endif
 
 DL_DIR:=$(if $(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(TOPDIR)/dl)
@@ -111,20 +129,21 @@ PKG_INFO_DIR := $(STAGING_DIR)/pkginfo
 TARGET_PATH:=$(STAGING_DIR_HOST)/bin:$(subst $(space),:,$(filter-out .,$(filter-out ./,$(subst :,$(space),$(PATH)))))
 TARGET_CFLAGS:=$(TARGET_OPTIMIZATION)$(if $(CONFIG_DEBUG), -g3)
 TARGET_CXXFLAGS = $(TARGET_CFLAGS)
+TARGET_ASFLAGS = $(TARGET_CFLAGS) $(TARGET_ASFLAGS_OVERRIDE)
 TARGET_CPPFLAGS:=-I$(STAGING_DIR)/usr/include -I$(STAGING_DIR)/include
 TARGET_LDFLAGS:=-L$(STAGING_DIR)/usr/lib -L$(STAGING_DIR)/lib
 ifneq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
 LIBGCC_S_PATH=$(realpath $(wildcard $(call qstrip,$(CONFIG_LIBGCC_ROOT_DIR))/$(call qstrip,$(CONFIG_LIBGCC_FILE_SPEC))))
 LIBGCC_S=$(if $(LIBGCC_S_PATH),-L$(dir $(LIBGCC_S_PATH)) -lgcc_s)
-LIBGCC_A=$(realpath $(wildcard $(dir $(LIBGCC_S_PATH))/gcc/*/*/libgcc.a))
+LIBGCC_A=$(realpath $(lastword $(wildcard $(dir $(LIBGCC_S_PATH))/gcc/*/*/libgcc.a)))
 else
-LIBGCC_A=$(wildcard $(TOOLCHAIN_DIR)/lib/gcc/*/*/libgcc.a)
+LIBGCC_A=$(lastword $(wildcard $(TOOLCHAIN_DIR)/lib/gcc/*/*/libgcc.a))
 LIBGCC_S=$(if $(wildcard $(TOOLCHAIN_DIR)/lib/libgcc_s.so),-L$(TOOLCHAIN_DIR)/lib -lgcc_s,$(LIBGCC_A))
 endif
 LIBRPC=-lrpc
 LIBRPC_DEPENDS=+librpc
 
-ifneq ($(findstring $(ARCH) , mips64 x86_64 ),)
+ifeq ($(CONFIG_ARCH_64BIT),y)
   LIB_SUFFIX:=64
 endif
 
@@ -175,6 +194,7 @@ PKG_CONFIG:=$(STAGING_DIR_HOST)/bin/pkg-config
 export PKG_CONFIG
 
 HOSTCC:=gcc
+HOSTCXX:=g++
 HOST_CPPFLAGS:=-I$(STAGING_DIR_HOST)/include
 HOST_CFLAGS:=-O2 $(HOST_CPPFLAGS)
 HOST_LDFLAGS:=-L$(STAGING_DIR_HOST)/lib
@@ -182,7 +202,7 @@ HOST_LDFLAGS:=-L$(STAGING_DIR_HOST)/lib
 TARGET_CC:=$(TARGET_CROSS)gcc
 TARGET_AR:=$(TARGET_CROSS)ar
 TARGET_RANLIB:=$(TARGET_CROSS)ranlib
-TARGET_CXX:=$(if $(CONFIG_INSTALL_LIBSTDCPP),$(TARGET_CROSS)g++,no)
+TARGET_CXX:=$(TARGET_CROSS)g++
 KPATCH:=$(SCRIPT_DIR)/patch-kernel.sh
 SED:=$(STAGING_DIR_HOST)/bin/sed -i -e
 CP:=cp -fpR
@@ -196,6 +216,7 @@ INSTALL_CONF:=install -m0600
 TARGET_CC_NOCACHE:=$(TARGET_CC)
 TARGET_CXX_NOCACHE:=$(TARGET_CXX)
 HOSTCC_NOCACHE:=$(HOSTCC)
+HOSTCXX_NOCACHE:=$(HOSTCXX)
 export TARGET_CC_NOCACHE
 export TARGET_CXX_NOCACHE
 export HOSTCC_NOCACHE
@@ -204,11 +225,12 @@ ifneq ($(CONFIG_CCACHE),)
   TARGET_CC:= ccache_cc
   TARGET_CXX:= ccache_cxx
   HOSTCC:= ccache $(HOSTCC)
+  HOSTCXX:= ccache $(HOSTCXX)
 endif
 
 TARGET_CONFIGURE_OPTS = \
   AR=$(TARGET_CROSS)ar \
-  AS="$(TARGET_CC) -c $(TARGET_CFLAGS)" \
+  AS="$(TARGET_CC) -c $(TARGET_ASFLAGS)" \
   LD=$(TARGET_CROSS)ld \
   NM=$(TARGET_CROSS)nm \
   CC="$(TARGET_CC)" \
