@@ -14,7 +14,7 @@ FEATURES:=squashfs jffs2
 LINUX_VERSION:=2.6.30.9
 
 include $(INCLUDE_DIR)/target.mk
-DEFAULT_PACKAGES += libopenssl librtk-inband hostapd hostapd-rtk wpa-supplicant-rtk kmod-cfg80211
+DEFAULT_PACKAGES += librtk-inband hostapd-rtk wpa-supplicant-rtk kmod-cfg80211 kmod-mac80211 kmod-gpio_rtl8196c
 
 DEFAULT_CFLAGS=-Os -pipe -fno-caller-saves -march=rlx4181
 
