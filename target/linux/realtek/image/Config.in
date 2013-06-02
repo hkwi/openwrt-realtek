@@ -11,7 +11,7 @@ config REALTEK_KERNEL_OFFSET
 config REALTEK_ROOTFS_OFFSET
 	string "Offset of filesystem in flash rom (HEX)"
 	depends TARGET_realtek
-	default "140000"
+	default "1b0000"
 
 config REALTEK_FLASH_SIZE
 	string "size of the flash rom"
