@@ -1,0 +1,345 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_new.c.old	2013-06-02 11:54:33.537915989 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/igmpsnooping/rtl865x_igmpsnooping_new.c	2013-06-02 12:17:25.265949697 +0300
+@@ -2298,7 +2298,7 @@
+ 	
+ 	uint8 optionDataLen=0;
+ 	uint8 optionType=0;
+-	uint32 ipv6RAO=0;
++//	uint32 ipv6RAO=0;
+ #endif
+ 
+ 	uint32 ipAddr[4]={0,0,0,0};
+@@ -2488,7 +2488,7 @@
+ 						/*router alter option*/
+ 						if(ntohl(*(uint32 *)(ptr))==IPV6_ROUTER_ALTER_OPTION)
+ 						{
+-							ipv6RAO=IPV6_ROUTER_ALTER_OPTION;
++							//ipv6RAO=IPV6_ROUTER_ALTER_OPTION;
+ 							ptr=ptr+4;	
+ 							continue;
+ 						}
+@@ -2767,8 +2767,8 @@
+ 	#endif
+ 	uint32 groupAddress[4]={0,0,0,0};
+ 	uint32 suppressFlag=0;
+-	uint32 *sourceAddr=NULL;
+-	uint32 numOfSrc=0;
++//	uint32 *sourceAddr=NULL;
++//	uint32 numOfSrc=0;
+ 	
+ 	
+ 	/*querier timer update and election process*/
+@@ -2780,8 +2780,8 @@
+ 		{
+ 			groupAddress[0]=ntohl(((struct igmpv3Query*)pktBuf)->groupAddr);
+ 			suppressFlag=((struct igmpv3Query*)pktBuf)->rsq & S_FLAG_MASK;
+-			sourceAddr=&(((struct igmpv3Query*)pktBuf)->srcList);
+-			numOfSrc=(uint32)ntohs(((struct igmpv3Query*)pktBuf)->numOfSrc);
++//			sourceAddr=&(((struct igmpv3Query*)pktBuf)->srcList);
++//			numOfSrc=(uint32)ntohs(((struct igmpv3Query*)pktBuf)->numOfSrc);
+ 
+ 		}
+ 		else
+@@ -2810,8 +2810,8 @@
+ 			groupAddress[3]=ntohl(((struct mldv2Query*)pktBuf)->mCastAddr[3]);
+ 
+ 			suppressFlag=((struct mldv2Query*)pktBuf)->rsq & S_FLAG_MASK;
+-			sourceAddr=&(((struct mldv2Query*)pktBuf)->srcList);
+-			numOfSrc=(uint32)ntohs(((struct mldv2Query*)pktBuf)->numOfSrc);
++//			sourceAddr=&(((struct mldv2Query*)pktBuf)->srcList);
++//			numOfSrc=(uint32)ntohs(((struct mldv2Query*)pktBuf)->numOfSrc);
+ 
+ 		}
+ 		else /*means mldv1 query*/
+@@ -2954,7 +2954,7 @@
+ 	struct rtl_clientEntry* clientEntry=NULL;
+ 	struct rtl_clientEntry* newClientEntry=NULL;
+ 
+-	uint32 hashIndex=0;
++//	uint32 hashIndex=0;
+ 	uint32 multicastRouterPortMask=rtl_getMulticastRouterPortMask(moduleIndex, ipVersion, rtl_sysUpSeconds);
+ 	uint32 allClientPortMask=0;
+ 	
+@@ -2981,7 +2981,7 @@
+ 	}
+ #endif	
+ 
+-	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
++//	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
+ 
+ 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
+ 	if(groupEntry==NULL)   /*means new group address, create new group entry*/
+@@ -3104,7 +3104,7 @@
+ 	struct rtl_sourceEntry *sourceEntry=NULL;
+ 	struct rtl_sourceEntry *nextSourceEntry=NULL;
+ 
+-	uint32 hashIndex=0;
++//	uint32 hashIndex=0;
+ //	uint32 multicastRouterPortMask=rtl_getMulticastRouterPortMask(moduleIndex, ipVersion, rtl_sysUpSeconds);
+ 	
+ 	if(ipVersion==IP_VERSION4)
+@@ -3121,7 +3121,7 @@
+ 	}
+ #endif	
+ 
+-	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
++//	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
+ 
+ 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
+ 	
+@@ -3217,7 +3217,7 @@
+ 	struct rtl_clientEntry* newClientEntry=NULL;
+ 	struct rtl_sourceEntry *newSourceEntry=NULL;
+ 	
+-	uint32 hashIndex=0;
++//	uint32 hashIndex=0;
+ 
+ 	uint16 numOfSrc=0;
+ 	uint32 *sourceAddr=NULL;
+@@ -3242,7 +3242,7 @@
+ 	}
+ #endif	
+ 
+-	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
++//	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
+ 
+ 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
+ 	
+@@ -3401,16 +3401,16 @@
+ 	struct rtl_clientEntry* newClientEntry=NULL;
+ 	struct rtl_sourceEntry *newSourceEntry=NULL;
+ 	
+-	uint32 hashIndex=0;
++//	uint32 hashIndex=0;
+ 	uint16 numOfSrc=0;
+-	uint32 *sourceArray=NULL;
++//	uint32 *sourceArray=NULL;
+ 	uint32 *sourceAddr=NULL;
+ 
+ 	if(ipVersion==IP_VERSION4)
+ 	{
+ 		groupAddress[0]=ntohl(((struct groupRecord *)pktBuf)->groupAddr);
+ 		numOfSrc=ntohs(((struct groupRecord *)pktBuf)->numOfSrc);
+-		sourceArray=&(((struct groupRecord *)pktBuf)->srcList);
++//		sourceArray=&(((struct groupRecord *)pktBuf)->srcList);
+ 		sourceAddr=&(((struct groupRecord *)pktBuf)->srcList);
+ 		
+ 	}
+@@ -3424,12 +3424,12 @@
+ 		groupAddress[3]=ntohl(((struct mCastAddrRecord *)pktBuf)->mCastAddr[3]);
+ 		
+ 		numOfSrc=ntohs(((struct mCastAddrRecord *)pktBuf)->numOfSrc);
+-		sourceArray=&(((struct mCastAddrRecord *)pktBuf)->srcList);
++//		sourceArray=&(((struct mCastAddrRecord *)pktBuf)->srcList);
+ 		sourceAddr=&(((struct mCastAddrRecord *)pktBuf)->srcList);
+ 	}
+ #endif
+ 
+-	hashIndex=rtl_igmpHashAlgorithm( ipVersion, groupAddress);
++//	hashIndex=rtl_igmpHashAlgorithm( ipVersion, groupAddress);
+ 
+ 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
+ 
+@@ -3594,7 +3594,7 @@
+ 	struct rtl_sourceEntry *nextSourceEntry=NULL;
+ 	struct rtl_sourceEntry *newSourceEntry=NULL;
+ 	
+-	uint32 hashIndex=0;
++//	uint32 hashIndex=0;
+ 	uint16 numOfSrc=0;
+ 	uint32 *sourceAddr=NULL;
+ 
+@@ -3619,7 +3619,7 @@
+ 	}
+ #endif
+ 
+-	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
++//	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
+ 
+ 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
+ 
+@@ -3852,16 +3852,16 @@
+ 	struct rtl_clientEntry* newClientEntry=NULL;
+ 	struct rtl_sourceEntry *newSourceEntry=NULL;
+ 	
+-	uint32 hashIndex=0;
++//	uint32 hashIndex=0;
+ 	uint16 numOfSrc=0;
+-	uint32 *sourceArray=NULL;
++//	uint32 *sourceArray=NULL;
+ 	uint32 *sourceAddr=NULL;
+ 
+ 	if(ipVersion==IP_VERSION4)
+ 	{
+ 		groupAddress[0]=ntohl(((struct groupRecord *)pktBuf)->groupAddr);
+ 		numOfSrc=ntohs(((struct groupRecord *)pktBuf)->numOfSrc);
+-		sourceArray=&(((struct groupRecord *)pktBuf)->srcList);
++//		sourceArray=&(((struct groupRecord *)pktBuf)->srcList);
+ 		sourceAddr=&(((struct groupRecord *)pktBuf)->srcList);
+ 	}
+ #ifdef CONFIG_RTL_MLD_SNOOPING		
+@@ -3874,12 +3874,12 @@
+ 		groupAddress[3]=ntohl(((struct mCastAddrRecord *)pktBuf)->mCastAddr[3]);
+ 		
+ 		numOfSrc=ntohs(((struct mCastAddrRecord *)pktBuf)->numOfSrc);
+-		sourceArray=&(((struct mCastAddrRecord *)pktBuf)->srcList);
++//		sourceArray=&(((struct mCastAddrRecord *)pktBuf)->srcList);
+ 		sourceAddr=&(((struct mCastAddrRecord *)pktBuf)->srcList);
+ 	}
+ #endif
+ 
+-	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
++//	hashIndex=rtl_igmpHashAlgorithm(ipVersion, groupAddress);
+ 	
+ 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
+ 
+@@ -4037,7 +4037,7 @@
+ 	struct rtl_sourceEntry *sourceEntry=NULL;
+ 	struct rtl_sourceEntry *newSourceEntry=NULL;
+ 	
+-	uint32 hashIndex=0;
++//	uint32 hashIndex=0;
+ 	uint16 numOfSrc=0;
+ 	uint32 *sourceAddr=NULL;
+ 	
+@@ -4062,7 +4062,7 @@
+ 	}
+ #endif	
+ 
+-	hashIndex=rtl_igmpHashAlgorithm( ipVersion, groupAddress);
++//	hashIndex=rtl_igmpHashAlgorithm( ipVersion, groupAddress);
+ 
+ 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
+ 
+@@ -4236,7 +4236,7 @@
+ 	struct rtl_sourceEntry *newSourceEntry=NULL;
+ 
+ 	
+-	uint32 hashIndex=0;
++//	uint32 hashIndex=0;
+ 	uint16 numOfSrc=0;
+ 	uint32 *sourceAddr=NULL;
+ 	
+@@ -4261,7 +4261,7 @@
+ 	}
+ #endif
+ 
+-	hashIndex=rtl_igmpHashAlgorithm( ipVersion, groupAddress);
++//	hashIndex=rtl_igmpHashAlgorithm( ipVersion, groupAddress);
+ 
+ 	groupEntry=rtl_searchGroupEntry(moduleIndex, ipVersion, groupAddress);
+ 
+@@ -4427,7 +4427,6 @@
+ 	uint8 *groupRecords=NULL;
+ 	uint8 recordType=0xff;
+ 	uint16 numOfSrc=0;
+-	int32 returnVal=0;
+ 	//uint32 multicastRouterPortMask=rtl_getMulticastRouterPortMask(moduleIndex, ipVersion, rtl_sysUpSeconds);
+ 	
+ 	if(ipVersion==IP_VERSION4)
+@@ -4465,27 +4464,27 @@
+ 		switch(recordType)
+ 		{
+ 			case MODE_IS_INCLUDE:
+-				returnVal=rtl_processIsInclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
++				rtl_processIsInclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+ 			break;
+ 			
+ 			case MODE_IS_EXCLUDE:
+-				returnVal=rtl_processIsExclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
++				rtl_processIsExclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+ 			break;
+ 			
+ 			case CHANGE_TO_INCLUDE_MODE:
+-				returnVal=rtl_processToInclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
++				rtl_processToInclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+ 			break;
+ 			
+ 			case CHANGE_TO_EXCLUDE_MODE:
+-				returnVal=rtl_processToExclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
++				rtl_processToExclude(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+ 			break;
+ 			
+ 			case ALLOW_NEW_SOURCES:
+-				returnVal=rtl_processAllow(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
++				rtl_processAllow(moduleIndex, ipVersion, portNum, clientAddr, groupRecords);
+ 			break;
+ 			
+ 			case BLOCK_OLD_SOURCES:
+-				returnVal=rtl_processBlock(moduleIndex, ipVersion, portNum, clientAddr ,groupRecords);
++				rtl_processBlock(moduleIndex, ipVersion, portNum, clientAddr ,groupRecords);
+ 			break;
+ 			
+ 			default:break;
+@@ -6480,25 +6479,19 @@
+ 
+ 
+ int igmp_write(struct file *file, const char __user *buffer, size_t count, loff_t *data)
+-	
+ {
+-#if defined (CONFIG_STATIC_RESERVED_MULTICAST)	
++#if defined (CONFIG_STATIC_RESERVED_MULTICAST)
+ 	char tmp[256];
+-	
+-	char		*strptr, *cmd_addr;
+-	char		*tokptr;
++	char	*strptr, *cmd_addr;
++	char	*tokptr;
+ 	uint32	allModuleFlag=FALSE;
+ 	uint32	moduleIndex=0xFFFFFFFF;
+-	uint32 	ipAddr[4];
+-	int cnt;
+-	
++	uint32	ipAddr[4];
+ 	struct rtl_groupEntry groupEntry;
+ 
+-	
+ 	if (count < 5)
+ 		return -EFAULT;
+ 
+-
+ 	if (buffer && !copy_from_user(tmp, buffer, count)) {
+ 
+ 		tmp[count] = '\0';
+@@ -6579,8 +6572,8 @@
+ 					goto errout;
+ 				}
+ 				
+-				cnt = sscanf(tokptr, "%d.%d.%d.%d", &ipAddr[0], &ipAddr[1], &ipAddr[2], &ipAddr[3]);
+-		
++				sscanf(tokptr, "%d.%d.%d.%d", &ipAddr[0], &ipAddr[1], &ipAddr[2], &ipAddr[3]);
++
+ 				groupEntry.groupAddr[0]=(ipAddr[0]<<24)|(ipAddr[1]<<16)|(ipAddr[2]<<8)|(ipAddr[3]);
+ 				groupEntry.groupAddr[1]=0;
+ 				groupEntry.groupAddr[2]=0;
+@@ -6597,7 +6590,7 @@
+ 					goto errout;
+ 				}
+ 				
+-				cnt = sscanf(tokptr, "0x%x-%x-%x-%x", &ipAddr[0], &ipAddr[1], &ipAddr[2], &ipAddr[3]);
++				sscanf(tokptr, "0x%x-%x-%x-%x", &ipAddr[0], &ipAddr[1], &ipAddr[2], &ipAddr[3]);
+ 
+ 				groupEntry.groupAddr[0]=ipAddr[0];
+ 				groupEntry.groupAddr[1]=ipAddr[1];
+@@ -6697,8 +6690,8 @@
+ 				{
+ 					goto errout;
+ 				}
+-				cnt = sscanf(tokptr, "%d.%d.%d.%d", &ipAddr[0], &ipAddr[1], &ipAddr[2], &ipAddr[3]);
+-				
++				sscanf(tokptr, "%d.%d.%d.%d", &ipAddr[0], &ipAddr[1], &ipAddr[2], &ipAddr[3]);
++
+ 				groupEntry.groupAddr[0]=(ipAddr[0]<<24)|(ipAddr[1]<<16)|(ipAddr[2]<<8)|(ipAddr[3]);
+ 				groupEntry.groupAddr[1]=0;
+ 				groupEntry.groupAddr[2]=0;
+@@ -6714,8 +6707,8 @@
+ 				{
+ 					goto errout;
+ 				}
+-				cnt = sscanf(tokptr, "0x%x-%x-%x-%x", &ipAddr[0], &ipAddr[1], &ipAddr[2], &ipAddr[3]);
+-				
++				sscanf(tokptr, "0x%x-%x-%x-%x", &ipAddr[0], &ipAddr[1], &ipAddr[2], &ipAddr[3]);
++
+ 				groupEntry.groupAddr[0]=ipAddr[0];
+ 				groupEntry.groupAddr[1]=ipAddr[1];
+ 				groupEntry.groupAddr[2]=ipAddr[2];

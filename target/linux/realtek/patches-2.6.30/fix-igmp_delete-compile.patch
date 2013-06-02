@@ -1,0 +1,14 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/igmpsnooping/igmp_delete.c.old	2013-06-02 12:20:02.625953564 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/igmpsnooping/igmp_delete.c	2013-06-02 12:20:50.517954741 +0300
+@@ -93,11 +93,9 @@
+   	int pid;
+ 	struct test_struct send_data,recv_data;
+ 	uint8 mac[6];
+-	char *ptr;
+ 	pid=rtk_nlrecvmsg(__skb,sizeof(struct test_struct),&recv_data);	
+  	//printk("igmp_delete data:%s\n", recv_data.data);
+ 	memset(mac, 0, 6);
+-	ptr = recv_data.data;
+ 	if(try_mac(recv_data.data, mac, 6, ':'))
+ 	{
+ 		rtl_delIgmpRecordByMacAddr(mac);

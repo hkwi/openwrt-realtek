@@ -1,0 +1,312 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/rtl_nic.c.old	2013-06-02 02:19:07.721067577 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/rtl_nic.c	2013-06-02 11:21:59.473867971 +0300
+@@ -551,8 +551,35 @@
+ #if defined(CONFIG_RTK_VLAN_NEW_FEATURE)
+ static int rtk_vlan_management_read(char *page, char **start, off_t off, int count, int *eof, void *data);
+ static int rtk_vlan_management_write(struct file *file, const char *buffer, unsigned long len, void *data);
++/* from rtk_vlan.c */
++extern int  rx_vlan_process(struct net_device *dev, struct vlan_info *info_ori, struct sk_buff *skb, struct sk_buff **new_skb);
++#else
++/* from rtk_vlan.c */
++extern int  rx_vlan_process(struct net_device *dev, struct vlan_info *info, struct sk_buff *skb);
+ #endif
+ 
++/* fix implicit function declararion compile errors */
++int32 rtl8651_initMldSnooping(void);
++void FullAndSemiReset(void);
++int  re865x_reProbe(void);
++void set_phy_pwr_save(int id, int val);
++int  rtl865x_creatReInitSwitchCoreProc(void);
++/* from rtk_vlan.c */
++extern int  tx_vlan_process(struct net_device *dev, struct vlan_info *info, struct sk_buff *skb, int wlan_pri);
++/* from rtl865x_asicL3.S */
++extern int32 rtl865x_initAsicL3(void);
++/* from rtl865x_igmpsnooping.c */
++extern int32 rtl_setIgmpSnoopingModuleStaticRouterPortMask(uint32 moduleIndex,uint32 staticRouterPortMask);
++/* from rtl865x_fdb.c */
++extern int32 rtl865x_layer2_reinit(void);
++/* for copy_skb_header */
++//#include <linux/skbuff.h>
++extern void copy_skb_header(struct sk_buff *new, const struct sk_buff *old);
++/* for rtl865x_proc_debug_cleanup and rtl865x_proc_debug_init */
++#include "rtl865x_proc_debug.h"
++/* for rtl865x_initEventMgr and rtl865x_reInitEventMgr */
++#include "common/rtl865x_eventMgr.h"
++
+ //__DRAM_FWD int rtk_vlan_support_enable;
+ int rtk_vlan_support_enable;
+ 
+@@ -1743,7 +1770,6 @@
+ 
+ 	unsigned char  optionDataLen=0;
+ 	unsigned char  optionType=0;
+-	unsigned int ipv6RAO=0;
+ 
+ 	if(ipv6h==NULL)
+ 	{
+@@ -1791,7 +1817,6 @@
+ 					/*router altert option*/
+ 					if(ntohl(*(uint32 *)(ptr))==IPV6_ROUTER_ALTER_OPTION)
+ 					{
+-						ipv6RAO=IPV6_ROUTER_ALTER_OPTION;
+ 						ptr=ptr+4;
+ 						continue;
+ 					}
+@@ -1959,6 +1984,8 @@
+ 	return;
+ }
+ 
++void rtl865x_igmpLinkStatusChangeCallback(uint32 moduleIndex, rtl_igmpPortInfo_t * portInfo);
++
+ void rtl865x_igmpSyncLinkStatus(void)
+ {
+ 	rtl_igmpPortInfo_t portInfo;
+@@ -2845,10 +2872,10 @@
+ __IRAM_FWD
+ static inline void rtl_processRxFrame(rtl_nicRx_info *info)
+ {
+-	struct dev_priv	*cp_this;
+-	struct sk_buff 	*skb;
+-	uint32			vid, pid, len;
+-	uint8			*data;
++	struct dev_priv *cp_this;
++	struct sk_buff  *skb;
++	uint32 vid, len;
++	uint8  *data;
+ 
+ 	cp_this = info->priv;
+ 	skb = info->input;
+@@ -2857,7 +2884,6 @@
+ 
+ #if defined(CONFIG_RTL_STP)
+ 	if(info->isStpVirtualDev){
+-		pid = info->pid;
+ 		len = info->len;
+ 		skb->len = 0;
+ 		skb_put(skb, len);
+@@ -2890,7 +2916,6 @@
+ 	}
+ 	/*	sanity check end 	*/
+ 
+-	pid = info->pid;
+ 	len = info->len;
+ 	skb->len = 0;
+ 	skb_put(skb, len);
+@@ -2914,7 +2939,7 @@
+ 
+ 
+ #if defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT) || defined(CONFIG_RTL_FAST_FILTER) || defined(CONFIG_RTL_QOS_PATCH) || defined(CONFIG_RTK_VOIP_QOS) || defined(CONFIG_RTK_VLAN_WAN_TAG_SUPPORT) ||defined(CONFIG_RTL_MAC_FILTER_CARE_INPORT)
+-	skb->srcPhyPort=(uint8)pid;
++	skb->srcPhyPort=(uint8)info->pid;
+ #endif
+ 	//printk("=======%s(%d),cp_this(%s)\n",__FUNCTION__,__LINE__,cp_this->dev->name);
+ 	/*	vlan process (including strip vlan tag)	*/
+@@ -3074,7 +3099,6 @@
+ 	{
+ 		/*	multicast process	*/
+ 		#if defined (CONFIG_RTL_IGMP_SNOOPING)
+-		//rtl_MulticastRxCheck(skb, cp_this, vid, pid);
+ 		rtl_MulticastRxCheck(skb, info);
+ 		#endif	/*end of CONFIG_RTL865X_IGMP_SNOOPING*/
+ 		/*	multicast process end	*/
+@@ -3846,6 +3870,30 @@
+ }
+ #endif
+ 
++int rtl865x_reinitSwitchCore(void)
++{
++	/*enable switch core clock*/
++	rtl865x_duringReInitSwtichCore=1;
++	/*disable switch core interrupt*/
++	REG32(CPUICR) = 0;
++	REG32(CPUIIMR) = 0;
++	REG32(GIMR) &= ~(BSP_SW_IE);
++
++	re865x_reProbe();
++	swNic_reInit();
++	rtl865x_reChangeOpMode();
++
++	/*enable switch core interrupt*/
++
++	REG32(CPUICR) = TXCMD | RXCMD | BUSBURST_32WORDS | MBUF_2048BYTES;
++	REG32(CPUIIMR) = RX_DONE_IE_ALL | TX_ALL_DONE_IE_ALL | LINK_CHANGE_IE | PKTHDR_DESC_RUNOUT_IE_ALL;
++	REG32(SIRR) |= TRXRDY;
++	REG32(GIMR) |= (BSP_SW_IE);
++
++	rtl865x_duringReInitSwtichCore=0;
++	return 0;
++}
++
+ #if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198) || defined(RTL8196C_EEE_MAC) || defined(RTL_CPU_QOS_ENABLED) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+ static void one_sec_timer(unsigned long task_priv)
+ {
+@@ -4596,7 +4644,7 @@
+ #if defined (CONFIG_RTL_IGMP_SNOOPING)
+ int re865x_setMCastTxInfo(struct sk_buff *skb,struct net_device *dev, rtl_nicTx_info	*nicTx)
+ {
+-	int32 ret;
++	//int32 ret;
+ 	 struct dev_priv *cp;
+ 	struct iphdr *iph=NULL;
+ 	#if defined (CONFIG_RTL_MLD_SNOOPING)
+@@ -4647,11 +4695,8 @@
+ 				multicastDataInfo.sourceIp[0]=  (uint32)(iph->saddr);
+ 				multicastDataInfo.groupAddr[0]=  (uint32)(iph->daddr);
+ 				*/
+-				ret= rtl_getMulticastDataFwdInfo(nicIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
++				rtl_getMulticastDataFwdInfo(nicIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
+ 				nicTx->portlist = multicastFwdInfo.fwdPortMask& cp->portmask & ((1<<RTL8651_MAC_NUMBER)-1);
+-
+-
+-
+ 			}
+             #ifdef CONFIG_RTK_VLAN_WAN_TAG_SUPPORT
+ 			//fix tim; upnp
+@@ -4706,14 +4751,10 @@
+ 				multicastDataInfo.ipVersion=6;
+ 				memcpy(&multicastDataInfo.sourceIp, &ipv6h->saddr, 16);
+ 				memcpy(&multicastDataInfo.groupAddr, &ipv6h->daddr, 16);
+-				ret= rtl_getMulticastDataFwdInfo(nicIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
++				rtl_getMulticastDataFwdInfo(nicIgmpModuleIndex, &multicastDataInfo, &multicastFwdInfo);
+ 				nicTx->portlist = multicastFwdInfo.fwdPortMask& cp->portmask & ((1<<RTL8651_MAC_NUMBER)-1);
+-
+ 			}
+-
+ 		}
+-
+-
+ 	}
+ #endif
+ 	return 0;
+@@ -6007,7 +6048,7 @@
+ 	#endif
+ 	struct rtl865x_vlanConfig *pVlanConfig=NULL;
+ 	rtl865x_AclRule_t	rule;
+-	int ret=FAILED;
++	//int ret=FAILED;
+ 
+ 	if(vlanConfig==NULL)
+ 	{
+@@ -6045,7 +6086,7 @@
+ 			rule.dstMacMask_.octet[1]=0xFF;
+ 			rule.dstMacMask_.octet[2]=0xFF;
+ 
+-			ret= rtl865x_add_acl(&rule, pVlanConfig[i].ifname, RTL865X_ACL_IPV6_USED);
++			//ret= rtl865x_add_acl(&rule, pVlanConfig[i].ifname, RTL865X_ACL_IPV6_USED);
+ 
+ 			/*ipv6 multicast data issue*/
+ 			bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
+@@ -6062,7 +6103,7 @@
+ 			rule.dstMacMask_.octet[0]=0xFF;
+ 			rule.dstMacMask_.octet[1]=0xFF;
+ 
+-			ret= rtl865x_add_acl(&rule, pVlanConfig[i].ifname, RTL865X_ACL_IPV6_USED);
++			//ret= rtl865x_add_acl(&rule, pVlanConfig[i].ifname, RTL865X_ACL_IPV6_USED);
+ 
+ 		}
+ 		else/*wan config*/
+@@ -6083,7 +6124,7 @@
+ 			rule.dstMacMask_.octet[0]=0xFF;
+ 			rule.dstMacMask_.octet[1]=0xFF;
+ 
+-			ret= rtl865x_add_acl(&rule, pVlanConfig[i].ifname, RTL865X_ACL_IPV6_USED);
++			//ret= rtl865x_add_acl(&rule, pVlanConfig[i].ifname, RTL865X_ACL_IPV6_USED);
+ 
+ 		}
+ 
+@@ -6176,7 +6217,7 @@
+ 	int32 totalVlans=((sizeof(vlanconfig))/(sizeof(struct rtl865x_vlanConfig)))-1;
+ #if defined (CONFIG_RTL_IGMP_SNOOPING)
+ 	int32 retVal;
+-	int32 igmpInitFlag=FAILED;
++	//int32 igmpInitFlag=FAILED;
+ 	struct rtl_mCastSnoopingGlobalConfig mCastSnoopingGlobalConfig;
+ 	#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+ 	rtl865x_mCastConfig_t mCastConfig;
+@@ -6409,7 +6450,7 @@
+ 	mCastSnoopingGlobalConfig.mospfRouterAgingTime=120;
+ 	mCastSnoopingGlobalConfig.pimRouterAgingTime=120;
+ 
+-	igmpInitFlag=rtl_initMulticastSnooping(mCastSnoopingGlobalConfig);
++	//igmpInitFlag=rtl_initMulticastSnooping(mCastSnoopingGlobalConfig);
+ #endif
+ 
+ 	for(i=0;i<totalVlans;i++)
+@@ -7233,9 +7274,7 @@
+ */
+ int32 rtl865x_init(void)
+ {
+-	int32 retval = 0;
+-
+-
++	//int32 retval = 0;
+ 	__865X_Config = 0;
+ 
+ #ifdef CONFIG_RTL8196_RTL8366
+@@ -7278,26 +7317,26 @@
+ #endif
+ 
+ /*common*/
+-	retval = rtl865x_initNetifTable();
+-	retval = rtl865x_initVlanTable();
++	rtl865x_initNetifTable();
++	rtl865x_initVlanTable();
+ #ifdef CONFIG_RTL_LAYERED_DRIVER_ACL
+-	retval = rtl865x_init_acl();
++	rtl865x_init_acl();
+ #endif
+-	retval = rtl865x_initEventMgr(NULL);
++	rtl865x_initEventMgr(NULL);
+ 
+ /*l2*/
+  #ifdef CONFIG_RTL_LAYERED_DRIVER_L2
+-	retval = rtl865x_layer2_init();
++	rtl865x_layer2_init();
+  #endif
+ 
+ 
+ /*layer3*/
+ #ifdef CONFIG_RTL_LAYERED_DRIVER_L3
+-	retval = rtl865x_initIpTable();
+-	retval = rtl865x_initPppTable();
+-	retval = rtl865x_initRouteTable();
+-	retval = rtl865x_initNxtHopTable();
+-	retval = rtl865x_arp_init();
++	rtl865x_initIpTable();
++	rtl865x_initPppTable();
++	rtl865x_initRouteTable();
++	rtl865x_initNxtHopTable();
++	rtl865x_arp_init();
+ #endif
+ 
+ /*layer4*/
+@@ -10809,29 +10848,6 @@
+ 	return 0;
+ }
+ 
+-int rtl865x_reinitSwitchCore(void)
+-{
+-	/*enable switch core clock*/
+-	rtl865x_duringReInitSwtichCore=1;
+-	/*disable switch core interrupt*/
+-	REG32(CPUICR) = 0;
+-	REG32(CPUIIMR) = 0;
+-	REG32(GIMR) &= ~(BSP_SW_IE);
+-
+-	re865x_reProbe();
+-	swNic_reInit();
+-	rtl865x_reChangeOpMode();
+-
+-	/*enable switch core interrupt*/
+-
+-	REG32(CPUICR) = TXCMD | RXCMD | BUSBURST_32WORDS | MBUF_2048BYTES;
+-	REG32(CPUIIMR) = RX_DONE_IE_ALL | TX_ALL_DONE_IE_ALL | LINK_CHANGE_IE | PKTHDR_DESC_RUNOUT_IE_ALL;
+-	REG32(SIRR) |= TRXRDY;
+-	REG32(GIMR) |= (BSP_SW_IE);
+-
+-	rtl865x_duringReInitSwtichCore=0;
+-	return 0;
+-}
+ 
+ static struct proc_dir_entry *reInitSwitchCoreProc=NULL;
+ 

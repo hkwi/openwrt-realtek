@@ -1,0 +1,162 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_fdb.c.old	2013-06-02 12:25:12.749961183 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/l2Driver/rtl865x_fdb.c	2013-06-02 12:54:35.246004494 +0300
+@@ -86,20 +86,18 @@
+ int32 _rtl865x_layer2_patch(void)
+ {
+ 
+-	int32 retval = 0;
+ 	ether_addr_t mac = { {0xff, 0xff, 0xff, 0xff, 0xff, 0xff} };
+ 	uint32 portmask=RTL_WANPORT_MASK|RTL_LANPORT_MASK;
+ 
+-	retval = _rtl865x_addFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_LAN_FID, &mac, FDB_TYPE_TRAPCPU, portmask, TRUE, FALSE);
++	_rtl865x_addFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_LAN_FID, &mac, FDB_TYPE_TRAPCPU, portmask, TRUE, FALSE);
+ #if defined (CONFIG_RTL_IVL_SUPPORT)
+-	retval = _rtl865x_addFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_WAN_FID, &mac, FDB_TYPE_TRAPCPU, portmask, TRUE, FALSE);
++	_rtl865x_addFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_WAN_FID, &mac, FDB_TYPE_TRAPCPU, portmask, TRUE, FALSE);
+ #endif
+ 
+-	retval = _rtl865x_addFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_LAN_FID, &cpu_mac, FDB_TYPE_TRAPCPU, 0, TRUE, FALSE);
++	_rtl865x_addFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_LAN_FID, &cpu_mac, FDB_TYPE_TRAPCPU, 0, TRUE, FALSE);
+ #if defined (CONFIG_RTL_IVL_SUPPORT)
+-	retval = _rtl865x_addFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_WAN_FID, &cpu_mac, FDB_TYPE_TRAPCPU, 0, TRUE, FALSE);
++	_rtl865x_addFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_WAN_FID, &cpu_mac, FDB_TYPE_TRAPCPU, 0, TRUE, FALSE);
+ #endif
+-	assert(retval == SUCCESS);
+ 
+ 	return SUCCESS;
+ }
+@@ -197,7 +195,7 @@
+ {
+ 
+ 	rtl865x_tblAsicDrv_l2Param_t L2temp, *L2buff;
+-	uint32 rowIdx, col_num;
++	uint32 rowIdx;
+ 	uint32 colIdx = 0;
+ 	uint32 found = FALSE;
+ 
+@@ -213,7 +211,6 @@
+ 		if (((flags&FDB_STATIC) && L2buff->isStatic) ||
+ 			((flags&FDB_DYNAMIC) && !L2buff->isStatic)) {
+ 				assert(colIdx);
+-				col_num = colIdx;
+ 				found = TRUE;
+ 				break;
+ 		}	
+@@ -478,7 +475,6 @@
+ {
+ 	uint32 rowIdx = 0;
+ 	uint32 colIdx = 0;
+-	uint32 col_num = 0;
+ 	uint32 col_tmp = 0;
+ 	uint16 tmp_age = 0xffff;
+ 	int32   found = FALSE;
+@@ -522,7 +518,6 @@
+ 			if (tmp_age> L2buff->ageSec)
+ 			{
+ 				tmp_age = L2buff->ageSec;
+-				col_num = colIdx;
+ 			}
+ 		}
+ 		else
+@@ -840,11 +835,10 @@
+ 	ether_addr_t *macAddr;
+ 	int32 column;
+ 	rtl865x_tblAsicDrv_l2Param_t	fdbEntry;
+-	rtl865x_filterDbTableEntry_t		l2temp_entry;
+-	int32 rowIdx;
+-	
++	rtl865x_filterDbTableEntry_t	l2temp_entry;
++
+ 	macAddr = (ether_addr_t *)(timeout_addr);
+-	rowIdx = rtl8651_filterDbIndex(macAddr, RTL_LAN_FID);
++//	int32 rowIdx = rtl8651_filterDbIndex(macAddr, RTL_LAN_FID);
+ 	found = rtl865x_Lookup_fdb_entry(RTL_LAN_FID, macAddr, FDB_DYNAMIC, &column, &fdbEntry);
+ 	if (found != SUCCESS)
+ 	{
+@@ -878,39 +872,33 @@
+ 
+ void update_hw_l2table(const char *srcName,const unsigned char *addr)
+ {
+-
+-	//int32 found = FAILED;
+ 	ether_addr_t *macAddr;
+-	int32 ret = 0;
+ #if defined (CONFIG_RTL_LAYERED_DRIVER)	&& defined (CONFIG_RTL_LAYERED_DRIVER_L2)
+ 	int32 column;
+ 	rtl865x_tblAsicDrv_l2Param_t	fdbEntry;
+ #endif
+ 	macAddr = (ether_addr_t *)(addr);
+-	
++
+ 	if (memcmp(srcName, RTL_WLAN_NAME, 4) ==0)
+ 	{
+-
+ #if defined (CONFIG_RTL_LAYERED_DRIVER)
+ #if defined (CONFIG_RTL_LAYERED_DRIVER_L2)
+ 		if (rtl865x_Lookup_fdb_entry(RTL_LAN_FID, macAddr, FDB_DYNAMIC, &column,&fdbEntry) == SUCCESS)
+ #endif
+ #else
+-		if (rtl8651_lookupL2table(0, macAddr, FDB_DYNAMIC) == SUCCESS)				
+-#endif				
++		if (rtl8651_lookupL2table(0, macAddr, FDB_DYNAMIC) == SUCCESS)
++#endif
+ 		{
+-
+ 			if((fdbEntry.memberPortMask & RTL8651_PHYSICALPORTMASK)!=0)
+ 			{
+ #if defined (CONFIG_RTL_LAYERED_DRIVER)
+ #if defined (CONFIG_RTL_LAYERED_DRIVER_L2)
+-				ret = rtl865x_delFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_LAN_FID, macAddr);
++				rtl865x_delFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_LAN_FID, macAddr);
+ #endif
+ #else
+-				ret = rtl8651_delFilterDatabaseEntry(0, macAddr);
++				rtl8651_delFilterDatabaseEntry(0, macAddr);
+ #endif
+ 			}
+-		
+ 		}
+ 
+ #if defined (CONFIG_RTL_IVL_SUPPORT)
+@@ -921,22 +909,17 @@
+ #endif
+ #endif
+ 		{
+-
+ 			if((fdbEntry.memberPortMask & RTL8651_PHYSICALPORTMASK)!=0)
+ 			{
+ #if defined (CONFIG_RTL_LAYERED_DRIVER)
+ #if defined (CONFIG_RTL_LAYERED_DRIVER_L2)
+-				ret = rtl865x_delFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_WAN_FID, macAddr);
++				rtl865x_delFilterDatabaseEntry(RTL865x_L2_TYPEII, RTL_WAN_FID, macAddr);
+ #endif
+ #endif
+ 			}
+-		
+ 		}
+ #endif
+-
+ 	}
+-
+-		
+ }
+ 
+ 
+@@ -945,7 +928,7 @@
+ 	int32 found = FAILED;
+ 	ether_addr_t *macAddr;
+ 	int32 ret=FAILED;
+-	int8 port_num = -1;
++//	int8 port_num = -1;
+ 	int32 column;
+ 	rtl865x_tblAsicDrv_l2Param_t	fdbEntry;
+ 	rtl865x_filterDbTableEntry_t		l2temp_entry;
+@@ -957,7 +940,7 @@
+ 	found = rtl865x_Lookup_fdb_entry(RTL_LAN_FID, macAddr, FDB_DYNAMIC, &column, &fdbEntry);
+ 	if (found == SUCCESS )
+ 	{
+-		port_num = rtl865x_ConvertPortMasktoPortNum(fdbEntry.memberPortMask);
++//		port_num = rtl865x_ConvertPortMasktoPortNum(fdbEntry.memberPortMask);
+ 		//printk("[%s][%d].\n", __FUNCTION__, __LINE__);
+ 		//printk("\nbefore rtl865x_lookup_FilterDatabaseEntry, port is %d\n", port_num);	
+ 		if (rtl865x_lookup_FilterDatabaseEntry(fdbEntry.fid, macAddr, &l2temp_entry) != SUCCESS)

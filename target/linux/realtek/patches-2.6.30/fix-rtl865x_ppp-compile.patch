@@ -1,0 +1,68 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_ppp.c.old	2013-06-02 13:02:46.298016562 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_ppp.c	2013-06-02 13:06:17.642021755 +0300
+@@ -95,7 +95,6 @@
+ 	int i;
+ 	rtl865x_ppp_t *entry = NULL;
+ 	rtl865x_tblAsicDrv_pppoeParam_t asicppp;
+-	int32 retval = FAILED;
+ 	uint32 fid;
+ 
+ 	/*found the entry*/
+@@ -124,12 +123,9 @@
+ 	rtl8651_setAsicPppoe(PPP_TABLE_INDEX(entry), &asicppp);
+ 
+ 	/*FIXME_hyking:dereference netif & mac*/
+-	retval = rtl865x_deReferNetif(entry->netif->name);
+-
+-	retval = rtl865x_getVlanFilterDatabaseId(entry->netif->vid, &fid);
+-	
+-	retval = rtl865x_delFilterDatabaseEntry(RTL865x_L2_TYPEII, fid, &entry->server_mac);
+-
++	rtl865x_deReferNetif(entry->netif->name);
++	rtl865x_getVlanFilterDatabaseId(entry->netif->vid, &fid);
++	rtl865x_delFilterDatabaseEntry(RTL865x_L2_TYPEII, fid, &entry->server_mac);
+ 
+ 	/*raise event??*/
+ 	rtl865x_raiseEvent(EVENT_DEL_PPP,(void *)entry);
+@@ -149,7 +145,6 @@
+ 	rtl865x_tblAsicDrv_l2Param_t fdbEntry;
+ 	rtl865x_filterDbTableEntry_t	 l2temp_entry;	
+ 	uint32 fid,column;
+-	int32 retval;
+ 	uint32 fdb_type[]={ FDB_STATIC, FDB_DYNAMIC };
+ 	
+ /*printk("%s(%d): ifname(%s),mac(%02x:%02x:%02x:%02x:%02x:%02x),sid(%d),type(%d)",__FUNCTION__,__LINE__,ifname,
+@@ -200,12 +195,12 @@
+ 
+ 
+ 	/*FIXME_hyking:reference netif & mac*/
+-	retval = rtl865x_referNetif(netif->name);
++	rtl865x_referNetif(netif->name);
+ 
+ 	/*add fdb entry...*/
+ 	fid = 0;
+ 	column = 0;
+-	retval = rtl865x_getVlanFilterDatabaseId(netif->vid,&fid);
++	rtl865x_getVlanFilterDatabaseId(netif->vid,&fid);
+ 
+ 	for(i = 0; i < 2; i++)
+ 	{
+@@ -219,8 +214,7 @@
+ 		{	
+ 			continue;
+ 		}
+-
+-		
++
+ 		/*in case of layer2 auto learn, add hardware entry to layer 2 software table*/
+ 		l2temp_entry.l2type = (fdbEntry.nhFlag==0)?RTL865x_L2_TYPEI: RTL865x_L2_TYPEII;
+ 		l2temp_entry.process = FDB_TYPE_FWD;
+@@ -229,7 +223,7 @@
+ 		l2temp_entry.SrcBlk = fdbEntry.srcBlk;
+ 		memcpy(&(l2temp_entry.macAddr), mac, sizeof(ether_addr_t));
+ 		rtl865x_addFilterDatabaseEntryExtension(fid, &l2temp_entry);		
+-//		retval = _rtl865x_addFilterDatabaseEntry((fdbEntry.nhFlag==0)?RTL865x_L2_TYPEI: RTL865x_L2_TYPEII, fid, mac, FDB_TYPE_FWD, fdbEntry.memberPortMask, fdbEntry.auth,fdbEntry.srcBlk);
++//		_rtl865x_addFilterDatabaseEntry((fdbEntry.nhFlag==0)?RTL865x_L2_TYPEI: RTL865x_L2_TYPEII, fid, mac, FDB_TYPE_FWD, fdbEntry.memberPortMask, fdbEntry.auth,fdbEntry.srcBlk);
+ 		rtl865x_refleshHWL2Table(mac, FDB_DYNAMIC|FDB_STATIC,fid);
+ 	}
+ 

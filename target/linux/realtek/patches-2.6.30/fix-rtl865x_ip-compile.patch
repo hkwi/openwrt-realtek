@@ -1,0 +1,19 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_ip.c.old	2013-06-02 13:00:15.926012867 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_ip.c	2013-06-02 13:01:05.322014080 +0300
+@@ -80,7 +80,6 @@
+ 	int i;
+ 	rtl865x_ip_entry_t *entry = NULL;
+ 	rtl865x_tblAsicDrv_extIntIpParam_t asicIp;
+-	int32 retval = FAILED;
+ 
+ 	if(ip_type < IP_TYPE_NAPT || ip_type > IP_TYPE_LOCALSERVER)
+ 		return RTL_EINVALIDINPUT;
+@@ -127,7 +126,7 @@
+ 	asicIp.nat			= (ip_type == IP_TYPE_NAT)? TRUE: FALSE;
+ 	asicIp.nhIndex		= 0;
+ 	
+-	retval = rtl8651_setAsicExtIntIpTable(IP_TABLE_INDEX(entry), &asicIp);
++	rtl8651_setAsicExtIntIpTable(IP_TABLE_INDEX(entry), &asicIp);
+ 
+ 	if(ip_type == IP_TYPE_NAPT)
+ 		rtl8651_setAsicOperationLayer(4);

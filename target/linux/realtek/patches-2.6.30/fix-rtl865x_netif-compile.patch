@@ -1,0 +1,92 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/common/rtl865x_netif.c.old	2013-06-02 11:41:42.385897039 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/common/rtl865x_netif.c	2013-06-02 11:47:55.557906209 +0300
+@@ -3846,11 +3846,6 @@
+ 
+ int  rtl865x_del_pattern_acl_for_contentFilter(rtl865x_AclRule_t *rule,char *netifName)
+ {
+-	union
+-	{
+-		char pat[4];
+-		uint32 pattern;
+-	}u;
+ 	int32 i;
+ 
+ 	rtl865x_netif_local_t	*netif;
+@@ -3868,10 +3863,6 @@
+         if(vlan == NULL)
+         	return FAILED;
+ 
+-	u.pat[0]='T';
+-	u.pat[1]='T';
+-	u.pat[2]='P';
+-	u.pat[3]='/';
+ 	for(i=0;i<RTL8651_PORT_NUMBER;i++)
+ 	{
+ 		if (vlan->memberPortMask & 1<<i) {
+@@ -4634,8 +4625,7 @@
+ extern int rtk_vlan_support_enable;
+ int32 rtl865x_reConfigDefaultAcl(char *ifName)
+ {
+-	rtl865x_AclRule_t	rule;
+-	int ret=FAILED;
++	rtl865x_AclRule_t rule;
+ 
+ 	unsigned long flags;
+ 	local_irq_save(flags);
+@@ -4648,14 +4638,14 @@
+ 			rule.ruleType_ = RTL865X_ACL_MAC;
+ 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
+ 			rule.actionType_ = RTL865X_ACL_PERMIT;
+-			ret=_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
++			_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
+ 
+ 			/*add new default permit acl*/
+ 			bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
+ 			rule.ruleType_ = RTL865X_ACL_MAC;
+ 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
+ 			rule.actionType_ = RTL865X_ACL_PERMIT;
+-			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
++			_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
+ 		}
+ 		else
+ 		{
+@@ -4664,14 +4654,14 @@
+ 			rule.ruleType_ = RTL865X_ACL_MAC;
+ 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
+ 			rule.actionType_ = RTL865X_ACL_TOCPU;
+-			ret=_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
++			_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
+ 
+ 			/*add new default to cpu acl*/
+ 			bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
+ 			rule.ruleType_ = RTL865X_ACL_MAC;
+ 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
+ 			rule.actionType_ = RTL865X_ACL_TOCPU;
+-			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
++			_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
+ 		}
+ #else
+ 		{
+@@ -4680,18 +4670,18 @@
+ 			rule.ruleType_ = RTL865X_ACL_MAC;
+ 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
+ 			rule.actionType_ = RTL865X_ACL_PERMIT;
+-			ret=_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
++			_rtl865x_del_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
+ 
+ 			/*add new default permit acl*/
+ 			bzero((void*)&rule,sizeof(rtl865x_AclRule_t));
+ 			rule.ruleType_ = RTL865X_ACL_MAC;
+ 			rule.pktOpApp_ = RTL865X_ACL_ALL_LAYER;
+ 			rule.actionType_ = RTL865X_ACL_PERMIT;
+-			ret=_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
++			_rtl865x_add_acl(&rule, ifName, RTL865X_ACL_SYSTEM_USED);
+ 		}
+ #endif
+-		local_irq_restore(flags);
++	local_irq_restore(flags);
+ 
+-		return SUCCESS;
++	return SUCCESS;
+ }
+ 

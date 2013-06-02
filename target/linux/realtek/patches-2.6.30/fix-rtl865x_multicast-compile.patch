@@ -1,0 +1,18 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_multicast.c.old	2013-06-02 12:56:42.542007622 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/l3Driver/rtl865x_multicast.c	2013-06-02 12:58:23.494010104 +0300
+@@ -1691,7 +1691,6 @@
+ 	rtl865x_tblDrv_mCast_t *mCast_t, *nextMCast_t;
+ 	rtl865x_mcast_fwd_descriptor_t *curDesc,*nextDesc;
+ 	uint32 entry;
+-	uint32 cnt;
+ 	printk("----------------------------------------------------\n");
+ 	printk("Asic Operation Layer :%d\n", rtl8651_getAsicOperationLayer());
+ 	
+@@ -1775,7 +1774,6 @@
+ 			printk("\t      extIP:0x%x,age:%d, cpu:%d, maxPPS:%d, inAsic:%d, (%s)\n", 
+ 				mCast_t->extIp,mCast_t->age, mCast_t->cpu,mCast_t->maxPPS,mCast_t->inAsic,mCast_t->unKnownMCast?"UnknownMCast":"KnownMCast");
+ 			
+-			cnt=0;
+ 			curDesc=MC_LIST_FIRST(&mCast_t->fwdDescChain);
+ 			while(curDesc)
+ 			{

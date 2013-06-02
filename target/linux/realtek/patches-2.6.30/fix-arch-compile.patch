@@ -1,0 +1,83 @@
+--- a/include/linux/pagemap.h	2013-06-01 00:11:09.206755761 +0300
++++ b/include/linux/pagemap.h	2013-06-01 00:11:54.466756873 +0300
+@@ -421,8 +421,10 @@
+ 		const char __user *end = uaddr + size - 1;
+ 
+ 		if (((unsigned long)uaddr & PAGE_MASK) !=
+-				((unsigned long)end & PAGE_MASK))
+-		 	ret = __get_user(c, end);
++				((unsigned long)end & PAGE_MASK)) {
++			ret = __get_user(c, end);
++			(void)c;
++		}
+ 	}
+ 	return ret;
+ }
+--- a/arch/rlx/mm/init.c	2013-05-31 23:48:35.526722498 +0300
++++ b/arch/rlx/mm/init.c	2013-05-31 23:48:49.186722833 +0300
+@@ -222,7 +222,6 @@
+ void __init paging_init(void)
+ {
+ 	unsigned long max_zone_pfns[MAX_NR_ZONES];
+-	unsigned long lastpfn;
+ 
+ 	pagetable_init();
+ 
+@@ -238,10 +237,8 @@
+ 	max_zone_pfns[ZONE_DMA32] = MAX_DMA32_PFN;
+ #endif
+ 	max_zone_pfns[ZONE_NORMAL] = max_low_pfn;
+-	lastpfn = max_low_pfn;
+ #ifdef CONFIG_HIGHMEM
+ 	max_zone_pfns[ZONE_HIGHMEM] = highend_pfn;
+-	lastpfn = highend_pfn;
+ #endif
+ 
+ 	free_area_init_nodes(max_zone_pfns);
+--- a/arch/rlx/mm/page-rlx.c	2013-06-01 00:23:35.690774104 +0300
++++ b/arch/rlx/mm/page-rlx.c	2013-06-01 00:26:41.074778659 +0300
+@@ -222,7 +222,7 @@
+ 
+ void __cpuinit build_clear_page(void)
+ {
+-	unsigned int loop_start;
++	//unsigned int loop_start;
+ 	unsigned long off;
+ 
+ 	epc = (unsigned int *) &clear_page_array;
+@@ -241,7 +241,7 @@
+ 	//} while (store_offset < half_scache_line_size());
+ 
+ 	build_addiu_a0(2 * store_offset);
+-	loop_start = store_offset;
++	//loop_start = store_offset;
+ 	//do {
+ 		build_store_reg(0);
+ 		build_store_reg(0);
+@@ -257,7 +257,7 @@
+ 
+ void __cpuinit build_copy_page(void)
+ {
+-	unsigned int loop_start;
++	//unsigned int loop_start;
+ 
+ 	epc = (unsigned int *) &copy_page_array;
+ 	store_offset = load_offset = 0;
+@@ -266,7 +266,7 @@
+ 	build_addiu_a2_a0(PAGE_SIZE);
+ 
+     dest = label();
+-	loop_start = store_offset;
++	//loop_start = store_offset;
+ 	//do {
+ 		build_load_reg( 8);
+ 		build_load_reg( 9);
+@@ -280,7 +280,7 @@
+ 
+ 	build_addiu_a0(2 * store_offset);
+ 	build_addiu_a1(2 * load_offset);
+-	loop_start = store_offset;
++	//loop_start = store_offset;
+ 	//do {
+ 		build_load_reg( 8);
+ 		build_load_reg( 9);

@@ -1,0 +1,20 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.c.old	2013-06-02 11:38:30.489892324 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.c	2013-06-02 11:37:36.665891001 +0300
+@@ -7807,7 +7807,7 @@
+ 
+ int32 rtl8651_setAsicEthernetLinkStatus(uint32 port, int8 linkUp)
+ {
+-	int8 notify;
++//	int8 notify;
+ //	uint32 portmask;
+ 
+ 	if (port >= (RTL8651_PORT_NUMBER+rtl8651_totalExtPortNum))
+@@ -7815,7 +7815,7 @@
+ 		return FAILED;
+ 	}
+ 
+-	notify = (rtl8651AsicEthernetTable[port].linkUp != ((linkUp==TRUE)? TRUE: FALSE))?TRUE:FALSE;
++//	notify = (rtl8651AsicEthernetTable[port].linkUp != ((linkUp==TRUE)? TRUE: FALSE))?TRUE:FALSE;
+ 
+ 
+ 	rtl8651AsicEthernetTable[port].linkUp = (linkUp == TRUE)? TRUE: FALSE;

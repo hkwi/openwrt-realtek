@@ -1,0 +1,124 @@
+--- linux-2.6.30.9/include/net/fib_rules.h	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9/include/net/fib_rules.h	2013-05-31 14:04:41.401861594 +0300
+@@ -12,7 +12,9 @@
+ 	struct list_head	list;
+ 	atomic_t		refcnt;
+ 	int			ifindex;
++	int			oifindex;
+ 	char			ifname[IFNAMSIZ];
++	char			oifname[IFNAMSIZ];
+ 	u32			mark;
+ 	u32			mark_mask;
+ 	u32			pref;
+@@ -73,6 +75,7 @@
+ 
+ #define FRA_GENERIC_POLICY \
+ 	[FRA_IFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
++	[FRA_OIFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
+ 	[FRA_PRIORITY]	= { .type = NLA_U32 }, \
+ 	[FRA_FWMARK]	= { .type = NLA_U32 }, \
+ 	[FRA_FWMASK]	= { .type = NLA_U32 }, \
+--- linux-2.6.30.9/include/linux/fib_rules.h	2013-05-31 14:06:48.877864725 +0300
++++ linux-2.6.30.9/include/linux/fib_rules.h	2013-05-31 14:09:10.837868214 +0300
+@@ -9,6 +9,7 @@
+ #define FIB_RULE_INVERT		0x00000002
+ #define FIB_RULE_UNRESOLVED	0x00000004
+ #define FIB_RULE_DEV_DETACHED	0x00000008
++#define FIB_RULE_OIF_DETACHED	0x00000010
+ 
+ /* try to find source address in routing lookups */
+ #define FIB_RULE_FIND_SADDR	0x00010000
+@@ -47,6 +48,7 @@
+ 	FRA_UNUSED8,
+ 	FRA_TABLE,	/* Extended table id */
+ 	FRA_FWMASK,	/* mask for netfilter mark */
++	FRA_OIFNAME,
+ 	__FRA_MAX
+ };
+ 
+--- linux-2.6.30.9/net/core/fib_rules.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9/net/core/fib_rules.c	2013-05-31 14:35:01.125906310 +0300
+@@ -138,6 +138,9 @@
+ 	if (rule->ifindex && (rule->ifindex != fl->iif))
+ 		goto out;
+ 
++	if (rule->oifindex && (rule->oifindex != fl->oif))
++		goto out;
++
+ 	if ((rule->mark ^ fl->mark) & rule->mark_mask)
+ 		goto out;
+ 
+@@ -258,6 +261,16 @@
+ 			rule->ifindex = dev->ifindex;
+ 	}
+ 
++	if (tb[FRA_OIFNAME]) {
++		struct net_device *dev;
++
++		rule->oifindex = -1;
++		nla_strlcpy(rule->oifname, tb[FRA_OIFNAME], IFNAMSIZ);
++		dev = __dev_get_by_name(net, rule->oifname);
++		if (dev)
++			rule->oifindex = dev->ifindex;
++	}
++
+ 	if (tb[FRA_FWMARK]) {
+ 		rule->mark = nla_get_u32(tb[FRA_FWMARK]);
+ 		if (rule->mark)
+@@ -392,6 +405,10 @@
+ 		    nla_strcmp(tb[FRA_IFNAME], rule->ifname))
+ 			continue;
+ 
++		if (tb[FRA_OIFNAME] &&
++		    nla_strcmp(tb[FRA_OIFNAME], rule->oifname))
++			continue;
++
+ 		if (tb[FRA_FWMARK] &&
+ 		    (rule->mark != nla_get_u32(tb[FRA_FWMARK])))
+ 			continue;
+@@ -448,6 +465,7 @@
+ {
+ 	size_t payload = NLMSG_ALIGN(sizeof(struct fib_rule_hdr))
+ 			 + nla_total_size(IFNAMSIZ) /* FRA_IFNAME */
++			 + nla_total_size(IFNAMSIZ) /* FRA_OIFNAME */
+ 			 + nla_total_size(4) /* FRA_PRIORITY */
+ 			 + nla_total_size(4) /* FRA_TABLE */
+ 			 + nla_total_size(4) /* FRA_FWMARK */
+@@ -488,6 +506,13 @@
+ 			frh->flags |= FIB_RULE_DEV_DETACHED;
+ 	}
+ 
++	if (rule->oifname[0]) {
++		NLA_PUT_STRING(skb, FRA_OIFNAME, rule->oifname);
++
++		if (rule->oifindex == -1)
++			frh->flags |= FIB_RULE_OIF_DETACHED;
++	}
++
+ 	if (rule->pref)
+ 		NLA_PUT_U32(skb, FRA_PRIORITY, rule->pref);
+ 
+@@ -603,6 +628,9 @@
+ 		if (rule->ifindex == -1 &&
+ 		    strcmp(dev->name, rule->ifname) == 0)
+ 			rule->ifindex = dev->ifindex;
++		if (rule->oifindex == -1 &&
++		    strcmp(dev->name, rule->oifname) == 0)
++			rule->oifindex = dev->ifindex;
+ 	}
+ }
+ 
+@@ -610,9 +638,12 @@
+ {
+ 	struct fib_rule *rule;
+ 
+-	list_for_each_entry(rule, rules, list)
++	list_for_each_entry(rule, rules, list) {
+ 		if (rule->ifindex == dev->ifindex)
+ 			rule->ifindex = -1;
++		if (rule->oifindex == dev->ifindex)
++			rule->oifindex = -1;
++	}
+ }
+ 
+ 

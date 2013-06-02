@@ -1,0 +1,11 @@
+--- linux-2.6.30.9/include/linux/un.h	2013-06-01 19:20:42.748450665 +0300
++++ linux-2.6.30.9/include/linux/un.h	2013-06-01 19:19:48.692449336 +0300
+@@ -2,7 +2,7 @@
+ #define _LINUX_UN_H
+ 
+ #define UNIX_PATH_MAX	108
+-
++typedef unsigned short	sa_family_t;
+ struct sockaddr_un {
+ 	sa_family_t sun_family;	/* AF_UNIX */
+ 	char sun_path[UNIX_PATH_MAX];	/* pathname */
