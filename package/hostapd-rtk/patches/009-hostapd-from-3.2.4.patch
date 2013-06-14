@@ -33881,21 +33881,6 @@ Only in hostapd-rtk-0.6.10/wpa_supplicant/doc/docbook: wpa_passphrase.8
 Only in hostapd-rtk-0.6.10/wpa_supplicant/doc/docbook: wpa_priv.8
 Only in hostapd-rtk-0.6.10/wpa_supplicant/doc/docbook: wpa_supplicant.8
 Only in hostapd-rtk-0.6.10/wpa_supplicant/doc/docbook: wpa_supplicant.conf.5
-diff -purbB --unidirectional-new-file -x '.*' -x '*.o' hostapd-rtk-0.6.10/wpa_supplicant/Makefile hostapd-0.6.10/wpa_supplicant/Makefile
---- hostapd-rtk-0.6.10/wpa_supplicant/Makefile	2013-05-18 17:49:32.434577219 +0300
-+++ hostapd-0.6.10/wpa_supplicant/Makefile	2013-05-02 01:48:29.779224140 +0300
-@@ -159,8 +159,9 @@ endif
- 
- ifdef CONFIG_DRIVER_REALTEK
- CFLAGS += -DCONFIG_DRIVER_REALTEK
--#CFLAGS += -DINBAND_CTRL
--LIBS += -linband
-+CFLAGS += -DINBAND_CTRL
-+CFLAGS += -I../../inband_lib
-+LIBS += ../../inband_lib/inband.a
- OBJS_d += ../src/drivers/driver_realtek.o
- CONFIG_WIRELESS_EXTENSION=y
- endif
 Only in hostapd-rtk-0.6.10/wpa_supplicant/vs2005: eapol_test
 Only in hostapd-rtk-0.6.10/wpa_supplicant/vs2005: wpa_cli
 Only in hostapd-rtk-0.6.10/wpa_supplicant/vs2005: wpa_passphrase
