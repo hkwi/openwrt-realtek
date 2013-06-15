@@ -6,7 +6,7 @@ define Profile/nprove
 	kmod-usb-storage kmod-usb-printer \
 	luci luci-app-diag-devinfo luci-app-p910nd luci-app-qos luci-app-wol \
 	librt libiw query3g maccalc libopenssl \
-	usb-modeswitch usb-modeswitch-data
+	usb-modeswitch usb-modeswitch-data usbutils
 endef
 
 define Profile/nprove/Description
