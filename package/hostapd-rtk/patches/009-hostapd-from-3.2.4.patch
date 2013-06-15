@@ -1192,44 +1192,6 @@ diff -purbB --unidirectional-new-file -x '.*' -x '*.o' hostapd-rtk-0.6.10/hostap
  # define HOSTAPD_DUMP_STATE to include SIGUSR1 handler for dumping state to
  # a file (undefine it, if you want to save in binary size)
  CFLAGS += -DHOSTAPD_DUMP_STATE
-@@ -124,8 +126,9 @@ endif
- 
- ifdef CONFIG_DRIVER_REALTEK
- CFLAGS += -DCONFIG_DRIVER_REALTEK
--#CFLAGS += -DINBAND_CTRL
--LIBS += -linband
-+CFLAGS += -DINBAND_CTRL
-+CFLAGS += -I../../inband_lib
-+LIBS += ../../inband_lib/inband.a
- OBJS += driver_realtek.o
- CONFIG_L2_PACKET=y
- endif
-@@ -362,9 +365,10 @@ OBJS += ../src/eap_server/eap_tls_common
- NEED_TLS_PRF=y
- ifeq ($(CONFIG_TLS), openssl)
- OBJS += ../src/crypto/tls_openssl.o
--LIBS += -lssl -lcrypto
--LIBS_p += -lcrypto
--LIBS_h += -lcrypto
-+#LIBS += -lssl -lcrypto
-+LIBS += -ldl ../../openssl-0.9.8b/libssl.a ../../openssl-0.9.8b/libcrypto.a
-+LIBS_p += ../../openssl-0.9.8b/libcrypto.a
-+LIBS_h += ../../openssl-0.9.8b/libcrypto.a
- endif
- ifeq ($(CONFIG_TLS), gnutls)
- OBJS += ../src/crypto/tls_gnutls.o
-@@ -611,6 +615,11 @@ clean:
- 	rm -f core *~ *.o hostapd hostapd_cli nt_password_hash hlr_auc_gw
- 	rm -f *.d
- 
-+romfs:
-+	$(ROMFSINST) hostapd /bin/hostapd
-+	$(ROMFSINST) hostapd_cli /bin/hostapd_cli
-+	cp conf/* $(DIR_ROMFS)/etc
-+
- %.eps: %.fig
- 	fig2dev -L eps $*.fig $*.eps
- 
 Only in hostapd-rtk-0.6.10/: ipkg-realtek
 Only in hostapd-rtk-0.6.10/patches: 001-common-diff.patch
 Only in hostapd-rtk-0.6.10/patches: 002-common-files.patch
