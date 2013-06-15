@@ -99,6 +99,7 @@ ifeq ($(CONFIG_TARGET_realtek),y)
 		echo "CONFIG_RTL_LINUX_IMAGE_OFFSET=0x${CONFIG_REALTEK_KERNEL_OFFSET}" >> $(LINUX_DIR)/.config.target
 		echo "CONFIG_RTL_ROOT_IMAGE_OFFSET=0x${CONFIG_REALTEK_ROOTFS_OFFSET}" >> $(LINUX_DIR)/.config.target
 		echo "CONFIG_RTL_KERNEL_LOAD_ADDRESS=${CONFIG_REALTEK_KERNEL_LOAD_ADDRESS}"  >> $(LINUX_DIR)/.config.target
+		echo "CONFIG_RTL_FLATFS_IMAGE_OFFSET=${CONFIG_REALTEK_FLATFS_IMAGE_OFFSET}"  >> $(LINUX_DIR)/.config.target
 endif
 	echo "# CONFIG_KALLSYMS_EXTRA_PASS is not set" >> $(LINUX_DIR)/.config.target
 	echo "# CONFIG_KALLSYMS_ALL is not set" >> $(LINUX_DIR)/.config.target

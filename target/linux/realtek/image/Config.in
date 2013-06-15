@@ -18,3 +18,7 @@ config REALTEK_FLASH_SIZE
 	depends TARGET_realtek
 	default "0x800000"
 
+config REALTEK_FLATFS_IMAGE_OFFSET
+	string "FLATFS image offset in flash"
+	depends TARGET_realtek
+	default "0x3E0000"
