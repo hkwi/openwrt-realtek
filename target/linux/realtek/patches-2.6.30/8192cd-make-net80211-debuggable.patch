@@ -1,0 +1,31 @@
+--- linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_debug.h	2013-06-29 15:37:41.974461999 +0300
++++ linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_debug.h	2013-06-29 17:09:39.338236185 +0300
+@@ -64,6 +64,7 @@
+ 	_DM_ =			0x00100000,
+ 	_88E_HW_ =		0x00200000,
+ 	_DFS_ =			0x00400000,
++	_NET80211_ =		0x00800000,
+ 	_MESH_SME_ =	0x02000000,
+ 	_MESH_SECURITY_ =	0x04000000,
+ 	_MESH_TX_ =		0x08000000,
+@@ -77,6 +78,10 @@
+ 	#define _MODULE_DEFINE _OSDEP_
+ 	#define _MODULE_NAME	"osdep"
+ 
++#elif defined(_8192CD_NET80211_C_)
++	#define _MODULE_DEFINE _NET80211_
++	#define _MODULE_NAME	"net80211"
++
+ #elif defined(_8192CD_SME_C_)
+ 	#define _MODULE_DEFINE _SME_
+ 	#define _MODULE_NAME	"sme"
+--- linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_net80211.c	2013-06-29 15:37:41.982461999 +0300
++++ linux-2.6.30.9/drivers/net/wireless/rtl8192cd/8192cd_net80211.c	2013-06-29 17:00:44.566258072 +0300
+@@ -9,6 +9,7 @@
+  *  it under the terms of the GNU General Public License version 2 as
+  *  published by the Free Software Foundation.
+  */
++#define _8192CD_NET80211_C_
+ 
+ #ifdef __KERNEL__
+ #include <linux/module.h>
