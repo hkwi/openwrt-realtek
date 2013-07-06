@@ -1,20 +1,22 @@
---- a/arch/rlx/include/asm/string.h	2013-02-04 03:15:32.687233694 +0200
-+++ b/arch/rlx/include/asm/string.h	2013-02-06 00:51:37.319166238 +0200
-@@ -90,7 +90,7 @@
+--- a/arch/rlx/include/asm/string.h	2013-07-05 11:57:03.546423601 +0300
++++ b/arch/rlx/include/asm/string.h	2013-07-05 11:37:00.962520944 +0300
+@@ -90,7 +90,8 @@
  	"3:\t.set\tat\n\t"
  	".set\treorder"
  	: "=r" (__cs), "=r" (__ct), "=r" (__res)
 -	: "0" (__cs), "1" (__ct),  "m" (*__cs), "m" (*__ct));
-+	: "0" (__cs), "1" (__ct));
++	: "0" (__cs), "1" (__ct)
++	: "memory");
  
    return __res;
  }
-@@ -123,7 +123,7 @@
+@@ -123,7 +124,8 @@
  	".set\tat\n\t"
  	".set\treorder"
  	: "=r" (__cs), "=r" (__ct), "=r" (__count), "=r" (__res)
 -	: "0" (__cs), "1" (__ct), "2" (__count), "m" (*__cs), "m" (*__ct));
-+	: "0" (__cs), "1" (__ct), "2" (__count));
++	: "0" (__cs), "1" (__ct), "2" (__count)
++	: "memory");
  
  	return __res;
  }
