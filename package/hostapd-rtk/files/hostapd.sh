@@ -26,7 +26,7 @@ hostapd_set_bss_options() {
 	config_get max_num_sta "$device" max_num_sta
 	[ -n $max_num_sta ] && max_num_sta="31"
 	append "$var" "max_num_sta=$max_num_sta" "$N"
-	
+
 	append "$var" "ctrl_interface=/var/run/hostapd-$phy" "$N"
 	append "$var" "wmm_enabled=1" "$N"
 
@@ -289,6 +289,34 @@ hostapd_setup_vif() {
 
 	hostapd_set_log_options hostapd_cfg "$device"
 	hostapd_set_bss_options hostapd_cfg "$vif"
+
+	if [ "$driver" = "realtek" ]; then
+		config_get htmode "$device" htmode
+		case "$htmode" in
+			*HT40-*)
+				append hostapd_cfg "use40M=1" "$N"
+				append hostapd_cfg "shortGI40M=1" "$N"
+				append hostapd_cfg "2ndchoffset=1" "$N"
+			;;
+			*HT40+*)
+				append hostapd_cfg "use40M=1" "$N"
+				append hostapd_cfg "shortGI40M=1" "$N"
+				append hostapd_cfg "2ndchoffset=2" "$N"
+			;;
+			*)
+				append hostapd_cfg "use40M=0" "$N"
+				append hostapd_cfg "shortGI40M=0" "$N"
+				append hostapd_cfg "2ndchoffset=0" "$N"
+			;;
+		esac
+
+		# for 40MHz only mode
+		#TODO: enable after realtek merge with hostapd?
+		#append hostapd_cfg "coexist=0" "$N"
+
+		# enable Space-Time Block Coding for better throughput
+		append hostapd_cfg "stbc=1" "$N"
+	fi
 
 	case "$hwmode" in
 		*bg|*gdt|*gst|*fh) hwmode=g;;

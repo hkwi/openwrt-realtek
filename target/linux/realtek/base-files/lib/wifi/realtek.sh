@@ -73,6 +73,7 @@ disable_realtek() (
 
 	echo disable_realtek phy=$phy device=$device
 
+	#doesn't work?
 	set_wifi_down "$device"
 
 	include /lib/network
@@ -86,8 +87,9 @@ disable_realtek() (
 #	done
 
 	echo unbridge "$phy"
-
 	unbridge "$phy"
+	ifconfig "$phy" down
+
 	return 0
 )
 
@@ -117,7 +119,7 @@ enable_realtek() {
 			sta)
 				iwconfig "$phy" mode managed
 				config_get addr "$device" bssid
-				[ -z "$addr" ] || { 
+				[ -z "$addr" ] || {
 					iwconfig "$phy" ap "$addr"
 				}
 			;;
@@ -132,7 +134,7 @@ enable_realtek() {
 			[ -n "$rate" ] && iwconfig "$phy" rate "${rate%%.*}"
 
 			config_get_bool hidden "$vif" hidden 0
-			iwpriv "$phy" enh_sec "$hidden"
+			iwpriv "$phy" set_mib hiddenAP="$hidden"
 
 			config_get frag "$vif" frag
 			[ -n "$frag" ] && iwconfig "$phy" frag "${frag%%.*}"
@@ -187,19 +189,59 @@ enable_realtek() {
 
 		local net_cfg bridge
 		net_cfg="$(find_net_config "$vif")"
-		echo net_cfg=$net_cfg
-		[ -z "$net_cfg" ] || {
-			bridge="$(bridge_interface "$net_cfg")"
-			echo vif=$vif bridge=$bridge
-			echo tree config_set "$vif" bridge "$bridge"
-			config_set "$vif" bridge "$bridge"
-			echo house start_net "$ifname" "$net_cfg"
+		echo net_cfg=$net_cfg > /dev/ttyS0
+		# dirty workaround for wlan0 not appearing when router is started
+		bridge="br-lan"
 
-			set | grep CONFIG_
+		# set led to link/tx/rx (data,management) mode
+		# have to be here because router will lock in wlan0 will be up durig this
+		iwpriv "$ifname" set_mib led_type=11
+
+		sleep 4
+		brctl show > /dev/ttyS0
+		[ -z "$net_cfg" ] || {
+			#bridge="$(bridge_interface "$net_cfg")"
+			echo vif=$vif bridge=$bridge > /dev/ttyS0
+			echo tree config_set "$vif" bridge "$bridge" > /dev/ttyS0
+			config_set "$vif" bridge "$bridge"
+			echo house start_net "$ifname" "$net_cfg" > /dev/ttyS0
+
+			set | grep CONFIG_ > /dev/ttyS0
 			start_net "$ifname" "$net_cfg"
 		}
+		sleep 1
+		brctl show > /dev/ttyS0
 
+		# start hostapd anyway for now, it's much more stable than native ap mode
+		start_hostapd=1
 
+		[ -n "$start_hostapd" ] || {
+			config_get htmode "$device" htmode
+			case "$htmode" in
+				*HT40-*)
+					iwpriv "$ifname" set_mib use40M=1
+					iwpriv "$ifname" set_mib shortGI40M=1
+					iwpriv "$ifname" set_mib 2ndchoffset=1
+				;;
+				*HT40+*)
+					iwpriv "$ifname" set_mib use40M=1
+					iwpriv "$ifname" set_mib shortGI40M=1
+					iwpriv "$ifname" set_mib 2ndchoffset=2
+				;;
+			esac
+
+			# for 40MHz only mode
+			#TODO: enable after realtek merge with hostapd?
+			#iwpriw "$ifname" set_mib coexist=0
+
+			# enable Space-Time Block Coding for better throughput
+			#iwpriv "$ifname" set_mib stbc=1
+
+			#sleep 1
+			ifconfig "$ifname" up
+		}
+
+		#doesn't work?
 		set_wifi_up "$vif" "$ifname"
 
 		case "$mode" in
@@ -257,6 +299,9 @@ config wifi-device wlan$devidx
 	option type	realtek
 	option channel  11
 	option macaddr	$(cat /sys/class/net/${dev}/address)
+	#TODO: enable after realtek merge with hostapd
+	#option hwmode	11ng
+	option htmode	HT40-
 
 	# UNCOMMENT THIS LINE TO DISABLE WIFI:
 	# option disabled 1
