@@ -193,6 +193,11 @@ enable_realtek() {
 		# dirty workaround for wlan0 not appearing when router is started
 		bridge="br-lan"
 
+		# set mac address from /etc/config/wireless
+		local macaddr
+		config_get macaddr "$device" macaddr
+		[ -z "$macaddr" ] || ifconfig "$device" hw ether "$macaddr"
+
 		# set led to link/tx/rx (data,management) mode
 		# have to be here because router will lock in wlan0 will be up durig this
 		iwpriv "$ifname" set_mib led_type=11
@@ -216,6 +221,7 @@ enable_realtek() {
 		start_hostapd=1
 
 		[ -n "$start_hostapd" ] || {
+			local htmode
 			config_get htmode "$device" htmode
 			case "$htmode" in
 				*HT40-*)
