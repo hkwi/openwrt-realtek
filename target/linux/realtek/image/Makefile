@@ -31,13 +31,17 @@ define Image/Build/jffs2-4k
 endef
 
 
+BS_KERNEL=$$$$((`printf %d 0x${CONFIG_REALTEK_ROOTFS_OFFSET}`-`printf %d 0x${CONFIG_REALTEK_KERNEL_OFFSET}`))
+BS_ROOTFS=$$$$((`printf %d ${CONFIG_REALTEK_FLASH_SIZE}`-`printf %d 0x${CONFIG_REALTEK_ROOTFS_OFFSET}`))
 define Image/Build/squashfs
 	$(call prepare_generic_squashfs,$(KDIR)/root.squashfs)
 	dd if=$(KDIR)/root.$(1) of=$(BIN_DIR)/$(IMG_PREFIX)-$(1).img bs=128k conv=sync
 	cvimg root $(BIN_DIR)/$(IMG_PREFIX)-$(1).img $(BIN_DIR)/$(IMG_PREFIX)-$(1).bin F0000 ${CONFIG_REALTEK_ROOTFS_OFFSET}
+	echo "BS_KERNEL=$(BS_KERNEL)"
+	echo "BS_ROOTFS=$(BS_ROOTFS)"
 	( \
-		dd if=$(BIN_DIR)/$(IMG_PREFIX)-kernel.bin bs=1088k conv=sync; \
-		dd if=$(KDIR)/root.$(1) bs=6912k conv=sync; \
+		dd if=$(BIN_DIR)/$(IMG_PREFIX)-kernel.bin bs=$(BS_KERNEL) conv=sync; \
+		dd if=$(BIN_DIR)/$(IMG_PREFIX)-$(1).img bs=$(BS_ROOTFS) conv=sync; \
 	) > $(BIN_DIR)/$(IMG_PREFIX)-$(1)-sysupgrade.img
 endef
 
