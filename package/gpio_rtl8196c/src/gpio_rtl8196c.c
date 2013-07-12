@@ -11,6 +11,7 @@
 #include <linux/gpio.h>
 #include <linux/stat.h>
 #include <linux/moduleparam.h>
+#include <linux/irq.h>
 
 ////////////////////////////////////////////////////////////////////////
 //DEBUG macroses
@@ -186,6 +187,12 @@ static void gpio_rtl8196c_set( struct gpio_chip *chip, unsigned int gpio, int va
 }
 
 ////////////////////////////////////////////////////////////////////////
+static int gpio_rtl8196c_to_irq(struct gpio_chip *chip, unsigned offset)
+{
+	return -EINVAL;
+}
+
+////////////////////////////////////////////////////////////////////////
 //init module
 struct rtl_gpio_chip gpio_rtl8196c = 
 {
@@ -195,6 +202,7 @@ struct rtl_gpio_chip gpio_rtl8196c =
 		.get =			gpio_rtl8196c_get,
 		.direction_output =	gpio_rtl8196c_dir_out,
 		.set =			gpio_rtl8196c_set,
+		.to_irq =		gpio_rtl8196c_to_irq,
 		.base =			0,
 		.ngpio =		32,
 	},
