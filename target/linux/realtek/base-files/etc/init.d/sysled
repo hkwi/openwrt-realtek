@@ -1,0 +1,15 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+
+start() {
+        insmod /lib/modules/2.6.30.9/gpio_rtl8196c.ko
+        echo 0x340fff > /sys/module/gpio_rtl8196c/parameters/rtl8196c_mux
+        echo 6 > /sys/class/gpio/export
+        echo "out" > /sys/class/gpio/gpio6/direction
+        echo "0" > /sys/class/gpio/gpio6/value
+} 
+
+stop() {
+        rmmod gpio_rtl8196c
+}
