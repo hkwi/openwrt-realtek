@@ -1,0 +1,13 @@
+{"data":
+	[
+	{"usbid":"12d1:1001","manufacture":"huawei",           "model":"e173",   "serialportnum":"", "serialport":"0","cmds":"",                      "distributor":"lmt",        "reset":"0"},
+	{"usbid":"12d1:1001","manufacture":"huawei",           "model":"e1752",  "serialportnum":"3","serialport":"2","cmds":"",                      "distributor":"chinaunicom","reset":"0"},
+	{"usbid":"12d1:1001","manufacture":"huawei",           "model":"e261",   "serialportnum":"3","serialport":"0","cmds":"",                      "distributor":"chinaunicom","reset":"0"},
+	{"usbid":"12d1:1003","manufacture":"huawei",           "model":"e180",   "serialportnum":"2","serialport":"0","cmds":"",                      "distributor":"asd",        "reset":"0"},
+	{"usbid":"19d2:0052","manufacture":"zteincorporated", "model":"k3565-z","serialportnum":"4","serialport":"1","cmds":"",                      "distributor":"vodafone",   "reset":"0"},
+	{"usbid":"19d2:0117","manufacture":"ztecorporation",  "model":"mf190",  "serialportnum":"3","serialport":"2","cmds":"AT+ZOPRT=5;AT+ZCDRUN=8","distributor":"",           "reset":"0"},
+	{"usbid":"19d2:fff1","manufacture":"zteincorporated", "model":"ac27xx", "serialportnum":"5","serialport":"3","cmds":"",                      "distributor":"",           "reset":"0"},
+	{"usbid":"19d2:",    "manufacture":"zteincorporated", "model":"ac682",  "serialportnum":"", "serialport":"", "cmds":"",                      "distributor":"",           "reset":"0"},
+	{"usbid":"0685:7000","manufacture":"hdspa",            "model":"",       "serialportnum":"", "serialport":"2","cmds":"",                      "distributor":"",           "reset":"0"},
+	]
+}

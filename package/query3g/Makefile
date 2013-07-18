@@ -1,4 +1,4 @@
-#
+##
 # Copyright (C) 2012 Jo-Philipp Wich <xm@subsignal.org>
 #
 # This is free software, licensed under the GNU General Public License v2.
@@ -15,7 +15,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/query3g
   SECTION:=utils
   CATEGORY:=Utilities
-  DEPENDS:=+usbreset +comgt
+  DEPENDS:=+usbreset +comgt +libubox +libjson
   TITLE:=Utility to find 3G dongle information
   MAINTAINER:=Jo-Philipp Wich <xm@subsignal.org>
 endef
@@ -25,13 +25,15 @@ define Package/query3g/description
 endef
 
 define Build/Compile
+	echo "--------------------------------"
+	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -ljson -o $(PKG_BUILD_DIR)/apnprovider src/apnprovider.c
+	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -ljson -o $(PKG_BUILD_DIR)/modemname src/modemname.c
 endef
 
 define Package/query3g/install
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) ./files/query3g.sh $(1)/usr/bin/query3g
-	$(INSTALL_DIR) $(1)/usr/share
-	$(INSTALL_DATA) ./files/query3g.gcom $(1)/usr/share/query3g.gcom	
+	$(INSTALL_DIR) $(1)/
+	$(CP) ./files/* $(1)/
+	$(CP) $(PKG_BUILD_DIR)/apnprovider $(1)/usr/bin/apnprovider
 endef
 
 $(eval $(call BuildPackage,query3g))
