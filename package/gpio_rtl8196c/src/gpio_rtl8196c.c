@@ -17,7 +17,11 @@
 //DEBUG macroses
 #define MOD_NAME "gpio_rtl8196c"
 
-#define PRINT( format, args ...) printk( "%15s:%3d = " format, MOD_NAME,__LINE__, ##args)
+#ifdef DEBUG
+	#define PRINT( format, args ...) printk( "%15s:%3d = " format, MOD_NAME,__LINE__, ##args)
+#else
+	#define PRINT( format, args ...) ;
+#endif
 
 ////////////////////////////////////////////////////////////////////////
 #define RTL8196C_BASE_ADDR		0xb8000000
