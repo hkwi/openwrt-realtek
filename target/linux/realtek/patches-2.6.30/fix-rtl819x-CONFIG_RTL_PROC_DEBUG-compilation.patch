@@ -1,0 +1,100 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.c	2013-07-11 16:42:12.136684441 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.c	2013-07-16 15:50:22.642455196 +0300
+@@ -8066,7 +8066,7 @@
+ 	return SUCCESS;
+ }
+ 
+-#ifdef CONFIG_RTK_VOIP_QOS
++#if defined (CONFIG_RTK_VOIP_QOS) || defined (CONFIG_RTL_PROC_DEBUG)
+ 
+ int32 rtl8651_reset_dscp_priority(void)
+ {
+--- linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.h	2013-05-26 01:05:20.729030792 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.h	2013-07-16 13:16:59.110200174 +0300
+@@ -383,7 +383,7 @@
+ int32 rtl8651_setAsicDscpPriority( uint32 dscp, enum PRIORITYVALUE priority );
+ int32 rtl8651_getAsicDscpPriority( uint32 dscp, enum PRIORITYVALUE *pPriority );
+ 
+-#ifdef CONFIG_RTK_VOIP_QOS
++#if defined (CONFIG_RTK_VOIP_QOS) || defined (CONFIG_RTL_PROC_DEBUG)
+ int32 rtl8651_reset_dscp_priority(void);
+ int32 rtl8651_cpu_tx_fc(int enable);
+ int32 rtl8651_setQueueNumber(int port, int qnum);
+--- linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/rtl865xc_asicregs.h	2013-05-26 01:05:20.734030792 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/AsicDriver/rtl865xc_asicregs.h	2013-07-16 17:28:15.825979792 +0300
+@@ -1821,7 +1821,7 @@
+ #define IQ_DSC_FCOFF_MASK                  (0xff<<0)             /* Mask for input Queue Flow control turn ON descriptor threshold */
+ //#endif
+ 
+-#ifdef  CONFIG_RTK_VOIP_QOS
++#if defined (CONFIG_RTK_VOIP_QOS) || defined (CONFIG_RTL_PROC_DEBUG)
+ #define PSRP6_RW			    (SWCORE_BASE+0x4600)  /*CPU Port Status : R/W */
+ #endif
+ 
+--- linux-2.6.30.9/drivers/net/rtl819x/rtl865x_proc_debug.c	2013-07-16 11:58:47.132579965 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/rtl865x_proc_debug.c	2013-07-16 13:31:24.185130151 +0300
+@@ -3150,7 +3150,7 @@
+ 	int16 age;
+ 	uint32 idx;
+ 	uint32 sip,dip;
+-	uint32 srcPort,svid,mbr;
++	uint32 mbr;
+ 	int32	i;
+ 
+ 	if(len>512)
+@@ -3228,29 +3228,28 @@
+ 		entry.extPortList 		= mbr >> RTL8651_PORT_NUMBER;
+ #endif
+ 
++#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
++#else
+ 		/*svid*/
+ 		tokptr = strsep(&strptr," ");
+ 		if (tokptr==NULL)
+ 		{
+ 			goto errout;
+ 		}
+-		svid= simple_strtol(tokptr, NULL, 0);
+-#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+-#else
++		uint32 svid= simple_strtol(tokptr, NULL, 0);
+ 		entry.srcVidH 			= ((svid)>>4) &0xff;
+ 		entry.srcVidL 			= (svid)&0xf;
+ #endif
+ 
++#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
++#else
+ 		/*spa*/
+ 		tokptr = strsep(&strptr," ");
+ 		if (tokptr==NULL)
+ 		{
+ 			goto errout;
+ 		}
+-		srcPort= simple_strtol(tokptr, NULL, 0);
+-#if defined (CONFIG_RTL8196C_REVISION_B) || defined (CONFIG_RTL8198_REVISION_B) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
+-#else
+-
++		uint32 srcPort= simple_strtol(tokptr, NULL, 0);
+ 		if (srcPort>= RTL8651_PORT_NUMBER)
+ 		{
+ 
+@@ -3738,7 +3737,7 @@
+ 	int		len;
+ 	int 		dscp;
+ 	int 		priority;	
+-	extern int32 rtl8651_getAsicDscpPriority( uint32 ,  enum PRIORITYVALUE*);
++	//extern int32 rtl8651_getAsicDscpPriority( uint32 ,  enum PRIORITYVALUE*);
+ 	len = sprintf(page, "Dump DSCP Priority Info:\n");
+         for(dscp = 0;dscp < 64;dscp ++)
+         {
+@@ -3751,8 +3750,8 @@
+ static int32 dscp_priority_write( struct file *filp, const char *buff,unsigned long len, void *data )
+ {
+ 
+-	extern int32 rtl8651_setAsicDscpPriority( uint32 , enum PRIORITYVALUE);
+-	extern int32 rtl8651_reset_dscp_priority(void);
++	//extern int32 rtl8651_setAsicDscpPriority( uint32 , enum PRIORITYVALUE);
++	//extern int32 rtl8651_reset_dscp_priority(void);
+         char tmpbuf[16], *tokptr, *strptr;
+         int     dscp;
+         int     priority;
