@@ -33,6 +33,14 @@
  
 --- linux-2.6.30.9/drivers/net/rtl819x/rtl865x_proc_debug.c	2013-07-16 11:58:47.132579965 +0300
 +++ linux-2.6.30.9/drivers/net/rtl819x/rtl865x_proc_debug.c	2013-07-16 13:31:24.185130151 +0300
+@@ -17,6 +17,7 @@
+ #include "common/rtl865x_netif_local.h"
+ #include "common/rtl865x_eventMgr.h"
+ #include "common/rtl_utils.h"
++#include "common/rtl865x_vlan.h"
+ 
+ #ifdef CONFIG_RTL_LAYERED_DRIVER_L3
+ #include <net/rtl/rtl865x_ppp.h>
 @@ -3150,7 +3150,7 @@
  	int16 age;
  	uint32 idx;
