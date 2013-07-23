@@ -1,15 +1,18 @@
 #!/bin/sh
 DATA_DIR=./data
 GCOM=comgt
-GCOM_MODEMDETECT="/usr/share/3gmodem/model.gcom"
+GCOM_MODEMDETECT="/usr/share/query3g.gcom"
 MODEM_INFO="modemname.sh"
 RETURN_APN=$DATA_DIR/apnprovider
 usbreset=/usr/bin/usbreset
 GCOM_CMD="/tmp/cmds.gcom"
+GCOM_OUT="/tmp/gcom.out"
 
 detect_model()
 {
-	$GCOM -d $1 $2 | tail -n 1
+	#$1 device
+	#$2 script
+	$GCOM -d $1 -s $2 >> $GCOM_OUT
 }
 
 modem_info()
@@ -28,6 +31,7 @@ gcomscr_start()
 
  send \"AT^m\"
  waitfor 1 \"OK\",\"ERROR\" " >> $GCOM_CMD 
+ 
 }
 
 gcomscr_add_cmd()
@@ -76,6 +80,10 @@ gcomscr_run()
 	$GCOM -d $1 $GCOM_CMD
 }
 
+rm -f /tmp/modem3g.*
+rm -f $GCOM_OUT
+rm -f $GCOM_CMD
+
 skip_cycles=0
 skip_passed=0
 known_modems=""
@@ -94,19 +102,21 @@ for port in 0 1 2 3 4 5 6 7 8 9; do
 		pid="$(cat "$tty/../../idProduct")"
 		#echo $dir
 		#echo $uid
-		echo "DEVICE:"$dev
+		#echo "PORT:"$dev
 		#echo $vid":"$pid
 		
-		ret=$(detect_model "$dev" $GCOM_MODEMDETECT)
-		#echo $ret
-		manuf=$(echo $ret | cut -d',' -f1 | tr '[A-Z]' '[a-z]' )
-		model=$(echo $ret | cut -d',' -f2 | tr '[A-Z]' '[a-z]' )
-		serialnum=$(echo $ret | cut -d',' -f3 )
-		echo "MODEL: "$model
-		echo "MANUF: "$manuf
-		echo "SERIAL:"$serialnum
+		$GCOM -d $dev -s $GCOM_MODEMDETECT > $GCOM_OUT
+		model=$( echo `awk -F ':' '{if ($1=="DEVICE") {gsub(/^ */,"",$2);l_a=split($2,a," ");print a[l_a]}}' $GCOM_OUT | tr '[A-Z]' '[a-z]'` )
+		serialnum=$( echo `awk -F ':' '{if ($1=="SERIAL") {gsub(/^ */,"",$2);print $2}}' $GCOM_OUT` )
+		manuf=$(echo `awk -F ':' '{if ($1=="DEVICE") {gsub(/^ */,"",$2);l_a=split($2,a," ");r="";for(i=1;i<l_a;i++)r=r""a[i]" ";gsub(/[[:space:]]*/,"",r); print r}}' $GCOM_OUT | tr '[A-Z]' '[a-z]'`)
 		
-		#FILE="/tmp/modem3g.$serialnum"
+		if [ "$model" != "" ] && [ "$manuf" != "" ]; then
+			manuf="${manuf//[[:space:]]/}"
+			#echo "DEVICE:["$manuf"] ["$model"]"
+			#echo "IMEI:"$serialnum
+		fi
+		
+		FILE="/tmp/modem3g.$serialnum"
 		#echo "FILE:"$FILE
 		if [ -f $FILE ]; then
 			found=1
@@ -119,21 +129,23 @@ for port in 0 1 2 3 4 5 6 7 8 9; do
 			if [ $found -eq 0 ]; then
 				touch /tmp/modem3g.$serialnum
 				manuf="${manuf//[[:space:]]/}"
+				#echo "$manuf" $model
 				ret=$(modem_info "$manuf" $model)
 				reti="$?"
-				##echo "modem_info == "$ret
+				#echo "modem_info == "$ret
 				#echo "reti"$reti
 				if [ "$reti" == "0" ];then
-					echo "FOUND 3G MODEM "$model" "$manuf"?"
+					#echo "FOUND 3G MODEM "$model" "$manuf"?"
 					#echo "ret="$ret
-					#read usbid TMP TMP serialportnum serialport cmds reset<<<$(IFS=",";echo $ret)
+					
+					
 					tmp="/tmp/tmp.txt"
-					echo "$ret" >> $tmp
-					usbid=`awk -F "," '{print $1}' $tmp`
-					serialportnum=`awk -F "," '{print $4}' $tmp`
-					serialport=`awk -F "," '{print $5}' $tmp`
-					cmds=`awk -F "," '{print $6}' $tmp`
-					reset=`awk -F "," '{print $7}' $tmp`
+						echo "$ret" >> $tmp
+						usbid=`awk -F "," '{print $1}' $tmp`
+						serialportnum=`awk -F "," '{print $4}' $tmp`
+						serialport=`awk -F "," '{print $5}' $tmp`
+						cmds=`awk -F "," '{print $6}' $tmp`
+						reset=`awk -F "," '{print $7}' $tmp`
 					rm -f $tmp
 					
 					
@@ -143,7 +155,7 @@ for port in 0 1 2 3 4 5 6 7 8 9; do
 					#echo serialport "$serialport"
 					
 					if [ "$reset" == "1" ]; then
-						echo "RESET MODEM"
+						#echo "RESET MODEM"
 						$usbreset "$vid:$pid" >/dev/null
 					fi
 					
@@ -161,12 +173,20 @@ for port in 0 1 2 3 4 5 6 7 8 9; do
 						gcomscr_end
 						gcomscr_run $dev
 					fi
+					
+					awk '1' $GCOM_OUT
+					
+					echo "PORT:$dev"
+					echo "VID:$vid"
+					echo "PID:$pid"
+					echo "UID:$uid"
+					exit 0
 				fi
 			fi
 		fi
 	done
 done
-rm -f /tmp/modem3g.*
+
 
 exit 1
 

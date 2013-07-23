@@ -139,6 +139,12 @@ opengt
 
 
 :next1
+ let $c="AT+CGSN^m"
+ gosub readatcmdnr
+ let $n=$s
+ print "\nIMEI: ",$n,""
+
+
  let $c="AT+CREG=2; +CREG?^m"
  let $r="+CREG"
  gosub readatcmd
@@ -150,6 +156,8 @@ opengt
  let $c="AT+CGEQNEG=1^m"
  let $r="+CGEQNEG"
  gosub readatcmd
+
+
 
  let $c="ATE1; +CGMM^m"
  gosub readatcmdnr
