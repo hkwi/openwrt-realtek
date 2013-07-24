@@ -7,6 +7,7 @@ RETURN_APN=$DATA_DIR/apnprovider
 usbreset=/usr/bin/usbreset
 GCOM_CMD="/tmp/cmds.gcom"
 GCOM_OUT="/tmp/gcom.out"
+APN_CNVRT="apnprovider"
 
 detect_model()
 {
@@ -81,7 +82,7 @@ gcomscr_run()
 }
 
 rm -f /tmp/modem3g.*
-rm -f $GCOM_OUT
+rm -f $GCOM_OUT*
 rm -f $GCOM_CMD
 
 skip_cycles=0
@@ -106,9 +107,19 @@ for port in 0 1 2 3 4 5 6 7 8 9; do
 		#echo $vid":"$pid
 		
 		$GCOM -d $dev -s $GCOM_MODEMDETECT > $GCOM_OUT
+		
 		model=$( echo `awk -F ':' '{if ($1=="DEVICE") {gsub(/^ */,"",$2);l_a=split($2,a," ");print a[l_a]}}' $GCOM_OUT | tr '[A-Z]' '[a-z]'` )
 		serialnum=$( echo `awk -F ':' '{if ($1=="SERIAL") {gsub(/^ */,"",$2);print $2}}' $GCOM_OUT` )
 		manuf=$(echo `awk -F ':' '{if ($1=="DEVICE") {gsub(/^ */,"",$2);l_a=split($2,a," ");r="";for(i=1;i<l_a;i++)r=r""a[i]" ";gsub(/[[:space:]]*/,"",r); print r}}' $GCOM_OUT | tr '[A-Z]' '[a-z]'`)
+		
+		#apn=$(echo `awk -F':' '{if ($1=="+COPS"){l_s=split($2,s,"\"");if(length(s[2])==5){print s[2];}}}' $GCOM_OUT`)
+		#ret="$($APN_CNVRT $apn)"
+		#if [ "$?" == "0" ]; then
+		#	apn_fullname=$(echo "$ret" | cut -d',' -f4 | tr -d ' ')
+		#	ret=$(echo -e "awk '{gsub(/$apn/,\"$apn_fullname\");print}' $GCOM_OUT")
+		#	eval $ret > $GCOM_OUT.p
+		#	mv $GCOM_OUT.p $GCOM_OUT
+		#fi
 		
 		if [ "$model" != "" ] && [ "$manuf" != "" ]; then
 			manuf="${manuf//[[:space:]]/}"

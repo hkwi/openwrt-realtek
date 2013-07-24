@@ -9,6 +9,7 @@
 int main( int argc, char **argv )
 {
 	int ret=0;
+	int i,j,k;
 	int cnt_apn=0;
 	if ( argc != 2 )
 	{
@@ -29,7 +30,6 @@ int main( int argc, char **argv )
 	memcpy( mnc, apnnumber+3 , 2 );
 	mnc[2] = 0;
 	
-	int i;
 	struct json_object *jo = json_object_from_file( FNAME );
 	if ( jo == NULL )
 	{
@@ -60,6 +60,9 @@ int main( int argc, char **argv )
 		struct json_object *jmnc = json_object_object_get( obj, "mnc" );
 		struct json_object *jname = json_object_object_get( obj, "name" );
 		struct json_object *jfullname = json_object_object_get( obj, "fullname" );
+		struct json_object *jstatus = json_object_object_get( obj, "status" );
+		struct json_object *jgsmband = json_object_object_get( obj, "gsmband" );
+		struct json_object *jarr[] = { jmcc, jmnc, jname, jfullname, jstatus, jgsmband };
 		if ( (jmcc != NULL) && (jmnc != NULL) && ( (jname != NULL) || (jfullname != NULL) ) )
 		{
 			const char *tmp_mcc = json_object_to_json_string( jmcc );
@@ -72,12 +75,20 @@ int main( int argc, char **argv )
 			{
 				continue;
 			}
-			printf("%s ", tmp_mcc );
-			printf("%s ", tmp_mnc );
-			if ( jname != NULL )
-				printf("%s ", json_object_to_json_string( jname ) );
-			if ( jfullname != NULL )
-				printf("%s ", json_object_to_json_string( jfullname ) );
+			for (j=0; j<6; j++,(j<6)?printf(","):0)
+			{
+				if ( jarr[j] != NULL )
+				{
+					const char *str = json_object_to_json_string( jarr[j] );
+					k=1;
+					while (str[k+1]!=0x0)
+					{
+						if (str[k] != '\\')
+							putc(str[k],stdout);
+						k++;
+					}
+				}
+			}
 			printf("\n");
 			cnt_apn++;
 		}
