@@ -23,14 +23,6 @@ define Target/Description
 	Build firmware images for RTL8xxx based routers
 endef
 
-define Kernel/CompileImage/Default
-	$(if $(CONFIG_TARGET_ROOTFS_INITRAMFS),,rm -f $(TARGET_DIR)/init)
-	+$(MAKE) $(KERNEL_MAKEOPTS) $(KERNELNAME)
-	$(MAKE) $(KERNEL_MAKEOPTS) -C rtkload
-	$(KERNEL_CROSS)objcopy -O binary $(OBJCOPY_STRIP) -S $(LINUX_DIR)/vmlinux $(LINUX_KERNEL)
-	$(KERNEL_CROSS)objcopy $(OBJCOPY_STRIP) -S $(LINUX_DIR)/vmlinux $(KERNEL_BUILD_DIR)/vmlinux.elf
-endef
-
 
 $(eval $(call BuildTarget))
 
