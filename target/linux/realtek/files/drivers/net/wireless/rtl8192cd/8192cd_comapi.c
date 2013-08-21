@@ -1857,7 +1857,7 @@ static int rewrite_line (unsigned char **dst, unsigned char **src)
 		unsigned int i = strlen(*src);
 		vl_s=loc;
 		while (i>0){
-			char *t = (char *)((unsigned int)s+i-1);
+			char *t = (char *)((unsigned long)s+i-1);
 			if (*t=='"' && t > vl_s ){
 					vl_e = t;
 					quoted = 1;

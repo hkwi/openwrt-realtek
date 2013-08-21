@@ -18,6 +18,11 @@
 * 
 ******************************************************************************/
 
+#if !defined(__ECOS) && !defined(CONFIG_COMPAT_WIRELESS)
+#include "Mp_Precomp.h"
+#else
+#include "../Mp_Precomp.h"
+#endif
 #include "../odm_precomp.h"
 
 #if (RTL8188E_SUPPORT == 1)
@@ -27,26 +32,26 @@ CheckCondition(
     const u4Byte  Hex
     )
 {
-    u4Byte board = Hex & 0xFF;
-    u4Byte interface = Hex & 0xFF00;
-    u4Byte platform = Hex & 0xFF0000;
+    u4Byte _board = Hex & 0xFF;
+    u4Byte _interface = Hex & 0xFF00;
+    u4Byte _platform = Hex & 0xFF0000;
     u4Byte cond = Condition;
 
     if ( Condition == 0xCDCDCDCD )
         return TRUE;
 
     cond = Condition & 0xFF;
-    if ( (board & cond) == 0 && cond != 0x1F)
+    if ( (_board & cond) == 0 && cond != 0x1F)
         return FALSE;
 
     cond = Condition & 0xFF00;
     cond = cond >> 8;
-    if ( (interface & cond) == 0 && cond != 0x07)
+    if ( (_interface & cond) == 0 && cond != 0x07)
         return FALSE;
 
     cond = Condition & 0xFF0000;
     cond = cond >> 16;
-    if ( (platform & cond) == 0 && cond != 0x0F)
+    if ( (_platform & cond) == 0 && cond != 0x0F)
         return FALSE;
     return TRUE;
 }
@@ -56,7 +61,7 @@ CheckCondition(
 *                           AGC_TAB_1T.TXT
 ******************************************************************************/
 
-u4Byte Array_AGC_TAB_1T_8188E[] = { 
+u4Byte Array_8188E_AGC_TAB_1T[] = { 
 		0xC78, 0xFB000001,
 		0xC78, 0xFB010001,
 		0xC78, 0xFB020001,
@@ -189,7 +194,7 @@ u4Byte Array_AGC_TAB_1T_8188E[] = {
 };
 
 void
-ODM_ReadAndConfig_AGC_TAB_1T_8188E(
+ODM_ReadAndConfig_8188E_AGC_TAB_1T(
  	IN   PDM_ODM_T  pDM_Odm
  	)
 {
@@ -197,19 +202,17 @@ ODM_ReadAndConfig_AGC_TAB_1T_8188E(
 
 	u4Byte     hex         = 0;
 	u4Byte     i           = 0;
-#if 0
 	u2Byte     count       = 0;
 	pu4Byte    ptr_array   = NULL;
-#endif
 	u1Byte     platform    = pDM_Odm->SupportPlatform;
-	u1Byte     interface   = pDM_Odm->SupportInterface;
+	u1Byte     _interface   = pDM_Odm->SupportInterface;
 	u1Byte     board       = pDM_Odm->BoardType;  
-	u4Byte     ArrayLen    = sizeof(Array_AGC_TAB_1T_8188E)/sizeof(u4Byte);
-	pu4Byte    Array       = Array_AGC_TAB_1T_8188E;
+	u4Byte     ArrayLen    = sizeof(Array_8188E_AGC_TAB_1T)/sizeof(u4Byte);
+	pu4Byte    Array       = Array_8188E_AGC_TAB_1T;
 
 
 	hex += board;
-	hex += interface << 8;
+	hex += _interface << 8;
 	hex += platform << 16;
 	hex += 0xFF000000;
 	for (i = 0; i < ArrayLen; i += 2 )
@@ -262,7 +265,7 @@ ODM_ReadAndConfig_AGC_TAB_1T_8188E(
 *                           PHY_REG_1T.TXT
 ******************************************************************************/
 
-u4Byte Array_PHY_REG_1T_8188E[] = { 
+u4Byte Array_8188E_PHY_REG_1T[] = { 
 		0x800, 0x80040000,
 		0x804, 0x00000003,
 		0x808, 0x0000FC00,
@@ -317,8 +320,8 @@ u4Byte Array_PHY_REG_1T_8188E[] = {
 		0xA14, 0x1114D028,
 		0xA18, 0x00881117,
 		0xA1C, 0x89140F00,
-		0xA20, 0x1A1C0000,
-		0xA24, 0x080E1218,
+		0xA20, 0x1A1B0000,
+		0xA24, 0x090E1317,
 		0xA28, 0x00000204,
 		0xA2C, 0x00D30000,
 		0xA70, 0x101FBF00,
@@ -458,7 +461,7 @@ u4Byte Array_PHY_REG_1T_8188E[] = {
 };
 
 void
-ODM_ReadAndConfig_PHY_REG_1T_8188E(
+ODM_ReadAndConfig_8188E_PHY_REG_1T(
  	IN   PDM_ODM_T  pDM_Odm
  	)
 {
@@ -466,19 +469,17 @@ ODM_ReadAndConfig_PHY_REG_1T_8188E(
 
 	u4Byte     hex         = 0;
 	u4Byte     i           = 0;
-#if 0
 	u2Byte     count       = 0;
 	pu4Byte    ptr_array   = NULL;
-#endif
 	u1Byte     platform    = pDM_Odm->SupportPlatform;
-	u1Byte     interface   = pDM_Odm->SupportInterface;
+	u1Byte     _interface   = pDM_Odm->SupportInterface;
 	u1Byte     board       = pDM_Odm->BoardType;  
-	u4Byte     ArrayLen    = sizeof(Array_PHY_REG_1T_8188E)/sizeof(u4Byte);
-	pu4Byte    Array       = Array_PHY_REG_1T_8188E;
+	u4Byte     ArrayLen    = sizeof(Array_8188E_PHY_REG_1T)/sizeof(u4Byte);
+	pu4Byte    Array       = Array_8188E_PHY_REG_1T;
 
 
 	hex += board;
-	hex += interface << 8;
+	hex += _interface << 8;
 	hex += platform << 16;
 	hex += 0xFF000000;
 	for (i = 0; i < ArrayLen; i += 2 )
@@ -528,83 +529,153 @@ ODM_ReadAndConfig_PHY_REG_1T_8188E(
 }
 
 /******************************************************************************
-*                           PHY_REG_MP.TXT
+*                           PHY_REG_PG.TXT
 ******************************************************************************/
 
-u4Byte Array_PHY_REG_MP_8188E[] = { 
-		0xC30, 0x69E9AC4A,
-		0xC3C, 0x0A979718,
+u4Byte Array_8188E_PHY_REG_PG[] = { 
+		0xE00, 0xFFFFFFFF, 0x06070809,
+		0xE04, 0xFFFFFFFF, 0x02020405,
+		0xE08, 0x0000FF00, 0x00000006,
+		0x86C, 0xFFFFFF00, 0x00020400,
+		0xE10, 0xFFFFFFFF, 0x08090A0B,
+		0xE14, 0xFFFFFFFF, 0x01030607,
+		0xE18, 0xFFFFFFFF, 0x08090A0B,
+		0xE1C, 0xFFFFFFFF, 0x01030607,
+		0xE00, 0xFFFFFFFF, 0x00000000,
+		0xE04, 0xFFFFFFFF, 0x00000000,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x00000000,
+		0xE14, 0xFFFFFFFF, 0x00000000,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
+		0xE00, 0xFFFFFFFF, 0x02020202,
+		0xE04, 0xFFFFFFFF, 0x00020202,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x04040404,
+		0xE14, 0xFFFFFFFF, 0x00020404,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
+		0xE00, 0xFFFFFFFF, 0x02020202,
+		0xE04, 0xFFFFFFFF, 0x00020202,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x04040404,
+		0xE14, 0xFFFFFFFF, 0x00020404,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
+		0xE00, 0xFFFFFFFF, 0x00000000,
+		0xE04, 0xFFFFFFFF, 0x00000000,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x00000000,
+		0xE14, 0xFFFFFFFF, 0x00000000,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
+		0xE00, 0xFFFFFFFF, 0x02020202,
+		0xE04, 0xFFFFFFFF, 0x00020202,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x04040404,
+		0xE14, 0xFFFFFFFF, 0x00020404,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
+		0xE00, 0xFFFFFFFF, 0x00000000,
+		0xE04, 0xFFFFFFFF, 0x00000000,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x00000000,
+		0xE14, 0xFFFFFFFF, 0x00000000,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
+		0xE00, 0xFFFFFFFF, 0x00000000,
+		0xE04, 0xFFFFFFFF, 0x00000000,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x00000000,
+		0xE14, 0xFFFFFFFF, 0x00000000,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
+		0xE00, 0xFFFFFFFF, 0x00000000,
+		0xE04, 0xFFFFFFFF, 0x00000000,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x00000000,
+		0xE14, 0xFFFFFFFF, 0x00000000,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
+		0xE00, 0xFFFFFFFF, 0x00000000,
+		0xE04, 0xFFFFFFFF, 0x00000000,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x00000000,
+		0xE14, 0xFFFFFFFF, 0x00000000,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
+		0xE00, 0xFFFFFFFF, 0x00000000,
+		0xE04, 0xFFFFFFFF, 0x00000000,
+		0xE08, 0x0000FF00, 0x00000000,
+		0x86C, 0xFFFFFF00, 0x00000000,
+		0xE10, 0xFFFFFFFF, 0x00000000,
+		0xE14, 0xFFFFFFFF, 0x00000000,
+		0xE18, 0xFFFFFFFF, 0x00000000,
+		0xE1C, 0xFFFFFFFF, 0x00000000,
 
 };
 
 void
-ODM_ReadAndConfig_PHY_REG_MP_8188E(
+ODM_ReadAndConfig_8188E_PHY_REG_PG(
  	IN   PDM_ODM_T  pDM_Odm
  	)
 {
-	#define READ_NEXT_PAIR(v1, v2, i) do { i += 2; v1 = Array[i]; v2 = Array[i+1]; } while(0)
-
-	u4Byte     hex         = 0;
+	u4Byte     hex = 0;
 	u4Byte     i           = 0;
-#if 0
 	u2Byte     count       = 0;
 	pu4Byte    ptr_array   = NULL;
-#endif
 	u1Byte     platform    = pDM_Odm->SupportPlatform;
-	u1Byte     interface   = pDM_Odm->SupportInterface;
+	u1Byte     _interface   = pDM_Odm->SupportInterface;
 	u1Byte     board       = pDM_Odm->BoardType;  
-	u4Byte     ArrayLen    = sizeof(Array_PHY_REG_MP_8188E)/sizeof(u4Byte);
-	pu4Byte    Array       = Array_PHY_REG_MP_8188E;
-
+	u4Byte     ArrayLen    = sizeof(Array_8188E_PHY_REG_PG)/sizeof(u4Byte);
+	pu4Byte    Array       = Array_8188E_PHY_REG_PG;
 
 	hex += board;
-	hex += interface << 8;
+	hex += _interface << 8;
 	hex += platform << 16;
 	hex += 0xFF000000;
-	for (i = 0; i < ArrayLen; i += 2 )
+	for (i = 0; i < ArrayLen; i += 3 )
 	{
 	    u4Byte v1 = Array[i];
 	    u4Byte v2 = Array[i+1];
-	
-	    // This (offset, data) pair meets the condition.
+	    u4Byte v3 = Array[i+2];
+
+	    // this line is a line of pure_body
 	    if ( v1 < 0xCDCDCDCD )
 	    {
-		   	odm_ConfigBB_PHY_8188E(pDM_Odm, v1, bMaskDWord, v2);
-		    continue;
-	 	}
-		else
-		{ // This line is the start line of branch.
-		    if ( !CheckCondition(Array[i], hex) )
-		    { // Discard the following (offset, data) pairs.
-		        READ_NEXT_PAIR(v1, v2, i);
-		        while (v2 != 0xDEAD && 
-		               v2 != 0xCDEF && 
-		               v2 != 0xCDCD && i < ArrayLen -2)
-		        {
-		            READ_NEXT_PAIR(v1, v2, i);
-		        }
-		        i -= 2; // prevent from for-loop += 2
-		    }
-		    else // Configure matched pairs and skip to end of if-else.
-		    {
-		        READ_NEXT_PAIR(v1, v2, i);
-		        while (v2 != 0xDEAD && 
-		               v2 != 0xCDEF && 
-		               v2 != 0xCDCD && i < ArrayLen -2)
-		        {
-		   			odm_ConfigBB_PHY_8188E(pDM_Odm, v1, bMaskDWord, v2);
-		            READ_NEXT_PAIR(v1, v2, i);
-		        }
-
-		        while (v2 != 0xDEAD && i < ArrayLen -2)
-		        {
-		            READ_NEXT_PAIR(v1, v2, i);
-		        }
-		        
-		    }
-		}	
+		 	 odm_ConfigBB_PHY_REG_PG_8188E(pDM_Odm, v1, v2, v3);
+		 	 continue;
+	    }
+	    else
+	    { // this line is the start of branch
+	        if ( !CheckCondition(Array[i], hex) )
+	        { // don't need the hw_body
+	            i += 2; // skip the pair of expression
+	            v1 = Array[i];
+	            v2 = Array[i+1];
+	            v3 = Array[i+2];
+	            while (v2 != 0xDEAD)
+	            {
+	                i += 3;
+	                v1 = Array[i];
+	                v2 = Array[i+1];
+	                v3 = Array[i+1];
+	            }
+	        }
+	    }
 	}
-
 }
 
+
+
 #endif // end of HWIMG_SUPPORT
+

@@ -19,19 +19,6 @@ index 7a08142..cfd0152 100644
  
  #obj-y := rtl_glue.o
  #Add mips16 Support
-diff --git a/drivers/net/wireless/rtl8192cd/Makefile b/drivers/net/wireless/rtl8192cd/Makefile
-index 33ef469..51cff6b 100644
---- a/drivers/net/wireless/rtl8192cd/Makefile
-+++ b/drivers/net/wireless/rtl8192cd/Makefile
-@@ -35,6 +35,8 @@ ifeq ($(CONFIG_RTL_MESH_SUPPORT),y)
-         ../mesh_ext/hash_table.o
- endif
- 
-+EXTRA_CFLAGS += -I$(TOPDIR)/arch/rlx
-+
- fwext=binfw
- SRCS_TXT = $(addprefix $(src)/data_,$(notdir $(patsubst %.txt,%.c,$(wildcard $(src)/$(RTL_WLAN_DATA_DIR)/*.txt))))
- SRCS_BIN = $(addprefix $(src)/data_,$(notdir $(patsubst %.bin,%.c,$(wildcard $(src)/$(RTL_WLAN_DATA_DIR)/*.bin))))
 diff --git a/drivers/usb/host/Makefile b/drivers/usb/host/Makefile
 index 9e62ed1..19afd87 100644
 --- a/drivers/usb/host/Makefile

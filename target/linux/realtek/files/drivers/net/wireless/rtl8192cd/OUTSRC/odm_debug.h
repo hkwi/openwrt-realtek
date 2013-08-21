@@ -83,8 +83,8 @@
 #define ODM_COMP_PATH_DIV			BIT10
 #define ODM_COMP_PSD				BIT11
 #define ODM_COMP_DYNAMIC_PRICCA		BIT12
-
-#define ODM_COMP_RXHP				BIT13			
+#define ODM_COMP_RXHP				BIT13	
+#define ODM_COMP_MP					BIT14
 
 //MAC Functions
 #define ODM_COMP_EDCA_TURBO			BIT16
@@ -100,6 +100,9 @@
 /*------------------------Export Marco Definition---------------------------*/
 #if (DM_ODM_SUPPORT_TYPE == ODM_MP)
 	#define RT_PRINTK				DbgPrint
+#elif (DM_ODM_SUPPORT_TYPE == ODM_CE)
+	#define DbgPrint	printk
+	#define RT_PRINTK(fmt, args...)	DbgPrint( "%s(): " fmt, __FUNCTION__, ## args);
 #else
 	#define DbgPrint	panic_printk
 	#define RT_PRINTK(fmt, args...)	DbgPrint( "%s(): " fmt, __FUNCTION__, ## args);
@@ -109,8 +112,7 @@
 	#define ASSERT(expr)
 #endif
 
-#if DBG
-#define ODM_RT_TRACE(pDM_Odm, comp, level, fmt)									\
+#define ODM_RT_TRACE(pDM_Odm, comp, level, fmt)									    \
 		if(((comp) & pDM_Odm->DebugComponents) && (level <= pDM_Odm->DebugLevel))	\
 		{																			\
 			if(pDM_Odm->SupportICType == ODM_RTL8192C)								\
@@ -118,15 +120,19 @@
 			else if(pDM_Odm->SupportICType == ODM_RTL8192D)							\
 				DbgPrint("[ODM-92D] ");												\
 			else if(pDM_Odm->SupportICType == ODM_RTL8723A)							\
-				DbgPrint("[ODM-8723A] ");												\
+				DbgPrint("[ODM-8723A] ");											\
 			else if(pDM_Odm->SupportICType == ODM_RTL8188E)							\
-				DbgPrint("[ODM-8188E] ");												\
+				DbgPrint("[ODM-8188E] ");											\
+			else if(pDM_Odm->SupportICType == ODM_RTL8192E) 						\
+				DbgPrint("[ODM-8192E] ");											\
 			else if(pDM_Odm->SupportICType == ODM_RTL8812)							\
-				DbgPrint("[ODM-8812] ");												\
+				DbgPrint("[ODM-8812] ");											\
 			else if(pDM_Odm->SupportICType == ODM_RTL8821)							\
-				DbgPrint("[ODM-8821] ");												\
+				DbgPrint("[ODM-8821] ");											\
 			RT_PRINTK fmt;															\
 		}
+
+#if DBG
 
 #define ODM_RT_TRACE_F(pDM_Odm, comp, level, fmt)									\
 		if(((comp) & pDM_Odm->DebugComponents) && (level <= pDM_Odm->DebugLevel))	\
@@ -158,7 +164,7 @@
 				DbgPrint("\n");														\
 			}
 #else
-#define ODM_RT_TRACE(pDM_Odm, comp, level, fmt)
+
 #define ODM_RT_TRACE_F(pDM_Odm, comp, level, fmt)
 #define ODM_RT_ASSERT(pDM_Odm, expr, fmt)
 #define ODM_dbg_enter()

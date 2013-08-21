@@ -22,7 +22,9 @@
 // include files
 //============================================================
 
+#include "Mp_Precomp.h"
 #include "odm_precomp.h"
+
 //
 // ODM IO Relative API.
 //
@@ -290,6 +292,24 @@ ODM_FreeMemory(
 	PlatformFreeMemory(pPtr, length);
 #endif	
 }
+
+VOID
+ODM_MoveMemory(	
+	IN 	PDM_ODM_T	pDM_Odm,
+	OUT PVOID		pDest,
+	IN  PVOID		pSrc,
+	IN  u4Byte		Length
+	)
+{
+#if(DM_ODM_SUPPORT_TYPE & (ODM_AP|ODM_ADSL))
+	
+#elif (DM_ODM_SUPPORT_TYPE & ODM_CE )	
+	
+#elif(DM_ODM_SUPPORT_TYPE & ODM_MP)
+	PlatformMoveMemory(pDest, pSrc, Length);
+#endif	
+}
+
 s4Byte ODM_CompareMemory(
 	IN 	PDM_ODM_T		pDM_Odm,
 	IN	PVOID           pBuf1,
@@ -452,7 +472,7 @@ ODM_StallExecution(
 #if(DM_ODM_SUPPORT_TYPE & (ODM_AP|ODM_ADSL))
 	
 #elif(DM_ODM_SUPPORT_TYPE & ODM_CE)
-
+	rtw_udelay_os(usDelay);
 #elif(DM_ODM_SUPPORT_TYPE & ODM_MP)
 	PlatformStallExecution(usDelay);
 #endif	
@@ -512,7 +532,7 @@ ODM_SetTimer(
 	)
 {
 #if(DM_ODM_SUPPORT_TYPE & (ODM_AP|ODM_ADSL))
-	mod_timer(pTimer, jiffies + (msDelay+9)/10);	
+	mod_timer(pTimer, jiffies + RTL_MILISECONDS_TO_JIFFIES(msDelay));
 #elif(DM_ODM_SUPPORT_TYPE & ODM_CE)
 	_set_timer(pTimer,msDelay ); //ms
 #elif(DM_ODM_SUPPORT_TYPE & ODM_MP)
@@ -532,13 +552,14 @@ ODM_InitializeTimer(
 	)
 {
 #if(DM_ODM_SUPPORT_TYPE & (ODM_AP|ODM_ADSL))
-#ifdef __KERNEL__
 	pTimer->function = CallBackFunc;
 	pTimer->data = (unsigned long)pDM_Odm;
-	init_timer(pTimer);	
-#else
+#if defined(__ECOS)
 	init_timer(pTimer, (unsigned long)pDM_Odm, CallBackFunc);
-#endif
+#else
+	init_timer(pTimer);	
+	mod_timer(pTimer, jiffies+RTL_MILISECONDS_TO_JIFFIES(10));	
+#endif	
 #elif(DM_ODM_SUPPORT_TYPE & ODM_CE)
 	PADAPTER Adapter = pDM_Odm->Adapter;
 	_init_timer(pTimer,Adapter->pnetdev,CallBackFunc,pDM_Odm);
@@ -596,6 +617,54 @@ ODM_ReleaseTimer(
 //
 // ODM FW relative API.
 //
+#if (DM_ODM_SUPPORT_TYPE & ODM_MP)
+VOID
+ODM_FillH2CCmd(
+	IN	PADAPTER		Adapter,
+	IN	u1Byte 	ElementID,
+	IN	u4Byte 	CmdLen,
+	IN	pu1Byte	pCmdBuffer
+)
+{
+	if(IS_HARDWARE_TYPE_JAGUAR(Adapter))
+	{
+		switch(ElementID)
+		{
+		case ODM_H2C_RSSI_REPORT:
+			FillH2CCmd8812(Adapter, H2C_8812_RSSI_REPORT, CmdLen, pCmdBuffer);
+			break;
+		default:
+			break;
+		}
+
+	}
+	else if(IS_HARDWARE_TYPE_8188E(Adapter))
+	{
+		switch(ElementID)
+		{
+		case ODM_H2C_PSD_RESULT:
+			FillH2CCmd88E(Adapter, H2C_88E_PSD_RESULT, CmdLen, pCmdBuffer);
+			break;
+		default:
+			break;
+		}
+	}
+	else
+	{
+		switch(ElementID)
+		{
+		case ODM_H2C_RSSI_REPORT:
+			FillH2CCmd92C(Adapter, H2C_RSSI_REPORT, CmdLen, pCmdBuffer);
+			break;
+		case ODM_H2C_PSD_RESULT:
+			FillH2CCmd92C(Adapter, H2C_92C_PSD_RESULT, CmdLen, pCmdBuffer);
+			break;
+		default:
+			break;
+		}
+	}
+}
+#else
 u4Byte
 ODM_FillH2CCmd(	
 	IN	pu1Byte		pH2CBuffer,
@@ -618,7 +687,7 @@ ODM_FillH2CCmd(
 
 	return	TRUE;
 }
-
+#endif
 
 
 

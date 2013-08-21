@@ -26,7 +26,7 @@
 
 #include "./8192cd_cfg.h"
 
-#if (defined(INCLUDE_WPA_PSK) && !defined(WIFI_HAPD)) || defined(HAPD_DRV_PSK_WPS)
+#if (defined(INCLUDE_WPA_PSK) && !defined(WIFI_HAPD) && !defined(RTK_NL80211)) || defined(HAPD_DRV_PSK_WPS)
 
 #include "./8192cd.h"
 #include "./wifi.h"
@@ -1616,11 +1616,15 @@ static void reset_sta_info(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	WPA_STA_INFO *pInfo = pstat->wpa_sta_info;
 
 	unsigned long flags;
+	unsigned long flags2=0;
 
 	SAVE_INT_AND_CLI(flags);
 
-	if (timer_pending(&pInfo->resendTimer))
-		del_timer_sync(&pInfo->resendTimer);
+	SMP_LOCK_PSK_RESEND(flags2);
+	if (timer_pending(&pInfo->resendTimer)){
+		del_timer(&pInfo->resendTimer);
+	}
+	SMP_UNLOCK_PSK_RESEND(flags2);
 
 	if (OPMODE & WIFI_AP_STATE)
 	{
@@ -1681,6 +1685,7 @@ static void ResendTimeout(void *task_psta)
 {
 	struct stat_info *pstat = (struct stat_info *)task_psta;
 	struct rtl8192cd_priv *priv = pstat->wpa_sta_info->priv;
+	unsigned long flags;
 
 	DEBUG_TRACE;
 
@@ -1690,10 +1695,12 @@ static void ResendTimeout(void *task_psta)
 	if (pstat == NULL)
 		return;
 
+	SMP_LOCK_PSK_RESEND(flags);
 #ifdef CLIENT_MODE
 	if ((OPMODE & WIFI_STATION_STATE) && !pstat->wpa_sta_info->clientHndshkProcessing) {
 		DEBUG_ERR("Wait EAP timeout, disconnect  AP!\n");
 		ToDrv_DisconnectSTA(priv, pstat, expire);
+		SMP_UNLOCK_PSK_RESEND(flags);
 		return;
 	}
 #endif
@@ -1722,6 +1729,7 @@ static void ResendTimeout(void *task_psta)
 #ifdef DEBUG_PSK
 						printk("!!!!DO NOT disconnect STA under 1 client case!!!\n");
 #endif
+						SMP_UNLOCK_PSK_RESEND(flags);
 						return;
 					}
 
@@ -1747,6 +1755,8 @@ static void ResendTimeout(void *task_psta)
 			ClientSendEAPOL(priv, pstat, 1);
 #endif
 	}
+
+	SMP_UNLOCK_PSK_RESEND(flags);
 }
 
 
@@ -1758,6 +1768,7 @@ static void GKRekeyTimeout(void *task_priv)
 {
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	unsigned long flags;
+	unsigned long flags2;
 
 	DEBUG_TRACE;
 
@@ -1767,7 +1778,9 @@ static void GKRekeyTimeout(void *task_priv)
 	SAVE_INT_AND_CLI(flags);
 	SMP_LOCK(flags);
 
+	SMP_LOCK_PSK_GKREKEY(flags2);
 	priv->wpa_global_info->GTKRekey = TRUE;
+	SMP_UNLOCK_PSK_GKREKEY(flags2);
 	UpdateGK(priv);
 
 	RESTORE_INT(flags);
@@ -2156,7 +2169,7 @@ static void SendEAPOL(struct rtl8192cd_priv *priv, struct stat_info *pstat, int 
 				EncGTK(priv, pstat, pStaInfo->PTK + PTK_LEN_EAPOLMIC, PTK_LEN_EAPOLENC,
 					(unsigned char *)key_data,
 					sizeof(GTK_KDE_TYPE) + ((pGblInfo->MulticastCipher == DOT11_ENC_TKIP) ? 32:16),
-					KeyData.Octet, &tmpKeyData_Length);
+					 KeyData.Octet, &tmpKeyData_Length);
 			}
 			else
 #endif // RTL_WPA2
@@ -2239,7 +2252,7 @@ send_packet:
 	rtl_atomic_dec(&priv->rtl_tx_skb_cnt);
 #endif
 
-	pskb->cb[0] = 7;	// use highest priority to xmit
+//	pskb->cb[0] = 7;	// use highest priority to xmit
 	if (rtl8192cd_start_xmit(pskb, priv->dev))
 		rtl_kfree_skb(priv, pskb, _SKB_TX_);
 
@@ -2576,7 +2589,9 @@ static void UpdateGK(struct rtl8192cd_priv *priv)
 	WPA_GLOBAL_INFO *pGblInfo=priv->wpa_global_info;
 	struct stat_info *pstat;
 	int i;
+	unsigned long flags=0;	
 
+	SMP_LOCK_PSK_GKREKEY(flags);
 	//------------------------------------------------------------
 	// Execute Global Group key state machine
 	//------------------------------------------------------------
@@ -2654,6 +2669,8 @@ static void UpdateGK(struct rtl8192cd_priv *priv)
 		 }
 	}
     pGblInfo->GUpdateStationKeys = FALSE;
+
+    SMP_UNLOCK_PSK_GKREKEY(flags);
 };
 
 static void EAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
@@ -2662,6 +2679,7 @@ static void EAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	WPA_STA_INFO *pStaInfo = pstat->wpa_sta_info;
 	LARGE_INTEGER recievedRC;
 	struct lib1x_eapol *eapol;
+	unsigned long flags=0;
 
 	DEBUG_TRACE;
 
@@ -2708,8 +2726,11 @@ static void EAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 
 check_msg2:
 			// delete resend timer
-			if (timer_pending(&pStaInfo->resendTimer))
-				del_timer_sync(&pStaInfo->resendTimer);
+			SMP_LOCK_PSK_RESEND(flags);
+			if (timer_pending(&pStaInfo->resendTimer)){
+				del_timer(&pStaInfo->resendTimer);
+			}
+			SMP_UNLOCK_PSK_RESEND(flags);
 
 			pStaInfo->SNonce = Message_KeyNonce(pStaInfo->EapolKeyMsgRecvd);
 			CalcPTK(pStaInfo->EAPOLMsgRecvd.Octet, pStaInfo->EAPOLMsgRecvd.Octet + 6,
@@ -2813,8 +2834,11 @@ cont_msg:
 			}
 
 			// delete resend timer
-			if (timer_pending(&pStaInfo->resendTimer))
-				del_timer_sync(&pStaInfo->resendTimer);
+			SMP_LOCK_PSK_RESEND(flags);
+			if (timer_pending(&pStaInfo->resendTimer)){
+				del_timer(&pStaInfo->resendTimer);
+			}
+			SMP_UNLOCK_PSK_RESEND(flags);
 
 			if (!CheckMIC(pStaInfo->EAPOLMsgRecvd, pStaInfo->PTK, PTK_LEN_EAPOLMIC)) { // errror
 				DEBUG_ERR("4-4: RSN_MIC_failure\n");
@@ -2947,8 +2971,11 @@ cont_msg:
 
 		case PSK_STATE_PTKINITDONE:
 			// delete resend timer
-			if (timer_pending(&pStaInfo->resendTimer))
-				del_timer_sync(&pStaInfo->resendTimer);
+			SMP_LOCK_PSK_RESEND(flags);
+			if (timer_pending(&pStaInfo->resendTimer)){
+				del_timer(&pStaInfo->resendTimer);
+			}
+			SMP_UNLOCK_PSK_RESEND(flags);
 
 #if 0
 			//receive message [with request bit set]
@@ -3001,8 +3028,11 @@ cont_msg:
 	else if (Message_KeyType(pStaInfo->EapolKeyMsgRecvd) == type_Group) {
 
 		// delete resend timer
-		if (timer_pending(&pStaInfo->resendTimer))
-			del_timer_sync(&pStaInfo->resendTimer);
+		SMP_LOCK_PSK_RESEND(flags);
+		if (timer_pending(&pStaInfo->resendTimer)){
+			del_timer(&pStaInfo->resendTimer);
+		}
+		SMP_UNLOCK_PSK_RESEND(flags);
 
 		//---- Receive 2nd message of 2-way handshake ----
 		DEBUG_INFO("2-2\n");
@@ -3086,6 +3116,7 @@ static void ClientEAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *p
 	LARGE_INTEGER recievedRC;
 	struct lib1x_eapol *eapol;
 	int toSetKey = 0;
+	unsigned long flags=0;
 
 	eapol = ( struct lib1x_eapol * ) ( pstat->wpa_sta_info->EAPOLMsgRecvd.Octet + ETHER_HDRLEN );
 	if (eapol->packet_type != LIB1X_EAPOL_KEY)
@@ -3109,9 +3140,11 @@ static void ClientEAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *p
 			//---- Receive 1st message and send 2nd
 			DEBUG_INFO("client mode 4-1\n");
 
-			if (timer_pending(&pStaInfo->resendTimer))
-				del_timer_sync(&pStaInfo->resendTimer);
-
+			SMP_LOCK_PSK_RESEND(flags);
+			if (timer_pending(&pStaInfo->resendTimer)){
+				del_timer(&pStaInfo->resendTimer);
+			}
+			SMP_UNLOCK_PSK_RESEND(flags);
 
 			if(pStaInfo->clientHndshkDone || pStaInfo->clientHndshkProcessing)
 			{
@@ -3187,8 +3220,11 @@ static void ClientEAPOLKeyRecvd(struct rtl8192cd_priv *priv, struct stat_info *p
 			}
 
 			// delete resend timer
-			if (timer_pending(&pStaInfo->resendTimer))
-				del_timer_sync(&pStaInfo->resendTimer);
+			SMP_LOCK_PSK_RESEND(flags);
+			if (timer_pending(&pStaInfo->resendTimer)){
+				del_timer(&pStaInfo->resendTimer);
+			}
+			SMP_UNLOCK_PSK_RESEND(flags);
 
 			Message_ReplayCounter_OC2LI(pStaInfo->EapolKeyMsgRecvd, &recievedRC);
 			if(!Message_DefaultReplayCounter(pStaInfo->CurrentReplayCounter) &&
@@ -3372,7 +3408,6 @@ void derivePSK(struct rtl8192cd_priv *priv)
 {
 	WPA_GLOBAL_INFO *pGblInfo=priv->wpa_global_info;
 	unsigned long x;
-
 	SAVE_INT_AND_CLI(x);
 
 	if (strlen((char *)priv->pmib->dot1180211AuthEntry.dot11PassPhrase) == 64) // hex

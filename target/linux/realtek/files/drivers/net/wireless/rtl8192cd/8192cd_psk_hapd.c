@@ -21,7 +21,7 @@
 
 #include "./8192cd_cfg.h"
 
-#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS)
+#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS) || defined(RTK_NL80211)
 
 #include "./8192cd.h"
 #include "./wifi.h"

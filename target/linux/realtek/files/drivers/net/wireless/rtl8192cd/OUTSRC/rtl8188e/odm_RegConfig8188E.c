@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *                                        
+ *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -18,6 +18,11 @@
  *
  ******************************************************************************/
 
+#if !defined(__ECOS) && !defined(CONFIG_COMPAT_WIRELESS)
+#include "Mp_Precomp.h"
+#else
+#include "../Mp_Precomp.h"
+#endif
 #include "../odm_precomp.h"
 
 #if (RTL8188E_SUPPORT == 1)  
@@ -77,7 +82,6 @@ odm_ConfigRF_RadioA_8188E(
 {
 	u4Byte  content = 0x1000; // RF_Content: radioa_txt
 	u4Byte	maskforPhySet= (u4Byte)(content&0xE000);
-//	u4Byte	i;
 
     odm_ConfigRFReg_8188E(pDM_Odm, Addr, Data, ODM_RF_PATH_A, Addr|maskforPhySet);
 
@@ -150,10 +154,13 @@ odm_ConfigBB_PHY_REG_PG_8188E(
 		ODM_delay_us(5);
 	else if (Addr == 0xf9)
 		ODM_delay_us(1);
-    // TODO: ODM_StorePwrIndexDiffRateOffset(...)
-	// storePwrIndexDiffRateOffset(Adapter, Addr, Bitmask, Data);
 
-    ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_TRACE, ("===> ODM_ConfigBBWithHeaderFile: [PHY_REG] %08X %08X %08X\n", Addr, Bitmask, Data));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_LOUD, ("===> @@@@@@@ ODM_ConfigBBWithHeaderFile: [PHY_REG] %08X %08X %08X\n", Addr, Bitmask, Data));
+
+#if	!(DM_ODM_SUPPORT_TYPE&ODM_AP)
+	storePwrIndexDiffRateOffset(pDM_Odm->Adapter, Addr, Bitmask, Data);
+#endif
+
 }
 
 void 
@@ -189,3 +196,4 @@ odm_ConfigBB_PHY_8188E(
     ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_TRACE, ("===> ODM_ConfigBBWithHeaderFile: [PHY_REG] %08X %08X\n", Addr, Data));
 }
 #endif
+

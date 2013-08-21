@@ -13,6 +13,9 @@
 #ifndef _8192C_REG_H_
 #define _8192C_REG_H_
 
+#ifndef WLAN_HAL_INTERNAL_USED
+
+
 //============================================================
 //       8192C Regsiter offset definition
 //============================================================
@@ -199,6 +202,7 @@
 #define		ARFR3				0x450	// Auto Rate Fallback 3.
 #define		AGGLEN_LMT		0x458	// Aggregation Length.
 #define		AMPDU_MIN_SPACE	0x45C	// AMPDU Min Space.
+#define		TXPKTBUF_WMAC_LBK_BF_HD	0x45D	// LBK Buffer Head Page
 #define		FAST_EDCA_CTRL	0x460	// Fast EDCA Mode.
 #define		RD_RESP_PKT_TH	0x463	// RD Responder Packet Threshold.
 #define		INIRTS_RATE_SEL	0x480	// Initial RTS Rate SEL.
@@ -2327,6 +2331,8 @@
 #define	RATE_ALL_OFDM_2SS			RATR_MCS8|RATR_MCS9	|RATR_MCS10|RATR_MCS11|\
 									RATR_MCS12|RATR_MCS13|RATR_MCS14|RATR_MCS15
 */
+
+#endif  //WLAN_HAL_INTERNAL_USED
 
 #endif // #ifndef __INC_HAL8192SEREG_H
 

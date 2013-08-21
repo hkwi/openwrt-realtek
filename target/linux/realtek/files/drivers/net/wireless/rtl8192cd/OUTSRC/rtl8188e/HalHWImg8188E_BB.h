@@ -22,16 +22,13 @@
 #ifndef __INC_BB_8188E_HW_IMG_H
 #define __INC_BB_8188E_HW_IMG_H
 
-#if 0
-static BOOLEAN CheckCondition(const u4Byte Condition, const u4Byte Hex);
-#endif
 
 /******************************************************************************
 *                           AGC_TAB_1T.TXT
 ******************************************************************************/
 
 void
-ODM_ReadAndConfig_AGC_TAB_1T_8188E(
+ODM_ReadAndConfig_8188E_AGC_TAB_1T(
 	IN   PDM_ODM_T  pDM_Odm
 );
 
@@ -40,18 +37,19 @@ ODM_ReadAndConfig_AGC_TAB_1T_8188E(
 ******************************************************************************/
 
 void
-ODM_ReadAndConfig_PHY_REG_1T_8188E(
+ODM_ReadAndConfig_8188E_PHY_REG_1T(
 	IN   PDM_ODM_T  pDM_Odm
 );
 
 /******************************************************************************
-*                           PHY_REG_MP.TXT
+*                           PHY_REG_PG.TXT
 ******************************************************************************/
 
 void
-ODM_ReadAndConfig_PHY_REG_MP_8188E(
+ODM_ReadAndConfig_8188E_PHY_REG_PG(
 	IN   PDM_ODM_T  pDM_Odm
 );
 
 #endif
 #endif // end of HWIMG_SUPPORT
+

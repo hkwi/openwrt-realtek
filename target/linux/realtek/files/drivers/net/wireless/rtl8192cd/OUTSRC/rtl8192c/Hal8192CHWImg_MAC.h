@@ -23,7 +23,6 @@
 #define __INC_MAC_8192C_HW_IMG_H
 
 #define RETURNED_ARRAY_SIZE 20000
-static BOOLEAN CheckCondition(const u4Byte Condition, const u4Byte Hex);
 static u2Byte odm_SetArrayPointerGetLength_8192C(PDM_ODM_T pDM_Odm, u4Byte ArrayLen, pu4Byte Array, pu4Byte *gArrayPointer);
 
 /******************************************************************************

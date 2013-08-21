@@ -16,9 +16,9 @@ Major Change History:
 #ifdef __ECOS
 #include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
 #endif
-
-#ifdef CONFIG_RTL_88E_SUPPORT
 #include "8192cd_cfg.h"
+#ifdef CONFIG_RTL_88E_SUPPORT
+
 
 #ifdef TXREPORT
 #include "8192cd.h"

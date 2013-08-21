@@ -17,16 +17,17 @@
 #include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
 #endif
 
-#ifdef CONFIG_RTL_88E_SUPPORT
 
 #define _8188E_HW_C_
 
-#include "8192cd.h"
 #include "8192cd_cfg.h"
+#include "8192cd.h"
 #include "8192cd_util.h"
 
 #include "8192c_reg.h"
 #include "8188e_reg.h"
+
+#ifdef CONFIG_RTL_88E_SUPPORT
 
 #ifdef TXREPORT
 #ifdef __KERNEL__
@@ -121,7 +122,7 @@ void RTL8188E_SetStationTxRateInfo(PDM_ODM_T	pDM_Odm, PODM_RA_INFO_T pRAInfo, in
 		}
 		
 		if ((pRAInfo->DecisionRate&0x3f) < 12)
-			pstat->current_tx_rate = dot11_rate_table[pRAInfo->DecisionRate];
+			pstat->current_tx_rate = dot11_rate_table[pRAInfo->DecisionRate&0x3f];
 		else if ((pRAInfo->DecisionRate&0x3f) <= 27)
 			pstat->current_tx_rate = 0x80|((pRAInfo->DecisionRate&0x3f) -12);
 		else
@@ -342,10 +343,10 @@ void RTL8188E_TxReportHandler(struct rtl8192cd_priv *priv, struct sk_buff *pskb,
 
 void RTL8188E_SetTxReportTimeByRA(struct rtl8192cd_priv *priv, int extend)
 {
-	extern unsigned short DynamicTxRPTTiming[];
+//	extern unsigned short DynamicTxRPTTiming[];
 	extern unsigned char TxRPTTiming_idx;
 
-	unsigned short WriteTxRPTTiming;
+//	unsigned short WriteTxRPTTiming;
 	unsigned char idx;
 
 	idx=TxRPTTiming_idx;
@@ -359,7 +360,7 @@ void RTL8188E_SetTxReportTimeByRA(struct rtl8192cd_priv *priv, int extend)
 		if(idx!=0)
 			idx-=1;
 	}
-	WriteTxRPTTiming=DynamicTxRPTTiming[idx];  
+//	WriteTxRPTTiming=DynamicTxRPTTiming[idx];  
 	TxRPTTiming_idx=idx;
 }
 #endif
@@ -1251,7 +1252,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 	unsigned int			ThermalValue_AVG = 0;	
 	int						ele_A=0, ele_D, /* TempCCk,*/ X, value32;
 	int						Y, ele_C=0;
-	char					OFDM_index[2], CCK_index=0, OFDM_index_old[2]={0,0}, CCK_index_old=0, index;
+	char					OFDM_index[2]={0}, CCK_index=0, OFDM_index_old[2]={0}, CCK_index_old=0, index;
 	unsigned int			i = 0, j = 0;
 	char 					is2T = FALSE;
 //	char 					bInteralPA = FALSE;
@@ -1278,7 +1279,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 	priv->pshare->TXPowerTrackingCallbackCnt++; //cosa add for debug
 	priv->pshare->bTXPowerTrackingInit = TRUE;
     
-#if (MP_DRIVER == 1)
+#if 1 //(MP_DRIVER == 1)      //_eric_??
     priv->pshare->TxPowerTrackControl = 1; //priv->pshare->TxPowerTrackControl; //_eric_?? // <Kordan> We should keep updating the control variable according to HalData.
     // <Kordan> pshare->RegA24 will be initialized when ODM HW configuring, but MP configures with para files.
     priv->pshare->RegA24 = 0x090e1317; 
@@ -1307,7 +1308,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 
 		ThermalValue = (unsigned char)PHY_QueryRFReg(priv, RF_PATH_A, RF_T_METER_88E, 0xfc00, 1);	//0x42: RF Reg[15:10] 88E
 
-		printk("\nReadback Thermal Meter = 0x%x pre thermal meter 0x%x EEPROMthermalmeter 0x%x\n", ThermalValue, priv->pshare->ThermalValue, priv->pmib->dot11RFEntry.ther);
+		//printk("\nReadback Thermal Meter = 0x%x pre thermal meter 0x%x EEPROMthermalmeter 0x%x\n", ThermalValue, priv->pshare->ThermalValue, priv->pmib->dot11RFEntry.ther);
 
 	}
 
@@ -1419,7 +1420,7 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 				if(ThermalValue_AVG_count)
 				{
 					ThermalValue = (unsigned char)(ThermalValue_AVG / ThermalValue_AVG_count);
-					printk("AVG Thermal Meter = 0x%x \n", ThermalValue);					
+					//printk("AVG Thermal Meter = 0x%x \n", ThermalValue);					
 				}
 			}			
 		}
@@ -1441,8 +1442,8 @@ void odm_TXPowerTrackingCallback_ThermalMeter_8188E(struct rtl8192cd_priv *priv)
 		delta_LCK = (ThermalValue > priv->pshare->ThermalValue_LCK)?(ThermalValue - priv->pshare->ThermalValue_LCK):(priv->pshare->ThermalValue_LCK - ThermalValue);
 		delta_IQK = (ThermalValue > priv->pshare->ThermalValue_IQK)?(ThermalValue - priv->pshare->ThermalValue_IQK):(priv->pshare->ThermalValue_IQK - ThermalValue);
 
-		printk("Readback Thermal Meter = 0x%x \npre thermal meter 0x%x EEPROMthermalmeter 0x%x delta 0x%x \ndelta_LCK 0x%x delta_IQK 0x%x \n",   ThermalValue, priv->pshare->ThermalValue, priv->pshare->EEPROMThermalMeter, delta, delta_LCK, delta_IQK);
-		printk("pre thermal meter LCK 0x%x \npre thermal meter IQK 0x%x \ndelta_LCK_bound 0x%x delta_IQK_bound 0x%x\n",   priv->pshare->ThermalValue_LCK, priv->pshare->ThermalValue_IQK, priv->pshare->Delta_LCK, priv->pshare->Delta_IQK);
+		//printk("Readback Thermal Meter = 0x%x \npre thermal meter 0x%x EEPROMthermalmeter 0x%x delta 0x%x \ndelta_LCK 0x%x delta_IQK 0x%x \n",   ThermalValue, priv->pshare->ThermalValue, priv->pshare->EEPROMThermalMeter, delta, delta_LCK, delta_IQK);
+		//printk("pre thermal meter LCK 0x%x \npre thermal meter IQK 0x%x \ndelta_LCK_bound 0x%x delta_IQK_bound 0x%x\n",   priv->pshare->ThermalValue_LCK, priv->pshare->ThermalValue_IQK, priv->pshare->Delta_LCK, priv->pshare->Delta_IQK);
 
 
 		//if((delta_LCK > pHalData->Delta_LCK) && (pHalData->Delta_LCK != 0))

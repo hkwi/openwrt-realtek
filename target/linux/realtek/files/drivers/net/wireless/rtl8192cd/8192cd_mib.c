@@ -33,10 +33,7 @@
 #include "./8192cd_debug.h"
 #include "./8192cd_mib.h"
 
-#ifdef TXPWR_LMT
 extern int _convert_2_pwr_dot(char *s, int base);
-#endif
-
 extern int _atoi(char *s, int base);
 
 struct mib_val dot11_mib_table[]={
@@ -72,7 +69,7 @@ struct mib_val dot11_mib_table[]={
 	{ {1, 1, 1, 32, 1, -1}, "dot11nShortGIfor40M", MIB_TYPE_PRIV, PRIV_OFFSET(dot11nConfigEntry.dot11nShortGIfor40M), PRIV_SIZE(dot11nConfigEntry.dot11nShortGIfor40M)},
 	{ {1, 1, 1, 33, 1, -1}, "dot11nAMPDU", MIB_TYPE_PRIV, PRIV_OFFSET(dot11nConfigEntry.dot11nAMPDU), PRIV_SIZE(dot11nConfigEntry.dot11nAMPDU)},
 	{ {1, 1, 1, 34, 1, -1}, "dot11nAMSDU", MIB_TYPE_PRIV, PRIV_OFFSET(dot11nConfigEntry.dot11nAMSDU), PRIV_SIZE(dot11nConfigEntry.dot11nAMSDU)},
-
+	{ {1, 1, 1, 35, 1, -1}, "dot11nLDPC", MIB_TYPE_PRIV, PRIV_OFFSET(dot11nConfigEntry.dot11nLDPC), PRIV_SIZE(dot11nConfigEntry.dot11nLDPC)},
 	//dot11AuthenticationAlgorithmsTable
 	{ {1, 2, 1, 1, 1, -1}, "dot11AuthenticationAlgorithmsIndex", MIB_TYPE_VAL, 1, 1},
 	{ {1, 2, 1, 2, 1, -1}, "dot11AuthenticationAlgorithm", MIB_TYPE_VAL, 1, 1},
@@ -115,6 +112,7 @@ struct mib_val dot11_mib_table[]={
 	{ {1, 10, 1, 1, 1, -1}, "dot11RadiusServerIPAddress", MIB_TYPE_VAL, 1, 1},
 	{ {1, 10, 1, 2, 1, -1}, "dot11RadiusServerPort", MIB_TYPE_VAL, 1, 1},
 	{ {1, 10, 1, 3, 1, -1}, "dot11RadiusServerPassword", MIB_TYPE_VAL, 1, 1},
+	{ {1, 10, 1, 4, 1, -1}, "dot11RadiusServerEnable", MIB_TYPE_VAL, 1, 1},	
 	//dot11OperationTable
 	{ {2, 1, 1, 1, 1, -1}, "dot11MACAddress", MIB_TYPE_PRIV, PRIV_OFFSET(dot11OperationEntry.hwaddr), PRIV_SIZE(dot11OperationEntry.hwaddr)},
 	{ {2, 1, 1, 2, 1, -1}, "dot11RTSThreshold", MIB_TYPE_PRIV, PRIV_OFFSET(dot11OperationEntry.dot11RTSThreshold), PRIV_SIZE(dot11OperationEntry.dot11RTSThreshold)},

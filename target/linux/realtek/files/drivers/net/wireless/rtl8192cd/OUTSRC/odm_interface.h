@@ -40,23 +40,38 @@
 #define _bit_ic(_name, _ic)		BIT_##_name##_ic
 
 // _cat: implemented by Token-Pasting Operator.
-#ifdef __ECOS
-#define _rtk_cat(_name, _ic_type, _func)		\
-	( 					\
-		_func##_all(_name)		\
-	)
-#else
+#if 0
 #define _cat(_name, _ic_type, _func)								\
 	( 															\
 		_func##_all(_name)										\
 	)
 #endif
 
-#if 0 //TODO: enable it if we need to support run-time to differentiate between 92C_SERIES and JAGUAR_SERIES.
+/*===================================
+
+#define ODM_REG_DIG_11N		0xC50
+#define ODM_REG_DIG_11AC	0xDDD
+
+ODM_REG(DIG,_pDM_Odm)
+=====================================*/
+
+#define _reg_11N(_name)			ODM_REG_##_name##_11N 
+#define _reg_11AC(_name)		ODM_REG_##_name##_11AC
+#define _bit_11N(_name)			ODM_BIT_##_name##_11N 
+#define _bit_11AC(_name)		ODM_BIT_##_name##_11AC
+
+#ifdef __ECOS
+#define _rtk_cat(_name, _ic_type, _func)		\
+	( 					\
+		((_ic_type) & ODM_IC_11N_SERIES)? _func##_11N(_name):		\
+		_func##_11AC(_name)	\
+	)
+#else
+
 #define _cat(_name, _ic_type, _func)									\
 	( 															\
-		((_ic_type) & ODM_IC_11N_SERIES)? _func##_all(_name):		\
-		_func##_ic(_name, _8195)									\
+		((_ic_type) & ODM_IC_11N_SERIES)? _func##_11N(_name):		\
+		_func##_11AC(_name)									\
 	)
 #endif
 #if 0 // only sample code
@@ -81,6 +96,14 @@
 #define ODM_REG(_name, _pDM_Odm)	_cat(_name, _pDM_Odm->SupportICType, _reg)
 #define ODM_BIT(_name, _pDM_Odm)	_cat(_name, _pDM_Odm->SupportICType, _bit)
 #endif
+typedef enum _ODM_H2C_CMD 
+{
+	ODM_H2C_RSSI_REPORT = 0,
+	ODM_H2C_PSD_RESULT=1,	
+	ODM_H2C_PathDiv = 2,               
+	ODM_MAX_H2CCMD
+}ODM_H2C_CMD;
+
 
 //
 // 2012/02/17 MH For non-MP compile pass only. Linux does not support workitem.
@@ -225,6 +248,14 @@ ODM_FreeMemory(
 	IN	u4Byte		length
 	);
 
+VOID
+ODM_MoveMemory(	
+	IN 	PDM_ODM_T	pDM_Odm,
+	OUT PVOID		pDest,
+	IN  PVOID		pSrc,
+	IN  u4Byte		Length
+	);
+
 s4Byte ODM_CompareMemory(
 	IN 	PDM_ODM_T	pDM_Odm,
 	IN	PVOID           pBuf1,
@@ -339,6 +370,15 @@ ODM_ReleaseTimer(
 //
 // ODM FW relative API.
 //
+#if (DM_ODM_SUPPORT_TYPE & ODM_MP)
+VOID
+ODM_FillH2CCmd(
+	IN	PADAPTER		Adapter,
+	IN	u1Byte 	ElementID,
+	IN	u4Byte 	CmdLen,
+	IN	pu1Byte	pCmdBuffer
+);
+#else
 u4Byte
 ODM_FillH2CCmd(	
 	IN	pu1Byte		pH2CBuffer,
@@ -349,5 +389,6 @@ ODM_FillH2CCmd(
 	IN	pu1Byte*		pCmbBuffer,
 	IN	pu1Byte		CmdStartSeq
 	);
-
+#endif
 #endif	// __ODM_INTERFACE_H__
+

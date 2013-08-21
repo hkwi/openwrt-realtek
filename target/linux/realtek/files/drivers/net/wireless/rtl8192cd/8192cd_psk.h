@@ -124,7 +124,7 @@ typedef enum _ReasonCode{
 typedef	struct _OCTET_STRING {
 	unsigned char	*Octet;
 	int				Length;
-} OCTET_STRING;
+} OCTET_STRING, *POCTET_STRING;
 
 typedef union _LARGE_INTEGER {
 		unsigned char 	charData[8];
@@ -156,7 +156,7 @@ typedef struct _DOT11_WPA2_IE_HEADER {
         unsigned short Version;
 } DOT11_WPA2_IE_HEADER;
 
-#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS)
+#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS) || defined(RTK_NL80211)
 // group key info
 typedef struct _wpa_global_info {
 	OCTET_STRING		AuthInfoElement;
@@ -207,7 +207,7 @@ typedef struct _wpa_global_info {
 } WPA_GLOBAL_INFO;
 #endif
 
-#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS)
+#if defined(WIFI_HAPD) && !defined(HAPD_DRV_PSK_WPS) || defined(RTK_NL80211)
 // wpa sta info
 typedef struct _wpa_sta_info {
 	int 				state;
@@ -322,7 +322,7 @@ __PACK struct lib1x_eapol
 
 #define Message_KeyNonce(f)					SubStr(f,KeyNoncePos,KEY_NONCE_LEN)
 #define Message_setKeyNonce(f, v)			SetSubStr(f, v, KeyNoncePos)
-#define Message_EqualKeyNonce(f1, f2)		memcmp(f1.Octet + KeyNoncePos, f2.Octet, KEY_NONCE_LEN)? 0:1
+#define Message_EqualKeyNonce(f1, f2)		(memcmp(f1.Octet + KeyNoncePos, f2.Octet, KEY_NONCE_LEN)? 0:1)
 #define Message_KeyIV(f)					Substr(f, KeyIVPos, KEY_IV_LEN)
 #define Message_setKeyIV(f, v)				SetSubStr(f, v, KeyIVPos)
 #define Message_KeyRSC(f)					Substr(f, KeyRSCPos, KEY_RSC_LEN)
@@ -336,7 +336,7 @@ __PACK struct lib1x_eapol
 #define Message_setKeyDataLength(f, v)		(f.Octet[KeyDataLenPos] = (v&0xff00) >>8 ,  f.Octet[KeyDataLenPos+1] = (v&0x00ff))
 #define Message_KeyData(f, l)				SubStr(f, KeyDataPos, l)
 #define Message_setKeyData(f, v)			SetSubStr(f, v, KeyDataPos);
-#define Message_EqualRSNIE(f1 , f2, l)		memcmp(f1.Octet, f2.Octet, l) ? 0:1
+#define Message_EqualRSNIE(f1 , f2, l)		(memcmp(f1.Octet, f2.Octet, l) ? 0:1)
 #define Message_ReturnKeyDataLength(f)		f.Length - (ETHER_HDRLEN + LIB1X_EAPOL_HDRLEN + EAPOLMSG_HDRLEN)
 
 #define Message_CopyReplayCounter(f1, f2)	memcpy(f1.Octet + ReplayCounterPos, f2.Octet + ReplayCounterPos, KEY_RC_LEN)

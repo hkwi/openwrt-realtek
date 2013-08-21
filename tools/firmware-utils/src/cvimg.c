@@ -15,20 +15,17 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#define HOME_GATEWAY
 
-#define CONFIG_RTL_8196C 
-
+/* This define is needed to generate proper binary for
+ * rtl8196c, rtl8198, rtl819Xe and rtl8196e.
+ * rtl8196b is somehow different (can be fixed in bootloder?).
+ * See apmib.h for details.
+ */
+#define CONFIG_RTL_8196C
 #include "apmib.h"
 
 #define COMPACT_FILENAME_BUFFER
 
-
-static int friendly_strcmp(const char *s1, const char *s2)
-{
-  if (!s1 || !s2) return (s1>s2) ?  -1 : !(s1==s2);
-  return strcmp(s1,s2);
-}
 
 /* 32-bit ELF base types. */
 typedef unsigned int	Elf32_Addr;
@@ -119,14 +116,14 @@ int main(int argc, char** argv)
 	IMG_HEADER_Tp pHeader;
 	unsigned int startAddr;
 	unsigned int burnAddr;
-	unsigned short checksum;
+	unsigned short checksum=0;
 	int is_vmlinux = 0;
 	int is_vmlinuxhdr = 0;
     int is_signature = 0;
-	unsigned int lchecksum, padding_len;
-	unsigned int start_addr;	
+	unsigned int lchecksum, padding_len=0;
+	unsigned int start_addr=0;	
 
-	if (argc == 4 && !friendly_strcmp(argv[1], "size_chk")) {
+	if (argc == 4 && !strcmp(argv[1], "size_chk")) {
 		unsigned int total_size;
 
 #ifdef COMPACT_FILENAME_BUFFER
@@ -159,7 +156,7 @@ int main(int argc, char** argv)
 	}
 
 #ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
-	if (argc == 3 && !friendly_strcmp(argv[1], "flash_size_chk")) {
+	if (argc == 3 && !strcmp(argv[1], "flash_size_chk")) {
 		unsigned int total_size;
 
 #ifdef COMPACT_FILENAME_BUFFER
@@ -184,7 +181,7 @@ int main(int argc, char** argv)
 
 		if (status.st_size > (int)total_size)
 		{
-			printf("Error!!!! : Kernel image too big will overwirte rootfs image, cur size(%d), available size(%d).\n",status.st_size, total_size);
+			printf("Error!!!! : Kernel image too big will overwirte rootfs image, cur size(%d), available size(%d).\n",(int)status.st_size, total_size);
 			exit(1);
 		}
 		else
@@ -195,15 +192,15 @@ int main(int argc, char** argv)
 	}
 #endif
 	
-	if (argc == 4 && !friendly_strcmp(argv[1], "vmlinux"))
+	if (argc == 4 && !strcmp(argv[1], "vmlinux"))
 		is_vmlinux = 1;
 
-    if (argc == 5 && !friendly_strcmp(argv[1], "vmlinuxhdr")) {
+    if (argc == 5 && !strcmp(argv[1], "vmlinuxhdr")) {
 		is_vmlinuxhdr = 1;
 		start_addr = extractStartAddr(argv[4]);
 	}
 
-	if (!friendly_strcmp(argv[1], "signature")) {
+	if (!strcmp(argv[1], "signature")) {
 		is_signature = 1;
 		if (argc != 7) {
 		    printf_usage();
@@ -288,15 +285,15 @@ int main(int argc, char** argv)
 		memcpy(&buf[size-12], &lchecksum, 4);		
 	}
 	else if (!is_vmlinux) {
-		if( !friendly_strcmp("root", argv[1]))
+		if( !strcmp("root", argv[1]))
 			memcpy(pHeader->signature, ROOT_HEADER, SIGNATURE_LEN);
-		else if ( !friendly_strcmp("boot", argv[1]))
+		else if ( !strcmp("boot", argv[1]))
 			memcpy(pHeader->signature, BOOT_HEADER, SIGNATURE_LEN);
-		else if ( !friendly_strcmp("linux", argv[1]))
+		else if ( !strcmp("linux", argv[1]))
 			memcpy(pHeader->signature, FW_HEADER, SIGNATURE_LEN);
-		else if ( !friendly_strcmp("linux-ro", argv[1]))
+		else if ( !strcmp("linux-ro", argv[1]))
 			memcpy(pHeader->signature, FW_HEADER_WITH_ROOT, SIGNATURE_LEN);
-		else if ( !friendly_strcmp("signature", argv[1]))
+		else if ( !strcmp("signature", argv[1]))
 			memcpy(pHeader->signature, argv[6], SIGNATURE_LEN);
 		else{
 			printf("not supported signature\n");
@@ -306,7 +303,7 @@ int main(int argc, char** argv)
 		pHeader->startAddr = DWORD_SWAP(startAddr);
 		pHeader->burnAddr = DWORD_SWAP(burnAddr);
 
-		if( !friendly_strcmp("root", argv[1])) {
+		if( !strcmp("root", argv[1])) {
 			#define SIZE_OF_SQFS_SUPER_BLOCK 640		
 			unsigned int fs_len;
 			fs_len = DWORD_SWAP((size-sizeof(IMG_HEADER_T) - sizeof(checksum)- SIZE_OF_SQFS_SUPER_BLOCK));
@@ -323,7 +320,7 @@ int main(int argc, char** argv)
 	}
 	
 	// Write image to output file
-	fh = open(outFile, O_RDWR | O_CREAT | O_TRUNC, DEFFILEMODE);
+	fh = open(outFile, O_RDWR|O_CREAT|O_TRUNC, 0644);
 	if ( fh == -1 ) {
 		printf("Create output file error! [%s]\n", outFile);
 		free(pHeader);

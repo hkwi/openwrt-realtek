@@ -18,6 +18,11 @@
 * 
 ******************************************************************************/
 
+#if !defined(__ECOS) && !defined(CONFIG_COMPAT_WIRELESS)
+#include "Mp_Precomp.h"
+#else
+#include "../Mp_Precomp.h"
+#endif
 #include "../odm_precomp.h"
 
 #if (RTL8188E_SUPPORT == 1)
@@ -27,26 +32,26 @@ CheckCondition(
     const u4Byte  Hex
     )
 {
-    u4Byte board = Hex & 0xFF;
-    u4Byte interface = Hex & 0xFF00;
-    u4Byte platform = Hex & 0xFF0000;
+    u4Byte _board = Hex & 0xFF;
+    u4Byte _interface = Hex & 0xFF00;
+    u4Byte _platform = Hex & 0xFF0000;
     u4Byte cond = Condition;
 
     if ( Condition == 0xCDCDCDCD )
         return TRUE;
 
     cond = Condition & 0xFF;
-    if ( (board & cond) == 0 && cond != 0x1F)
+    if ( (_board & cond) == 0 && cond != 0x1F)
         return FALSE;
 
     cond = Condition & 0xFF00;
     cond = cond >> 8;
-    if ( (interface & cond) == 0 && cond != 0x07)
+    if ( (_interface & cond) == 0 && cond != 0x07)
         return FALSE;
 
     cond = Condition & 0xFF0000;
     cond = cond >> 16;
-    if ( (platform & cond) == 0 && cond != 0x0F)
+    if ( (_platform & cond) == 0 && cond != 0x0F)
         return FALSE;
     return TRUE;
 }
@@ -56,7 +61,7 @@ CheckCondition(
 *                           MAC_REG.TXT
 ******************************************************************************/
 
-u4Byte Array_MAC_REG_8188E[] = { 
+u4Byte Array_8188E_MAC_REG[] = { 
 		0x026, 0x00000041,
 		0x027, 0x00000035,
 		0x428, 0x0000000A,
@@ -151,7 +156,7 @@ u4Byte Array_MAC_REG_8188E[] = {
 };
 
 void
-ODM_ReadAndConfig_MAC_REG_8188E(
+ODM_ReadAndConfig_8188E_MAC_REG(
  	IN   PDM_ODM_T  pDM_Odm
  	)
 {
@@ -159,19 +164,17 @@ ODM_ReadAndConfig_MAC_REG_8188E(
 
 	u4Byte     hex         = 0;
 	u4Byte     i           = 0;
-#if 0
 	u2Byte     count       = 0;
 	pu4Byte    ptr_array   = NULL;
-#endif
 	u1Byte     platform    = pDM_Odm->SupportPlatform;
-	u1Byte     interface   = pDM_Odm->SupportInterface;
+	u1Byte     _interface   = pDM_Odm->SupportInterface;
 	u1Byte     board       = pDM_Odm->BoardType;  
-	u4Byte     ArrayLen    = sizeof(Array_MAC_REG_8188E)/sizeof(u4Byte);
-	pu4Byte    Array       = Array_MAC_REG_8188E;
+	u4Byte     ArrayLen    = sizeof(Array_8188E_MAC_REG)/sizeof(u4Byte);
+	pu4Byte    Array       = Array_8188E_MAC_REG;
 
 
 	hex += board;
-	hex += interface << 8;
+	hex += _interface << 8;
 	hex += platform << 16;
 	hex += 0xFF000000;
 	for (i = 0; i < ArrayLen; i += 2 )
@@ -221,3 +224,4 @@ ODM_ReadAndConfig_MAC_REG_8188E(
 }
 
 #endif // end of HWIMG_SUPPORT
+

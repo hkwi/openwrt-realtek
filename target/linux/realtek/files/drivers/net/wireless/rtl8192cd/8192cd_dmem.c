@@ -40,7 +40,7 @@ static void *rtl8192cd_dmem_pmib_alloc(void *miscInfo);
 static void rtl8192cd_dmem_pmib_free(void *miscInfo);
 
 #ifdef PRIV_STA_BUF
-	extern struct aid_obj *alloc_sta_obj(void);
+	extern struct aid_obj *alloc_sta_obj(struct rtl8192cd_priv*);
 	extern void free_sta_obj(struct rtl8192cd_priv *priv, struct aid_obj *obj);
 #endif
 
@@ -173,7 +173,7 @@ static void *rtl8192cd_dmem_AID_OBJ_alloc(void *miscInfo)
 	if ( index >= RTL8192CD_MAX_SPEEDUP_STA )
 	{
 #ifdef PRIV_STA_BUF
-		_rtl8192cd_aid_externalMem_Array[index] = alloc_sta_obj();
+		_rtl8192cd_aid_externalMem_Array[index] = alloc_sta_obj(NULL);
 #else
 		_rtl8192cd_aid_externalMem_Array[index] = kmalloc(sizeof(struct aid_obj), GFP_ATOMIC);
 #endif
@@ -268,7 +268,7 @@ static void rtl8192cd_dmem_pmib_free(void *miscInfo)
 	/* Free PMIB if it is speeded up by DMEM */
 	for ( idx = 0 ; idx < RTL8192CD_SPEEDUP_PRIV_COUNT ; idx ++ )
 	{
-		if ( (unsigned int)(&(_rtl8192cd_pmib[idx])) == (unsigned int)miscInfo )
+		if ( (unsigned long)(&(_rtl8192cd_pmib[idx])) == (unsigned long)miscInfo )
 		{	/* Entry is found : free it */
 			memset(&(_rtl8192cd_pmib[idx]), 0, sizeof(struct wifi_mib));
 			_rtl8192cd_pmib_usageMap[idx] = 0;

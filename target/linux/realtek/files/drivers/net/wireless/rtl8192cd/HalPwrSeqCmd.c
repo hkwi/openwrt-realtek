@@ -20,14 +20,17 @@ Major Change History:
 #include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
 #endif
 
-#ifdef CONFIG_RTL_88E_SUPPORT
+
 //#include "Mp_Precomp.h"
 #ifdef __KERNEL__
 #include <linux/kernel.h>
 #endif
+#include "8192cd.h"
 #include "8192cd_debug.h"
 #include "8192cd_headers.h"
 #include "8192cd_util.h"
+
+#if defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT)
 
 #define TRUE		1
 #define FALSE	0

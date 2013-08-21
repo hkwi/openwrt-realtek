@@ -8,7 +8,11 @@
 #ifdef CONFIG_RTL8672
 #include "./romeperf.h"
 #else
+#if !defined(NOT_RTK_BSP)
 #include <net/rtl/rtl_types.h>
+#else
+#include "rtl_types.h"
+#endif
 #endif
 #else
 #include "../rtl865x/rtl_types.h"
@@ -105,16 +109,16 @@ typedef	struct	__wapiKey {
 #define	WAPI_IOCTL_TYPE_REQ_ACTIVE	3
 #define	WAPI_IOCTL_TYPE_CA_AUTH		4
 
-typedef	struct	__wapiCAAppPara {
+typedef struct __wapiCAAppPara {
 	uint8			eventID;
 	uint8			moreData;
 	uint16			type;
 	void				*ptr;
 	char				name[IFNAMSIZ];
 	uint8			data[0];
-}	wapiCAAppPara;
+} __WLAN_ATTRIB_PACK__ wapiCAAppPara;
 
-typedef	struct	__wapiStaPN {
+typedef struct __wapiStaPN {
 	unsigned char		rxUCast[RX_QUEUE_NUM][WAPI_PN_LEN];
 	unsigned char		txUCast[WAPI_PN_LEN];
 	unsigned short		rxSeq[RX_QUEUE_NUM];
@@ -205,7 +209,7 @@ typedef struct __wapiTLV {
 	uint16	id;
 	uint16	len;
 	uint8	data[0];
-}	wapiTLV;
+} __WLAN_ATTRIB_PACK__ wapiTLV;
 
 typedef struct __wapiTLV1 {
 	uint8	id;
@@ -222,62 +226,97 @@ typedef struct __wapiWaiHeader {
 	uint16	sequenceNum;
 	uint8	fragmentNum;
 	uint8	flags;
-}	wapiWaiHeader;
+} __WLAN_ATTRIB_PACK__ wapiWaiHeader;
 
-typedef struct	__wapiWaiCertActivPkt {
+typedef struct __wapiWaiCertActivPkt {
 	/*	8Bit flags	*/
+#ifdef	_LITTLE_ENDIAN_
+	uint8	updateBK:1;
+	uint8	preAuth:1;
+	uint8	reserved:6;
+#else
 	uint8	reserved:6;
 	uint8	preAuth:1;
 	uint8	updateBK:1;
+#endif
 	/*	8Bit flags over	*/
 	uint8	authFlag[WAPI_N_LEN];
 	uint8	data[0];
-}	wapiWaiCertActivPkt;
+} __WLAN_ATTRIB_PACK__ wapiWaiCertActivPkt;
 
-typedef struct	__wapiWaiCertAuthReqPkt {
+typedef struct __wapiWaiCertAuthReqPkt {
 	/*	8Bit flags	*/
+#ifdef	_LITTLE_ENDIAN_
+	uint8	updateBK:1;
+	uint8	preAuth:1;
+	uint8	AEAuthReq:1;
+	uint8	options:1;
+	uint8	reserved:4;
+#else
 	uint8	reserved:4;
 	uint8	options:1;
 	uint8	AEAuthReq:1;
 	uint8	preAuth:1;
 	uint8	updateBK:1;
+#endif
 	/*	8Bit flags over	*/
 	uint8	authFlag[WAPI_N_LEN];
 	uint8	ASUEChallange[WAPI_N_LEN];
 	uint8	data[0];
-}	wapiWaiCertAuthReqPkt;
+} __WLAN_ATTRIB_PACK__ wapiWaiCertAuthReqPkt;
 
-typedef struct	__wapiWaiCertAuthRspPkt {
+typedef struct __wapiWaiCertAuthRspPkt {
 	/*	8Bit flags	*/
+#ifdef	_LITTLE_ENDIAN_
+	uint8	updateBK:1;
+	uint8	preAuth:1;
+	uint8	reserved2:1;
+	uint8	options:1;
+	uint8	reserved1:4;
+#else
 	uint8	reserved1:4;
 	uint8	options:1;
 	uint8	reserved2:1;
 	uint8	preAuth:1;
 	uint8	updateBK:1;
+#endif
+	/*	8Bit flags over	*/
 	uint8	ASUEChallange[WAPI_N_LEN];
 	uint8	AEChallange[WAPI_N_LEN];
 	uint8	CAResult;
 	uint8	data[0];
-}	wapiWaiCertAuthRspPkt;
+} __WLAN_ATTRIB_PACK__ wapiWaiCertAuthRspPkt;
 
-typedef struct	__wapiWaiUCastReqPkt {
+typedef struct __wapiWaiUCastReqPkt {
 	/*	8Bit flags	*/
+#ifdef	_LITTLE_ENDIAN_
+	uint8	reserved2:4;
+	uint8	uskUpdate:1;
+	uint8	reserved1:3;
+#else
 	uint8	reserved1:3;
 	uint8	uskUpdate:1;
 	uint8	reserved2:4;
+#endif
 	/*	8Bit flags over	*/
 	uint8	bkId[WAPI_KEY_LEN];
 	uint8	uskId;
 	uint8	mac1[ETH_ALEN];
 	uint8	mac2[ETH_ALEN];
 	uint8	AEChallange[WAPI_N_LEN];
-}	wapiWaiUCastReqPkt;
+} __WLAN_ATTRIB_PACK__ wapiWaiUCastReqPkt;
 
-typedef struct	__wapiWaiUCastRspPkt {
+typedef struct __wapiWaiUCastRspPkt {
 	/*	8Bit flags	*/
+#ifdef	_LITTLE_ENDIAN_
+	uint8	reserved2:4;
+	uint8	uskUpdate:1;
+	uint8	reserved1:3;
+#else
 	uint8	reserved1:3;
 	uint8	uskUpdate:1;
 	uint8	reserved2:4;
+#endif
 	/*	8Bit flags over	*/
 	uint8	bkId[WAPI_KEY_LEN];
 	uint8	uskId;
@@ -286,13 +325,19 @@ typedef struct	__wapiWaiUCastRspPkt {
 	uint8	ASUEChallange[WAPI_N_LEN];
 	uint8	AEChallange[WAPI_N_LEN];
 	uint8	WIEasue[0];
-}	wapiWaiUCastRspPkt;
+} __WLAN_ATTRIB_PACK__ wapiWaiUCastRspPkt;
 
-typedef struct	__wapiWaiUCastAckPkt {
+typedef struct __wapiWaiUCastAckPkt {
 	/*	8Bit flags	*/
+#ifdef	_LITTLE_ENDIAN_
+	uint8	reserved2:4;
+	uint8	uskUpdate:1;
+	uint8	reserved1:3;
+#else
 	uint8	reserved1:3;
 	uint8	uskUpdate:1;
 	uint8	reserved2:4;
+#endif
 	/*	8Bit flags over	*/
 	uint8	bkId[WAPI_KEY_LEN];
 	uint8	uskId;
@@ -300,14 +345,21 @@ typedef struct	__wapiWaiUCastAckPkt {
 	uint8	mac2[ETH_ALEN];
 	uint8	ASUEChallange[WAPI_N_LEN];
 	uint8	WIEae[0];
-}	wapiWaiUCastAckPkt;
+} __WLAN_ATTRIB_PACK__ wapiWaiUCastAckPkt;
 
-typedef struct	__wapiWaiMCastNotiPkt {
+typedef struct __wapiWaiMCastNotiPkt {
 	/*	8Bit flags	*/
+#ifdef	_LITTLE_ENDIAN_
+	uint8	reserved2:5;
+	uint8	staKeyFlag:1;
+	uint8	delKeyFlag:1;
+	uint8	reserved1:1;
+#else
 	uint8	reserved1:1;
 	uint8	delKeyFlag:1;
 	uint8	staKeyFlag:1;
 	uint8	reserved2:5;
+#endif
 	/*	8Bit flags over	*/
 	uint8	mskId;
 	uint8	uskId;
@@ -316,14 +368,21 @@ typedef struct	__wapiWaiMCastNotiPkt {
 	uint8	dataPN[WAPI_PN_LEN];
 	uint8	keyPN[WAPI_PN_LEN];
 	uint8	keyData[0];
-}	wapiWaiMCastNofiPkt;
+} __WLAN_ATTRIB_PACK__ wapiWaiMCastNofiPkt;
 
-typedef struct	__wapiWaiMCastRspPkt {
+typedef struct __wapiWaiMCastRspPkt {
 	/*	8Bit flags	*/
+#ifdef	_LITTLE_ENDIAN_
+	uint8	reserved2:5;
+	uint8	staKeyFlag:1;
+	uint8	delKeyFlag:1;
+	uint8	reserved1:1;
+#else
 	uint8	reserved1:1;
 	uint8	delKeyFlag:1;
 	uint8	staKeyFlag:1;
 	uint8	reserved2:5;
+#endif
 	/*	8Bit flags over	*/
 	uint8	mskId;
 	uint8	uskId;
@@ -331,11 +390,12 @@ typedef struct	__wapiWaiMCastRspPkt {
 	uint8	mac2[ETH_ALEN];
 	uint8	keyPN[WAPI_PN_LEN];
 	uint8	mic[0];
-}	wapiWaiMCastRspPkt;
+} __WLAN_ATTRIB_PACK__ wapiWaiMCastRspPkt;
 
 void wapiInit(struct rtl8192cd_priv *priv);
 void wapiExit(struct rtl8192cd_priv *priv);
 void wapiStationInit(struct stat_info *pstat);
+void free_sta_wapiInfo(struct rtl8192cd_priv *priv, struct stat_info *pstat);
 void wapiSetIE(struct rtl8192cd_priv	*priv);
 int	wapiIEInfoInstall(struct rtl8192cd_priv *priv, struct stat_info *pstat);
 void wapiReleaseFragementQueue(wapiStaInfo *wapiInfo);
@@ -354,7 +414,6 @@ int	wapiUpdateMSK(struct rtl8192cd_priv *priv, struct stat_info *pstat);
 extern struct timer_list	waiMCastKeyUpdateTimer;
 
 int DOT11_Process_WAPI_Info(struct rtl8192cd_priv *priv, uint8 *data, int32 len);
-void issue_deauth(struct rtl8192cd_priv *priv,	unsigned char *da, int reason);
 #endif	/*	CONFIG_RTL_WAPI_SUPPORT	*/
 
 #endif	/*	WAPI_WAI_H			*/

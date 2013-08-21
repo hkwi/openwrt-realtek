@@ -23,7 +23,7 @@
 #include <pkgconf/devs_eth_rltk_819x_wlan.h>
 #endif
 
-#define MIB_VERSION				15
+#define MIB_VERSION				20
 
 #define MAX_2G_CHANNEL_NUM		14
 #define MAX_5G_CHANNEL_NUM		196
@@ -78,6 +78,7 @@ struct Dot11StationConfigEntry {
 	unsigned int	dot11SupportedRates;	// bit mask value. bit0-bit11 as 1,2,5.5,11,6,9,12,18,24,36,48,54
 	unsigned int	dot11BasicRates;		// bit mask value. bit0-bit11 as 1,2,5.5,11,6,9,12,18,24,36,48,54
 	unsigned int	dot11RegDomain;			// reguration domain
+	int				txpwr_lmt_index;	    // TX Power Limit Index
 	unsigned int	autoRate;				// enable/disable auto rate
 	unsigned int	fixedTxRate;			// fix tx rate
 	int				swTkipMic;
@@ -241,6 +242,7 @@ struct Dot11OperationEntry {
 struct Dot11RFEntry {
 	unsigned int	dot11RFType;
 	unsigned char	dot11channel;
+	unsigned char   band5GSelected; // bit0: Band1, bit1: Band2, bit2: Band3, bit3: Band4
 	unsigned int	dot11ch_low;
 	unsigned int	dot11ch_hi;
 	unsigned char	pwrlevelCCK_A[MAX_2G_CHANNEL_NUM];
@@ -278,6 +280,46 @@ struct Dot11RFEntry {
 	unsigned int	tx2path;
 	unsigned int	txbf;
 	unsigned int	target_pwr;
+	unsigned int	pa_type;
+
+	unsigned char pwrdiff_20BW1S_OFDM1T_A[MAX_2G_CHANNEL_NUM];	
+	unsigned char pwrdiff_40BW2S_20BW2S_A[MAX_2G_CHANNEL_NUM];	
+	unsigned char pwrdiff_OFDM2T_CCK2T_A[MAX_2G_CHANNEL_NUM];
+	unsigned char pwrdiff_40BW3S_20BW3S_A[MAX_2G_CHANNEL_NUM];	
+	unsigned char pwrdiff_4OFDM3T_CCK3T_A[MAX_2G_CHANNEL_NUM];	
+	unsigned char pwrdiff_40BW4S_20BW4S_A[MAX_2G_CHANNEL_NUM];	
+	unsigned char pwrdiff_OFDM4T_CCK4T_A[MAX_2G_CHANNEL_NUM];
+
+	unsigned char pwrdiff_5G_20BW1S_OFDM1T_A[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_40BW2S_20BW2S_A[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_40BW3S_20BW3S_A[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_40BW4S_20BW4S_A[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_RSVD_OFDM4T_A[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_80BW1S_160BW1S_A[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_80BW2S_160BW2S_A[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_80BW3S_160BW3S_A[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_80BW4S_160BW4S_A[MAX_5G_CHANNEL_NUM];	
+
+
+	unsigned char pwrdiff_20BW1S_OFDM1T_B[MAX_2G_CHANNEL_NUM];	
+	unsigned char pwrdiff_40BW2S_20BW2S_B[MAX_2G_CHANNEL_NUM];	
+	unsigned char pwrdiff_OFDM2T_CCK2T_B[MAX_2G_CHANNEL_NUM];
+	unsigned char pwrdiff_40BW3S_20BW3S_B[MAX_2G_CHANNEL_NUM];	
+	unsigned char pwrdiff_OFDM3T_CCK3T_B[MAX_2G_CHANNEL_NUM];
+	unsigned char pwrdiff_40BW4S_20BW4S_B[MAX_2G_CHANNEL_NUM];	
+	unsigned char pwrdiff_OFDM4T_CCK4T_B[MAX_2G_CHANNEL_NUM];
+
+	unsigned char pwrdiff_5G_20BW1S_OFDM1T_B[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_40BW2S_20BW2S_B[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_40BW3S_20BW3S_B[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_40BW4S_20BW4S_B[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_RSVD_OFDM4T_B[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_80BW1S_160BW1S_B[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_80BW2S_160BW2S_B[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_80BW3S_160BW3S_B[MAX_5G_CHANNEL_NUM];	
+	unsigned char pwrdiff_5G_80BW4S_160BW4S_B[MAX_5G_CHANNEL_NUM];	
+	unsigned char power_percent;
+
 };
 
 struct ibss_priv {
@@ -364,12 +406,13 @@ struct Dot11DFSEntry {
 	unsigned int	DFS_timeout;	// set to 10 ms
 	unsigned int	DFS_detected;	// 1 or 0
 	unsigned int	NOP_timeout;	// set to 30 mins
-	unsigned int	rs1_threshold;	// threshold for 26ms/18pulses and 70ms/18pulses radar signals
-	unsigned int	temply_disable_DFS;
-	unsigned int	Throughput_Threshold;		// will disable DFS when greater than this threshold (M bits/sec)
-	unsigned int	RecordHistory_sec;
-	unsigned int	Dump_Throughput;			// dynamically dump the throughput
-	unsigned int	disable_DetermineDFSDisable;// var. to dynamically turn on/off DetermineDFSDisable func.
+	unsigned int	DFS_TXPAUSE_timeout; 
+	unsigned int	CAC_enable;		// 1 or 0
+	unsigned int	reserved1;
+	unsigned int	reserved2;
+	unsigned int	reserved3;
+	unsigned int	reserved4;
+	unsigned int	reserved5;
 };
 
 struct MiscEntry {
@@ -460,6 +503,12 @@ struct Dot11nConfigEntry {
 	unsigned int	dot11nLgyEncRstrct;		// bit0: Wep, bit1: TKIP, bit2: restrict Realtek client, bit3: forbid  N mode for legacy enc
 	unsigned int	dot11nCoexist;
 	unsigned int	dot11nTxNoAck;
+	unsigned int	dot11nAddBAreject;		//add for support sigma test	
+};
+
+struct Dot11acConfigEntry {
+	unsigned int	dot11SupportedVHT;	// b[1:0]: NSS1, b[3:2]: NSS2
+	unsigned int	dot11VHT_TxMap;		// b[19:10]: NSS2 MCS9~0, b[9:0]: 	NSS1 MCS9~0
 };
 
 struct ReorderControlEntry {
@@ -626,15 +675,16 @@ struct wifi_mib {
 	struct WifiSimpleConfigEntry	wscEntry;
 	struct GroupBandWidthControl	gbwcEntry;
 	struct Dot11nConfigEntry		dot11nConfigEntry;
+	struct Dot11acConfigEntry		dot11acConfigEntry;	
 	struct ReorderControlEntry		reorderCtrlEntry;
 	struct VlanConfig 				vlan;
 	struct Dot1180211sInfo			dot1180211sInfo;
 	struct Dot11KeyMappingsEntry	dot11sKeysTable;
 	struct __wapiMibInfo			wapiInfo;
 	struct Dot1180211CountryCodeEntry	dot11dCountry;
-	struct EfuseEntry			efuseEntry;
+	struct EfuseEntry				efuseEntry;
 	struct StaDetectInfo			staDetectInfo;
-	struct P2P_Direct			p2p_mib;	// add for P2P_SUPPORT
+	struct P2P_Direct				p2p_mib;	// add for P2P_SUPPORT
 	struct ap_conn_profile			ap_profile;		
 };
 

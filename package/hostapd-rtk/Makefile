@@ -175,6 +175,7 @@ endef
 define Install/hostapd-rtk
 	$(INSTALL_DIR) $(1)/lib/wifi
 	$(INSTALL_DATA) ./files/hostapd.sh $(1)/lib/wifi/hostapd.sh
+	$(INSTALL_DATA) ./files/realtek.sh $(1)/lib/wifi/realtek.sh
 	$(INSTALL_DIR) $(1)/usr/sbin
 endef
 

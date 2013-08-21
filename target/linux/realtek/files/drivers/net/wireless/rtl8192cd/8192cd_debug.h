@@ -64,6 +64,7 @@ enum _module_define_ {
 	_DM_ =			0x00100000,
 	_88E_HW_ =		0x00200000,
 	_DFS_ =			0x00400000,
+	_OTHER_ =		0x00800000,
 	_MESH_SME_ =	0x02000000,
 	_MESH_SECURITY_ =	0x04000000,
 	_MESH_TX_ =		0x08000000,
@@ -199,6 +200,10 @@ enum _module_define_ {
 	#define _MODULE_DEFINE _DM_COM_
 	#define _MODULE_NAME	"DM_COM"
 
+#elif defined(_8812_HW_C_)
+	#define _MODULE_DEFINE _8812_HW_
+    #define _MODULE_NAME    "8812_hw"
+	
 #elif defined(_8192CD_HOST_C_)
 	#define _MODULE_DEFINE _HOST_
 	#define _MODULE_NAME	"host"
@@ -212,9 +217,9 @@ enum _module_define_ {
 	#define _MODULE_NAME	"dfs"
 
 #else
-#ifndef USE_OUT_SRC
-	#error "error, no debug module is specified!\n"
-#endif	
+	#define _MODULE_DEFINE _OTHER_
+	#define _MODULE_NAME	"other"
+
 #endif
 
 /* Macro for DEBUG_ERR(), DEBUG_TRACE(), DEBUG_WARN(), DEBUG_INFO() */

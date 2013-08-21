@@ -13,6 +13,9 @@
 #ifndef _8188E_REG_H_
 #define _8188E_REG_H_
 
+#ifndef WLAN_HAL_INTERNAL_USED
+
+
 //============================================================
 //       8188E Regsiter offset definition
 //============================================================
@@ -362,6 +365,13 @@
 
 
 //----------------------------------------------------------------------------
+//       8188E REG_EFUSE_ACCESS			(Offset 0xCF, 8 bits)
+//----------------------------------------------------------------------------
+#define EFUSE_ACCESS_ON			0x69	// For RTL8723 only.
+#define EFUSE_ACCESS_OFF			0x00	// For RTL8723 only.
+
+
+//----------------------------------------------------------------------------
 //       8188E REG_88E_WATCHDOG bits				(Offset 0x368-369, 16 bits)
 //----------------------------------------------------------------------------
 #define	WATCHDOG_88E_ENABLE					BIT(15)		// Enable lbc timeout watchdog
@@ -438,6 +448,34 @@
 #define	TX_STS_INF_88E_TX_STS_TPY_INF_SHIFT		0
 #define	TX_STS_INF_88E_TX_STS_TPY_INF_Mask		0x3
 
+
+//----------------------------------------------------------------------------
+//       8192C EEPROM/EFUSE share register definition.
+//----------------------------------------------------------------------------
+
+//====================================================
+//			EEPROM/Efuse PG Offset for 88EE/88EU/88ES
+//====================================================
+#define	EEPROM_TX_PWR_INX_88E				0x10
+
+#define	EEPROM_ChannelPlan_88E				0xB8
+#define	EEPROM_XTAL_88E						0xB9
+#define	EEPROM_THERMAL_METER_88E			0xBA
+#define	EEPROM_IQK_LCK_88E					0xBB
+
+#define	EEPROM_RF_BOARD_OPTION_88E			0xC1
+#define	EEPROM_RF_FEATURE_OPTION_88E		0xC2
+#define	EEPROM_RF_BT_SETTING_88E				0xC3
+#define	EEPROM_VERSION_88E					0xC4
+#define	EEPROM_CUSTOMERID_88E				0xC5
+#define	EEPROM_RF_ANTENNA_OPT_88E			0xC9
+
+// RTL88EE
+#define	EEPROM_MAC_ADDR_88EE				0xD0
+#define	EEPROM_VID_88EE						0xD6
+#define	EEPROM_DID_88EE						0xD8
+#define	EEPROM_SVID_88EE						0xDA
+#define	EEPROM_SMID_88EE						0xDC
 
 #ifdef USE_OUT_SRC
 
@@ -1567,6 +1605,7 @@
 /*--------------------------Define Parameters-------------------------------*/
 #endif
 
+#endif //#ifndef WLAN_HAL_INTERNAL_USED
 
 #endif
 
