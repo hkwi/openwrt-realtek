@@ -1,0 +1,32 @@
+--- linux-2.6.30.9/drivers/net/rtl819x/rtl_nic.c	2013-07-26 16:34:07.000000000 +0300
++++ linux-2.6.30.9/drivers/net/rtl819x/rtl_nic.c	2013-08-02 00:21:39.283271578 +0300
+@@ -1693,8 +1693,10 @@ extern void br_signal_igmpProxy(void);
+ 
+ static inline struct iphdr * re865x_getIpv4Header(uint8 *macFrame)
+ {
++	
+ 	uint8 *ptr;
+ 	struct iphdr *iph=NULL;
++	asm __volatile__(".set nomips16");
+ 
+ 	ptr=macFrame+12;
+ 	if(*(int16 *)(ptr)==(int16)htons(ETH_P_8021Q))
+@@ -1718,7 +1720,8 @@ static inline struct ipv6hdr* re865x_get
+ {
+ 	uint8 *ptr;
+ 	struct ipv6hdr *ipv6h=NULL;
+-
++	asm __volatile__(".set nomips16");
++	
+ 	ptr=macFrame+12;
+ 	if(*(int16 *)(ptr)==(int16)htons(ETH_P_8021Q))
+ 	{
+@@ -2068,7 +2071,7 @@ static bool rtl_MulticastRxFilterOff(str
+ }
+ #endif
+ 
+-__MIPS16
++//__MIPS16
+ int  rtl_MulticastRxCheck(struct sk_buff *skb,rtl_nicRx_info *info)
+ {
+ 

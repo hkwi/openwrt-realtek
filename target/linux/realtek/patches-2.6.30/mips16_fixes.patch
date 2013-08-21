@@ -1,0 +1,94 @@
+diff -rupN a/arch/rlx/include/asm/irqflags.h b/arch/rlx/include/asm/irqflags.h
+--- a/arch/rlx/include/asm/irqflags.h	2013-07-20 00:37:16.990879755 +0300
++++ b/arch/rlx/include/asm/irqflags.h	2013-07-30 20:33:40.000000000 +0300
+@@ -82,6 +82,7 @@ __asm__(
+ 	"	.macro	raw_local_save_flags flags			\n"
+ 	"	.set	push						\n"
+ 	"	.set	reorder						\n"
++	"	.set	nomips16\n"
+ 	"	mfc0	\\flags, $12					\n"
+ 	"	.set	pop						\n"
+ 	"	.endm							\n");
+@@ -96,6 +97,7 @@ __asm__(
+ 	"	.set	push						\n"
+ 	"	.set	reorder						\n"
+ 	"	.set	noat						\n"
++	"	.set	nomips16\n"
+ 	"	mfc0	\\result, $12					\n"
+ 	"	ori	$1, \\result, 0x1f				\n"
+ 	"	xori	$1, 0x1f					\n"
+@@ -117,6 +119,7 @@ __asm__(
+ 	"	.set	push						\n"
+ 	"	.set	noreorder					\n"
+ 	"	.set	noat						\n"
++	"	.set	nomips16\n"
+ 	"	mfc0	$1, $12						\n"
+ 	"	andi	\\flags, 1					\n"
+ 	"	ori	$1, 0x1f					\n"
+diff -rupN a/arch/rlx/include/asm/spinlock.h b/arch/rlx/include/asm/spinlock.h
+--- a/arch/rlx/include/asm/spinlock.h	2013-07-20 00:37:16.997546422 +0300
++++ b/arch/rlx/include/asm/spinlock.h	2013-07-30 20:54:42.000000000 +0300
+@@ -61,6 +61,7 @@ static inline void __raw_spin_lock(raw_s
+ 		__asm__ __volatile__ (
+ 		"	.set push		# __raw_spin_lock	\n"
+ 		"	.set noreorder					\n"
++		"	.set mips32\n"
+ 		"							\n"
+ 		"	ll	%[ticket], %[ticket_ptr]		\n"
+ #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+@@ -110,6 +111,7 @@ static inline void __raw_spin_unlock(raw
+ 		__asm__ __volatile__ (
+ 		"	.set push		# __raw_spin_unlock	\n"
+ 		"	.set noreorder					\n"
++		"	.set mips32\n"
+ 		"							\n"
+ 		"	ll	%[ticket], %[ticket_ptr]		\n"
+ 		"1:	addiu	%[ticket], %[ticket], 1			\n"
+@@ -135,6 +137,7 @@ static inline unsigned int __raw_spin_tr
+ 		__asm__ __volatile__ (
+ 		"	.set push		# __raw_spin_trylock	\n"
+ 		"	.set noreorder					\n"
++		"	.set mips32\n"
+ 		"							\n"
+ 		"	ll	%[ticket], %[ticket_ptr]		\n"
+ #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+@@ -193,6 +196,7 @@ static inline void __raw_read_lock(raw_r
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	noreorder	# __raw_read_lock	\n"
++		"	.set mips16\n"
+ 		"1:	ll	%1, %2					\n"
+ #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+ 		"	nop							\n"
+@@ -231,6 +235,7 @@ static inline void __raw_read_unlock(raw
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	noreorder	# __raw_read_unlock	\n"
++		"	.set mips16\n"
+ 		"1:	ll	%1, %2					\n"
+ #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+ 		"	nop							\n"
+@@ -255,6 +260,7 @@ static inline void __raw_write_lock(raw_
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	noreorder	# __raw_write_lock	\n"
++		"	.set mips32\n"
+ 		"1:	ll	%1, %2					\n"
+ #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+ 		"	nop							\n"
+@@ -301,6 +307,7 @@ static inline int __raw_read_trylock(raw
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	noreorder	# __raw_read_trylock	\n"
++		"	.set mips16\n"
+ 		"	li	%2, 0					\n"
+ 		"1:	ll	%1, %3					\n"
+ #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
+@@ -329,6 +336,7 @@ static inline int __raw_write_trylock(ra
+ 
+ 		__asm__ __volatile__(
+ 		"	.set	noreorder	# __raw_write_trylock	\n"
++		"	.set mips32\n"
+ 		"	li	%2, 0					\n"
+ 		"1:	ll	%1, %3					\n"
+ #if defined(CONFIG_CPU_RLX4181) || defined(CONFIG_CPU_RLX5181)
