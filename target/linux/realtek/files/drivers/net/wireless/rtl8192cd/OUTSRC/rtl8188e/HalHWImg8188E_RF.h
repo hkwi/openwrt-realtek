@@ -22,18 +22,16 @@
 #ifndef __INC_RF_8188E_HW_IMG_H
 #define __INC_RF_8188E_HW_IMG_H
 
-#if 0
-static BOOLEAN CheckCondition(const u4Byte Condition, const u4Byte Hex);
-#endif
 
 /******************************************************************************
 *                           RadioA_1T.TXT
 ******************************************************************************/
 
 void
-ODM_ReadAndConfig_RadioA_1T_8188E(
+ODM_ReadAndConfig_8188E_RadioA_1T(
 	IN   PDM_ODM_T  pDM_Odm
 );
 
 #endif
 #endif // end of HWIMG_SUPPORT
+

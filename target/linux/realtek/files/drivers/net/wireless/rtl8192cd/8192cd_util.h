@@ -25,6 +25,16 @@
 #include "./wifi.h"
 #include "./8192cd_hw.h"
 
+#if !defined(NOT_RTK_BSP)
+#if defined(__LINUX_2_6__)
+//#include <bsp/bspchip.h>
+#else
+#ifndef __ECOS
+	#include <asm/rtl865x/platform.h>
+#endif	
+#endif
+#endif
+
 #ifdef CONFIG_RTK_MESH
 #include "../mesh_ext/mesh_util.h"
 #endif
@@ -40,6 +50,21 @@
 #define SMP_UNLOCK_SKB(__x__)
 #define SMP_LOCK_BUF(__x__)			
 #define SMP_UNLOCK_BUF(__x__)	
+#define SMP_LOCK_RECV(__x__)
+#define SMP_UNLOCK_RECV(__x__)
+#define SMP_LOCK_RX_DATA(__x__)
+#define SMP_UNLOCK_RX_DATA(__x__)
+#define SMP_LOCK_RX_MGT(__x__)
+#define SMP_UNLOCK_RX_MGT(__x__)
+#define SMP_LOCK_RX_CTRL(__x__)
+#define SMP_UNLOCK_RX_CTRL(__x__)
+#define SMP_LOCK_REORDER_CTRL(__x__)
+#define SMP_UNLOCK_REORDER_CTRL(__x__)
+#define SMP_LOCK_PSK_RESEND(__x__)
+#define SMP_UNLOCK_PSK_RESEND(__x__)
+#define SMP_LOCK_PSK_GKREKEY(__x__)
+#define SMP_UNLOCK_PSK_GKREKEY(__x__)
+
 #elif defined(SMP_SYNC) //Add these spin locks to avoid deadlock under SMP platforms.
 #define SAVE_INT_AND_CLI(__x__)			
 #define RESTORE_INT(__x__)				
@@ -47,10 +72,25 @@
 #define SMP_UNLOCK(__x__)				spin_unlock_irqrestore(&priv->pshare->lock, (__x__))
 #define SMP_LOCK_XMIT(__x__)			spin_lock_irqsave(&priv->pshare->lock_xmit, (__x__))
 #define SMP_UNLOCK_XMIT(__x__)			spin_unlock_irqrestore(&priv->pshare->lock_xmit, (__x__))
-#define SMP_LOCK_SKB(__x__)				//spin_lock_irqsave(&priv->pshare->lock_skb, (__x__))
-#define SMP_UNLOCK_SKB(__x__)			//spin_unlock_irqrestore(&priv->pshare->lock_skb, (__x__))
+#define SMP_LOCK_SKB(__x__)				spin_lock_irqsave(&priv->pshare->lock_skb, (__x__))
+#define SMP_UNLOCK_SKB(__x__)			spin_unlock_irqrestore(&priv->pshare->lock_skb, (__x__))
 #define SMP_LOCK_BUF(__x__)				spin_lock_irqsave(&priv->pshare->lock_buf, (__x__))
 #define SMP_UNLOCK_BUF(__x__)			spin_unlock_irqrestore(&priv->pshare->lock_buf, (__x__))
+#define SMP_LOCK_RECV(__x__)			spin_lock_irqsave(&priv->pshare->lock_recv, (__x__));
+#define SMP_UNLOCK_RECV(__x__)			spin_unlock_irqrestore(&priv->pshare->lock_recv, (__x__));
+#define SMP_LOCK_RX_DATA(__x__)			spin_lock_irqsave(&priv->rx_datalist_lock, (__x__));
+#define SMP_UNLOCK_RX_DATA(__x__)		spin_unlock_irqrestore(&priv->rx_datalist_lock, (__x__));
+#define SMP_LOCK_RX_MGT(__x__)			spin_lock_irqsave(&priv->rx_mgtlist_lock, (__x__));
+#define SMP_UNLOCK_RX_MGT(__x__)		spin_unlock_irqrestore(&priv->rx_mgtlist_lock, (__x__));
+#define SMP_LOCK_RX_CTRL(__x__)			spin_lock_irqsave(&priv->rx_ctrllist_lock, (__x__));
+#define SMP_UNLOCK_RX_CTRL(__x__)		spin_unlock_irqrestore(&priv->rx_ctrllist_lock, (__x__));
+#define SMP_LOCK_REORDER_CTRL(__x__)	spin_lock_irqsave(&priv->rc_packet_q_lock, (__x__))
+#define SMP_UNLOCK_REORDER_CTRL(__x__)	spin_unlock_irqrestore(&priv->rc_packet_q_lock, (__x__))
+#define SMP_LOCK_PSK_RESEND(__x__)		spin_lock_irqsave(&priv->psk_resend_lock, (__x__))
+#define SMP_UNLOCK_PSK_RESEND(__x__)	spin_unlock_irqrestore(&priv->psk_resend_lock, (__x__))
+#define SMP_LOCK_PSK_GKREKEY(__x__)		spin_lock_irqsave(&priv->psk_gkrekey_lock, (__x__))
+#define SMP_UNLOCK_PSK_GKREKEY(__x__)	spin_unlock_irqrestore(&priv->psk_gkrekey_lock, (__x__))
+
 #else
 #define SAVE_INT_AND_CLI(__x__)		spin_lock_irqsave(&priv->pshare->lock, (__x__))
 #define RESTORE_INT(__x__)			spin_unlock_irqrestore(&priv->pshare->lock, (__x__))
@@ -64,6 +104,21 @@
 #define SMP_UNLOCK_SKB(__x__)		
 #define SMP_LOCK_BUF(__x__)			
 #define SMP_UNLOCK_BUF(__x__)	
+#define SMP_LOCK_RECV(__x__)
+#define SMP_UNLOCK_RECV(__x__)
+#define SMP_LOCK_RX_DATA(__x__)
+#define SMP_UNLOCK_RX_DATA(__x__)
+#define SMP_LOCK_RX_MGT(__x__)
+#define SMP_UNLOCK_RX_MGT(__x__)
+#define SMP_LOCK_RX_CTRL(__x__)
+#define SMP_UNLOCK_RX_CTRL(__x__)
+#define SMP_LOCK_REORDER_CTRL(__x__)
+#define SMP_UNLOCK_REORDER_CTRL(__x__)
+#define SMP_LOCK_PSK_RESEND(__x__)
+#define SMP_UNLOCK_PSK_RESEND(__x__)
+#define SMP_LOCK_PSK_GKREKEY(__x__)
+#define SMP_UNLOCK_PSK_GKREKEY(__x__)
+
 #endif
 
 #ifdef __LINUX_2_6__
@@ -85,16 +140,26 @@
   *RTL_MILISECONDS_TO_JIFFIES shoud consider the HZ value
   *for example HZ=100, x should large than 10
   */
-#define RTL_SECONDS_TO_JIFFIES(x) (x*HZ)
-#define RTL_MILISECONDS_TO_JIFFIES(x) ((x*HZ)/1000)
-#define RTL_10MILISECONDS_TO_JIFFIES(x) ((x*HZ)/100)
+#define RTL_SECONDS_TO_JIFFIES(x) ((x)*HZ)
+#define RTL_MILISECONDS_TO_JIFFIES(x) (((x)*HZ-1)/1000+1)
+#define RTL_10MILISECONDS_TO_JIFFIES(x) (((x)*HZ)/100)
 #define RTL_JIFFIES_TO_MICROSECOND ((1000*1000)/HZ)
-#define RTL_JIFFIES_TO_MILISECONDS(x) ((x*1000)/HZ)
+#define RTL_JIFFIES_TO_MILISECONDS(x) (((x)*1000)/HZ)
+
+#define CHIP_VER_92X_SERIES(priv)		( (priv->pshare->version_id&0xf) < 3)
+
 
 #define GET_CHIP_VER(priv)		((priv->pshare->version_id&VERSION_MASK))
-#if defined(CONFIG_RTL_92C_SUPPORT) || defined(SUPPORT_RTL8188E_TC)
+//#if defined(CONFIG_RTL_92C_SUPPORT) || defined(SUPPORT_RTL8188E_TC)
 #define IS_TEST_CHIP(priv)		((priv->pshare->version_id&0x100))
+//#endif
+
+#if defined(USE_OUT_SRC)
+#define IS_OUTSRC_CHIP(priv)	(priv->pshare->use_outsrc)
 #endif
+
+#define IS_HAL_CHIP(priv)	(priv->pshare->use_hal)
+
 #ifdef CONFIG_RTL_92C_SUPPORT
 #define IS_88RE(priv)			((priv->pshare->version_id&0x200))
 #endif
@@ -104,6 +169,12 @@
 #define IS_UMC_A_CUT_88C(priv)	(IS_UMC_A_CUT(priv) && (GET_CHIP_VER(priv) == VERSION_8188C))
 #define IS_UMC_B_CUT_88C(priv)	(IS_UMC_B_CUT(priv) && (GET_CHIP_VER(priv) == VERSION_8188C))
 #endif
+//#ifdef CONFIG_RTL_8812_SUPPORT
+#define IS_B_CUT_8812(priv)	((GET_CHIP_VER(priv) == VERSION_8812E) && ((priv->pshare->version_id&0xf0)==0))
+#define IS_C_CUT_8812(priv)	((GET_CHIP_VER(priv) == VERSION_8812E) && ((priv->pshare->version_id&0xf0)==0x10))
+//#endif
+
+#define IS_A_CUT_8881A(priv)	((GET_CHIP_VER(priv) == VERSION_8881A) && ((priv->pshare->version_id&0xf0)==0))
 
 #define RTL_SET_MASK(reg,mask,val,shift) (((reg)&(~(mask)))|((val)<<(shift)))
 
@@ -144,12 +215,14 @@
 	#define IO_TYPE_CAST	(unsigned int)
 #endif
 
-extern unsigned char rfc1042_header[WLAN_LLC_HEADER_SIZE];
+//extern unsigned char rfc1042_header[WLAN_LLC_HEADER_SIZE]; //mark_cfg
+
 #ifdef CONFIG_RTL_8198
 #ifndef REG32
-	#define REG32(reg)	 	(*(volatile unsigned int *)(reg))
+    #define REG32(reg)      (*(volatile unsigned int *)(reg))
 #endif
 #endif
+
 static __inline__ unsigned char RTL_R8_F(struct rtl8192cd_priv *priv, unsigned int reg)
 {
 	unsigned long ioaddr = priv->pshare->ioaddr;
@@ -172,12 +245,11 @@ static __inline__ unsigned char RTL_R8_F(struct rtl8192cd_priv *priv, unsigned i
 #endif
 	{
 #ifdef CONFIG_RTL_8198
-	unsigned int data=0;
-	int swap[4]={0,8,16,24};
-	int diff = reg&0x3;
-        data=REG32((ioaddr + (reg&(0xFFFFFFFC)) ) );
-        val8=(unsigned char)(( data>>swap[diff])&0xff);
-
+		unsigned int data=0;
+		int swap[4]={0,8,16,24};
+		int diff = reg&0x3;
+		data=REG32((ioaddr + (reg&(0xFFFFFFFC)) ) );
+		val8=(unsigned char)(( data>>swap[diff])&0xff);
 #else
 		val8 = readb(IO_TYPE_CAST(ioaddr + reg));
 #endif
@@ -190,6 +262,9 @@ static __inline__ unsigned short RTL_R16_F(struct rtl8192cd_priv *priv, unsigned
 {
 	unsigned long ioaddr = priv->pshare->ioaddr;
 	unsigned short val16 = 0;
+
+	if (reg & 0x00000001)
+		panic_printk("Unaligned read to reg 0x%08x!\n", reg);
 
 #ifdef IO_MAPPING
 	unsigned char page = ((unsigned char)(reg >> 8)) & PAGE_NUM;
@@ -208,13 +283,13 @@ static __inline__ unsigned short RTL_R16_F(struct rtl8192cd_priv *priv, unsigned
 #endif
 	{
 #ifdef CONFIG_RTL_8198
-	unsigned int data=0;
-	int swap[4]={0,8,16,24};
-	int diff = reg&0x3;
-	data=REG32((ioaddr + (reg&(0xFFFFFFFC)) ) );
-	val16=(unsigned short)(( data>>swap[diff])&0xffff);
+		unsigned int data=0;
+		int swap[4]={0,8,16,24};
+		int diff = reg&0x3;
+		data=REG32((ioaddr + (reg&(0xFFFFFFFC)) ) );
+		val16=(unsigned short)(( data>>swap[diff])&0xffff);
 #else
-	val16 = readw(IO_TYPE_CAST(ioaddr + reg));
+		val16 = readw(IO_TYPE_CAST(ioaddr + reg));
 #endif
 	}
 
@@ -230,6 +305,9 @@ static __inline__ unsigned int RTL_R32_F(struct rtl8192cd_priv *priv, unsigned i
 {
 	unsigned long ioaddr = priv->pshare->ioaddr;
 	unsigned int val32 = 0;
+
+	if (reg & 0x00000003)
+		panic_printk("Unaligned read to reg 0x%08x!\n", reg);
 
 #ifdef IO_MAPPING
 	unsigned char page = ((unsigned char)(reg >> 8)) & PAGE_NUM;
@@ -289,6 +367,9 @@ static __inline__ void RTL_W16_F(struct rtl8192cd_priv *priv, unsigned int reg, 
 	unsigned char page;
 #endif
 
+	if (reg & 0x00000001)
+		panic_printk("Unaligned write to reg 0x%08x!\n", reg);
+
 #ifdef CHECK_SWAP
 	if (priv->pshare->type & ACCESS_SWAP_IO)
 		val16_n = cpu_to_le16(val16);
@@ -321,6 +402,9 @@ static __inline__ void RTL_W32_F(struct rtl8192cd_priv *priv, unsigned int reg, 
 #ifdef IO_MAPPING
 	unsigned char page;
 #endif
+
+	if (reg & 0x00000003)
+		panic_printk("Unaligned write to reg 0x%08x!\n", reg);
 
 #ifdef CHECK_SWAP
 	if (priv->pshare->type & ACCESS_SWAP_IO)
@@ -431,7 +515,7 @@ static __inline__ void RTL_W32_F(struct rtl8192cd_priv *priv, unsigned int reg, 
 
 static __inline__ struct list_head *dequeue_frame(struct rtl8192cd_priv *priv, struct list_head *head)
 {
-	unsigned long flags;
+	unsigned long flags=0;
 	struct list_head *pnext;
 
 	SAVE_INT_AND_CLI(flags);
@@ -468,7 +552,7 @@ static __inline__ int wifi_mac_hash(unsigned char *mac)
 
 #define get_pskb(pfrinfo)		(pfrinfo->pskb)
 
-#define get_pframe(pfrinfo)		((unsigned char *)((unsigned int)(pfrinfo->pskb->data)))
+#define get_pframe(pfrinfo)		((unsigned char *)((unsigned long)(pfrinfo->pskb->data)))
 
 #ifdef CONFIG_NET_PCI
 #define IS_PCIBIOS_TYPE		(((priv->pshare->type >> TYPE_SHIFT) & TYPE_MASK) == TYPE_PCI_BIOS)
@@ -541,11 +625,39 @@ static __inline__ int is_MCS_rate(unsigned char rate)
 		return FALSE;
 }
 
+static __inline__ int is_2T_rate(unsigned char rate)
+{
+#ifdef RTK_AC_SUPPORT
+	if (rate > _NSS1_MCS9_RATE_) 
+		return TRUE;
+	else if( rate >=_NSS1_MCS0_RATE_)
+		return FALSE;
+	else
+#endif
+	return (is_MCS_rate(rate) && ((rate & 0x7f)>7)) ? TRUE : FALSE;
+}
+
+
 static __inline__ int is_fixedMCSTxRate(struct rtl8192cd_priv *priv)
 {
 	return (priv->pmib->dot11StationConfigEntry.fixedTxRate & 0xffff000);
 }
 
+
+#if  defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
+static __inline__ int is_VHT_rate(unsigned char rate)
+{
+	if (rate >= 0x90)
+		return TRUE;
+	else
+		return FALSE;
+}
+
+static __inline__ int is_fixedVHTTxRate(struct rtl8192cd_priv *priv)
+{
+	return (priv->pmib->dot11StationConfigEntry.fixedTxRate & BIT(31));
+}
+#endif
 
 static __inline__ int is_MCS_1SS_rate(unsigned char rate)
 {
@@ -564,7 +676,7 @@ static __inline__ int is_MCS_2SS_rate(unsigned char rate)
 }
 
 #ifdef __MIPSEB__
-static __inline__ void rtl_cache_sync_wback(struct rtl8192cd_priv *priv, unsigned int start,
+static __inline__ void rtl_cache_sync_wback(struct rtl8192cd_priv *priv, unsigned long start,
 				unsigned int size, int direction)
 {
 		if (0 == size) return;	// if the size of cache sync is equal to zero, don't do sync action
@@ -574,7 +686,10 @@ static __inline__ void rtl_cache_sync_wback(struct rtl8192cd_priv *priv, unsigne
 #if defined(CONFIG_NET_PCI) && !defined(USE_RTL8186_SDK)
 		if (IS_PCIBIOS_TYPE) {
 #ifdef __LINUX_2_6__
-			pci_dma_sync_single_for_cpu(priv->pshare->pdev, start, size, direction);
+			if (direction == PCI_DMA_FROMDEVICE)
+				pci_dma_sync_single_for_cpu(priv->pshare->pdev, start, size, direction);
+			else if (direction == PCI_DMA_TODEVICE)
+				pci_dma_sync_single_for_device(priv->pshare->pdev, start, size, direction);
 #else
 			pci_dma_sync_single(priv->pshare->pdev, start, size, direction);
 #endif
@@ -586,16 +701,20 @@ static __inline__ void rtl_cache_sync_wback(struct rtl8192cd_priv *priv, unsigne
 #endif
 }
 #else
-static __inline__ void rtl_cache_sync_wback(struct rtl8192cd_priv *priv, unsigned int start,
+static __inline__ void rtl_cache_sync_wback(struct rtl8192cd_priv *priv, unsigned long start,
 				unsigned int size, int direction)
 {
+		if (0 == size) return;	// if the size of cache sync is equal to zero, don't do sync action
 
 #ifdef __LINUX_2_6__
-		pci_dma_sync_single_for_cpu(priv->pshare->pdev, start, size, direction);
+		start = virt_to_bus((void*)start);
+		if (direction == PCI_DMA_FROMDEVICE)
+			pci_dma_sync_single_for_cpu(priv->pshare->pdev, start, size, direction);
+		else if (direction == PCI_DMA_TODEVICE)
+			pci_dma_sync_single_for_device(priv->pshare->pdev, start, size, direction);
 #else
 		pci_dma_sync_single(priv->pshare->pdev, start, size, direction);
 #endif
-
 }
 #endif//__MIPSEB__
 
@@ -628,11 +747,7 @@ static __inline__ int get_rf_mimo_mode(struct rtl8192cd_priv *priv)
 
 static __inline__ unsigned int get_supported_mcs(struct rtl8192cd_priv *priv)
 {
-	if (get_rf_mimo_mode(priv) == MIMO_1T1R 
-#ifdef SMART_CONCURRENT_92D  //-- fwdebug
-		&& priv->pmib->dot11RFEntry.smcc==0
-#endif
-		)
+	if (get_rf_mimo_mode(priv) == MIMO_1T1R)
 		return (priv->pmib->dot11nConfigEntry.dot11nSupportedMCS & 0x00ff);
 	else
 		return (priv->pmib->dot11nConfigEntry.dot11nSupportedMCS & 0xffff);
@@ -657,6 +772,9 @@ static __inline__ void tx_sum_up(struct rtl8192cd_priv *priv, struct stat_info *
 		priv->pshare->current_tx_bytes += pktlen;
 
 #ifdef USE_OUT_SRC
+#ifdef _OUTSRC_COEXIST
+		if(IS_OUTSRC_CHIP(priv))
+#endif
 		if (pstat)
 			priv->pshare->NumTxBytesUnicast += pktlen;
 #endif		
@@ -749,10 +867,15 @@ void wapi_event_indicate(struct rtl8192cd_priv *priv);
 
 #if defined(USE_PID_NOTIFY) && defined(LINUX_2_6_27_)
 extern struct pid *_wlanapp_pid;
+extern struct pid *_wlanwapi_pid;
 #endif
 
 #if defined(CONFIG_RTL_CUSTOM_PASSTHRU)
+#ifdef __ECOS
+INT32 rtl_isWlanPassthruFrame(UINT8 *data);
+#else
 INT32 rtl_isPassthruFrame(UINT8 *data);
+#endif
 #endif
 
 #ifdef USE_TXQUEUE

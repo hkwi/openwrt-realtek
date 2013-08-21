@@ -26,45 +26,61 @@
 #define	index_mapping_NUM_88E	15
 #define AVG_THERMAL_NUM_88E	4
 
-typedef enum _PWRTRACK_CONTROL_METHOD {
-	BBSWING,
-	TXAGC
-} PWRTRACK_METHOD;
+#include "../HalPhyRf.h"
 
-typedef VOID (*FuncSetPwr)(PDM_ODM_T, PWRTRACK_METHOD, u1Byte, u1Byte);
+void ConfigureTxpowerTrack_8188E(
+	PTXPWRTRACK_CFG	pConfig
+	);
 
-
-VOID
-ODM_TxPwrTrackAdjust88E(
+void DoIQK_8188E(
 	PDM_ODM_T	pDM_Odm,
-	u1Byte		Type,				// 0 = OFDM, 1 = CCK
-	pu1Byte		pDirection,			// 1 = +(increase) 2 = -(decrease)
-	pu4Byte		pOutWriteVal		// Tx tracking CCK/OFDM BB swing index adjust
+	u1Byte 		DeltaThermalIndex,
+	u1Byte		ThermalValue,	
+	u1Byte 		Threshold
 	);
 
 VOID
-odm_TXPowerTrackingCallback_ThermalMeter_8188E(
-	IN PDM_ODM_T		pDM_Odm
+ODM_TxPwrTrackSetPwr88E(
+	PDM_ODM_T			pDM_Odm,
+	PWRTRACK_METHOD 	Method,
+	u1Byte 				RFPath,
+	u1Byte 				ChannelMappedIndex
 	);
 
 //1 7.	IQK
 
 void	
-PHY_IQCalibrate_8188E(	IN PDM_ODM_T	pDM_Odm,
-							IN	BOOLEAN 	bReCovery);
+PHY_IQCalibrate_8188E(	
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+	IN PDM_ODM_T		pDM_Odm,
+#else
+	IN PADAPTER	Adapter,
+#endif
+	IN	BOOLEAN 	bReCovery);
 
 
 //
 // LC calibrate
 //
 void	
-PHY_LCCalibrate_8188E(		IN PDM_ODM_T	pDM_Odm);
+PHY_LCCalibrate_8188E(
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+	IN PDM_ODM_T		pDM_Odm
+#else
+	IN	PADAPTER	pAdapter
+#endif
+);
 
 //
 // AP calibrate
 //
 void	
-PHY_APCalibrate_8188E(			IN PDM_ODM_T	pDM_Odm,
+PHY_APCalibrate_8188E(		
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+	IN PDM_ODM_T		pDM_Odm,
+#else
+	IN	PADAPTER	pAdapter,
+#endif
 							IN 	s1Byte		delta);
 void	
 PHY_DigitalPredistortion_8188E(		IN	PADAPTER	pAdapter);
@@ -72,7 +88,11 @@ PHY_DigitalPredistortion_8188E(		IN	PADAPTER	pAdapter);
 
 VOID
 _PHY_SaveADDARegisters(
-	IN PDM_ODM_T	pDM_Odm,
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+	IN PDM_ODM_T		pDM_Odm,
+#else
+	IN	PADAPTER	pAdapter,
+#endif
 	IN	pu4Byte		ADDAReg,
 	IN	pu4Byte		ADDABackup,
 	IN	u4Byte		RegisterNum
@@ -80,7 +100,11 @@ _PHY_SaveADDARegisters(
 
 VOID
 _PHY_PathADDAOn(
-	IN PDM_ODM_T	pDM_Odm,
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+	IN PDM_ODM_T		pDM_Odm,
+#else
+	IN	PADAPTER	pAdapter,
+#endif
 	IN	pu4Byte		ADDAReg,
 	IN	BOOLEAN		isPathAOn,
 	IN	BOOLEAN		is2T
@@ -88,7 +112,11 @@ _PHY_PathADDAOn(
 
 VOID
 _PHY_MACSettingCalibration(
-	IN PDM_ODM_T	pDM_Odm,
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+	IN PDM_ODM_T		pDM_Odm,
+#else
+	IN	PADAPTER	pAdapter,
+#endif
 	IN	pu4Byte		MACReg,
 	IN	pu4Byte		MACBackup	
 	);
@@ -96,9 +124,13 @@ _PHY_MACSettingCalibration(
 
 VOID
 _PHY_PathAStandBy(
-	IN PDM_ODM_T	pDM_Odm
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+	IN PDM_ODM_T		pDM_Odm
+#else
+	IN	PADAPTER	pAdapter
+#endif
 	);
-
 
 								
 #endif	// #ifndef __HAL_PHY_RF_8188E_H__								
+

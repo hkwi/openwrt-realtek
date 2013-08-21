@@ -242,7 +242,7 @@ void michael(
 		!(priv->pmib->dot11StationConfigEntry.swTkipMic))
 	{
 		if (tx)
-			rtl_cache_sync_wback(priv, (unsigned int)message, (num_blocks*4), PCI_DMA_TODEVICE);
+			rtl_cache_sync_wback(priv, (unsigned long)message, (num_blocks*4), PCI_DMA_TODEVICE);
 		
 		*(volatile unsigned int *)GDMACNR  = 0;
 		*(volatile unsigned int *)GDMACNR  = GDMA_ENABLE;
@@ -878,7 +878,6 @@ unsigned int tkip_decrypt(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo
 {
 	union TSC48		tsc48;
 	unsigned char	*da;
-	unsigned char	*sa;
 	unsigned char	*ta;
 	unsigned int	keylen=0, hdr_len, pnh, crc;
 	unsigned short	pnl;
@@ -889,7 +888,6 @@ unsigned int tkip_decrypt(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinfo
 
 	pframe = get_pframe(pfrinfo);
 	da = pfrinfo->da;
-	sa = pfrinfo->sa;
 	hdr_len = pfrinfo->hdr_len;
 
 	ta = GetAddr2Ptr(pframe);
@@ -989,7 +987,7 @@ void wep_encrypt(struct rtl8192cd_priv *priv, unsigned char *pwlhdr, unsigned in
 	unsigned int keyid = 0;
 	unsigned char *iv = pwlhdr + hdrlen;
 	struct stat_info *pstat = NULL;
-	unsigned long *piv;
+	unsigned int *piv;
 	int keylen;
 #ifdef WDS
 	unsigned int to_fr_ds = (GetToDs(pwlhdr) << 1) | GetFrDs(pwlhdr);
@@ -1061,13 +1059,13 @@ void wep_encrypt(struct rtl8192cd_priv *priv, unsigned char *pwlhdr, unsigned in
 do_encrypt:
 #endif
 
-	piv = (unsigned long *)GET_GROUP_ENCRYP_PN;
+	piv = (unsigned int *)GET_GROUP_ENCRYP_PN;
 	if (type == _WEP_40_PRIVACY_)
 		keylen = 8;
 	else
 		keylen = 16;
 
-	*((unsigned long *)iv) = (htonl(*piv) << 8) | ((unsigned char) ((keyid&0x03)<<6));
+	*((unsigned int *)iv) = cpu_to_le32(((*piv) & 0x00FFFFFF) |((keyid&0x03)<<30));
 	*piv = *piv + 1;
 
 	memcpy(rc4key, iv, 3);
@@ -1077,11 +1075,9 @@ do_encrypt:
 {
 	char tmpbuf[400], tmp1[100];
 	int i;
-
-	tmp1[0] = '\0';
-	memcpy(&tmp1[1], iv, 3);
+	
 	sprintf(tmpbuf, "wep encrypt: iv=%d, keyid=%d, type=%s, key=",
-		(int)ntohl(*((unsigned long *)tmp1)), keyid,
+		(le32_to_cpup((u32 *)iv) & 0xFFFFFF), keyid,
 		(type==_WEP_40_PRIVACY_ ? "64b" : "128b"));
 
 	for (i=0; i<keylen-3; i++) {
@@ -1202,11 +1198,9 @@ do_decrypt:
 {
 	char tmpbuf[400], tmp1[100];
 	int i;
-
-	tmp1[0] = '\0';
-	memcpy(&tmp1[1], iv, 3);
+	
 	sprintf(tmpbuf, "wep decript: iv=%d, keyid=%d, type=%s, key=",
-		(int)ntohl(*((unsigned long *)tmp1)), (int)((iv[3]>>6)&3),
+		(le32_to_cpup((u32 *)iv) & 0xFFFFFF), (int)((iv[3]>>6)&3),
 		(type==_WEP_40_PRIVACY_ ? "64b" : "128b"));
 
 	for (i=0; i<keylen-3; i++) {

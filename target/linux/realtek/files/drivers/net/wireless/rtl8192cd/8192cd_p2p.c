@@ -124,7 +124,11 @@ void stay_on_2G(struct rtl8192cd_priv *priv)
 		PHY_SetBBReg(priv, rFPGA0_AnalogParameter4, 0x00f00000, 0xf);
 		priv->pmib->dot11RFEntry.phyBandSelect = PHY_BAND_2G;
 		priv->pmib->dot11BssType.net_work_type = (WIRELESS_11B|WIRELESS_11G|WIRELESS_11N);
-		UpdateBBRFVal8192DE(priv);
+#ifdef CONFIG_RTL_92D_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8192D) {
+			UpdateBBRFVal8192DE(priv);
+		}
+#endif			
 		PHY_SetBBReg(priv, rFPGA0_AnalogParameter4, 0x00f00000, 0x0);
 
 		//RESTORE_INT(flags);
@@ -149,7 +153,11 @@ void stay_on_5G(struct rtl8192cd_priv *priv)
 		PHY_SetBBReg(priv, rFPGA0_AnalogParameter4, 0x00f00000, 0xf);
 		priv->pmib->dot11RFEntry.phyBandSelect = PHY_BAND_5G;
 		priv->pmib->dot11BssType.net_work_type = (WIRELESS_11A|WIRELESS_11N);
-		UpdateBBRFVal8192DE(priv);
+#ifdef CONFIG_RTL_92D_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8192D) {
+			UpdateBBRFVal8192DE(priv);
+		}
+#endif			
 		PHY_SetBBReg(priv, rFPGA0_AnalogParameter4, 0x00f00000, 0x0);
 
 		//RESTORE_INT(flags);
@@ -4733,9 +4741,9 @@ void P2P_on_probe_req(
 		priv->p2pPtr->probe_rps_to_p2p_dev = 1;	
 		P2P_DEBUG("GO Rsp");
 		MAC_PRINT(GetAddr2Ptr(pframe));		
-		issue_probersp(priv, GetAddr2Ptr(pframe), SSID, SSID_LEN, FALSE);		
+		issue_probersp(priv, GetAddr2Ptr(pframe), SSID, SSID_LEN, FALSE, FALSE);		
 	}else{
-		issue_probersp(priv, GetAddr2Ptr(pframe), P2P_WILDCARD_SSID, P2P_WILDCARD_SSID_LEN, FALSE);
+		issue_probersp(priv, GetAddr2Ptr(pframe), P2P_WILDCARD_SSID, P2P_WILDCARD_SSID_LEN, FALSE, FALSE);
 	}
 	
 }

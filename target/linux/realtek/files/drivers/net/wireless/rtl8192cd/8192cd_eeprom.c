@@ -11,7 +11,7 @@
  */
 
 #define _8192CD_EEPROM_C_
-
+#if 0
 #ifdef __KERNEL__
 #include <linux/config.h>
 #include <linux/module.h>
@@ -23,7 +23,7 @@
 #include "./8192cd_util.h"
 #include "./8192cd_debug.h"
 
-#if 0
+
 
 #define VOID void
 #define EEPROM_MAX_SIZE        	256

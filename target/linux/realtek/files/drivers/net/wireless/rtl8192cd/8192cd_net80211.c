@@ -22,7 +22,7 @@
 
 #include "./8192cd_cfg.h"
 
-#ifdef WIFI_HAPD
+#if defined(WIFI_HAPD) || defined(RTK_NL80211)
 
 #ifdef __LINUX_2_6__
 #include <linux/initrd.h>
@@ -30,7 +30,6 @@
 #endif
 
 #include "./8192cd_debug.h"
-#include "./8192cd_net80211.h"
 #include "./8192cd_headers.h"
 
 #include <linux/if_arp.h>
@@ -39,8 +38,9 @@
 #include <net80211/ieee80211.h>
 #include <net80211/ieee80211_crypto.h>
 #include <net80211/ieee80211_ioctl.h>
+#include "./8192cd_net80211.h" 
 
-//#define HAPD_DEBUG
+#define HAPD_DEBUG
 
 void void_printk(const char *fmt, ...)
 {
@@ -141,9 +141,9 @@ static int HAPD_Process_Set_Port(struct net_device *dev, unsigned char *MACAddr,
 	return 0;
 }
 
-#ifdef WIFI_WPAS
+#if defined(WIFI_WPAS) || defined(RTK_NL80211)
 
-static int	rtl_wpas_join(struct rtl8192cd_priv *priv, int bss_num)
+int	rtl_wpas_join(struct rtl8192cd_priv *priv, int bss_num)
 {
 	char tmpbuf[33];
 
@@ -877,6 +877,10 @@ int rtl_net80211_setkey(struct net_device *dev, struct iw_request_info *info, un
 				return 0;
 		   	}
 #endif
+#ifdef RTK_NL80211
+			HAPD_MSG("set WEP Key for NL80211\n");
+			memcpy(&priv->pmib->dot11DefaultKeysTable.keytype[wk->ik_keyix].skey[0], wk->ik_keydata, wk->ik_keylen);
+#endif
 		   if(priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _WEP_40_PRIVACY_)
 		   	cipher = (DOT11_ENC_WEP40);
 		   else if(priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _WEP_104_PRIVACY_)
@@ -1197,7 +1201,12 @@ int rtl_net80211_delkey(struct net_device *dev, struct iw_request_info *info, un
 #else
 	struct rtl8192cd_priv	*priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
+
+#ifdef RTK_NL80211
+	struct ieee80211req_del_key *wk = (struct ieee80211req_del_key *)wrqu->data.pointer;
+#else
 	struct ieee80211req_del_key *wk = (struct ieee80211req_del_key *)wrqu->name;
+#endif
 	struct stat_info	*pstat = NULL;
 	struct wifi_mib 	*pmib = priv->pmib;
 

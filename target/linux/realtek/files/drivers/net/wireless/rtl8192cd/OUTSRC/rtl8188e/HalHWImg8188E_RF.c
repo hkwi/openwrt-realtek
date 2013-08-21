@@ -18,6 +18,11 @@
 * 
 ******************************************************************************/
 
+#if !defined(__ECOS) && !defined(CONFIG_COMPAT_WIRELESS)
+#include "Mp_Precomp.h"
+#else
+#include "../Mp_Precomp.h"
+#endif
 #include "../odm_precomp.h"
 
 #if (RTL8188E_SUPPORT == 1)
@@ -27,26 +32,26 @@ CheckCondition(
     const u4Byte  Hex
     )
 {
-    u4Byte board = Hex & 0xFF;
-    u4Byte interface = Hex & 0xFF00;
-    u4Byte platform = Hex & 0xFF0000;
+    u4Byte _board = Hex & 0xFF;
+    u4Byte _interface = Hex & 0xFF00;
+    u4Byte _platform = Hex & 0xFF0000;
     u4Byte cond = Condition;
 
     if ( Condition == 0xCDCDCDCD )
         return TRUE;
 
     cond = Condition & 0xFF;
-    if ( (board & cond) == 0 && cond != 0x1F)
+    if ( (_board & cond) == 0 && cond != 0x1F)
         return FALSE;
 
     cond = Condition & 0xFF00;
     cond = cond >> 8;
-    if ( (interface & cond) == 0 && cond != 0x07)
+    if ( (_interface & cond) == 0 && cond != 0x07)
         return FALSE;
 
     cond = Condition & 0xFF0000;
     cond = cond >> 16;
-    if ( (platform & cond) == 0 && cond != 0x0F)
+    if ( (_platform & cond) == 0 && cond != 0x0F)
         return FALSE;
     return TRUE;
 }
@@ -56,7 +61,7 @@ CheckCondition(
 *                           RadioA_1T.TXT
 ******************************************************************************/
 
-u4Byte Array_RadioA_1T_8188E[] = { 
+u4Byte Array_8188E_RadioA_1T[] = { 
 		0x000, 0x00030000,
 		0x008, 0x00084000,
 		0x018, 0x00000407,
@@ -116,12 +121,12 @@ u4Byte Array_RadioA_1T_8188E[] = {
 		0x034, 0x00008DED,
 		0x034, 0x00007DEA,
 		0x034, 0x00006DE7,
-		0x034, 0x00005CEA,
-		0x034, 0x00004CE7,
-		0x034, 0x000034E7,
-		0x034, 0x0000246A,
-		0x034, 0x00001467,
-		0x034, 0x00000068,
+		0x034, 0x000054EE,
+		0x034, 0x000044EB,
+		0x034, 0x000034E8,
+		0x034, 0x0000246B,
+		0x034, 0x00001468,
+		0x034, 0x0000006D,
 		0x000, 0x00030159,
 		0x084, 0x00068200,
 		0x086, 0x000000CE,
@@ -155,12 +160,12 @@ u4Byte Array_RadioA_1T_8188E[] = {
 		0xFFE, 0x00000000,
 		0x01E, 0x00000001,
 		0x01F, 0x00080000,
-		0x000, 0x00030159,
+		0x000, 0x00033E60,
 
 };
 
 void
-ODM_ReadAndConfig_RadioA_1T_8188E(
+ODM_ReadAndConfig_8188E_RadioA_1T(
  	IN   PDM_ODM_T  pDM_Odm
  	)
 {
@@ -168,19 +173,17 @@ ODM_ReadAndConfig_RadioA_1T_8188E(
 
 	u4Byte     hex         = 0;
 	u4Byte     i           = 0;
-#if 0
 	u2Byte     count       = 0;
 	pu4Byte    ptr_array   = NULL;
-#endif
 	u1Byte     platform    = pDM_Odm->SupportPlatform;
-	u1Byte     interface   = pDM_Odm->SupportInterface;
+	u1Byte     _interface   = pDM_Odm->SupportInterface;
 	u1Byte     board       = pDM_Odm->BoardType;  
-	u4Byte     ArrayLen    = sizeof(Array_RadioA_1T_8188E)/sizeof(u4Byte);
-	pu4Byte    Array       = Array_RadioA_1T_8188E;
+	u4Byte     ArrayLen    = sizeof(Array_8188E_RadioA_1T)/sizeof(u4Byte);
+	pu4Byte    Array       = Array_8188E_RadioA_1T;
 
 
 	hex += board;
-	hex += interface << 8;
+	hex += _interface << 8;
 	hex += platform << 16;
 	hex += 0xFF000000;
 	for (i = 0; i < ArrayLen; i += 2 )
@@ -230,3 +233,4 @@ ODM_ReadAndConfig_RadioA_1T_8188E(
 }
 
 #endif // end of HWIMG_SUPPORT
+

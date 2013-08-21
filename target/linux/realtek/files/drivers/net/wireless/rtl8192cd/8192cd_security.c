@@ -189,12 +189,17 @@ static int DOT11_Process_Set_RSNIE(struct net_device *dev, struct iw_point *data
 		DEBUG_INFO("DOT11_Process_Set_RSNIE rsnielen=%d\n", pdot11RsnIE->rsnielen);
 
 		// see whether if driver is open. If not, do not enable tx/rx, david
-		if (!netif_running(priv->dev))
+		if (!netif_running(priv->dev)) {
+#ifdef __OSK__
+			if (IS_VXD_INTERFACE(priv) && pdot11RsnIE->rsnielen > 0)
+				priv->pmib->dot11OperationEntry.keep_rsnie = 1;
+#endif
 			return 0;
+		}
 
 		// Alway enable tx/rx in rtl8190_init_hw_PCI()
 		//RTL_W8(_CR_, BIT(2) | BIT(3));
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 		if (!priv->pmib->dot1180211AuthEntry.dot11EnablePSK)
 #endif
 		{
@@ -500,7 +505,7 @@ int DOT11_Process_Set_Key(struct net_device *dev, struct iw_point *data,
 	int	retVal;
 
 	if (data) {
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 		memcpy((void *)&Set_Key, (void *)data->pointer, sizeof(DOT11_SET_KEY));
 		memcpy((void *)key_combo,
 				((DOT11_SET_KEY *)data->pointer)->KeyMaterial, 32);
@@ -1055,7 +1060,7 @@ int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
 #endif
 
 #ifdef WIFI_HAPD
-		event_indicate_hapd(priv, pstat_del->hwaddr, HAPD_MIC_FAILURE, NULL);
+		event_indicate_hapd(priv, pstat->hwaddr, HAPD_MIC_FAILURE, NULL);
 #ifdef HAPD_DRV_PSK_WPS
 		event_indicate(priv, pstat->hwaddr, 5);
 #endif
@@ -1110,7 +1115,7 @@ int DOT11_Indicate_MIC_Failure(struct net_device *dev, struct stat_info *pstat)
 					DOT11_EnQueue((unsigned long)priv, priv->pevent_queue, (UINT8 *)&Disassociation_Ind,
 							sizeof(DOT11_DISASSOCIATION_IND));
 #endif
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 					psk_indicate_evt(priv, DOT11_EVENT_DISASSOCIATION_IND, pstat_del->hwaddr, NULL, 0);
 #endif
 
@@ -1205,7 +1210,7 @@ void DOT11_Indicate_MIC_Failure_Clnt(struct rtl8192cd_priv *priv, unsigned char 
 	DOT11_MIC_FAILURE	Mic_Failure;
 	struct stat_info 	*pstat_del;
 	DOT11_DISASSOCIATION_IND Disassociation_Ind;
-	//int	i;
+//	int	i;
 #ifndef WITHOUT_ENQUEUE
 	Mic_Failure.EventId = DOT11_EVENT_MIC_FAILURE;
 	Mic_Failure.IsMoreEvent = 0;
@@ -1281,7 +1286,11 @@ void DOT11_Indicate_MIC_Failure_Clnt(struct rtl8192cd_priv *priv, unsigned char 
 #ifdef RADIUS_ACCOUNTING
 void DOT11_Process_Acc_SetExpiredTime(struct net_device *dev, struct iw_point *data)
 {
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
+#endif
 	//WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
 	DOT11_SET_EXPIREDTIME	*Set_ExpireTime = (DOT11_SET_EXPIREDTIME *)data->pointer;
 	struct stat_info *pstat=NULL;
@@ -1308,7 +1317,11 @@ void DOT11_Process_Acc_SetExpiredTime(struct net_device *dev, struct iw_point *d
 
 void DOT11_Process_Acc_QueryStats(struct net_device *dev, struct iw_point *data)
 {
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
+#endif
 	//WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
 	struct stat_info *pstat=NULL;
 	DOT11_QUERY_STATS	*pStats = (DOT11_QUERY_STATS *)data->pointer;
@@ -1343,9 +1356,13 @@ void DOT11_Process_Acc_QueryStats(struct net_device *dev, struct iw_point *data)
 //data->pointer = (unsigned char *)stats;
 void DOT11_Process_Acc_QueryStats_All(struct net_device *dev, struct iw_point *data)
 {
+#ifdef NETDEV_NO_PRIV
+	struct rtl8192cd_priv *priv = ((struct rtl8192cd_priv *)netdev_priv(dev))->wlan_priv;
+#else
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
+#endif
 	struct list_head *phead=NULL, *plist=NULL;
 	struct stat_info *pstat=NULL;
-	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *) dev->priv;
 	//WLAN_CTX        	*wCtx = (WLAN_CTX *) ( priv->pwlanCtx );
 	DOT11_QUERY_STATS	*pStats = (DOT11_QUERY_STATS *)data->pointer;
 	//int i;
@@ -1541,7 +1558,7 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)dev->priv;
 #endif
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 	memcpy((void *)&req, (void *)(data->pointer), sizeof(DOT11_REQUEST));
 #else
 	if (copy_from_user((void *)&req, (void *)(data->pointer), sizeof(DOT11_REQUEST))) {
@@ -1562,12 +1579,12 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 			if((ret = DOT11_DeQueue((unsigned long)priv, priv->pevent_queue, QueueData, &QueueDataLen)) != 0)
 			{
 				val8 = DOT11_EVENT_NO_EVENT;
-				if (copy_to_user((void *)((UINT32)(data->pointer)), &val8, 1)) {
+				if (copy_to_user((void *)((unsigned long)(data->pointer)), &val8, 1)) {
 					DEBUG_ERR("copy_to_user fail!\n");
 					return -1;
 				}
 				val8 = 0;
-				if (copy_to_user((void *)((UINT32)(data->pointer) + 1), &val8, 1)) {
+				if (copy_to_user((void *)((unsigned long)(data->pointer) + 1), &val8, 1)) {
 					DEBUG_ERR("copy_to_user fail!\n");
 					return -1;
 				}
@@ -1588,10 +1605,10 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 			if((ret = DOT11_DeQueue((unsigned long)priv, priv->pevent_queue, QueueData, &QueueDataLen)) != 0)
 			{
 				val8 = DOT11_EVENT_NO_EVENT;
-				memcpy((void *)((UINT32)(data->pointer)), &val8, 1);
+				memcpy((void *)((unsigned long)(data->pointer)), &val8, 1);
 
 				val8 = 0;
-				memcpy((void *)((UINT32)(data->pointer) + 1), &val8, 1);
+				memcpy((void *)((unsigned long)(data->pointer) + 1), &val8, 1);
 				data->length = sizeof(DOT11_NO_EVENT);
 			}
 			else
@@ -1664,12 +1681,16 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 			break;
 
 		case DOT11_EVENT_ACC_SET_EXPIREDTIME:
+#ifdef RADIUS_ACCOUNTING
 			DOT11_Process_Acc_SetExpiredTime(dev, data);
+#endif
 			DEBUG_INFO("trying to Set ACC Expiredtime\n");
 			break;
 
 		case DOT11_EVENT_ACC_QUERY_STATS:
+#ifdef RADIUS_ACCOUNTING			
 			DOT11_Process_Acc_QueryStats(dev, data);
+#endif
 			DEBUG_INFO("trying to Set ACC Expiredtime\n");
 			break;
 
@@ -1843,12 +1864,12 @@ int rtl8192cd_ioctl_priv_daemonreq(struct net_device *dev, struct iw_point *data
 						if((ret = DOT11_DeQueue((unsigned long)priv, priv->wapiEvent_queue, QueueData, &QueueDataLen)) != 0)
 						{
 							val8 = DOT11_EVENT_NO_EVENT;
-							if (copy_to_user((void *)((UINT32)(data->pointer)), &val8, 1)) {
+							if (copy_to_user((void *)((unsigned long)(data->pointer)), &val8, 1)) {
 								DEBUG_ERR("copy_to_user fail!\n");
 								return -1;
 							}
 							val8 = 0;
-							if (copy_to_user((void *)((UINT32)(data->pointer) + 1), &val8, 1)) {
+							if (copy_to_user((void *)((unsigned long)(data->pointer) + 1), &val8, 1)) {
 								DEBUG_ERR("copy_to_user fail!\n");
 								return -1;
 							}

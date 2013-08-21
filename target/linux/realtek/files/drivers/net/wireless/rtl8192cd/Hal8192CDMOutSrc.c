@@ -46,12 +46,13 @@
 #include <bsp/bspchip.h>
 #endif
 
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #ifndef CONFIG_RTL_8198B
 #ifndef BSP_WDTCNR
         #define BSP_WDTCNR 0xB800311C
 #endif
 #endif
-
+#endif
 
 //Analog Pre-distortion calibration
 #define		APK_BB_REG_NUM	5
@@ -63,7 +64,7 @@
 // Global var
 //============================================================
 
-
+#if !defined(USE_OUT_SRC) || defined(_OUTSRC_COEXIST)
 unsigned int OFDMSwingTable[] = {
 	0x7f8001fe, // 0, +6.0dB
 	0x788001e2, // 1, +5.5dB
@@ -103,6 +104,7 @@ unsigned int OFDMSwingTable[] = {
 	0x11000044, // 35, -11.5dB
 	0x10000040, // 36, -12.0dB
 };
+
 
 unsigned int TxPwrTrk_OFDM_SwingTbl[TxPwrTrk_OFDM_SwingTbl_Len] = {
 	/*  +6.0dB */ 0x7f8001fe,
@@ -196,6 +198,8 @@ unsigned char TxPwrTrk_CCK_SwingTbl_CH14[TxPwrTrk_CCK_SwingTbl_Len][8] = {
 	/*  11.0dB */ {0x0f, 0x0f, 0x0d, 0x08, 0x00, 0x00, 0x00, 0x00}
 };
 
+//#ifndef USE_OUT_SRC
+
 unsigned char CCKSwingTable_Ch1_Ch13[][8] = {
 {0x36, 0x35, 0x2e, 0x25, 0x1c, 0x12, 0x09, 0x04},	// 0, +0dB
 {0x33, 0x32, 0x2b, 0x23, 0x1a, 0x11, 0x08, 0x04},	// 1, -0.5dB
@@ -268,8 +272,13 @@ unsigned char CCKSwingTable_Ch14 [][8]= {
 {0x09, 0x08, 0x07, 0x04, 0x00, 0x00, 0x00, 0x00}	// 32, -16.0dB
 };
 
+#endif
+
+//#if defined(_OUTSRC_COEXIST)
+#if !defined(USE_OUT_SRC) || defined(_OUTSRC_COEXIST)
 const int OFDM_TABLE_SIZE= sizeof(OFDMSwingTable)/sizeof(int);
 const int CCK_TABLE_SIZE= sizeof(CCKSwingTable_Ch1_Ch13) >>3;
+#endif
 
 
 #ifdef CONFIG_RTL_92D_SUPPORT
@@ -476,13 +485,17 @@ void set_DIG_state(struct rtl8192cd_priv *priv, int state)
 }
 #endif
 
-void MP_DIG_process(struct rtl8192cd_priv *priv)
+#ifdef __ECOS
+void MP_DIG_process(void *task_priv)
+#else
+void MP_DIG_process(unsigned long task_priv)
+#endif
 {
-	u1Byte						DIG_Upper = 0x40, DIG_Lower = 0x20, C50, C58;
+	struct rtl8192cd_priv *priv = (struct rtl8192cd_priv *)task_priv;
 	u4Byte						RXOK_cal, RxPWDBAve;
-	unsigned int	FA_cnt_ofdm = priv->pshare->ofdm_FA_cnt1 + priv->pshare->ofdm_FA_cnt2 +
-	                             priv->pshare->ofdm_FA_cnt3 + priv->pshare->ofdm_FA_cnt4;
-	unsigned int	FA_cnt_cck = priv->pshare->cck_FA_cnt;
+	//unsigned int	FA_cnt_ofdm = priv->pshare->ofdm_FA_cnt1 + priv->pshare->ofdm_FA_cnt2 +
+	//                             priv->pshare->ofdm_FA_cnt3 + priv->pshare->ofdm_FA_cnt4;
+	//unsigned int	FA_cnt_cck = priv->pshare->cck_FA_cnt;
 	
 	if (!(priv->pshare->rf_ft_var.mp_specific && priv->pshare->mp_dig_on))
 		return;
@@ -524,6 +537,7 @@ void MP_DIG_process(struct rtl8192cd_priv *priv)
 	} 
 	mod_timer(&priv->pshare->MP_DIGTimer, jiffies + (700+9)/10);
 }
+
 void DIG_process(struct rtl8192cd_priv *priv)
 {
 	#define DEAD_POINT_TH		10000
@@ -759,7 +773,7 @@ void DIG_process(struct rtl8192cd_priv *priv)
 			value_IGI = priv->pshare->FA_upper;
 		else if (value_IGI < priv->pshare->FA_lower)
 			value_IGI = priv->pshare->FA_lower;
-		if (priv->pshare->rf_ft_var.dynamic_edcca)
+		if (priv->pshare->rf_ft_var.adaptivity_enable)
 		{	
 			IGI_target = priv->pshare->rf_ft_var.IGI_target;
 			if(value_IGI > (IGI_target + 4))
@@ -953,7 +967,8 @@ void DIG_for_site_survey(struct rtl8192cd_priv *priv, int do_ss)
 }
 #endif
 
-#ifdef INTERFERENCE_CONTROL
+#if 0
+//#ifdef INTERFERENCE_CONTROL
 void check_NBI_by_rssi(struct rtl8192cd_priv *priv, unsigned char rssi_strength)
 {
 	if (OPMODE & WIFI_SITE_MONITOR)
@@ -1221,59 +1236,6 @@ unsigned char getThermalValue(struct rtl8192cd_priv *priv)
 }
 
 
-
-#ifdef _TRACKING_TABLE_FILE
-int get_tx_tracking_index(struct rtl8192cd_priv *priv, int channel, int i, int delta, int is_decrease, int is_CCK)
-{
-	int index = 0;
-
-	if(delta == 0)
-		return 0; 
-
-	if(delta > index_mapping_NUM_MAX)
-		delta = index_mapping_NUM_MAX;
-
-	printk("\n\n_eric_tracking +++ channel = %d, i = %d, delta = %d, is_decrease = %d, is_CCK = %d\n", 
-					channel, i, delta, is_decrease, is_CCK);
-
-	delta = delta - 1;
-
-	if (channel > 14)
-	{
-		if(channel <= 99)
-		{
-			index = priv->pshare->txpwr_tracking_5GL[(i*2)+ is_decrease][delta];
-		}
-		else if(channel <= 140)
-		{
-
-			index = priv->pshare->txpwr_tracking_5GM[(i*2)+ is_decrease][delta];
-		}
-		else
-		{
-			index = priv->pshare->txpwr_tracking_5GH[(i*2)+ is_decrease][delta];
-		}
-	}
-	else
-	{
-		if(is_CCK)
-		{
-			index = priv->pshare->txpwr_tracking_2G_CCK[(i*2)+ is_decrease][delta];
-		}
-		else
-		{
-			index = priv->pshare->txpwr_tracking_2G_OFDM[(i*2)+ is_decrease][delta];
-		}
-	}
-
-	printk("_eric_tracking +++ offset = %d\n\n", index);
-
-	return index; 
-
-}
-#endif
-
-
 #ifdef CONFIG_RTL_92C_SUPPORT	
 
 #ifdef HIGH_POWER_EXT_PA
@@ -1331,6 +1293,9 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 	char			is2T = ((GET_CHIP_VER(priv) == VERSION_8192C) ?1 :0);
 	unsigned char		TxPwrLevel[2];
 	unsigned char 		channel, OFDM_min_index = 6, rf=1; //OFDM BB Swing should be less than +3.0dB, which is required by Arthur
+#ifdef POWER_PERCENT_ADJUSTMENT
+	char pwrdiff_percent;
+#endif
 #ifdef MP_TEST
 	if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific) {
 		channel=priv->pshare->working_channel;
@@ -1345,7 +1310,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 	ThermalValue = getThermalValue(priv);
 
 	rf += is2T;
-	if (ThermalValue)	{
+	if(ThermalValue)	{
 
 		if(!priv->pshare->ThermalValue)	{
 			priv->pshare->ThermalValue = priv->pmib->dot11RFEntry.ther;
@@ -1435,6 +1400,11 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					offset = ((priv->pmib->dot11RFEntry.pwrdiffOFDM[channel-1] & 0xf0) >> 4);
 					TxPwrLevel[1] = COUNT_SIGN_OFFSET(TxPwrLevel[1], offset);
 				}
+#ifdef POWER_PERCENT_ADJUSTMENT				
+				pwrdiff_percent = PwrPercent2PwrLevel(priv->pmib->dot11RFEntry.power_percent);
+				TxPwrLevel[0] = POWER_RANGE_CHECK(TxPwrLevel[0]+pwrdiff_percent);
+				TxPwrLevel[1] = POWER_RANGE_CHECK(TxPwrLevel[1]+pwrdiff_percent);
+#endif
 			}
 
 //			printk("TxPwrLevel[0]=%d, TxPwrLevel[1]=%d\n", TxPwrLevel[0], TxPwrLevel[1]);
@@ -1458,7 +1428,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 				}
 
 #ifdef _TRACKING_TABLE_FILE
-
+				if (priv->pshare->rf_ft_var.pwr_track_file)
 				{
 					int d = 0; 
 					
@@ -1475,9 +1445,9 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					}
 
 				}
-
-
-#else
+				else
+#endif
+				{
 #ifdef HIGH_POWER_EXT_PA
 				if (priv->pshare->rf_ft_var.use_ext_pa) {
 					OFDM_index[i] = priv->pshare->OFDM_index[i];
@@ -1485,7 +1455,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					//swingIndexRemap(&OFDM_index[i], priv->pshare->OFDM_index0[i]);
 				}
 #endif
-#endif
+				}
 				if(OFDM_index[i] > OFDM_TABLE_SIZE-1)
 					OFDM_index[i] = OFDM_TABLE_SIZE-1;
 				else if (OFDM_index[i] < OFDM_min_index)
@@ -1512,6 +1482,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 				}
 
 #ifdef _TRACKING_TABLE_FILE
+				 if (priv->pshare->rf_ft_var.pwr_track_file)
 				 {
 					int d = 0; 
 					
@@ -1528,7 +1499,9 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					}
 
 				}
-#else
+				 else
+#endif
+				{
 #ifdef HIGH_POWER_EXT_PA
 				if (priv->pshare->rf_ft_var.use_ext_pa) {
 					CCK_index = priv->pshare->CCK_index;
@@ -1536,7 +1509,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					//swingIndexRemap( &CCK_index, priv->pshare->CCK_index0);
 				}
 #endif
-#endif
+				}
 				if(CCK_index > CCK_TABLE_SIZE-1)
 					CCK_index = CCK_TABLE_SIZE-1;
 				else if (CCK_index < 0)
@@ -2477,6 +2450,7 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 				if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G){
 
 #ifdef _TRACKING_TABLE_FILE
+				if (priv->pshare->rf_ft_var.pwr_track_file) {
 				if(ThermalValue > priv->pmib->dot11RFEntry.ther)
 				{
 					for(i = 0; i < rf; i++)
@@ -2491,8 +2465,10 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 					
 					CCK_index = priv->pshare->CCK_index + get_tx_tracking_index(priv, channel, i, delta, 1, 1);
 				}
-
-#else
+				}
+				else
+#endif
+				{
 					offset = 4;
 
 					if(delta > index_mapping_NUM-1)
@@ -2510,7 +2486,7 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 							OFDM_index[i] = priv->pshare->OFDM_index[i] + index[0];
 						CCK_index = priv->pshare->CCK_index + index[0];
 					}
-#endif
+				}
 				} else if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G) {
 					for(i = 0; i < rf; i++){
 
@@ -2581,15 +2557,16 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 
 
 #ifdef _TRACKING_TABLE_FILE
+						if (priv->pshare->rf_ft_var.pwr_track_file)
 						{
 							if(ThermalValue > priv->pmib->dot11RFEntry.ther)
 								index[i] = get_tx_tracking_index(priv, channel, i, delta, 0, 0);	
 							else
 								index[i] = get_tx_tracking_index(priv, channel, i, delta, 1, 0);
 						}
-
-#else
-
+						else
+#endif
+						{
 #ifdef HIGH_POWER_EXT_PA //Modify HP tracking table, from Arthur 2012.02.13
   						{
 							if(delta > index_mapping_NUM-1)
@@ -2601,8 +2578,8 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 							//printk("index[%d]= %d\n\n", i, index[i]);
 						}
 #endif
+						}
 
-#endif
 
 
 						if(ThermalValue > priv->pmib->dot11RFEntry.ther) //set larger Tx power
@@ -2975,7 +2952,10 @@ void choose_IOT_main_sta(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 
 		for(i=0; i<8; i++)
 			aggReady += (pstat->ADDBA_ready[i]);
-		if ((pstat->ht_cap_len && aggReady) || (pstat->is_intel_sta)) {
+
+		if( (pstat->IOTPeer==HT_IOT_PEER_INTEL)
+			|| (pstat->ht_cap_len && aggReady))	 {
+		
 			if ((tx_2s_avg + rx_2s_avg >= 50)) {
 				priv->pshare->highTP_found_pstat = pstat;
 			}	/*this STA's TXRX packet very close AP's total TXRX packet then let it as highTP_found_pstat*/
@@ -2984,7 +2964,8 @@ void choose_IOT_main_sta(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 			}
 #ifdef CLIENT_MODE
 			if (OPMODE & WIFI_STATION_STATE) {
-				if(pstat->is_ralink_sta && ((tx_2s_avg + rx_2s_avg) >= 45))
+//				if(pstat->is_ralink_sta && ((tx_2s_avg + rx_2s_avg) >= 45))
+				if(pstat->IOTPeer == HT_IOT_PEER_RALINK && ((tx_2s_avg + rx_2s_avg) >= 45))
 					priv->pshare->highTP_found_pstat = pstat;
 			}	
 #endif				
@@ -3005,14 +2986,14 @@ void rxBB_dm(struct rtl8192cd_priv *priv)
 				// for DIG checking
 				check_DIG_by_rssi(priv, priv->pshare->rssi_min);
 			}
-#ifdef INTERFERENCE_CONTROL
+//#ifdef INTERFERENCE_CONTROL
 			if (priv->pshare->rf_ft_var.nbi_filter_enable) {
 				check_NBI_by_rssi(priv, priv->pshare->rssi_min);
 			}
-#endif
+//#endif
 		}
 
-	if (priv->pshare->rf_ft_var.dynamic_edcca){
+	if (priv->pshare->rf_ft_var.adaptivity_enable){
 		unsigned char IGI;
 		IGI = RTL_R8(0xc50);
 		Dynamic_EDCCA(priv,IGI);
@@ -3089,9 +3070,11 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 				if (!priv->pshare->iot_mode_BK_exist && (priv->pshare->phw->BK_pkt_count > 250)) {
 					priv->pshare->iot_mode_BK_exist++;
 					switch_turbo++;
+					EDEBUG("switch_turbo++\n");					
 				} else if (priv->pshare->iot_mode_BE_exist && (priv->pshare->phw->BK_pkt_count < 250)) {
 					priv->pshare->iot_mode_BK_exist = 0;
 					switch_turbo++;
+					EDEBUG("switch_turbo++\n");					
 				}
 			}
 #endif
@@ -3170,7 +3153,12 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 			)) {
 			if (pstat && pstat->rssi >= priv->pshare->rf_ft_var.txop_enlarge_upper) {
 #ifdef LOW_TP_TXOP
-				if (pstat->is_intel_sta) {
+				
+
+				if (pstat->IOTPeer==HT_IOT_PEER_INTEL)
+
+				{
+				
 					if (priv->pshare->txop_enlarge != 0xe) {
 						priv->pshare->txop_enlarge = 0xe;
 						if (priv->pshare->iot_mode_enable)
@@ -3181,19 +3169,25 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 					if (priv->pshare->iot_mode_enable)
 						switch_turbo++;
 				}
-#else
+#else //LOW_TP_TXOP
+
 				if (priv->pshare->txop_enlarge != 2) {
-					if (pstat->is_intel_sta)
+
+
+				{
+					if (pstat->IOTPeer==HT_IOT_PEER_INTEL)
 						priv->pshare->txop_enlarge = 0xe;						
-					else if (pstat->is_ralink_sta)
+					else if (pstat->IOTPeer==HT_IOT_PEER_RALINK)
 						priv->pshare->txop_enlarge = 0xd;						
 					else
 						priv->pshare->txop_enlarge = 2;
+					
+				}
 
 					if (priv->pshare->iot_mode_enable)
 						switch_turbo++;
 				}
-#endif
+#endif //LOW_TP_TXOP
 			} else if (!pstat || pstat->rssi < priv->pshare->rf_ft_var.txop_enlarge_lower) {
 				if (priv->pshare->txop_enlarge) {
 					priv->pshare->txop_enlarge = 0;
@@ -3203,8 +3197,12 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 			}
 #ifdef LOW_TP_TXOP
 			// for Intel IOT, need to enlarge CW MAX from 6 to 10
-			if (pstat && pstat->is_intel_sta && (((pstat->tx_avarage+pstat->rx_avarage)>>10) < 
-					priv->pshare->rf_ft_var.cwmax_enhance_thd)) {
+
+
+			if (pstat && pstat->IOTPeer==HT_IOT_PEER_INTEL && (((pstat->tx_avarage+pstat->rx_avarage)>>10) < 
+				priv->pshare->rf_ft_var.cwmax_enhance_thd))
+
+			{
 				if (!priv->pshare->BE_cwmax_enhance && priv->pshare->iot_mode_enable) {
 					priv->pshare->BE_cwmax_enhance = 1;
 					switch_turbo++;
@@ -3270,10 +3268,11 @@ void IOT_engine(struct rtl8192cd_priv *priv)
 		//printk("swq=%d,sw=%d,en=%d,mode=%d\n", priv->swq_en, switch_turbo, priv->pshare->txop_enlarge, priv->pshare->iot_mode_enable);
     }
 #if 1//defined(CONFIG_RTL_819XD)
-    else if( (priv->assoc_num == 1) && (AMPDU_ENABLE)) {		
+    else if( (priv->assoc_num == 1) && (priv->up_time % 2)== 0 && (AMPDU_ENABLE) ) {		
         //if (pstat) {
-        if ((pstat) && pstat->is_intel_sta) {
-			//int en_thd = 14417920>>(priv->up_time % 2);
+//        if ((pstat) && pstat->is_intel_sta) {
+        if ((pstat) && pstat->IOTPeer == HT_IOT_PEER_INTEL) {
+//			int en_thd = 14417920;
             //if ((priv->swq_en == 0) && (pstat->current_tx_bytes > en_thd) && (pstat->current_rx_bytes > en_thd) )  { //50Mbps
             	if ((pstat->current_tx_bytes > 14417920) && (priv->swq_en == 0)) { // && (pstat->current_rx_bytes > 14417920) && (priv->swq_en == 0))  { //55Mbps
                 	priv->swq_en = 1;
@@ -3381,7 +3380,7 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 		VI_TXOP = 188;
 	}
 
-#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8197DL) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
+#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
 	if (priv->pshare->is_40m_bw)
 	{
 		BE_TXOP = 23;
@@ -3428,7 +3427,7 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 					RTL_W32(EDCA_BE_PARA, (6 << 12) | (4 << 8) | (sifs_time + 3 * slot_time));
 			} else
 #endif
-			RTL_W32(EDCA_BE_PARA, (10 << 12) | (4 << 8) | 0x4f);
+				RTL_W32(EDCA_BE_PARA, (10 << 12) | (4 << 8) | 0x4f);
 		} else {
 			RTL_W32(EDCA_BE_PARA, (((OPMODE & WIFI_AP_STATE)?6:10) << 12) | (4 << 8)
 					| (sifs_time + 3 * slot_time));
@@ -3462,16 +3461,15 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 			if (priv->pshare->txop_enlarge == 0xe) {
 #ifndef LOW_TP_TXOP
 				// is intel client, use a different edca value
-#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8197DL) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
+#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
 				RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (6 << 12) | (5 << 8) | 0x1f);
 #else
 				//RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (6 << 12) | (4 << 8) | 0x1f);
 				if (get_rf_mimo_mode(priv) == MIMO_1T1R)
-					//RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (5 << 12) | (3 << 8) | 0x1f);
 					RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (6 << 12) | (5 << 8) | 0x1f);
 				else	
 					RTL_W32(EDCA_BE_PARA, (BE_TXOP*2 << 16) | (8 << 12) | (5 << 8) | 0x1f);
-				 
+					
 				RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) & ~(DIS_TXOP_CFE));
 #endif
 				priv->pshare->txop_enlarge = 2;
@@ -3484,7 +3482,7 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 					RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) | DIS_TXOP_CFE);
 					
 				if (get_rf_mimo_mode(priv) == MIMO_2T2R)
-#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8197DL) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
+#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
 					RTL_W32(EDCA_BE_PARA, ((BE_TXOP*priv->pshare->txop_enlarge) << 16) |
                             (6 << 12) | (5 << 8) | (sifs_time + 3 * slot_time));
 #else
@@ -3492,7 +3490,7 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 							(6 << 12) | (4 << 8) | (sifs_time + 3 * slot_time));
 #endif
 				else
-#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8197DL) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
+#if 0 //defined(CONFIG_RTL_8196D) || defined(CONFIG_RTL_8196E) || (defined(CONFIG_RTL_8197D) && !defined(CONFIG_PORT0_EXT_GIGA))
 					RTL_W32(EDCA_BE_PARA, ((BE_TXOP*priv->pshare->txop_enlarge) << 16) |
                             (5 << 12) | (4 << 8) | (sifs_time + 2 * slot_time));
 #else
@@ -3528,7 +3526,7 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 			if (priv->pshare->txop_enlarge == 0xe)
 				RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) & ~(DIS_TXOP_CFE));
 			else
-				RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) | DIS_TXOP_CFE);	
+				RTL_W16(RD_CTRL, RTL_R16(RD_CTRL) | DIS_TXOP_CFE);
 #endif
 		}
 /*
@@ -3541,6 +3539,8 @@ void IOT_EDCA_switch(struct rtl8192cd_priv *priv, int mode, char enable)
 	}
 }
 
+//end of IOT_EDCA_switch
+//========================================================================================================
 
 #if 0
 void check_NAV_prot_len(struct rtl8192cd_priv *priv, struct stat_info *pstat, unsigned int disassoc)
@@ -3628,20 +3628,7 @@ void reset_FA_reg(struct rtl8192cd_priv *priv)
 	RTL_W8(0xa2d, value8 & 0x3F);	// regA2D[7:6]=00 to disable counting
 	value8 = RTL_R8(0xa2d);
 	RTL_W8(0xa2d, value8 | 0x80);	// regA2D[7:6]=10 to enable counting
-
-#ifdef INTERFERENCE_CONTROL
-	// do BB reset to clear Reg0xCF0 & Reg0xCF2
-	RTL_W8(TXPAUSE, 0xff);
-	value8 = RTL_R8(SYS_FUNC_EN);
-	RTL_W8(SYS_FUNC_EN, value8 & ~FEN_BBRSTB);
-	RTL_W8(SYS_FUNC_EN, value8 | FEN_BBRSTB);
-	RTL_W8(TXPAUSE, 0x00);
-#endif
 #else
-#ifdef INTERFERENCE_CONTROL
-	unsigned char value8;
-#endif
-
 	/* cck CCA */
 	PHY_SetBBReg(priv, 0xa2c, BIT(13) | BIT(12), 0);
 	PHY_SetBBReg(priv, 0xa2c, BIT(13) | BIT(12), 2);
@@ -3651,15 +3638,6 @@ void reset_FA_reg(struct rtl8192cd_priv *priv)
 	/* ofdm */
 	PHY_SetBBReg(priv, 0xd00, BIT(27), 1);
 	PHY_SetBBReg(priv, 0xd00, BIT(27), 0);
-
-#ifdef INTERFERENCE_CONTROL
-	// do BB reset to clear Reg0xCF0 & Reg0xCF2
-	RTL_W8(TXPAUSE, 0xff);
-	value8 = RTL_R8(SYS_FUNC_EN);
-	RTL_W8(SYS_FUNC_EN, value8 & ~FEN_BBRSTB);
-	RTL_W8(SYS_FUNC_EN, value8 | FEN_BBRSTB);
-	RTL_W8(TXPAUSE, 0x00);
-#endif
 #endif
 
 #if defined(CONFIG_RTL_92D_SUPPORT) && defined(CONFIG_RTL_NOISE_CONTROL)
@@ -4444,6 +4422,11 @@ void set_RATid_cmd(struct rtl8192cd_priv *priv, unsigned int macid, unsigned int
 	unsigned int content = 0;
 	unsigned short ext_content = 0;
 
+//#ifdef CONFIG_RTL_8812_SUPPORT
+	if(! CHIP_VER_92X_SERIES(priv))
+		return;
+//#endif
+
 	/*
 	 * set ratemask
 	 */
@@ -4825,7 +4808,7 @@ void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step)
 	}
 
 	if(priv->pshare->DM_SWAT_Table.TestMode == RSSI_MODE)	{
-		mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies +40);		// 400 ms
+		mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + RTL_MILISECONDS_TO_JIFFIES(400));		// 400 ms
 	} else if(priv->pshare->DM_SWAT_Table.TestMode == TP_MODE)	{
 
 		if(priv->pshare->TrafficLoad == TRAFFIC_HIGH)	{
@@ -5308,7 +5291,9 @@ void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, stru
 
 		if(	priv->up_time >= (pstat->tx_last_good_time+TFRL_SetTime) &&
 			pstat->tx_conti_fail_cnt >= TFRL_FailCnt && 
-			//!pstat->ht_cap_len && // legacy rate only
+		#if defined(CONFIG_RTL8672) || defined (NOT_RTK_BSP) 
+			!pstat->ht_cap_len && // legacy rate only
+		#endif
 			!priv->pshare->bRLShortened )
 		{ // Shorten retry limit, because AP spending too much time to send out g mode STA pending packets in HW queue.
 			RTL_W16(RL, (TFRL&SRL_Mask)<<SRL_SHIFT|(TFRL&LRL_Mask)<<LRL_SHIFT);
@@ -6415,10 +6400,13 @@ void IQK_92D_5G_n(struct rtl8192cd_priv *priv)
 	}
 
 	printk(">> %s \n",__FUNCTION__);
+
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#endif
 #endif
 	/*
 	 * Save MAC default value
@@ -7198,10 +7186,12 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 		PHY_SetBBReg(priv, 0x828, bMaskDWord, 0x01000000);
 	}
 
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#endif
 #endif
 
 	/*
@@ -7417,10 +7407,12 @@ void IQK_92D_2G_phy1(struct rtl8192cd_priv *priv)
 		RTL_W32(0x828, 0x01000000);
 	}
 
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#endif
 #endif
 
 	/*
@@ -7446,7 +7438,7 @@ void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 				switch2PI=0, X, reg; //, Oldval_0, TX0_A;
 	u8 temp_522, temp_550, temp_551;
 	unsigned int cal_num=0, cal_retry=0, ADDA_backup[IQK_ADDA_REG_NUM];
-	int Y, result[8][3], result_final[8]; //, TX0_C;
+	int Y, result[8][3], result_final[8]={0,0,0,0,0,0,0,0}; //, TX0_C;
 
 	unsigned int i, RX0REG0xe40[3], RX0REG0xe40_final=0, REG0xe40, REG0xe94, REG0xe9c, delay_count;
 	unsigned int REG0xeac, REG0xea4;
@@ -7465,10 +7457,13 @@ void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 	}
 
 	printk(">> %s \n",__FUNCTION__);
+
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#endif
 #endif
 	/*
 	 * Save MAC default value
@@ -8070,10 +8065,12 @@ static void PHY_LCCalibrate_92D(struct rtl8192cd_priv *priv)
 		PHY_SetRFReg(priv, eRFPath, 0x18, 0x08000, 0x01);
 	}
 
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if (defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && defined(CONFIG_RTL_92D_SUPPORT)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B) && defined(CONFIG_RTL_92D_SUPPORT)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#endif
 #endif
 
 	for(eRFPath = RF92CD_PATH_A; eRFPath < curMaxRFPath; eRFPath++) {
@@ -8782,7 +8779,15 @@ void PHY_DPCalibrate(struct rtl8192cd_priv *priv)
 #endif
 	char			bPlus3db = FALSE, bDecreaseTxIndex = FALSE, bDecreaseTxIndexWithRx = FALSE;
 
-	
+#ifdef DFS
+	if ((priv->pshare->rf_ft_var.dfsdelayiqk) &&
+			(OPMODE & WIFI_AP_STATE) &&
+			!priv->pmib->dot11DFSEntry.disable_DFS &&
+			(timer_pending(&priv->ch_avail_chk_timer) ||
+			 priv->pmib->dot11DFSEntry.disable_tx))
+		return;
+#endif
+
 	DPK_DEBUG("==>_PHY_DigitalPredistortion() interface index %d is2T = %d\n", priv->pshare->wlandev_idx, is2T); //anchin
 	
 	DPK_DEBUG("_PHY_DigitalPredistortion for %s\n", (is2T ? "2T2R" : "1T1R"));

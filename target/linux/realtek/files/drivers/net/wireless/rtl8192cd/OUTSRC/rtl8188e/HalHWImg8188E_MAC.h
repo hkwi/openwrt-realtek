@@ -22,18 +22,16 @@
 #ifndef __INC_MAC_8188E_HW_IMG_H
 #define __INC_MAC_8188E_HW_IMG_H
 
-#if 0
-static BOOLEAN CheckCondition(const u4Byte Condition, const u4Byte Hex);
-#endif
 
 /******************************************************************************
 *                           MAC_REG.TXT
 ******************************************************************************/
 
 void
-ODM_ReadAndConfig_MAC_REG_8188E(
+ODM_ReadAndConfig_8188E_MAC_REG(
 	IN   PDM_ODM_T  pDM_Odm
 );
 
 #endif
 #endif // end of HWIMG_SUPPORT
+

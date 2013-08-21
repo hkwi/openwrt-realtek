@@ -719,7 +719,7 @@ unsigned char getThermalValue(struct rtl8192cd_priv *priv)
 
 
 
-#ifdef _TRACKING_TABLE_FILE
+#if 0//def _TRACKING_TABLE_FILE
 int get_tx_tracking_index(struct rtl8192cd_priv *priv, int channel, int i, int delta, int is_decrease, int is_CCK)
 {
 	int index = 0;
@@ -956,7 +956,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 				}
 
 #ifdef _TRACKING_TABLE_FILE
-
+				if (priv->pshare->rf_ft_var.pwr_track_file)
 				{
 					int d = 0; 
 					
@@ -973,9 +973,9 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					}
 
 				}
-
-
-#else
+				else
+#endif
+				{
 #ifdef HIGH_POWER_EXT_PA
 				if (priv->pshare->rf_ft_var.use_ext_pa) {
 					OFDM_index[i] = priv->pshare->OFDM_index[i];
@@ -983,7 +983,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					//swingIndexRemap(&OFDM_index[i], priv->pshare->OFDM_index0[i]);
 				}
 #endif
-#endif
+				}
 				if(OFDM_index[i] > OFDM_TABLE_SIZE-1)
 					OFDM_index[i] = OFDM_TABLE_SIZE-1;
 				else if (OFDM_index[i] < OFDM_min_index)
@@ -1010,6 +1010,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 				}
 
 #ifdef _TRACKING_TABLE_FILE
+				 if (priv->pshare->rf_ft_var.pwr_track_file)
 				 {
 					int d = 0; 
 					
@@ -1026,7 +1027,9 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					}
 
 				}
-#else
+				 else
+#endif
+				{
 #ifdef HIGH_POWER_EXT_PA
 				if (priv->pshare->rf_ft_var.use_ext_pa) {
 					CCK_index = priv->pshare->CCK_index;
@@ -1034,7 +1037,7 @@ void tx_power_tracking(struct rtl8192cd_priv *priv)
 					//swingIndexRemap( &CCK_index, priv->pshare->CCK_index0);
 				}
 #endif
-#endif
+				}
 				if(CCK_index > CCK_TABLE_SIZE-1)
 					CCK_index = CCK_TABLE_SIZE-1;
 				else if (CCK_index < 0)
@@ -1471,6 +1474,8 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 				if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_2G){
 
 #ifdef _TRACKING_TABLE_FILE
+				if (priv->pshare->rf_ft_var.pwr_track_file)
+				{
 				if(ThermalValue > priv->pmib->dot11RFEntry.ther)
 				{
 					for(i = 0; i < rf; i++)
@@ -1485,8 +1490,10 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 					
 					CCK_index = priv->pshare->CCK_index + get_tx_tracking_index(priv, channel, i, delta, 1, 1);
 				}
-
-#else
+				}
+				else
+#endif
+				{
 					offset = 4;
 
 					if(delta > index_mapping_NUM-1)
@@ -1504,7 +1511,7 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 							OFDM_index[i] = priv->pshare->OFDM_index[i] + index[0];
 						CCK_index = priv->pshare->CCK_index + index[0];
 					}
-#endif
+				}
 				} else if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G) {
 					for(i = 0; i < rf; i++){
 
@@ -1575,15 +1582,16 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 
 
 #ifdef _TRACKING_TABLE_FILE
+						if (priv->pshare->rf_ft_var.pwr_track_file)
 						{
 							if(ThermalValue > priv->pmib->dot11RFEntry.ther)
 								index[i] = get_tx_tracking_index(priv, channel, i, delta, 0, 0);	
 							else
 								index[i] = get_tx_tracking_index(priv, channel, i, delta, 1, 0);
 						}
-
-#else
-
+						else
+#endif
+						{
 #ifdef HIGH_POWER_EXT_PA //Modify HP tracking table, from Arthur 2012.02.13
   						{
 							if(delta > index_mapping_NUM-1)
@@ -1595,8 +1603,8 @@ u8		index_mapping_HighPower_PA[12][index_mapping_NUM] = {
 							//printk("index[%d]= %d\n\n", i, index[i]);
 						}
 #endif
+						}
 
-#endif
 
 
 						if(ThermalValue > priv->pmib->dot11RFEntry.ther) //set larger Tx power
@@ -1881,8 +1889,8 @@ void check_txrate_by_reg(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 				&& !((OPMODE & WIFI_AP_STATE) && priv->pmib->dot11nConfigEntry.dot11nCoexist &&
 				(priv->bg_ap_timeout || priv->force_20_sta || priv->switch_20_sta
 #ifdef CONFIG_RTL_88E_SUPPORT
-				|| (GET_CHIP_VER(priv) == VERSION_8188E)?(priv->force_20_sta_88e_hw_ext 
-				|| priv->switch_20_sta_88e_hw_ext):(0)
+				|| ((GET_CHIP_VER(priv) == VERSION_8188E)?(priv->force_20_sta_88e_hw_ext 
+				|| priv->switch_20_sta_88e_hw_ext):(0))
 #endif
 #ifdef STA_EXT
 				|| priv->force_20_sta_ext || priv->switch_20_sta_ext
@@ -1953,7 +1961,7 @@ void set_rssi_cmd(struct rtl8192cd_priv *priv, struct stat_info *pstat)
 	/*
 	 * set macid
 	 */
-	 content |= pstat->aid << 8;
+	 content |= REMAP_AID(pstat) << 8;
 
 	/*
 	 * set cmd id
@@ -2379,10 +2387,10 @@ void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step)
 		else
 			PHY_SetBBReg(priv, rFPGA0_XB_RFInterfaceOE, 0x300, nextAntenna);
 #endif
-	}
 
 //1 5.Reset Statistics
-	priv->pshare->DM_SWAT_Table.CurAntenna = nextAntenna;
+		priv->pshare->DM_SWAT_Table.CurAntenna = nextAntenna;
+	}
 
 //1 6.Set next timer
 
@@ -2391,20 +2399,20 @@ void dm_SW_AntennaSwitch(struct rtl8192cd_priv *priv, char Step)
 	}
 
 	if(priv->pshare->DM_SWAT_Table.TestMode == RSSI_MODE)	{
-		mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies +40);		// 400 ms
+		mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies +RTL_MILISECONDS_TO_JIFFIES(400));		// 400 ms
 	} else if(priv->pshare->DM_SWAT_Table.TestMode == TP_MODE)	{
 
 		if(priv->pshare->TrafficLoad == TRAFFIC_HIGH)	{
 			if(priv->pshare->DM_SWAT_Table.RSSI_Trying%2 == 0)
-				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + 1);	// 10 ms
+				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + RTL_MILISECONDS_TO_JIFFIES(10));	// 10 ms
 			else
-				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + 8);	// 80 ms
+				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + RTL_MILISECONDS_TO_JIFFIES(80));	// 80 ms
 
 		} else if(priv->pshare->TrafficLoad == TRAFFIC_LOW) {
 			if(priv->pshare->DM_SWAT_Table.RSSI_Trying%2 == 0)
-				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + 4);	// 40 ms
+				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + RTL_MILISECONDS_TO_JIFFIES(40));	// 40 ms
 			else
-				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + 8);	// 80 ms
+				mod_timer(&priv->pshare->swAntennaSwitchTimer, jiffies + RTL_MILISECONDS_TO_JIFFIES(80));	// 80 ms
 		}
 	}
 
@@ -2840,7 +2848,7 @@ void dnc_timer(unsigned long task_priv)
 //3 Leaving STA check
 //3 ============================================================
 
-#if defined(DETECT_STA_EXISTANCE) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
+#if defined(DETECT_STA_EXISTANCE) //&& (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 // Check for STA existance. If STA disappears, disconnect it. Added by Annie, 2010-08-10.
 void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, struct stat_info *pstat)
 {
@@ -2856,7 +2864,7 @@ void DetectSTAExistance(struct rtl8192cd_priv *priv, struct tx_rpt *report, stru
 	const unsigned char	TFRL_FailCnt = 2;		// Tx Fail Count threshold to set Retry Limit
 	const unsigned char	TFRL_SetTime = 2;		// Time to set Retry Limit (in second)
 	const unsigned char	TFRL_RcvTime = 10;		// Time to recover Retry Limit (in second)
-	
+
 	if(OPMODE & WIFI_STATION_STATE)
 		return;
 
@@ -3970,11 +3978,15 @@ void IQK_92D_5G_n(struct rtl8192cd_priv *priv)
 	}
 
 	printk(">> %s \n",__FUNCTION__);
+
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
 #endif
+#endif
+
 	/*
 	 * Save MAC default value
 	 */
@@ -4752,10 +4764,12 @@ void IQK_92D_2G(struct rtl8192cd_priv *priv)
 		PHY_SetBBReg(priv, 0x828, bMaskDWord, 0x01000000);
 	}
 
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#endif
 #endif
 
 	/*
@@ -4972,10 +4986,12 @@ void IQK_92D_2G_phy1(struct rtl8192cd_priv *priv)
 		RTL_W32(0x828, 0x01000000);
 	}
 
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#endif
 #endif
 
 	/*
@@ -5020,11 +5036,15 @@ void IQK_92D_5G_phy0_n(struct rtl8192cd_priv *priv)
 	}
 
 	printk(">> %s \n",__FUNCTION__);
+
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
 #endif
+#endif
+
 	/*
 	 * Save MAC default value
 	 */
@@ -5564,10 +5584,12 @@ static void PHY_LCCalibrate_92D(struct rtl8192cd_priv *priv)
 		PHY_SetRFReg(priv, eRFPath, 0x18, 0x08000, 0x01);
 	}
 
+#if defined(CONFIG_RTL865X_WTDOG) || defined(CONFIG_RTL_WTDOG)
 #if (defined(CONFIG_RTL_8198) || defined(CONFIG_RTL_819XD) || defined(CONFIG_RTL_8196E)) && defined(CONFIG_RTL_92D_SUPPORT)
 	REG32(BSP_WDTCNR) |=  1 << 23;
 #elif defined(CONFIG_RTL_8198B) && defined(CONFIG_RTL_92D_SUPPORT)
 	REG32(BSP_WDTCNTRR) |= BSP_WDT_KICK;
+#endif
 #endif
 
 	for(eRFPath = RF92CD_PATH_A; eRFPath < curMaxRFPath; eRFPath++) {

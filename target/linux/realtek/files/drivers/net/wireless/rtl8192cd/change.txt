@@ -2,6 +2,7397 @@ Change History
 ==============
 
 * DATE/WHOM/TYPE:
+- 2013/06/05, jimmylin, feature refine
+
+* DIGEST:
+- Check 2.4G channel end to give right weighting in auto channel
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/06/04, wish, bug fixing
+
+* DIGEST:
+- Fix 8881A turning on Tx STBC mistakenly
+
+* TEST METHOD:
+- Sheilding room TP test
+
+* ROOT CAUSE:
+- In 8192cd_tx.c, "pdesc_data->dataStbc = 1" should add jugement for 2T2R
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+if(get_rf_mimo_mode(priv) == MIMO_2T2R)
+                    pdesc_data->dataStbc = 1;
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/06/03, jimmylin, feature refine
+
+* DIGEST:
+- Set xcap step by step for 92E, 8881A, and 8812
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/06/03, ken.chuang, bug fixing
+
+* DIGEST:
+- Fix WAPI software encryption didn't work. For 92E. 
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+- In 8192cd_tx.c, pMic buffer pointer need to be assigned for 92E.
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/31, EricYeh, Bug Fix
+
+* DIGEST:
+- Fix: Repeater mode + Auto Channel + 80M BW
+
+* TEST METHOD:
+- Use another BW=80M AP for repeater mode, 
+  RTK AP connect to that AP by using BW=40M. 
+
+* ROOT CAUSE:
+- Repeater mode always set BW=40M after found target AP
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Use Root AP's BW for repeater mode.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/31, EricYeh, Bug Fix
+
+* DIGEST:
+- Fix Tx Power Index error if use Auto Channel selection 
+
+* TEST METHOD:
+- Set Auto Channel & Enable Tx Power Limit function, 
+  Tx Power may be constrained for all channels. 
+
+* ROOT CAUSE:
+- Because when doing channel scan, 
+  Tx power offset of current channel will be inherited. 
+  (next channel also use previous channel's tx power offset)
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Reload Power by Rate value during switching channel.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/31, jimmylin, feature refine
+
+* DIGEST:
+- Modify DIG lower bound of 8881A in DFS channel from 0x26 to 0x20
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+- Only WNC 8881A board needs to set to 0x26
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/30, jimmylin, feature refine
+
+* DIGEST:
+- Modify auto channel selection for 80M mode
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_util.c
+
+* DESCRIPTION:
+- When pick up a 80M channel, choose the lowest points channel in the 4
+  channels as control channel.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/30, button, feature refine
+
+* DIGEST:
+- 8881A, 96e bonding recognition
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+- 8192cd_hw.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/29, jimmylin, feature refine
+
+* DIGEST:
+- Don't select 1st and 4th channel of 80M mode in auto channel for 8881A A-cut
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/29, justin.wu, bug fixing
+
+* DIGEST:
+- For non-RTK BSP, fix WAPI hardware encryption/decryption didn't be enabled.  
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+- In 8192cd_cfg.h, the "CONFIG_RTL_HW_WAPI_SUPPORT" definition depends on "CONFIG_RTL8192CD". We didn't define it for non-RTK BSP.
+
+* MODIFIED FILES:
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/29, jimmylin, feature refine
+
+* DIGEST:
+- Reconnect to AP when AP changed 2nd channel offset for client mode
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Check 2nd channel offset in AP's beacon. If AP changed 2nd channel offset,
+  reconnect to AP to sync channel.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/28, justin.wu, compile fixing
+
+* DIGEST:
+- Fix a compile error for 8188E
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/28, justin.wu, bug fixing
+
+* DIGEST:
+- Fix 2 PCI DMA map/unmap bugs
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+- In rtl8192cd_rx_isr(), we do the pci_unmap_single() twice for a RX complete SKB buffer.
+- In the UpdateRXBDInfo88XX(), we do PCI_map_single() twice for a RX SKB Buffer.
+
+* MODIFIED FILES:
+
+* DESCRIPTION:
+- These bugs may cause memory corrupted on some platforms.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/24, Family, Bug Fix
+
+* DIGEST:
+- Fix buffer overrun issue for read_proc "SS_Result", which may cause system unstable.
+
+* TEST METHOD:
+- Turn on AUTO_TEST_SUPPORT in 8192cd_cfg.h
+- Execute the command "iwpriv wlan0 at_ss" on shell
+- Execute the command "cat /proc/wlan0/SS_Result" on shell
+
+* ROOT CAUSE:
+- The return content of site survey exceed buffer size (page size).
+
+* MODIFIED FILES:
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, bug fixing
+
+* DIGEST:
+- Merge the patch, which from Family, to fix the WAPI enabled may cause system crash issue.
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+- if we turn on both flags, CHECK_HANGUP and CONFIG_RTL_WAPI_SUPPORT, the system may crash in function "wapiHandleRecvPacket"
+- In the rtl8192cd_close(), the pstat->wapiInfo will be freed. But we still try to access it in function restore_backup_sta(), so cause system crash.
+
+* MODIFIED FILES:
+- 8192cd_util.c
+- wapi_wai.c
+- wapi_wai.h
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, Feature refine
+
+* DIGEST:
+- Merge the patch which from Family, to fix the WAPI little endian problem.
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+- The WAPI function didn't work on little endian system.
+
+* MODIFIED FILES:
+- 8192cd_headers.h
+- 8192cd_ioctl.c
+- 8192cd_osdep.c
+- 8192cd_proc.c
+- 8192cd_sme.c
+- 8192cd_tx.c
+- 8192cd_util.c
+- 8192cd_util.h
+- change.txt
+- config.mk
+- wapi_wai.c
+- wapi_wai.h
+- wapiCrypto.c
+- wapiCrypto.h
+
+* ADD FILES:
+- rtl_types.h
+
+* DESCRIPTION:
+- Fix endian problem
+- Clean some compile warring
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, bug fixing
+
+* DIGEST:
+- Fix a system hang issue when the client mode trying to connect to an AP.
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+- Call the "del_timer_syn()" Atomic(RX interrupt), it will do re-schedule while in atomic and then cause system hang.
+- For non-RTK BSP platform.
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Use the "del_timer()" to replace "del_timer_sync()", but the timer callback also need to be protected by the same spin-lock.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, bug fixing
+
+* DIGEST:
+- Fix a compile error of 8188E, a typo.
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+- 8192cd_util.c
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, bug fixing
+
+* DIGEST:
+- Fix a PCI DMA Unmap bug for 8812 with non-RTK BSP
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+- When unloading driver module, we do PCI DMA Unmap for TX Descriptor with incorrect memory Phy address. Because the TX descriptor format of 8812 is different with 8192C.
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, bug fixing
+
+* DIGEST:
+- Fix a PCI DMA sync bug for non-RTK BSP
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+- When a packet receiving is done, we do a PCI DMA Unmap. But if we reuse this SKB, we didn't do PCI DMA Map again.
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+- 8192cd_rx.h
+
+* DESCRIPTION:
+- This bug may not not cause any problem, it depends on CPU and Kernel version.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu
+
+* DIGEST:
+- Add log for previous checkin
+
+* TEST METHOD:
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, bug fixing
+
+* DIGEST:
+- Fix few PCI DMA cache sync write-back issue for 8192E, for non RTK BSP
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+- Do PCI DMA cache sync with incorrect memory address(Virtual Address) for PCI_BIOS platform.
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+- WlanHAL/RTL88XX/Hal88XXRxDesc.c
+- WlanHAL/RTL88XX/Hal88XXTxDesc.c
+
+* DESCRIPTION:
+- We use a macro to PCI DMA cache sync, this MACRO always do Phy <-> Virtual address convert, but some case the convert is no needed.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, scko, bug fixed
+
+* DIGEST:
+- Refine the HAL chip RX refill mechanism
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- The rtl8192cd_rx_isr use NUM_RX_DESC as REFILL_THRESHOLD have its reason.
+  We should not change this, only change HAL chip.
+
+* MODIFIED FILES:
+	8192cd_cfg.h
+	8192cd_rx.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, feature refine
+
+* DIGEST:
+- Fix a RX ISR takes too long and cause system watchdog timeout issue.
+
+* TEST METHOD:
+- Verified on ADSL 8686 platform
+
+* ROOT CAUSE:
+- When running VeriWave UDP small packet size RX test, the RX ISR may occupy the CPU to process all received packet and takes too long and then cause system watchdog timeout.
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_rx.c
+
+* DESCRIPTION:
+- We break the ISR while loop if 1000 packets were processed or the ISR run over 1 sec.
+- Compile flag: CHK_RX_ISR_TAKES_TOO_LONG, default off
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, feature refine
+
+* DIGEST:
+- Add a MAC reset recovery for 8192E
+
+* TEST METHOD:
+- Verified on ADSL 8686 platform
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-  For some cases of system reboot without stop the WLan first and didn't do power off/on, like watchdog timeout reboot, the MAC DMA hardware may hang. So add a code to do MAC reset to recovery these case.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, bug fixing
+
+* DIGEST:
+- Fix a available channel is null issue.
+
+* TEST METHOD:
+- Verified on ADSL 8686 platform
+
+* ROOT CAUSE:
+- If configure as N mode only + Security = WEP combination, it will cause did not give a value to the work type, and then cause the available channel is null. So no beaconing.
+
+
+* MODIFIED FILES:
+
+* DESCRIPTION:
+- Set B+G mode for this case.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, bug fix
+
+* DIGEST:
+- Fix compile error for my previous check-in.
+
+* TEST METHOD:
+- Verified on PC
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+- 8192cd_led.c
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, feature refine
+
+* DIGEST:
+- Revise LED function to enable LED1, LED2 for 8192E
+
+* TEST METHOD:
+- Verified on ADSL 8686 platform
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+- 8192cd_led.c
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- Fix compile error for didn't define "RTLWIFINIC_GPIO_CONTROL"
+- Add code to enable LED1,LED2 for 8192E
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, tegochang, bug fixed
+
+* DIGEST:
+- rollback setting of 8881a selective mode 2G wrong rssi value in v16409
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- rtl8192cd/OUTSRC/odm_HWConfig.c
+
+* DESCRIPTION:
+- rollback modified file odm_HWConfig.c to v16234 and add v16498 (delete
+  modification in v16409)
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, scko, bug fix
+
+* DIGEST:
+- Fixed a RX refill hang issue
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- If RX refill is enabled, the system hangs when testing throughput
+- If skb is consumed and not enough, the rx_isr would meet a critical case
+  that the hw_idx meet the host_idx and can't process any packet.
+
+* MODIFIED FILES:
+	8192cd_cfg.h
+	8192cd_rx.c
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/23, justin.wu, function refine
+
+* DIGEST:
+- Remove debug information from proc/sta_info
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- Those debug information already exist in proc/sta_dbginfo
+
+* MODIFIED FILES:
+	8192cd_proc.c
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/24, chuangsw, feature refine
+
+* DIGEST:
+- Enlarge AGC_TAB_SIZE in 8881A.
+
+* TEST METHOD:
+- When load 8881AM image, it will show "PHY REG table buffer not large enough!"
+
+* ROOT CAUSE:
+- default AGC_TAB_SIZE 1600 is not enough.
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/22, justin.wu, function refine
+
+* DIGEST:
+- Revise the RTK SOC PCIE Host reset procedure for 8192E
+
+* TEST METHOD:
+- Verified on ADSL 8686 platform
+
+* ROOT CAUSE:
+- We should make sure the PCIE link is up then can set the BAR. If the PCIE link up timeout, do the PCIE host reset again.
+
+* MODIFIED FILES:
+	8192cd_host.c
+
+* DESCRIPTION:
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/22, justin.wu, bug fixing
+
+* DIGEST:
+- Fix a 8192E potential system crash bug.
+
+* TEST METHOD:
+- Verify on PC
+
+* ROOT CAUSE:
+- In the "dump_one_stainfo()", it use the "pstat->rx_bw" as the index of an array. But "pstat->rx_bw" is un-initialized.
+
+* MODIFIED FILES:
+	8192cd_rx.c
+
+* DESCRIPTION:
+- Give an initial vale for the RX descriptor 'rx_bw'. Although 8192E RX descriptor no more has the 'rx_bw' field.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/22, justin.wu, bug fixing
+
+* DIGEST:
+- Fix a non-RTK BSP platform crash issue.
+
+* TEST METHOD:
+- Verify on PC
+
+* ROOT CAUSE:
+- In the "Check_92E_Spur_Valid()", it direct access IO to try to disable RTK SOC watchdog. This will kill non-RTK platform.
+
+* MODIFIED FILES:
+	8192cd_hw.c
+
+* DESCRIPTION:
+- Mark off these code for non-RTK platform
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/22, justin.wu, feature refine
+
+* DIGEST:
+- Revise "proc" for HAL chip
+
+* TEST METHOD:
+- Verify on PC
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+	8192cd_proc.c
+
+* DESCRIPTION:
+- RX Descriptor dump
+- Add more information for sta_info: Antenna Switch, SW TX Queue and AMPDU Info
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/22, justin.wu, bug fixing
+
+* DIGEST:
+- Revise the HAL chip (8192E, 8881A) "Buffer Descriptor" Buffer allocate/free.
+
+* TEST METHOD:
+- Verify on PC
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+	8192cd_osdep.c
+	WlanHAL/HalCfg.h
+
+* DESCRIPTION:
+- For Non-RTK BSP platform, the "desc_dma_buf" buffer no use, don't allocate it.
+- When unloading driver module, we try to free "alloc_dma_buf" buffer which never be allocated.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/22, justin.wu, non-RTK BSP code refine
+
+* DIGEST:
+- Enable SMP lock for IO Control function for all platforms
+
+* TEST METHOD:
+- Verify on PC
+
+* ROOT CAUSE:
+- The SMP lock is always needed for IO control functions.
+
+* MODIFIED FILES:
+	8192cd_ioctl.c
+
+* DESCRIPTION:
+- The SMP lock is always needed for IO control functions, even on PC.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/22, justin.wu, non-RTK BSP bugs fixing
+
+* DIGEST:
+- Fix bugs of timer operation with incorrect jiffies value for non-RTK BSP
+
+* TEST METHOD:
+- Verify on PC
+
+* ROOT CAUSE:
+- use a fix value of jiffies for timer operation, but the the number of jiffies of a ms has different value on PC and on RTK SOC.
+
+* MODIFIED FILES:
+	8192cd_rx.c
+	8192cd_util.h
+	Hal8192CDMOutSrc.c
+	OUTSRC/odm_interface.c
+
+* DESCRIPTION:
+- The number of jiffies per second is platform dependency, so we should use defined macros to get correct jiffies number for timer operation.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/22, justin.wu, non-RTK BSP bugs fixing
+
+* DIGEST:
+- Fix del_timer_sync() cause system core dump issue.
+
+* TEST METHOD:
+- Verify on PC
+
+* ROOT CAUSE:
+- On SMP system, when calling del_timer_sync() while in atomic (in ISR or holding a lock) will cause a system core dump.
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_util.h
+	Add spin-lock deceleration and macro
+
+- 8192cd_psk.c
+	Fix the PSK resend timer issue.
+
+- 8192cd_rx.c
+	Fix the RX reorder timer issue.
+	
+- 8192cd_sme.c
+- 8192cd_tx.c
+- 8192cd_util.c
+	Fix the SW TX queue timer issue.
+
+* DESCRIPTION:
+- There are 3 timers has this issue: RX reorder timer, PSK resend timer and Software TX queue timer
+- Our fixing is use del_timer() to replace del_timer_sync(), and use a spin-lock to prevent the race condition between del_timer() and its timer callback function.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/22, button, new feature
+
+* DIGEST:
+- Add 8881AB/AM support
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+-  rtl8192cd/WlanHAL/RTL88XX/Hal88XXGen.c
+-  rtl8192cd/WlanHAL/RTL88XX/Hal88XXPhyCfg.c
+-  rtl8192cd/WlanHAL/RTL88XX/RTL8881A/Hal8881ADef.h
+-  rtl8192cd/WlanHAL/RTL88XX/RTL8881A/Hal8881AGen.c
+-  rtl8192cd/8192cd_hw.h
+-  rtl8192cd/8192cd_headers.h
+-  rtl8192cd/8192cd_osdep.c
+-  rtl8192cd/8192cd_proc.c
+
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/21, button, bug fix
+
+* DIGEST:
+- Patch for Adjusting XCAP of RTL8188E
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- Sync patch from Jason
+- Adjust the xcap step by step to avoid PLL phase issues.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/20, peteryu,  refine feature
+
+* DIGEST:
+- Increase the retry times for H2C command
+- Try to recovery the H2c status when H2x command failed
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/Hal88XXFirmware.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/20, button,  bug fix
+
+* DIGEST:
+- Fix core dump in 8881A platform
+
+* TEST METHOD:
+- dump txdesc of 8881A
+
+* ROOT CAUSE:
+- function pointer is not assigned
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/RTL8881A/Hal8881AGen.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/19, pluswang, bug fxied 
+
+* DIGEST:
+- correct the issue 8812AR-VN use wrong power by rate table(old format)
+
+* TEST METHOD:
+-check by iwpriv wlan0 reg_dump observe tx power of each rate 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+
+* DESCRIPTION:
+- 8812AR-VN undef AC_SUPPORT, 
+  but new power by rate table depend on AC_SUPPORT define
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/16, jimmylin, feature refine
+
+* DIGEST:
+- Support 8881A s/w wlan LED
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_led.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/16, weikaichuang, bug fix
+
+* DIGEST:
+- Fix 8192D DMDP error write reg LEDCFG (0x4C) 
+
+* TEST METHOD:
+- Set wlan0(wlan1) either type 51 or 52 and observe the led blinking
+
+* ROOT CAUSE:
+- LEDCFG should be read out first then set the corresponding bit to enable
+  led. Otherwise, LEDCFG will be overwrite by the other interface. 
+
+* MODIFIED FILES:
+- 8192cd_led.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+* DATE/WHOM/TYPE:
+- 2013/05/16, Jeng-Wei LEE, bug fix
+
+* DIGEST:
+- Delete DFS channels in available channel array when disable_DFS=1
+
+* TEST METHOD:
+
+
+* ROOT CAUSE:
+- Cameo requests for disabling/enabling DFS function when DFS_Support is defined.
+
+* MODIFIED FILES:
+- 8192cd_util.c
+
+* DESCRIPTION:
+- Originally, AP still has chance to select DFS channels when auto channel is selected. This patch fixes this issue.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/16, button, bug fix
+
+* DIGEST:
+- Fix 92e power tracking, refine DetectSTAExistance
+
+* TEST METHOD:
+- Test ULDL throughput with Intel 6300 in shielding room
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- HalDMOutSrc.c
+- WlanHAL/RTL88XX/Hal88XXPhyCfg.c
+
+* DESCRIPTION:
+- Sync power tracking with 3.2.5
+- Disable RL change in DetectSTAExistance88XX
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/15, pluswang, bug fixed
+
+* DIGEST:
+- Web UI fixed tx rate can't work well on non 8812/8881a chip
+
+* TEST METHOD:
+- set fixed tx data rate at web UI (non 8812/8881a)
+  and use sniffer check if the rate of data packets is fixed
+
+* ROOT CAUSE:
+- wrong condition check
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/15, button, feature refine
+
+* DIGEST:
+- Refine 92e high power mechanism
+
+* TEST METHOD:
+- Test Rx throughput with Intel 6300 in shielding room
+
+* ROOT CAUSE:
+- Tx power of response rate is too high
+
+* MODIFIED FILES:
+- HalDMOutSrc.c
+
+* DESCRIPTION:
+- When tx2path is enabled, decrease RRSR power index 22
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/15, button, feature refine
+
+* DIGEST:
+- Refine 8812 hangup reset procedure
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- reset Rx DMA during hangup reset (8812 only)
+
+-----------------------------------------------------------------------------
+
+
+* DATE/WHOM/TYPE:
+- 2013/05/14, jason, feature add
+
+* DIGEST:
+- Remove PCIe parameters for SSC in the RTL8881A + RTL88E platform.
+
+* TEST METHOD:
+- Test Rx Sensitivity Chanell 14 of the 2.4G fails to fit the specification.
+* ROOT CAUSE:
+- Because the 2.5G spur occoured by PCIe host, remove the SSC of the PCIe to
+  avoid the spur issue. 
+
+* MODIFIED FILES:
+- 8192cd_host.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/15, button, new feature
+
+* DIGEST:
+- 92e rx DMA recovery
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_cfg.h
+- WlanHAL/RTL88XX/RTL8192E/Hal8192EPwrSeqCmd.h
+
+* DESCRIPTION:
+- Sync patch from SD9 Money
+- Refine 92e power on flow (not set 0x78[21])
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/14, chuangsw, feature
+
+* DIGEST:
+- Some fix to pass WMM-PS.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- rtl8192cd/8192cd_sme.c
+- rtl8192cd/8192cd_osdep.c
+- rtl8192cd/8192cd_ioctl.c
+
+* DESCRIPTION:
+- 1. dtimperiod set to 3.
+- 2. It should not be always enable the qroup data pkt bit in beacon.
+- 3. Turn off tx2path while apsd_enable=1.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/15, justin.wu, bugs fix
+
+* DIGEST:
+- Fix compile errors and system crash errors for Non RTK platforms.
+- How to build ?
+  	1. Modify the "platform.mk" to select you platform or add an configuration for your platform.
+  	2. Modify the "config.mk" to configure the driver option(supported chip, features, ...).
+  	3. Re-name the "Makefile_nrs" as "Makefile" and then run "make".
+
+* TEST METHOD:
+- Test Rx Sensitivity 2.4G and 5G to ensure the RX capability. 
+- Tested with 8192C, 8188E, 8192E and 8812 on PC. Connect OK.
+- Tested with 8192E + 8812 concurrent on PC(Fedora 10, Kernel version 2.6.33).
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_headers.h
+- 8192cd_hw.c
+- 8192cd_ioctl.c
+- 8192cd_osdep.c
+- 8192cd_p2p.c
+- 8192cd_proc.c
+- WlanHAL/RTL88XX/Hal88XXRxDesc.c
+- WlanHAL/RTL88XX/Hal88XXTxDesc.c
+- wapi_wai.c
+- wifi.h
+
+* ADD FILES:
+- Makefile_nrs
+- config.mk
+- platform.mk
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/14, button, bug fix
+
+* DIGEST:
+- Fix 96e+92e low throughput issue
+
+* TEST METHOD:
+- Run chariot 3D+3U with Intel 6300, criterion 160 Mbps
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- OUTSRC/odm.c
+- 8192cd_cfg.h
+
+* DESCRIPTION:
+- In 8881a, 8192e, enable SQ_TXQ when associated STA number greater than 9
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/14, jason, feature add
+
+* DIGEST:
+- Update PCIe parameters for SSC in the RTL8881A + RTL88E platform.
+
+* TEST METHOD:
+- Test Rx Sensitivity 2.4G and 5G to ensure the RX capability. 
+* ROOT CAUSE:
+- Because the 2.5G spur occoured by PCIe host, adjust the SSC of the PCIe to
+  avoid the spur issue. 
+
+* MODIFIED FILES:
+- 8192cd_host.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/14, weikaichuang, bug fix
+
+* DIGEST:
+- Update adaptivity code from BB luke
+
+* TEST METHOD:
+-
+* ROOT CAUSE:
+- If the sta is disconnected, adaptivity will not turn off, therefore, all
+  Tx will be blocked.
+
+* MODIFIED FILES:
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/13, button
+
+* DIGEST:
+- Fix compile error of 97D+8367R+92e+92d
+
+* TEST METHOD:
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+- Makefile
+- 8192cd_headers.h
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+- odm_inc.h
+- 8192cd_cfg.h
+- 8192cd.h
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/10, pluswang, feature add
+
+* DIGEST:
+- Add 8812AR-VN support
+
+* TEST METHOD:
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+-8192cd.h
+-8192cd_cfg.h
+-8192cd_headers.h
+-8192cd_hw.c
+-8192cd_proc.c
+-8192cd_sme.c
+-8192cd_util.c
+-8192cd_util.h
+
+* DESCRIPTION:
+- add 8192FR option to make menuconfig
+- update 8812 firmware to 12.1 for support ICchip version check and RF lock 
+- cat /proc/wlanx/mib_all for check the chip version "8812AR-VN"
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/10, sean, sync 92e skb num from 3.2
+
+* DIGEST:
+- change skb number from 480 to 256 with no rdu and no fifoO
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_util.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/09, jimmylin, feature refine
+
+* DIGEST:
+- Modify DFS detection threshold because Fault Detection function is removed
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+
+* DESCRIPTION:
+- Update version to 0.0.8
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/09, chuangsw, feature refine
+
+* DIGEST:
+- Reduce 8881A deflaut power index.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/Hal88XXPhyCfg.c
+
+* DESCRIPTION:
+- 8881A new phy parameter had add 5dBm in default so the default power index
+  with no calibration data should be reduce.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/08, buttonn, feature refine
+
+* DIGEST:
+- Disable STBC Tx of 8192c
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- Disable STBC Tx of 8192c
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/08, buttonn, feature refine
+
+* DIGEST:
+- Refine LDPC settings for 8812 & 8881A
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/Hal88XXFirmware.c
+- OUTSRC/odm.c
+- 8192cd_sme.c
+- 8812_hw.c
+- 8192cd_tx.c 
+- 8812_vht_gen.c
+
+* DESCRIPTION:
+- 8812:
+  v.s. RTK STA, disable short GI when LDPC is enabled
+- 8881A: 
+  Not claim Rx LDPC capability in beacon & prsp
+  Tx policy: MCS0~9 +BCC / MCS0~7 +LDPC
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/08, jimmylin, feature refine
+
+* DIGEST:
+- Enable LDPC and STBC by default
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_ioctl.c
+- 8192cd_sme.c
+- 8192cd_tx.c
+- 8812_vht_gen.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/07, pluswang, feature refine
+
+* DIGEST:
+- Refine high power low watermark 
+
+* TEST METHOD:
+
+* ROOT CAUSE:
+-- fixed the distance between AP and STA 
+  the difference of STA's RSSI sometime more than 6% 
+  
+* MODIFIED FILES:
+- 8192cd_sme.c 
+
+* DESCRIPTION:
+- Refine high power low watermark (for non ODM case)
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/07, button, feature refine
+
+* DIGEST:
+- 92E high power mechanism
+
+* TEST METHOD:
+- Test throughput with Intel 6300 in shielding room,
+  distance of DUT and Intel 6300 is 45 cm.
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c 
+- HalDMOutSrc.c
+- 8192cd_headers.h
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+- Dynamic change Response rate power
+- Refine high power low watermark
+- Enable 92e power by rate
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/07, jimmylin, feature refine
+
+* DIGEST:
+- Remove DFS Fault Detection function according to PM Gary
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+- 8192cd_ioctl.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/07, jimmylin, feature refine
+
+* DIGEST:
+- Don't need to disable tx2path because enabling STBC
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/07, weikaichuang, feature refine
+
+* DIGEST:
+- Update 92E 2T3R antenna diversity from BB 
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_ioctl.c
+- OUTSRC/odm.h
+- OUTSRC/odm_HWConfig.c
+- OUTSRC/rtl8192e/odm_RTL8192E.c
+- OUTSRC/rtl8192e/odm_RTL8192E.h
+
+* DESCRIPTION:
+- Refine mechanism to support CCK rate antenna diversity
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/07, pluswang, bug fixed
+
+* DIGEST:
+- fixed the issue that client mode can't mac clone well.
+
+* TEST METHOD:
+- 1)let DUT under client mode and enable clone mac, 
+  2)let a PC/NB connect to DUT by wired
+  3)make sure client connect  to some AP
+  4)check if client's mac addr be change to PC/NB's ethernet interface Mac Addr
+
+* ROOT CAUSE:
+-under UNLINKER case, before br0 do DHCP done don't allow client to do "clone mac"
+ but now it's apply to all case
+
+* MODIFIED FILES:
+- 8192cd_br_ext.c
+
+* DESCRIPTION:
+- replenish for version 16465
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/06, chuangsw, feature refine
+
+* DIGEST:
+- Fix 8881A+88E/92E power by rate while not enable power limit.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_ioctl.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/06, Eric Yeh, Bug Fix
+
+* DIGEST:
+- Fix 8812 Crystal Cap issue
+
+* TEST METHOD:
+- setmib xcp=48, RF function of 8812 failed. (like Site Survey)
+
+* ROOT CAUSE:
+- Input Crystal Cap value into error register.
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- Enter Crystal Cap value into reg 0x2c.
+- Do not reset to default value, use mib value.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/05, jason, code refine
+
+* DIGEST:
+- Added Tx descrptor protection before Tx kick off on the RTL8881A platform.
+
+* TEST METHOD:
+- Chip: 8881a, SDK: SDK 3.4.3
+- Run over week test and more than 72 hours.
+
+* ROOT CAUSE:
+- Before kicking off the Tx, verfy the last writing  valu of Tx descriptor.
+
+* MODIFIED FILES:
+- Hal88XXTxDesc.c
+  HalDef.h
+  8192cd_cfg.h
+
+* DESCRIPTION:
+- Added Tx descrptor protection before Tx kick off  and cehck the last operation to make sure the value normal.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/03, chuangsw, feature refine
+
+* DIGEST:
+- Disable 8192E power by rate untill power by rate table is ready.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/03, annie, feature refine
+
+* DIGEST:
+- Fix 0xC04 value for mp_antenna_rx command
+
+* TEST METHOD:
+- MP: run mp_antenna_rx command and read 0xC04.
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+
+* DESCRIPTION:
+- For all 11n chip, (8192C, 8192D, 8188E, 8192E, etc)
+    Path A:  0xC04 should be 0x11
+    Path B:  0xC04 should be 0x22
+    Path AB: 0xC04 should be 0x33
+  (patch is released by BB team ynlin.)
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/03, weikaichuang, feature refine
+
+* DIGEST:
+- Modify rssi 1 debug info, remove aggregation number and report pstat
+  TP instead of priv's TP
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/03, jimmylin, feature refine
+
+* DIGEST:
+- Give different DFS register settings for different region domains
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+
+* DESCRIPTION:
+- Update version to 0.0.7
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/03, chuangsw, feature refine
+
+* DIGEST:
+- 1. Fix compile error when WDS is not define.
+- 2. Add 8881A xcap setting.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+- 8192cd_hw.c
+- 8192cd_mp.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/03, jimmylin, feature refine
+
+* DIGEST:
+- Fix DFS radar detection influence
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+- 8192cd_ioctl.c
+
+* DESCRIPTION:
+- Update version to 0.0.6
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/03, annie, feature refine
+
+* DIGEST:
+- Support 8192e SPS mode.
+
+* TEST METHOD:
+- Load image on 8192e SPS board and check register 0x7c.
+  SPS(0xf0 BIT24=0): 0x83
+  LD0(0xf0 BIT24=1): 0xc3
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/RTL8192E/RTL8192EE/Hal8192EEGen.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/03, jimmylin, feature refine
+
+* DIGEST:
+- Update radio A parameter to improve 5G sensitivity for 8881A
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- WlanHAL/Data/8881A/V702B_MP/RadioA_8881Am.txt
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/02, annie, bug fix
+
+* DIGEST:
+- Remove unnecessary per-second BB reset.
+
+* TEST METHOD:
+- Chip: 8192D, DMDP
+- Connect to 5G
+- Shielding box
+- Run throughput for several days
+  => throughput becomes bad (90->50)
+- wlan0 down and up 
+  => throughput is recoverd
+
+* ROOT CAUSE:
+- AGC table is destoried in BB reset 
+- per-sec BB reset is not necessary because chip reset FA when each time Tx,
+  and AP sends beacons.
+
+* MODIFIED FILES:
+- Hal8192CDMOutSrc.c
+- HalDMOutSrc.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/02, annie, feature refine
+
+* DIGEST:
+- Add 8188E crystal clock source selection for ADSL path.
+
+* TEST METHOD:
+- Chip: 8188e, SDK: ADSL
+- enable/disable CONFIG_PHY_EAT_40MHZ and check register 0x2c.
+
+* ROOT CAUSE:
+- CONFIG_RTL8672 was bypassed 8188E 25M case and did not set 0x2c.
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/02, annie, feature refine
+
+* DIGEST:
+- For ADSL path, always use rx tasklet.
+
+* TEST METHOD:
+- ADSL eables IP Fastpath function.
+- WiFi STA connects to ADSL.
+- Use 3G dongle to access the internet.
+
+* ROOT CAUSE:
+- If rxInt_data_delta is unstable, ISR and tasklet will go alternated, 
+  and some packets handled by ISR might be faster than tasklet.
+- Whan ADSL enables IP Fastpath function, it causes reorder problem 
+  and skb might be free more than one time.
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- in 1sec timer, always set priv->pshare->rxInt_useTsklt to TRUE.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/05/02, button, feature refine
+
+* DIGEST:
+- Enable MACID pause in 8812
+
+* TEST METHOD:
+- Configure a STA's power management level to high, connect to DUT and 
+  run chariot throughput script, send data rate: 5 Mbps
+- Check AP retry ratio in wireless sniffer
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8812_hw.c
+- 8812_reg.h
+- 8192cd_headers.h
+- 8192cd.h
+
+* DESCRIPTION:
+- 8812 MACID pause support
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/02, Sean, refine
+
+* DIGEST:
+- fix channel load value un-correct
+- cca count was not correct so channel loading value was wrong
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/02, tegochang, bug fixed
+
+* DIGEST:
+- modify register 638 and 652 to pass 11n client mode logo 5.2.3; modify
+  button's patch on 20/40 coexist (revision 16176) to support 11n client mode logo
+  5.2.48
+
+* TEST METHOD:
+- 11n client mode logo 5.2.3 and 5.2.48
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- rtl8192cd/wlanhal/rtl88xx/Hal88XXFirmware.c
+- rtl8192cd/wlanhal/data/8192e/MAC_REG_8192E.txt
+
+* DESCRIPTION:
+- modify register 638 and 652 for 92e test chip C-cut to pass 11n client mode logo 5.2.3; modify
+  button's patch on 20/40 coexist (revision 16176) for 92e to support 11n client mode logo 5.2.48
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/05/02, annie, new feature
+
+* DIGEST:
+- Add WIFI_LIMITED_MEM flag to reduce memory and IMEM.
+
+* TEST METHOD:
+- Enable WIFI_LIMITED_MEM and check memory usage by
+  cat /proc/meminfo
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_osdep.c
+- 8192cd_rx.c
+- 8192cd_tx.c
+- 8192cd_util.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/30, Brian, bug fxied
+
+* DIGEST:
+- Suggested by Designer/Pisa, before power on sequence, set 0x28[6]=0, 0x78[21]=0
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/RTL8192E/RTL8192EE/Hal8192EEGen.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/26, pluswang, feature refine
+
+* DIGEST:
+- update 0xd00 setting when 92D under 1T1R mode
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+92D maybe under 1T1R mode or 2T2R,
+0xd00 default parameter is for 2T2R case
+tuning 0xd00 when 1T1R mode as below
+when DMDP mode/1T1R
+1. 0xd00[20:19] = 2'b 00  ==> Support < MCS8 
+when SMSP mode/2T2R
+2. 0xd00[20:19] = 2'b 01  ==> Support < MCS16 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/26, pluswang, feature refine
+
+* DIGEST:
+- Refine beacon hold time (0x540) else AP mode
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+when AP mode (or include AP mode) beacon hold time (0x540) use 40004 or 1df04 else modes use 0x104
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/25, jimmylin, feature refine
+
+* DIGEST:
+- Fine tune Fault Detection algorithm and threshold
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- OUTSRC/odm.h
+- 8192cd_osdep.c
+- 8192cd_ioctl.c
+- 8192cd_dfs.c
+- 8192cd.h
+
+* DESCRIPTION:
+- DFS version is up to 0.0.5
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/24, annie, feature refine
+
+* DIGEST:
+- Update driver date/version for ADSL case.
+
+* TEST METHOD:
+- ADSL SDK, check console log of mib_all.
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/24, weikaichuang, new feature
+
+* DIGEST:
+- Sync 92E 2T3R antenna diversity from branch3.2
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- OURSRC/rtl8192e/odm_RTL8192E.c
+- OURSRC/rtl8192e/odm_RTL8192E.h
+- OURSRC/odm.c
+- OURSRC/odm_types.h
+- OURSRC/odm_HWConfig.c
+- OURSRC/odm_precomp.h
+- 8192cd_proc.c
+- 8192cd_hw.c
+- 8192cd_sme.c
+- 8192cd_ioctl.c
+- 8192cd_tx.c
+- 8192cd_osdep.c
+- 8192cd_util.c
+- 8192cd.h
+- 8192cd_led.c
+- 8192cd_rx.h 
+- Makefile
+- Kconfig
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/23, button, bug fix
+
+* DIGEST:
+- Fix bug of NEC rakuraku arp issue
+
+* TEST METHOD:
+- 1. Connect and disconnect DUT 10 times
+- 2. interface down / up
+- 3. Repeat setp1, 2,
+- Sometimes STA get connected, but all packets are dropped by hardware
+
+* ROOT CAUSE:
+- Host & MCU message box mismatch
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/Hal88XXFirmware.c
+- 8192cd.h
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- Rest box index after download fw
+- Add h2c box full counter in proc
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/22, jimmylin, feature refine
+
+* DIGEST:
+- Do CAC or not according to mib when auto channel
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/22, pluswang, feature refine
+
+* DIGEST:
+- dynamic response rate tuning by RSSI
+
+* TEST METHOD:
+	let RSSI from STA decrease to 25% less then observe if the response rate has decreased
+* ROOT CAUSE:
+- In long distance case use lower date rate for response packet 
+  can obtain more better throughput
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/22, button, bug fix
+
+* DIGEST:
+- Fix bug of 20/40 coexist (92e)
+
+* TEST METHOD:
+- Test case1: 
+   Set DUT to BGN mode, enable 20/40 coexist, let an 11n STA connect to
+   DUT. Turn on another legacy AP and wait bg_ap_timeout becomes 60, 
+   then sniffer Tx packet bw of DUT
+- Test case2:
+  Set DUT to BGN mode, enable 20/40 coexist, enable a BG vap.
+  let an 11n STA connect to DUT. Wait STA sent action frame, and check
+  switch_20_sta in proc mib_11n, sniffer Tx packet bw of DUT
+
+* ROOT CAUSE:
+- In auto rate mode, 8192e, 8881a, 8812 Tx BW doesn't follow  txdesc
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_util.c
+- 8192cd_headers.h
+- WlanHAL/RTL88XX/Hal88XXFirmware.c
+- 8812_hw.c
+- 8192cd.h
+
+* DESCRIPTION:
+- When detect BG client or receive 40M intolerant, BW 20M req action frame, 
+- send H2C to notify fw
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/22, jimmylin, feature refine
+
+* DIGEST:
+- Fix switch to wrong bandwidth when DFS none occupancy period expired after
+  applying harmonic avoidance patch
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/19, jimmylin, buf fix
+
+* DIGEST:
+- Fix wrong bandwidth information of VAP after DFS switching channel
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8812_hw.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/19, chuangsw, feature refine
+
+* DIGEST:
+- AP sometimes may let sta don't carry wmm ie and cause WMM-PS fail.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- When we idnetify a b-mode sta, we will not carry wmm ie in probe rsp.
+- These b mode sta may not carry wmm ie in assoc req if probe rsq didn't have
+  it in probe rsp.
+- So the WMM-PS test will fail.
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- We identify only sony PSP sta will not carry wmm ie and ht ie in probe
+  rsp.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/18, jimmylin, feature refine
+
+* DIGEST:
+- Fine tune DFS Fault Detection algorithm
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_dfs.c
+- 8192cd_headers.h
+- 8192cd_ioctl.c
+- 8192cd_osdep.c
+- 8192cd_proc.c
+- 8812_hw.c
+- ieee802_mib.h
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/17, PeterYu, Feature Refine, Bug Fix
+
+* DIGEST:
+- Fix compiler warnings
+- Remove unused code
+- Fix the issue: assign wrong value in "TxPG_CCK_8812"
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_osdep.c
+- 8192cd_rx.c
+- 8192cd_sme.c
+- 8192cd_util.h
+- 8812_hw.c
+- HalDMOutSrc.c
+- OUTSRC/odm.c
+- OUTSRC/odm_HWConfig.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/17, Eric Chen, Bug Fix
+
+* DIGEST:
+- Fix WiFi LED and WPS LED can not light at the same time in ADSL platform
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- This issue is caused by GPIO config local variable in rlx bsp isn't sync with
+- Wi-Fi driver. Add calling gpioConfig to sync the GPIO config status.
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DIGEST:
+refine wlan driver and HAL driver to separate unused code
+
+* DATE/WHOM/TYPE:
+- 2013/04/17, Sean, code size refine
+
+* DIGEST:
+- refine 92cd wlan driver separate HAL driver
+- reduce code size and remove used code
+- add flag CONFIG_WLAN_NOT_HAL_EXIST and
+- RTL_WLAN_HAL_NOT_EXIST in kconfig
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_hw.c
+- 8192cd_ioctl.c
+- 8192cd_mp.c
+- 8192cd_osdep.c
+- 8192cd_proc.c
+- 8192cd_rx.c
+- 8192cd_sme.c
+- 8192cd_tx.c
+- 8192cd_util.c
+- odm.c
+-rtl8192cd/Kconfig
+
+* DESCRIPTION:
+-
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/17, chuangsw, feature refine
+
+* DIGEST:
+- Update 8881A phy parameter to V012.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- WlanHAL/Data/8881A/V702B_MP/MAC_REG_8881Am.txt
+- WlanHAL/Data/8881A/V702B_MP/PHY_REG_8881Am.txt
+- WlanHAL/Data/8881A/V702B_MP/RadioA_8881Am.txt
+- WlanHAL/Data/8881A/V702B_MP/AGC_TAB_8881Am.txt
+- WlanHAL/Data/8881A/V702B_MP/PHY_REG_PG_8881Am.txt
+
+* DESCRIPTION:
+- 1. Update AGC table.
+- 2. Add NAV upper bound setting (0x652)
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix use the same parameter on recursive SAVE_INT_AND_CLI/RESTORE_INT call
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- This scenario will lose the early backup flags due to the later backup flags
+- overwrite it
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Refine rtl8192cd_tx_restartQueue() &  rtl8192cd_tx_wdsDevProc()
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 1.The original operation may not wake netif tx queue on ROOT interface
+-   for rtl8192cd_tx_restartQueue()
+- 2.If no stat_info for WDS interface, then directly drop TX SKB
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Refine printk message for ADSL platform
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix erroneous TX_TxBufSizeMask clear operation for NOT_RTK_BSP
+- (lose this file for svn 16041)
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8812_hw.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Fix compiler warnings
+- Remove unused code
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8188e_hw.c
+- 8192cd_tx.c
+- OUTSRC/HalPhyRf.c
+- OUTSRC/odm.c
+- OUTSRC/rtl8188e/HalHWImg8188E_BB.h
+- OUTSRC/rtl8188e/HalHWImg8188E_MAC.h
+- OUTSRC/rtl8188e/HalHWImg8188E_RF.h
+- OUTSRC/rtl8188e/HalPhyRf_8188e.h
+- OUTSRC/rtl8192c/Hal8192CHWImg_BB.h
+- OUTSRC/rtl8192c/Hal8192CHWImg_MAC.h
+- OUTSRC/rtl8192c/Hal8192CHWImg_RF.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Use ODM_SetBBReg instead of PHY_SetBBReg to write BB register in ODM 
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- The first argument must be rtl8192cd_priv*, not PDM_ODM_T in PHY_SetBBReg
+
+* MODIFIED FILES:
+- OUTSRC/rtl8188e/HalPhyRf_8188e.c
+- OUTSRC/rtl8192e/HalPhyRf_8192e.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Use unsigned long to record/translate the variable address instead of
+- unsigned int for different platform porting
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_br_ext.c
+- 8192cd_comapi.c
+- 8192cd_dmem.c
+- 8192cd_headers.h
+- 8192cd_osdep.c
+- 8192cd_rx.c
+- 8192cd_security.c
+- 8192cd_sme.c
+- 8192cd_tx.c
+- 8192cd_util.c
+- 8192cd_util.h
+- wifi.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix potential double free SKB issue if nat25_handle_frame() return -1
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix operator precedence issue
+- Fix lose brace for _OUTSRC_COEXIST on IOT EDCA handling
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_psk.h
+- 8192cd_sme.c
+- 8192cd_tx.c
+- 8192cd_util.c
+- OUTSRC/odm.c
+- OUTSRC/rtl8192c/HalDMOutSrc8192C_AP.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Refine time interval base on Linux kernel HZ
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+- HalDMOutSrc.c
+- OUTSRC/odm_interface.c
+- OUTSRC/rtl8192c/HalDMOutSrc8192C_AP.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix compiler errors under Linux 2.6.20
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_ioctl.c
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- 1.Fix buffer overrun issue for read_proc, which may cause system unstable.
+-   There is a erroneous condition on CHECK_LEN. It may cause overwrite data
+-    beyond available buffer when proc file size is large, especially for proc
+-    file "mib_all" and "sta_info"
+- 2.Fix buffer overrun issue for saving net_work_type in mib_operation.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- 1.Fix erroneous total count of priv->pshare->CamEntryOccupied when VAP has
+-   any connected STA and then down interface.
+- 2.Fix system hangup when root AP is in interface down state and doing
+-   "cat /proc/wlan0/cam_info".
+
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_proc.c
+- 8192cd_util.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Due to there are some new bit fields on MBID_NUM for 88E,
+- so we must only change the desired fields, and don't change other fields.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix erroneous interrupt mask settings in client mode
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, New Feature
+
+* DIGEST:
+- 1.Fix potential EFuse header parse error for 92C chip only.
+- 2.Add EFuse support for 88E chip
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8188e_reg.h
+- 8192c_reg.h
+- 8192cd_hw.c
+- 8192cd_hw.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Support the identification of 88EE chip for NOT_RTK_BSP
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix erroneous protocol type comparison in isICMPv6Mng() for NOT_RTK_BSP
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix erroneous TX_TxBufSizeMask clear operation for NOT_RTK_BSP
+- consider different Endian format we must use set_desc() to modify the
+- content of TX descriptor
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Use SKB_MAC_HEADER/SKB_IP_HEADER to wrap SKB MAC/IP header fetch for
+- different Linux versions
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_osdep.c
+- 8192cd_rx.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Refine and remove redundant code for _FULLY_WIFI_IGMP_SNOOPING_SUPPORT_
+- considering different Linux version
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- 1.Add error handling while out of resource occurs for MP TX mode
+- 2.Fix illegal "Type/Length" field of Ethernet MAC header for NOT_RTK_BSP
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix memory leak while out of memory occurs in restore_backup_sta()
+- and backup_sta()
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_util.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Rearrange the place of rx refill message from proc file "txdesc" to "rxdesc"
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Feature Refine
+
+* DIGEST:
+- Refine cache sync operation for NOT_RTK_BSP
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.h
+- 8192cd_rx.c
+- 8192cd_rx.h
+- 8192cd_sme.c
+- 8192cd_tkip.c
+- 8192cd_tx.c
+- 8192cd_util.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix erroneous IV for SW WEP encryption for NOT_RTK_BSP
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_tkip.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix proc memory leak when module remove
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix compiler errors for NOT_RTK_BSP
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_osdep.c
+- 8192cd_rx.c
+- 8192cd_security.c
+- OURSRC/rtl8188e/HalPhyRf_8188e.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/15, Family, Feature Refine
+
+* DIGEST:
+- 1. Fix get the erroneous score of channel 14 via fixed index 13
+- 2. Fine tune MIB "disable_ch1213" considering when NOT defining
+-    CONFIG_RTL_NEW_AUTOCH
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix twice addition of Reg0xCF0 & Reg0xCF2 for priv->chnl_ss_fa_count
+- Because priv->pshare->FA_total_cnt has been consider these registers.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/16, Family, Bug Fix
+
+* DIGEST:
+- Fix erroneous condition statement to decide if NIC is Intel STA
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/15, EricYeh, Feature Refine
+
+* DIGEST:
+- Dynamically adjust hw register for Intel SGI IOT issue
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- If Intel Station connected, set BIT(11) of reg_d2c = 1, 
+  else BIT(11) of reg_d2c = 0.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/15, EricYeh, Bug Fix
+
+* DIGEST:
+- Free allocated memory used for Tx Power by Rate config files
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/12, jimmylin, feature
+
+* DIGEST:
+- CAC period of channel 120, 124, and 128 should be 10 min in ETSI domain
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+- 8812_hw.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/12, scko, code refine
+
+* DIGEST:
+- Fix code for ADSL compile error.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- odm.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/12, chuangsw, feature refine
+
+* DIGEST:
+- 1. Add 92E 1R CCA in mp rx mode.
+- 2. Turn off notch filter in mp mode.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- HalDMOutSrc.c
+- 8192cd_mp.c
+
+* DESCRIPTION:
+- 1. 1R CCA can improve rx sensitivity.
+- 2. Turn on notch filter in mp rx mode may cause rx sensitivity degrade.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/12, button, feature refine
+
+* DIGEST:
+- Rename compile flag "ODM_IC_11AC_SERIES"
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c 
+- 8192cd_util.c
+- OUTSRC/odm_HWConfig.c
+- OUTSRC/HalPhyRf.c
+- OUTSRC/HalPhyRf.h
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+- Rename compile flag "ODM_IC_11AC_SERIES"
+- Disable ODM debug at default
+- Don't set tx pause in HAL chip
+- Avoid HAL chip enter "add_update_ps"
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/10, button, feature refine
+
+* DIGEST:
+- Enable DELAY_REFILL_RX_BUF in 8881a, 8192e
+
+* TEST METHOD:
+- Chariot uplink long run, and check pre-allocated skb numnber
+- Throughput comparison between original and modified version
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+- 8192cd_util.c
+- 8192cd_cfg.h
+
+* DESCRIPTION:
+- Fix bug of DELAY_REFILL_RX_BUF in HAL chip and enable it
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/11, EricYeh, Feature Refine
+
+* DIGEST:
+- Refine function of mib 'func_off'
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- For WiFi chips = 88C/92C/92D, use TxPause register (0x522) 
+  to stop beacons for Root AP when func_off enabled.
+- For other new WiFi chips (after 88E), use MBSSID_Control register (0x526) 
+  to stop beacons for Root AP when func_off enabled.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/10, Peter Yu, bug fix 
+
+* DIGEST:
+- Fix the issue: assign wrong TX-power(MCS8~15) when "TXPWR_LMT_88E" enable.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- Check incorrect parameter, and assign wrong value
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/10, chuangsw, bug fix 
+
+* DIGEST:
+- Fix 8881A power by rate read file error.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_ioctl.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/10, button, feature refine
+
+* DIGEST:
+- Rename QSEL to TID
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/Hal88XXTxDesc.c
+- WlanHAL/RTL88XX/Hal88XXTxDesc.h
+- 8192cd_tx.c
+- OUTSRC/odm.c
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- Rename QSEL to TID
+- Refine 5G_ON_WLAN0 flag for 8881A only
+- Modify BK EDCA parameter for WMM test
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/10, button, bug fixed
+
+* DIGEST:
+- Fix bug of free skb twice
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+
+* DESCRIPTION:
+- Sync with HF's ecos patch for BT test
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/09, jimmylin, bug fix
+
+* DIGEST:
+- Fix no CAC period after detecting radar signal and switching channel
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8812_hw.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/09, jimmylin, feature refine
+
+* DIGEST:
+- Refine 8812/8881A DFS setting
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/09, chuangsw, feature refine
+
+* DIGEST:
+- Reduce mp_start initial gain setting.
+- Refine unaligned reg setting.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+
+* DESCRIPTION:
+- 1. extpa / extlna IG setting should restrict in 92C/92D.
+- 2. 88E/8812/8881A/92E IG should be 0x20.
+- 3. We should only set IG of pathA if its rf mimo is 1T1R.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/09, chuangsw, feature refine
+
+* DIGEST:
+- Reduce 8881A default power index for new phy parameter.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/Hal88XXPhyCfg.c
+
+* DESCRIPTION:
+- New phy parameter (V007) has increase 5 dB in tx gain base so that
+  if we do not reduce the default power index (0x20), it may cause bad evm.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/09, scko, bug fix
+
+* DIGEST:
+- The LLC header don't have encrypt.
+
+* TEST METHOD:
+- Broadcast Packet + (WEP/TKIP encrypt)
+
+* ROOT CAUSE:
+- In nonRTK platform, the LLC header doesn't get flushed.
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/09, scko, bug fix
+
+* DIGEST:
+- Fix ARP timeout during Veriwave test.
+
+* TEST METHOD:
+- Veriwave test using abgn rate v.s. range.
+
+* ROOT CAUSE:
+- Veriwave wifi STA sends ARP packet with duplicate sequence number
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/08, scko, bug fix
+
+* DIGEST:
+- Avoid Multicast to Unicast packet flooding.
+
+* TEST METHOD:
+- Use multiple STAs to connect and run throughput.
+
+* ROOT CAUSE:
+- When multiple STAs connects to AP and run throughput, and the TX description is unavailable.
+- There are multicast packets sents by AP. Then one multicast packet may cause recursive loop in mc2uc process.
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/08, scko, bug fix
+
+* DIGEST:
+- Fixed AES can't connect in repeater mode under OSK
+
+* TEST METHOD:
+- Run OSK image and set security of repeater to AES.
+
+* ROOT CAUSE:
+- RSNIE doesn't be kept during interface open/close.
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+- 8192cd_security.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/04, annie, new feature
+
+* DIGEST:
+- Add PCIe PHY parameters for ADSL new chips 8686/8676S/8685.
+
+* TEST METHOD:
+- Run image on ADSL 8686/8676S/8685 platform and check wifi interface.
+
+* ROOT CAUSE:
+- PCIe PHY parameters
+
+* MODIFIED FILES:
+- 8192cd_host.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/03, PeterYu, bug fix
+
+* DIGEST:
+- Refine AR5007 IOT issue Patch
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- rtl8192cd_rx.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/03, PeterYu, bug fix
+
+* DIGEST:
+- Correct code for 20/40 coexist in 92E using
+
+* TEST METHOD:
+- When 92E coexist is enabled, some AC adapters such like DWA-182 have low throughput issues. 
+
+* ROOT CAUSE:
+- In HAL driver, the bandwidth is not set correct.
+
+* MODIFIED FILES:
+- Hal88XXFirmware.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/03, annie, bug fix
+
+* DIGEST:
+- Correct code for CONFIG_RTL867X_VLAN_MAPPING.
+
+* TEST METHOD:
+- ADSL SDK, enable CONFIG_RTL867X_VLAN_MAPPING and make.
+
+* ROOT CAUSE:
+- RTL867X_VLAN_mapping_patch was not correctly applied.
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/03, annie, bug fix
+
+* DIGEST:
+- Disable 1rcca setting on ADSL path.
+
+* TEST METHOD:
+- iwpriv wlan0 get_mib 1rcca
+
+* ROOT CAUSE:
+- ADSL platform should also use 2-path cca.
+  "1rcca=1" is an obsolete setting for a bad-designed customer pbc.
+
+* MODIFIED FILES:
+- 8192cd_ioctl.c
+
+* DESCRIPTION:
+- 
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/03, annie, bug fix
+
+* DIGEST:
+- Fix compiling error on ADSL SVN 2.6.30 SDK.
+
+* TEST METHOD:
+- Make code on ADSL SVN 2.6.30 SDK.
+
+* ROOT CAUSE:
+- lack of header including
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+
+* DESCRIPTION:
+- 8192cd_rx.c:6923 accesses priv->dev->br_port->br
+  so rx.c has to include br_private.h in CONFIG_RTL8672 path.
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/03, chuangsw, feature refine
+
+* DIGEST:
+- Fix compile error without 8812/8881A.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- OUTSRC/HalPhyRf.c
+- OUTSRC/HalPhyRf.h
+
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/02, jimmylin, feature refine
+
+* DIGEST:
+- Refine 8812/8881A DFS functions
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/02, button, bug fixed
+
+* DIGEST:
+- Fix bug of HAL DELAY_REFILL_RX_BUF 
+
+* TEST METHOD:
+- Enable DELAY_REFILL_RX_BUF in 8192cd_cfg.h
+- Build 8881a + 8188e image
+- Type ifconfig wlan1 down in console, 
+  AP will core dump
+
+* ROOT CAUSE:
+- prx_dma is not initialized in non-HAL chip
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/02, PlusWang, bug fixed 
+
+* DIGEST:
+- 92e AP vs intel-3945 code dump issue
+
+* TEST METHOD:
+- use window zero config connection AP once then push F5 for reconnection to
+  the same AP. then AP will code dump
+ 
+* ROOT CAUSE:
+- Abuse data struct type then point to NULL pointer.
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- intel 3945's driver version(2006/4/4,10.1.1.3)
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/02, Jeng-Wei Lee, feature refine
+
+* DIGEST:
+- Modify TX Power Limit function to support 92C+92D
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- Compile error when 92C+92D is selected
+
+* MODIFIED FILES:
+- Makefile
+- tplmt2h.pl
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- This patch is modify TX Power Limit function to support 92C+92D
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/01, jimmylin, feature refine
+
+* DIGEST:
+- Refine 8812/8881A DFS functions
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+- 8192cd_ioctl.c
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/04/01, chuangsw, bug fix
+
+* DIGEST:
+- Refine 92E spur issue.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_mp.c
+- 8192cd_headers.h
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/04/01, jimmylin, bug fix
+
+* DIGEST:
+- Use right point to indicate MIC failure station to hostapd
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_security.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/29, jimmylin, bug fix
+
+* DIGEST:
+- Delay DPK after DFS silent period expired
+
+* TEST METHOD:
+- When testing DFS, there is a signal in the hw init time and DFS test fail.
+
+* ROOT CAUSE:
+- Doing DPK will send a signal. Delay it after DFS silent period expired.
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+- Hal8192CDMOutSrc.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/29, jimmylin, feature refine
+
+* DIGEST:
+- Refine 8812/8881A DFS functions
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+- 8812_hw.c
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/28, chuangsw, feature refine
+
+* DIGEST:
+- Add 8881A power tracking.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+-  WlanHAL/RTL88XX/Hal88XXPhyCfg.c
+-  WlanHAL/Data/8881A/V702B_MP/TxPowerTrack_AP_8881A.txt
+-  8192cd_hw.c
+-  8812_reg.h
+-  OUTSRC/odm_reg.h
+-  8192cd_osdep.c
+-  change.txt
+-  8192cd.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/28, button, feature refine
+
+* DIGEST:
+- Disable LDPC in 88c/92c/92d/88e
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/27, Jeng-Wei Lee, feature refine
+
+* DIGEST:
+- Modify incomplete 40/80M channel selection when 40/80M bandwidth is selected
+
+* TEST METHOD:
+case 1:
+- Select CH = 132 and bandwidth = 80M and regdomain = 1 (no CH 144 in FCC domain) in BOA
+- Reboot and check the mib, dot11nUse40M < 2 (80M)
+case 2:
+- Select CH = 140 and bandwidth = 40M and regdomain = 1 (no CH 144 in FCC domain) in BOA
+- Reboot and check the mib, dot11nUse40M = 0 (20M)
+
+* ROOT CAUSE:
+- from Cameo bug report.
+
+* MODIFIED FILES:
+- 8192cd_headers.h
+- 8192cd_osdep.c
+- 8192cd_sme.c
+- 8192cd_util.c
+
+* DESCRIPTION:
+This patch is for modifying the issue of incomplete 40/80M channel selection.
+User can select CH132 and 80M bandwidth. But in some regdomain, CH144 is unavailable.
+So this setting violates the requirement of some regdomains. Hence, this patch
+changes bandwidth to lower bandwidth when incomplete 80/40M channel is selected.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/27, chuangsw, feature refine
+
+* DIGEST:
+- Add 8881A power tracking and update 8881A phy parameter to V007.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- WlanHAL/RTL88XX/Hal88XXGen.c
+- WlanHAL/Data/8881A/V702B_MP/MAC_REG_8881Am.txt
+- WlanHAL/Data/8881A/V702B_MP/PHY_REG_8881Am.txt
+- WlanHAL/Data/8881A/V702B_MP/RadioA_8881Am.txt
+- WlanHAL/Data/8881A/V702B_MP/AGC_TAB_8881Am.txt
+- WlanHAL/Data/8881A/V702B_MP/TxPowerTrack_AP_8881A.txt
+- WlanHAL/Data/8881A/V702B_MP/PHY_REG_PG_8881Am.txt
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_sme.c
+- 8192cd_headers.h
+- OUTSRC/HalPhyRf.c
+- OUTSRC/odm.c
+- OUTSRC/HalPhyRf.h
+- OUTSRC/odm.h
+- OUTSRC/odm_debug.c
+- odm_inc.h
+- change.txt
+- 8192cd.h
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/27, button, bug fix
+
+* DIGEST:
+- Consistent CLI protection in free_rtl8190_priv_buf
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_util.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/25, button, feature refine
+
+* DIGEST:
+- Update 8188E PHY parameters to v.40
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- data_88e/radio_a_1T_88E.txt  
+- OUTSRC/rtl8188e/HalHWImg8188E_BB.c  
+- OUTSRC/rtl8188e/HalHWImg8188E_RF.c
+
+* DESCRIPTION:
+- Update 8188E PHY parameters to v.40
+- http://dtdinfo1.realtek.com.tw:8080/~sub1/mantis-cn/view.php?id=11754
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/20, jimmylin, bug fix
+
+* DIGEST:
+- Enable RF gain table for 8881A
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- In 8881A, only when 0xc50 is not equal to 0x20, RF gain table will be
+  enabled. Therefore we need to write a value to 0xc50 and then write 0x20
+  back when hw is init.
+ 
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/18, button, feature refine
+
+* DIGEST:
+- Support set 8192E at slot1
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- Kconfig
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/18, chuangsw, feature refine
+
+* DIGEST:
+- Rollback to r15484 (no 8881A power tracking).
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- rtl8192cd/WlanHAL/RTL88XX/Hal88XXGen.c
+- rtl8192cd/WlanHAL/Data/8881A/V702B_MP/TxPowerTrack_AP_8881A.txt
+- rtl8192cd/8192cd_hw.c
+- rtl8192cd/8192cd_sme.c
+- rtl8192cd/8192cd_mp.c
+- rtl8192cd/8192cd_headers.h
+- rtl8192cd/OUTSRC/HalPhyRf.c
+- rtl8192cd/OUTSRC/odm.c
+- rtl8192cd/OUTSRC/HalPhyRf.h
+- rtl8192cd/change.txt
+- rtl8192cd/8192cd.h
+
+* DESCRIPTION:
+-
+ 
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/15, chuangsw, feature refine
+
+* DIGEST:
+- Add 8881A power tracking.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- rtl8192cd/WlanHAL/RTL88XX/Hal88XXGen.c
+- rtl8192cd/WlanHAL/Data/8881A/V702B_MP/TxPowerTrack_AP_8881A.txt
+- rtl8192cd/8192cd_hw.c
+- rtl8192cd/8192cd_sme.c
+- rtl8192cd/8192cd_mp.c
+- rtl8192cd/8192cd_headers.h
+- rtl8192cd/OUTSRC/HalPhyRf.c
+- rtl8192cd/OUTSRC/odm.c
+- rtl8192cd/OUTSRC/HalPhyRf.h
+- rtl8192cd/change.txt
+- rtl8192cd/8192cd.h
+
+* DESCRIPTION:
+-
+ 
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/15, jimmylin, feature refine
+
+* DIGEST:
+- Refine DFS parameter
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_ioctl.c
+- 8192cd_dfs.c
+
+* DESCRIPTION:
+-
+ 
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/15, jeng-wei lee, new feature.
+
+* DIGEST:
+- Add TX Power Limit Files dynamically.
+
+* ROOT CAUSE:
+- Cameo Request
+
+* MODIFIED FILES:
+- 8192cd_headers.h
+- 8192cd_hw.c
+- 8192cd_ioctl.c
+- ieee802_mib.h
+- Makefile
+- change.txt
+
+* ADDED FILES:
+- tplmt2h.pl
+- data\TXPWR_LMT_92c_1.txt
+- data\TXPWR_LMT_92c_2.txt
+- data_92d\TXPWR_LMT_92d_1.txt
+- data_92d\TXPWR_LMT_92d_2.txt
+
+* DELETED FILES:
+- data\TXPWR_LMT_92c_FCC.txt
+- data\TXPWR_LMT_92c_CE.txt
+- data_92d\TXPWR_LMT_FCC.txt
+- data_92d\TXPWR_LMT_CE.txt
+
+
+* DESCRIPTION:
+
+- Makefile and tplmt2h.pl
+  Generate TXPWR.h automatically so that driver can add TX Power Limit header Files automatically.
+- 8192cd_hw.c
+  The new function provides user to select tx power limit table by [txpwr_lmt_index] mib.
+  txpwr_lmt_index = 0 is default. The results is the same as pervious ones.
+  txpwr_lmt_index = 1 means that user select 
+     * TXPWR_LMT_92c_1.txt in 92c chip 
+     * TXPWR_LMT_92d_1.txt in 92d chip 
+     * column 1 of each table of TXPWR_LMT_8812_new.txt in 8812 chip
+- 8192cd_ioctl.c and ieee802_mib.h
+	add [txpwr_lmt_index] mib
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/14, chuangsw, feature refine.
+
+* DIGEST:
+- Refine 92E spur issue.
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+- HalDMOutSrc.c
+- 8192cd_mp.c
+- 8192cd_headers.h
+- 8192cd_osdep.c
+- 8192cd_ioctl.c
+- 8192cd.h
+
+* DESCRIPTION:
+- AP mode: do PLL reset while ch>=11 (40M) or ch=13 (20M)
+- STA mode: do PLL reset after assoc.
+- MP mode: do PLL reset first time in init_hw_pci, 
+  we will check if the result is success when mp_start,
+  and do second time PPL rest if the first time is fail. 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/14, chuangsw, feature refine.
+
+* DIGEST:
+- Update 8812 phy parameter to V026.
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- data_8812/RadioA_8812_n_default.txt
+- data_8812/AGC_TAB_8812_n_hp.txt
+- data_8812/RadioA_8812_n_extlna.txt
+- data_8812/RadioB_8812_n_extlna.txt
+- data_8812/PHY_REG_8812_n_hp.txt
+- data_8812/AGC_TAB_8812_n_extlna.txt
+- data_8812/PHY_REG_8812_n_extpa.txt
+- data_8812/RadioB_8812_n_extpa.txt
+- data_8812/PHY_REG_8812_n_default.txt
+- data_8812/RadioB_8812_n_default.txt
+- data_8812/PHY_REG_8812_n_extlna.txt
+- data_8812/PHY_REG_MP_8812.txt
+- data_8812/PHY_REG_PG_8812_new.txt
+- data_8812/AGC_TAB_8812_n_extpa.txt
+- data_8812/AGC_TAB_8812_n_default.txt
+- data_8812/RadioA_8812_n_hp.txt
+- data_8812/RadioB_8812_n_hp.txt
+- data_8812/MAC_REG_8812_n.txt
+- data_8812/RadioA_8812_n_extpa.txt
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/14, tegochang, bug fix
+
+* DIGEST:
+- Modify tx desc. number, rx buffer size, and register 460 to pass 8881A wifi
+  logo
+
+* TEST METHOD:
+-
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/odm.c
+- rtl8192cd/8192cd_cfg.h
+- rtl8192cd/8192cd_rx.h
+
+* DESCRIPTION:
+- change tx desc. number from 128 to 256 to pass logo 4.2.40.Tx AMPDU
+- set 8881A rx buffer size as times of 32 to pass logo 4.2.30 rx AMSDU
+- set register 460 to default value to pass logo 4.2.21 WMM T10
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/14, chuangsw, feature refine.
+
+* DIGEST:
+- Rollback 8881A phy parameter to v15136.
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+WlanHAL/Data/8881A/V702B_MP/MAC_REG_8881Am.txt
+WlanHAL/Data/8881A/V702B_MP/PHY_REG_8881Am.txt
+WlanHAL/Data/8881A/V702B_MP/RadioA_8881Am.txt
+WlanHAL/Data/8881A/V702B_MP/AGC_TAB_8881Am.txt
+
+* DESCRIPTION:
+- The rx sensativity of V005 is degrade 6dB due to radio_A.txt
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/14, jimmylin, buffer increase
+
+* DIGEST:
+- increase rx_desc_num and max_skb_num for 8812+92er
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 92er define will use less buffer for rx_desc and skb_num
+- so 8812 tp will be unstable
+
+* MODIFIED FILES:
+- 8192cd_util.c.h
+- 8192cd_cfg.c
+
+* DESCRIPTION:
+-
+ 
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/14, jimmylin, feature refine
+
+* DIGEST:
+- Refine settings for DFS fault detection
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_dfs.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/14, jimmylin, bug fix
+
+* DIGEST:
+- Fix DFS register settings for 0.5us pulse
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/14, jimmylin, bug fix
+
+* DIGEST:
+- Modify local variable to support 512 sta
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/odm.c
+- OUTSRC/rtl8188e/Hal8188ERateAdaptive.c
+- OUTSRC/rtl8188e/odm_RTL8188E.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/14, chuangsw, feature refine.
+
+* DIGEST:
+- Update 8881A phy parameter to V005.
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+WlanHAL/Data/8881A/V702B_MP/MAC_REG_8881Am.txt
+WlanHAL/Data/8881A/V702B_MP/PHY_REG_8881Am.txt
+WlanHAL/Data/8881A/V702B_MP/RadioA_8881Am.txt
+WlanHAL/Data/8881A/V702B_MP/AGC_TAB_8881Am.txt
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/11, button, bug fix
+
+* DIGEST:
+- Fix 8812 Tx TP drop 20 Mbps
+
+* ROOT CAUSE:
+- one_desc is disabled for 8812 since ver.15136
+
+* MODIFIED FILES
+- 8192cd_tx.c
+
+* DESCRIPTION: 
+- rollback :MAX_SKB_NUM=768 when 8812 is defined
+- rollback: If mac is enabled before wlan open, then stop hardware and open
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/11, weikaichuang, feature refine
+
+* DIGEST:
+- Sync 92E tx2path patch from SD9
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES
+- 8192cd_hw.c
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/08, EricYeh, New Feature
+
+* DIGEST:
+- Support of 88E Tx Power Limit 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 819xcd.h
+- 8192cd_cfg.h
+- 8192cd_headers.h
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_ioctl.c
+- 8192cd_proc.c
+- 8812_hw.c
+- Kconfig
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/08, EricYeh, bug fix
+
+* DIGEST:
+- When enable DFS in repeater mode, NO Tx packets before Association 
+  in BAND2 & BAND3
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+- 8192cd_headers.h
+- 8192cd_hw.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/08, Jeng-Wei Lee, New Feature
+
+* DIGEST:
+- Add 5G DFS channel switch mechanism for NEC 8812 and 8881A
+
+* TEST METHOD:
+	
+- bandwidth is set to 80M in WLAN 5G chip
+- setmib band5GSelected 1/2/4/8/15 (1: band1, 2: band2, 4:band3, 8:band4, 15:all bands)
+- restart wlan driver (ifconfig wlan0 down;ifconfig wlan0 up)
+- setmib DFS_detected 1 to trigger radar detection
+
+* ROOT CAUSE:
+- for NEC specs
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_dfs.c
+- 8192cd_headers.h
+- 8192cd_hw.h
+- 8192cd_ioctl.c
+- 8192cd_osdep.c
+- 8192cd_proc.c
+- 8192cd_sme.c
+- 8192cd_util.c
+- 8812_hw.c
+- ieee802_mib.h
+- change.txt
+
+* DESCRIPTION:
+
+------------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/08, Brian, add feature
+
+* DIGEST:
+- Switch channel follow associated AP under AP mode repeater.
+  With vxd connected, root interface's DFS detection is disabled.
+  When vxd is not connected, AP still do DFS detection.
+  Function body of DFS_SwitchChannel is sync-ed with 3.4.
+
+* TEST METHOD:
+- Assoociate vxd of repeater to some AP using DFS channel and trigger DFS,
+  then the repeater switch channel.
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_dfs.c
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/07, button, bug fix
+
+* DIGEST:
+- Fix BT core dump issue
+
+* TEST METHOD:
+- DUT is 8197D+8367R+8812+8192c or 8197D+8367R+8812+8192e
+- Enable root ap and 1 vap in each band.
+- 4 wireless clients connect to 4 BSSID respectively.
+- and run BT download test
+
+* ROOT CAUSE:
+- 8812+8192c core dump in rtl8192cd_rx_isr
+- 8812+8192c core dump in rtl88XX_rx_isr
+- skb structure is corrupted, manipulate wrong virtual address pointer 
+- leads core dump
+
+* MODIFIED FILES:
+- 8192cd_hw.h
+- 8192cd_cfg.h
+
+* DESCRIPTION:
+- 
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/05, button, bug fix
+
+* DIGEST:
+- Fix unaligned read
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- Fix unaligned read (8812)
+- Fix LDPC not enable (8812)
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/04, Kevin, feature refine
+
+* DIGEST:
+- Update edcca mechanism
+
+* TEST METHOD:
+- Run edcca test
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_headers.h
+- 8192cd_ioctl.c
+- Hal8192CDMOutSrc.c
+- HalDMOutSrc.c
+
+* DESCRIPTION:
+- Default is turn off, can be turn on by setmib dynamic_edcca 1 to enable
+  function.
+- Add several ioctl parameter for fine tune.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/04, weikaichuang, feature refine
+
+* DIGEST:
+- Merge Adaptivity (Dynamic edcca) from BB Luke
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_ioctl.c
+- 8192cd.h
+- ./OUTSRC/odm.c
+- ./OUTSRC/odm.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+* DATE/WHOM/TYPE:
+- 2013/03/04, jimmylin, feature refine
+
+* DIGEST:
+- Remove redundant code
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_sme.c
+- 8192cd_mp.c
+- 8192cd_util.c
+- 8192cd_headers.h
+- 8192cd_util.h
+- 8192cd_led.c
+- 8192cd_osdep.c
+- 8192cd_tx.c
+- 8192cd_cfg.h
+- 8192cd_ioctl.c
+- 8192d_hw.c
+- 8192cd.h
+- 8192cd_proc.c
+
+
+* DESCRIPTION:
+- Remove sw beacon, smart concurrent. Add protection to register access.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/04, button, feature refine
+
+* DIGEST:
+- Turn on notch filter
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8812_reg.h
+- 8192cd_hw.h
+- 8192cd_headers.h
+- 8192cd_ioctl.c
+- Hal8192CDMOutSrc.c
+- HalDMOutSrc.c
+- 8192cd_hw.c
+- 8192cd_util.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Turn on notch filter for all ICs
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/01, jimmylin, feature refine
+
+* DIGEST:
+- Refine 8881A DIG
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+- By Stanley
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/03/01, button, feature refine
+
+* DIGEST:
+- Control AC tx rate by vht_txmap MIB
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_ioctl.c
+- WlanHAL/RTL88XX/Hal88XXFirmware.c_
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+- Control AC tx rate by vht_txmap MIB
+- Set DIG upper bound to 0x3e
+- Enable VHT MCS8,9 at default
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/02/26, jimmylin, feature refine
+
+* DIGEST:
+- Refine some DFS setting
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_dfs.c
+- 8192cd_util.c
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/02/26, button, bug fix
+
+* DIGEST:
+- Fix 92E v.s. WNDA3100v2 uplink throughput unstable issue
+- Upgrage 92E fw (resolve tx MCS rate in BG mode)
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- Retry limit is not set to 0x20 in tx shortcut path
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Fix 92E v.s. broadcom IOT
+- Upgrage 92E fw to ver.3
+  http://dtdinfo1.realtek.com.tw:8080/~sub1/mantis-cn/view.php?id=14509
+- Fix core dump when debug is enabled
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/02/25, Jason, bug fix
+
+* DIGEST:
+- Revert to origianl 1.2V setting (SPS0_CTR) to fix Tx EVM decreasing 5dB issues.
+
+* TEST METHOD:
+- Configure 96e/88e to be MP mode and test the MP image in the customer's HW
+  board. 
+
+* ROOT CAUSE:
+- Set SPS0_CTRL[5:2] register of the 1.2V to 0x4 to cause the worse TX EVM. 
+  And revert to the default setting. 
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/02/25, chuangsw, feature refine.
+
+* DIGEST:
+- Refine 92E IQK to avoid IQK fail.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/rtl8192e/HalPhyRf_8192e.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/02/21, EricYeh, New Feature
+
+* DIGEST:
+- Support of new Tx Power By Rate & Tx Power Limit for 8812
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_cfg.h
+- 8192cd_headers.h
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_ioctl.c
+- 8192cd_mib.c
+- 8192cd_proc.c
+- 8812_hw.c
+- data_8812/TXPWR_LMT_8812_new.txt
+- data_8812/PHY_REG_PG_8812.txt
+- data_8812/PHY_REG_PG_8812_new.txt
+
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/02/21, button, new feature 
+
+* DIGEST:
+- HAL chip support (8881A, 8192E)
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+
+* DESCRIPTION:
+- Sync with branch 3.2 ver.15131, branch 3.4 ver.15082, branch 8881A ver.15077
+- branch 11ac ver.1991. supported platform:
+- 98	92C+92D
+- 97D	8367R+92C+8812
+- 97D	8367R+92E+8812
+- 97D	92C+92D
+- 96E	92E
+- 96E	88E
+- 96E	92C
+- 96E	92D
+- 96C	92D
+- 96C	92C
+- 96D	92E
+- 96D	92D
+- 96D	92C
+- 8881A	88E
+- 8881A	92E
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/02/18, jimmylin, feature refine
+
+* DIGEST:
+- Move GPIO variables to avoid being erased while sw init
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_proc.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/02/07, EricYeh, feature refine
+
+* DIGEST:
+- Refine value of BCN_MAX_ERR(0x550) for Endurance Test
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- Except ADHOC mode, set 0x55d=0, Always Tx Beacon within PIFS
+- 92C use recommended value 0x55d=0x1 to avoid Tx Hang
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/28, jimmylin, feature refine
+
+* DIGEST:
+- Don't let client mode with WEP encryption connect to WPA/WPA2 AP
+
+* TEST METHOD:
+- Set client mode with WEP encryption. Client mode will connect to target
+  AP with WPA/WPA2 encryption.
+
+* ROOT CAUSE:
+- Besides encryption bit, we will check encryption method additionally.
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/25, jimmylin, feature refine
+
+* DIGEST:
+- Don't do reset check after hangup reset
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_sme.c
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- Remove BB hangup check also.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/23, chuangsw, feature refine
+
+* DIGEST:
+- Fix cimpile error in 96e+88e platform.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_mp.c
+- 8192cd_util.c
+- 8192cd_headers.h
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+- 8192cd_osdep.c
+- 8192cd_ioctl.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/23, weikaichuang, feature refine
+
+* DIGEST:
+- Update ATIM window time from 0x3C to 0x10
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- Since when vap is enable, beacon interval between root and vxd will be 
+  shorten. If ATIM window is set to a value bigger than beacon interval,
+  it may cause txhang.
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- Suggested by MAC team.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/22, jimmylin, feature refine
+
+* DIGEST:
+- Don't go back to 40M mode in 20/40 coexist for 6300 wrong channel issue
+
+* TEST METHOD:
+- Set DUT to 40M mode of 6,10 in shielding room. Let 6300 connect to DUT.
+  6300 will connect in 40M mode in the right channel and traffic is OK.
+  Then open the door of shielding room. DUT will go to 20M mode and so do
+  6300. Then close the door of shielding room. After 1 minute, DUT will
+  go back to 40M mode of 6,10, but 6300 will go to wrong channel of 6,2.
+  Traffic is not OK after that.
+
+* ROOT CAUSE:
+- Use spectrum to observe the frequency of 6300 and 6300 switch to wrong
+  channel.
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Don't go back to 40M and stay in 20M can work around 6300's malfunction.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/22, chuangsw, feature refine
+
+* DIGEST:
+- Correct ODM_Write_DIG() wrong setting.
+  
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/18, weikaichuang, feature refine
+
+* DIGEST:
+- increase WLAN and Ethernet descriptor and buffer size to obtain better TP
+  stability and reduce packet loss.
+  
+* TEST METHOD:
+- Run chariot and observe TP by pair and the line should be stable
+
+* ROOT CAUSE:
+- WLAN and Ethernet descriptor may run out and cause some packet drop
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_util.c
+- rtl819x/rtl865xc_swNic.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/16, PlusWang, bug fixed
+
+* DIGEST:
+- enlarge tx retry just for broadcom STA
+  
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/16, PlusWang, bug fixed
+
+* DIGEST:
+- Check the LDPC capability of STA correctly
+  
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/16, PlusWang, feature refine
+
+* DIGEST:
+- enable TX/RX DMA multiple fetch for 8812 suggest by LanShin for better ThroughPut
+  
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/16, jimmylin, feature refine
+
+* DIGEST:
+- Modify the showing for station vendor
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_proc.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/11, jimmylin, feature refine
+
+* DIGEST:
+- Modify retry number when clients enter power save mode for 8812
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Retry number can not set to 0x3F. It means retry forever. The max number
+  is 0x3E.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/11, jimmylin, feature refine
+
+* DIGEST:
+- Expire bridge shortcut cache if pstat->expire_to reaches 0
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/11, jimmylin, feature refine
+
+* DIGEST:
+- Adjust voltage of internal LDO to improve PCIe connection stability
+  for 8188E and 8812
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- Suggested by Jason
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2013/01/10, chuangsw, bug fix
+
+* DIGEST:
+- 1. disable tx2path setting in MP mode.
+- 2. Update 8812 IQK by BB James suggestion.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8812_hw.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/01/08, jimmylin, bug fix
+
+* DIGEST:
+- Avoid MAC SA of IP BC/MC being changed to DUT's MAC by NAT2.5
+
+* TEST METHOD:
+- Start a repeater mode, and let AP and client interfaces be connected.
+  Send IP broadcast packets from ethernet. The SA of broadcast in AP interface
+  should be ethernet PC, but it will be changed to DUT's MAC.
+
+* ROOT CAUSE:
+- Before NAT2.5 changes SA to DUT's MAC, skb_copy should be applied to
+  avoid changing the original packet content.
+
+* MODIFIED FILES:
+- 8192cd_br_ext.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/01/07, jimmylin, feature refine
+
+* DIGEST:
+- Support new LED type 17 for 8192C
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_led.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/01/04, jimmylin, feature refine
+
+* DIGEST:
+- Avoid possibility of unaligned access while tx by one descriptor
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/01/04, chuangsw, feature refine
+
+* DIGEST:
+- MP dig need rx info so we turn on when MP in rx mode.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+- OUTSRC/odm_debug.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2013/01/03, jimmylin, feature refine
+
+* DIGEST:
+- Support LED sw control by proc/wlanx/led for all chips
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_proc.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2012/12/27, chuangsw, feature refine
+
+* DIGEST:
+- 8812 mp dig refine.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+-  
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2012/12/27, chuangsw, feature refine
+
+* DIGEST:
+- 1. Fix 8812 EVM worst 2dBm issue than sdk v3.4.1 when testing OFDM 15dBm.
+- 2. 8812 IQK refine.
+- 3. 8812 mp dig refine.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- We should not run ODM_DMWatchdog() and other dynamic mechanism in MP mode
+  but only power tracking function. Otherwise, it will degree 2dBm in EVM
+  when we set large power.
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+- 8192cd_mp.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+-  
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2012/12/27, jimmylin, feature refine
+
+* DIGEST:
+- Don't return shortcut device if pstat->expire_to is 0
+- Add option to send disassociation request or not in del_sta ioctl API
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+- 8192cd_ioctl.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------- 
+
+* DATE/WHOM/TYPE:
+- 2012/12/27, chuangsw, feature refine
+
+* DIGEST:
+- Refine MP dig.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+- 8192cd_headers.h
+- OUTSRC/odm_interface.c
+- OUTSRC/odm_HWConfig.c
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+- change.txt
+- 8192cd_ioctl.c
+- 8192cd.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/26, jimmylin, feature refine
+
+* DIGEST:
+- Modify OFDM SIFS setting if STBC & LDPC are enabled
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- Suggested by BB team
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/25, jimmylin, feature refine
+
+* DIGEST:
+- Prevent unalignment DHCP sending
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/24, jimmylin, feature refine
+
+* DIGEST:
+- Support Tx & Rx shortcut for 4 eth sta
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+- 8192cd_util.c
+- 8192cd_osdep.c
+- 8192cd_tx.c
+- 8192cd_cfg.h
+- 8192cd.h
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- Modify TX_SC_ENTRY_NUM & RX_SC_ENTRY_NUM to change the number of supported
+  eth sta. Add sta_dbginfo of proc file for debugging.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/24, weikaichuang, feature refine
+
+* DIGEST:
+- Fine tune 92D define flag to coexist with 8812 
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/19, weikaichuang, feature refine
+
+* DIGEST:
+- Add aggregation number print with rssi 1 command
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 88E 8812 92E support aggregation report, other IC will show -1 in the
+  AGG_NUM
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/18, jimmylin, feature refine
+
+* DIGEST:
+- Modify Group Bandwidth Control to support restricting Tx and Rx
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+- ieee802_mib.h
+- 8192cd_util.c
+- 8192cd_osdep.c
+- 8192cd_tx.c
+- 8192cd_ioctl.c
+- 8192cd.h
+- 8192cd_proc.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/14, pluswang, feature refine
+
+* DIGEST:
+- Update RAMask by rssi , refine
+
+* TEST METHOD:
+-
+* ROOT CAUSE:
+-
+* MODIFIED FILES:
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+- Modified and tested by BB Stanley.
+  Stanley's modification has some wrong
+- do 1)Update RAMask by rssi,2)update RSSI pre 2seconds.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/14, EricYeh , Bug Fix
+
+* DIGEST:
+- Fix IOT issue with INTEL 6205 in TKIP mode
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- AP do MIC error check with Qos Null Data packets sent from 
+  INTEL 6205, then MIC error happens, AP do Disassociation. 
+
+* MODIFIED FILES:
+- 8192cd_rx.c
+
+* DESCRIPTION:
+- Do NOT check MIC error with Qos Null Data
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/14, PlusWang , feature refine
+
+* DIGEST:
+- update 8812ac fw to version8; fixed RSSI H2C cmd can't correct report rssi to fw
+
+* TEST METHOD:
+- let a STA connect to AP AC site,
+  od 8c 40000401 (byte0 is macid)
+  idd 2f0 (byte0 is macid's RSSI)
+
+* ROOT CAUSE:
+-After fw version7 then fw support handle RSSI H2C cmd;
+-modify RSSI H2C cmd
+
+* MODIFIED FILES:
+-
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/14, SeanTang , feature refine
+
+* DIGEST:
+- refine sta existence reset mechanism
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- when receive mgt frame we must reset leave flag
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- this refine is because when leave flag reset in 88E
+- the MACID NOLINK reg must also be reset
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/14, PlusWang , feature refine
+
+* DIGEST:
+- client mode 20/40 coexist mode OBSS scan timing refine
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 2.4G client mode at 20/40 coexist mode,assoc with 20/40 coexist mode ap,
+before per 85 seconds do OBSS scaning make sure the through put <= 1024Kbps
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- for avoid the case, client mode need tx/rx vedio streaming right now,
+  if do OBSS scan it will effect the fluency of vedio streaming.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/13, button, bug fix
+
+* DIGEST:
+- Fix core dump while Samsung galaxy s3 is doing WPS
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- WPS IE length of Samsung galaxy S3 is larger than out buffer, when receive
+- probe request from S3, we copy WPS IE and leads core dump
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Sync bug fix from SD9 Peter, Check lenght before copying WPS IE
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/13, jimmylin, bug fix
+
+* DIGEST:
+- Fix bug of group key entries in security CAM
+
+* TEST METHOD:
+- For 88E client mode, when AP sent group key re-key, the first pair-wise
+  key will be corrupted.
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- Original, the keyID-1 group key will be set in entry 1, and the keyID-2
+  group key will be set in entry 2. Now keyID-1 group key will be set in
+  entry 0, and keyID-2 group key will be set in entry 1.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/12, Brian, bug fix
+
+* DIGEST:
+- Fix 3-pair DL throughput low vs Atheros
+
+* TEST METHOD:
+- Perform 3-pair DL throughput testing with Atheros USB dongle
+
+* ROOT CAUSE:
+- do not enable TX early mode for Atheros client(IOT_PEER_UNKNOWN)
+
+* MODIFIED FILES:
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/12, EricYeh, Big fix
+
+* DIGEST:
+- Fix some 8812 IOT issues
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_tx.c
+- 8812_hw.c
+- /data_8812/rtl8812fw_n.bin
+
+* DESCRIPTION:
+- Update new firmware for 8812
+- If 8812 B CUT + 20M BW, disable AC rates
+- If rssi < 40, disable RTS for 8812
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/12, EricYeh, Feature refine
+
+* DIGEST:
+- Add support of Tx Power Limit for 92C/88C
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_headers.h
+- 8192cd_hw.c
+- Kconfig
+- /data/TXPWR_LMT_92c.txt
+- /data/TXPWR_LMT_92c_CE.txt
+- /data/TXPWR_LMT_92c_FCC.txt
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/11, button, bug fix
+
+* DIGEST:
+- Fix bug of CLE unbalance
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/11, chuangsw, new feature
+
+* DIGEST:
+- Add MP simple dig mechanism.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_reg.h
+- OUTSRC/odm_interface.c
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+- OUTSRC/odm_debug.h
+- 8192cd_ioctl.c
+- 8192cd.h
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/11, weikaichuang, feature refine
+
+* DIGEST:
+- Add Ad hoc mode 80MHz support
+
+* TEST METHOD:
+- Connect with ad hoc mode and check the bandwidth and corresponding settings
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/11, chuangsw, feature refine
+
+* DIGEST:
+- Update 8812 phy parameter to V018.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- data_8812/RadioA_8812_n_default.txt
+- data_8812/PHY_REG_PG_8812.txt
+- data_8812/AGC_TAB_8812_n_hp.txt
+- data_8812/RadioA_8812_n_extlna.txt
+- data_8812/RadioB_8812_n_extlna.txt
+- data_8812/PHY_REG_8812_n_hp.txt
+- data_8812/AGC_TAB_8812_n_extlna.txt
+- data_8812/PHY_REG_8812_n_extpa.txt
+- data_8812/RadioB_8812_n_extpa.txt
+- data_8812/PHY_REG_8812_n_default.txt
+- data_8812/RadioB_8812_n_default.txt
+- data_8812/PHY_REG_8812_n_extlna.txt
+- data_8812/AGC_TAB_8812_n_extpa.txt
+- data_8812/AGC_TAB_8812_n_default.txt
+- data_8812/RadioA_8812_n_hp.txt
+- data_8812/RadioB_8812_n_hp.txt
+- data_8812/MAC_REG_8812_n.txt
+- data_8812/RadioA_8812_n_extpa.txt
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/11, chuangsw, feature refine
+
+* DIGEST:
+- Fix compile error.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- OUTSRC/HalPhyRf.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/11, chuangsw, feature refine
+
+* DIGEST:
+- Refine 88e power tracking.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/HalPhyRf.c
+- OUTSRC/rtl8188e/HalPhyRf_8188e.c
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/11, pluswang, feature refine
+
+* DIGEST:
+- under 8812 1T1R AP mode , let HT mcs7 tx rate usable
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
+
+* DESCRIPTION:
+-
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/10, jimmylin, feature refine
+
+* DIGEST:
+- Add DET mechanism for DFS fault detection
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+- 8192cd_headers.h
+- OUTSRC/Hal8812DMOutSrc.c
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+- 8192cd_osdep.c
+- 8192cd_ioctl.c
+- 8192cd_dfs.c
+- 8192cd.h
+~
+* DESCRIPTION:
+- Set mib "det_off" = 0 to enable this mechanism
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/07, button, new feature
+
+* DIGEST:
+- 8812 Dynamic EDCCA mechanism
+
+* TEST METHOD:
+- Test by BB YN
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/odm_RegDefine11AC.h
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+- EDCCA mechanism default is disabled, to enable it, need to set MIB
+- "edcca_thd" to 45 (suggested by BB team)
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/07, jimmylin, feature refine
+
+* DIGEST:
+- Recover RX DMA hang issue
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_cfg.h
+- 8192cd_proc.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- From Button
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/07, Sean Tang, bug fix
+
+* DIGEST:
+- do not do sta existence check when in client mode
+
+* TEST METHOD:
+- SmartBit test on ulink
+
+* ROOT CAUSE:
+- if in client mode, do not need to check sta existence
+
+* MODIFIED FILES:
+- 8188e_hw.c
+- Hal8192CDMOutSrc.c
+- HalDMOutSrc8192C_AP.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/07, Brian, refine/bug fix
+
+* DIGEST:
+- Fix IOT issue druing chariot throughput testing for 1-pair-DL
+- Refine code flow to set/clear swq_en
+
+* TEST METHOD:
+- For IOT issue, perform 1-pair-DL chariot throughput test.
+  Throughput will report more then 7x Mbps for few seconds then drop to
+  5xMbps
+
+* ROOT CAUSE:
+- For 1-pari only throughput testing, enable S/W queue is not good.
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- OUTSRC/odm.c
+- 8192cd_tx.c
+- 8192cd_cfg.h
+- 8192d_hw.c
+- 8192cd.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/07, jimmylin, feature refine
+
+* DIGEST:
+- Take 8812 version ID in Realtek IE
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- Add C-cut identity in Realtek IE
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/07, Sean Tang, bug fix
+
+* DIGEST:
+- refine sta existence leave flag reset timing
+
+* TEST METHOD:
+- SmartBit over night test on ulink
+
+* ROOT CAUSE:
+- when tx to sta fail, we will set leave flag
+- bug we only reset leave flag when data packet received
+- but management frame from leave sta must reset leave flag
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/06, button, feature refine
+
+* DIGEST:
+- Modify DIG upper bound
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- Hal8192CDMOutSrc.c
+- OUTSRC/odm.h
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+- Modify upper bound from 0x32 to 0x3e
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/06, button, feature refine
+
+* DIGEST:
+- Sync plugfest, TBRE driver
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+- 8812_hw.c 
+- 8192cd_headers.h
+- wifi.h
+- 8812_vht_gen.c
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- Sync plugfest, TBRE driver, disable plugfest compile flag
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/06, jimmylin, feature refine
+
+* DIGEST:
+- Update 92d fw to version 25.3
+
+* TEST METHOD:
+- 92D under 1X1 concurrent mode (2.4G + 5G)
+  Under 2.4G 20M bandwidth the through put will very low (<1Mbps)
+
+* ROOT CAUSE:
+- version25.2 has use wrong Tx rate (only 1M tx rate) under 1T20Mbandwidth mode
+
+* MODIFIED FILES:
+- data_92d/rtl8192dfw_n.bin
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/06, jimmylin, feature refine
+
+* DIGEST:
+- Support WPS in vxd client interface
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_ioctl.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/06, sean tang, feature refine
+
+* DIGEST:
+- Refine rts mechanism for tp of different distance
+
+* TEST METHOD:
+- channel emulator in 40M/20M on 96E+88ER
+- also compare tp result with 3.2.2.1
+
+* ROOT CAUSE:
+- middle distance in DL+UL tp is very low if no_rts=0
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- do not send rts if in near and middle distance, otherwise send rts
+- if rssi>35 no_rts=1, else if rssi < 30 no_rts=0
+- not only for intel client, this is for all client
+- this modification is for all chip configuration
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/04, jimmylin, feature refine
+
+* DIGEST:
+- Support rx rate in sta info data structure reported to web server
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_ioctl.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/12/03, chuangsw, Feature Refine
+
+* DIGEST:
+- Refine 88RE IQK by Jenyu's suggestion.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- Hal8192CDMOutSrc.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/30, EricYeh, Feature Refine
+
+* DIGEST:
+- Refine mib "txforce" to force Tx at appointed rates
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_ioctl.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- If value of mib "txforce" != 0xff, this value will be filled in 
+  Tx Descriptor (Because value 0=CCK 1M)
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/28, chuangsw, New feature
+
+* DIGEST:
+- Add new mib "pa_type" and flash name "PA_TYPE" to set different pa. 
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- boa/apmib/apmib.h
+- boa/apmib/mibdef.h
+- boa/util/flash.c
+- 8192cd_ioctl.c
+- 8192cd_proc.c
+- 8812_hw.c
+- ieee802_mib.h
+
+* DESCRIPTION:
+- pa_type: 
+- 0: skyworth 5022
+- 1: skyworth 85703 / RFMD 4501		
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/28, EricYeh, New Feature
+
+* DIGEST:
+- Add new mib "txforce" to force Tx at appointed rates
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_ioctl.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- If value of mib "txforce" > 0, this value will be filled in Tx Descriptor
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/27, weikaichuang, feature refine
+
+* DIGEST:
+- Update RAMask by rssi 
+
+* TEST METHOD:
+- Use CET and check Ramask when rssi level has changed
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- OUTSRC/odm.c
+- HalDMOutSrc.c
+- 8812_hw.c
+
+* DESCRIPTION:
+- Modified and tested by BB Stanley.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/26, jimmylin, feature refine
+
+* DIGEST:
+- Enable short GI in band 4 for 8812
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 8192D can't enable short GI in band 4. The code has problem and disable
+  short GI for 8812.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/26, chuangsw, feature refine
+
+* DIGEST:
+- Fix compile error in 92c+92d platform.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/22, weikaichuang, feature refine
+
+* DIGEST:
+- Remove incorrect modified MAC register from sercomm R6100 patch 
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- When enable LDPC, no need to write 0x668
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/22, weikaichuang, bug fixed
+
+* DIGEST:
+- Fix AC STA cannot connect to AP under AC mode only.
+
+* TEST METHOD:
+- Use a AC mode STA to connect to our AP under AC mode only
+
+* ROOT CAUSE:
+- Should use the condition of vht_ie exist or not to determine whether the 
+  client can connect or not
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/15, chuangsw, feature refine
+
+* DIGEST:
+- Fix 92C continue tx abnormal wave issue.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+
+* DESCRIPTION:
+- mp_set_datarate() set wrong RF reg0x18 in 92C 20M mode leads the abnormal
+  wave
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/14, chuangsw, feature refine
+
+* DIGEST:
+- (1) Fix compile error from previous commition.
+- (2) Add 8812 xcap support.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+- 8192cd_mp.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/14, jimmylin, feature refine
+
+* DIGEST:
+- Prevent calling get_shortcut_dev() before interface is opened
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/12, jimmylin, feature refine
+
+* DIGEST:
+- Auto select 2nd channel in 5G band
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- In 5G band, the 2nd channel is fixed by refering to primary channel.
+  Therefore in rtl8192cd_init_sw(), we will select 2nd channel according to
+  primary channel and ignore the setting from UI.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/12, weikaichuang, bug fix
+
+* DIGEST:
+- Fix smart repeater mode bug that virtual client may not associate to a
+  remote AP when bandwidth is different between remote AP and root AP.
+  
+* TEST METHOD:
+- Start a remote AP in channel 13 with 20M bandwdith
+- Configure root AP in chan 6 with control side in high with 40M
+- Then, ping from Ethernet PC ->repeater->remote AP may fail
+ 
+* ROOT CAUSE:
+- When switching channel in repeater mode, it will sync the bandwith between
+  remote AP and root AP. So, it may occure the side band channel of root AP is
+  invalid with channel plan.
+  
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Create a new mib to save bandwidth of remote AP when found the remote AP.
+- During channel switching, it will change the bandwidth of root AP to the
+  same
+  as root AP.
+- Merge from branch 3.2 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/08, chuangsw, feature refine
+
+* DIGEST:
+- Refine auto channel function.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- Remove CONFIG_RTL_92D_SUPPORT in selectClearChannel() otherwise it will
+  wrong in 8812.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/08, chuangsw, feature refine
+
+* DIGEST:
+- Sync 8812 PF4 patch.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_sme.c
+- 8192cd_rx.c
+- 8812_hw.c
+- typedef.h
+- 8192cd_util.c
+- 8192cd_headers.h
+- 8192cd_tx.c
+- 8192cd_cfg.h
+- wifi.h
+- 8192cd_ioctl.c
+- 8812_vht_gen.c
+- 8192cd.h
+- 8812_vht_gen.h
+- 8192cd_proc.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/07, chuangsw, feature refine
+
+* DIGEST:
+- Sync sercom R6100 patch.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_sme.c
+- ieee802_mib.h
+- 8192cd_headers.h
+- 8192cd_mib.c
+- 8192cd_tx.c
+- wifi.h
+- 8192cd_ioctl.c
+- 8812_vht_gen.c
+- 8192cd.h
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- Improve throughput in long distance
+- (1) STBC.
+- (2) LDPC (RX).
+- (3) Disable 8812 Tx pause while STA go to sleep.
+- (4) Dynamic response rate mechanism.
+- (5) ARFR0 enable all VHT1S and VHT2S rate. 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/08, jimmylin, bug fix
+
+* DIGEST:
+- Fix traffic not forwarding under WDS with WEP encryption for 8188E
+
+* TEST METHOD:
+- Config 8188E to WDS with WEP encryption. Chariot can not run.
+
+* ROOT CAUSE:
+- 8188E encryption engine doesn't support WEP and TKIP with MCS rates.
+  Block MCS rates if WEP encryption.
+
+* MODIFIED FILES:
+- 8192cd_util.c
+
+* DESCRIPTION:
+- For new IC, h/w encryption engine can only support WEP and TKIP for CCK and
+  OFDM rates. Therefore block all other rates for WEP and TKIP.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/07, chuangsw, feature refine
+
+* DIGEST:
+- 8812 power tracking refine 
+- Fix 8812 high power power control txdesc wrong setting
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8812_hw.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- Avoid 8812 bb swing base index to be changed.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/06, chuangsw, feature refine
+
+* DIGEST:
+- Add 8812 high power power control 
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_hw.h
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+- change.txt
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- If STA rssi > 60, we will decrease 7dBm in tx power.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/11/06, chuangsw, feature refine
+
+* DIGEST:
+- Add 8812 MP single tone support
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_mp.c
+- 8812_reg.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/31, chuangsw, feature refine
+
+* DIGEST:
+- Add 8812 efuse support with MP tool (efuse read/write/sync)
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/31, weikaichuang, bug fix
+
+* DIGEST:
+- Fix power by rate does not subtract power for 1SSMCS8 & 1SSMCS9
+
+* TEST METHOD:
+- Read the conrresponding register
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8812hw.c
+- 8192cd_mp.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/30, jimmylin, bug fix
+
+* DIGEST:
+- Fix auto channel again after switching to non-DFS channel if DFS and
+  auto channel are enabled
+
+* TEST METHOD:
+- Enable DFS and auto channel. Make non-DFS channels noisy. Auto channel
+  will choose a DFS channel. When detecting radar signal, DFS will choose
+  a non-DFS channel to switch. But after re-init, auto channel will work
+  again and choose DFS channel.
+
+* ROOT CAUSE:
+- When switching non-DFS channel and do re-init, should not let auto channel
+  work at this time.
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_dfs.c
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/30, weikaichuang, feature refine
+
+* DIGEST:
+- Support AC mode only and AC+N mode
+
+* TEST METHOD:
+- Use N & A mode STA connect to AC mode only AP, the STA will fail 
+  to connect.  
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- boa/src/fmwlan.c
+- boa/html/wizard.htm
+- boa/html/wlmultipleap.htm
+- boa/html/wlbasic.htm
+- boa/html/util_gw.js
+- boa/utils/comapi.c
+- boa/utils/flash.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/29, jimmylin, feature refine
+
+* DIGEST:
+- Support DFS function for 8812
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_cfg.h.
+- 8192cd_dfs.c
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_ioctl.c
+- ieee802_mib.h
+- Kconfig
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/29, weikaichuang, feature refine
+
+* DIGEST:
+- Update 88E power on sequence to v09
+
+* TEST METHOD:
+- Run reboot test by teraterm macro, reboot more than 3000 times ok
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- Hal8188EPwrSeq.h
+- OUTSRC/rtl8188e/HalHWImg8188E_MAC.c
+- data_88e/MAC_REG_88E.txt
+
+* DESCRIPTION:
+- XTAL is set to schmitt trigger at power on sequence, change back to NAND
+  trigger(default value) when loading mac parameter file.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/29, weikaichuang, feature refine
+
+* DIGEST:
+- Enable 8812 repeater mode
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- Kconfig
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/26, chuangsw, feature refine
+
+* DIGEST:
+- Update 8812 BB setting (to pass wifi logo for B cut).
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/26, chuangsw, feature refine
+
+* DIGEST:
+- Update 8812 BB setting (sync BB user guild R11).
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/26, chuangsw, feature refine
+
+* DIGEST:
+- Modify power by rate with new PG table
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/26, jimmylin, feature refine
+
+* DIGEST:
+- Take 8812 version ID in Realtek IE
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/25, chuangsw, feature refine
+
+* DIGEST:
+- Update 8812 PHY para meter to V11
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- change.txt
+- data_8812/PHY_REG_8812_n_hp.txt
+- data_8812/PHY_REG_8812_n_extpa.txt
+- data_8812/PHY_REG_8812_n_default.txt
+- data_8812/PHY_REG_8812_n_extlna.txt
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/25, chuangsw, feature refine
+
+* DIGEST:
+- 8812 C-cut support
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8812_hw.c
+- 8192cd_util.h
+- change.txt
+- data_8812/RadioA_8812_n_default.txt
+- data_8812/AGC_TAB_8812_n_hp.txt
+- data_8812/RadioA_8812_n_extlna.txt
+- data_8812/RadioB_8812_n_extlna.txt
+- data_8812/PHY_REG_8812_n_hp.txt
+- data_8812/AGC_TAB_8812_n_extlna.txt
+- data_8812/PHY_REG_8812_n_extpa.txt
+- data_8812/RadioB_8812_n_extpa.txt
+- data_8812/PHY_REG_8812_n_default.txt
+- data_8812/RadioB_8812_n_default.txt
+- data_8812/PHY_REG_8812_n_extlna.txt
+- data_8812/AGC_TAB_8812_n_extpa.txt
+- data_8812/AGC_TAB_8812_n_default.txt
+- data_8812/RadioA_8812_n_hp.txt
+- data_8812/RadioB_8812_n_hp.txt
+- data_8812/MAC_REG_8812_n.txt
+- data_8812/RadioA_8812_n_extpa.txt
+- 8192cd_proc.c
+
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/19, chuangsw, bug fix
+
+* DIGEST:
+- 8812 11n logo test support
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- OUTSRC/odm.c
+- 8192cd_osdep.c
+- 8192cd_cfg.h
+
+* DESCRIPTION:
+- 1. Modify RQPN for logo test.
+- 2. Enable "wifi_beq_iot" for 8812
+- 3. Enable 20_40_COEXIST
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/19, EricYeh, New Feature
+
+* DIGEST:
+- 8812 Tx 2 Path Function
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- Use mib "tx2path" to Enable/Disable 8812 Tx2Path function, 
+  default is Enable.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/12, chuangsw, feature refine
+
+* DIGEST:
+- Refine 8812 IQK.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-  
+
+* MODIFIED FILES:
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+
+* DESCRIPTION:
+- 1. EXT LNA on, EXT PA off??- 2. Fix if(k = 2) syntex error
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/12, chuangsw, feature refine
+
+* DIGEST:
+- Refine 8812 IQK.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-  
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.h
+- OUTSRC/HalPhyRf.c
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+- Refine 8812 IQK by BB's suggestion.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/11, chuangsw, feature refine
+
+* DIGEST:
+- Refine 88E power tracking.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-  
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+- OUTSRC/HalPhyRf.c
+- OUTSRC/rtl8188e/HalHWImg8188E_BB.c
+- OUTSRC/rtl8188e/HalPhyRf_8188e.c
+- OUTSRC/odm.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/11, chuangsw, feature refine
+
+* DIGEST:
+- Refine 8812 IQK.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-  
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+
+* DESCRIPTION:
+- Fix 8812 somtimes may have IQK fail in high band.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/11, EricYeh, Bug Fix
+
+* DIGEST:
+- Fix 8812 IOT issue with 11n clients
+
+* TEST METHOD:
+-
+* ROOT CAUSE:
+-  
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- Increse TP of 20M BW: 
+    > Disable cca_rts for 11n clients (new feature for 802.11ac)
+    > Increase 0x456 (AMPDU MAX Duration) from 0x40->0x70
+- TP issue with DWA160 in 20M+AES
+    > Increase AMPDU Density
+- TP issue with 92D in 40M+TKIP 
+    > Update RA Mask (NO MCS) if client connection = TKIP mode.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/11, PlusWang, feature refine
+
+* DIGEST:
+- improve through-put for Broadcom STA
+- dynamic response rate 
+* TEST METHOD:
+-
+* ROOT CAUSE:
+-  
+* MODIFIED FILES:
+- 8812_hw.c
+- 8192cd_sme.c
+- 8192cd_hw.c
+- 8192cd.h
+
+* DESCRIPTION:
+- tuning aggregation max length from 64k to 32k for better IOT with Broad STA(Baffulo AC1300)
+- when minimum RRSI <25% limit response rate to 6M only
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/10/05, chuangsw, feature refine
+
+* DIGEST:
+- Fix 8812 efuse may not read while flash entry of 2.4G had value.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- We only check flash entry of 2.4G to determine if it should read from efuse.
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- It should check 5G flash entry to determine whether read from efuse or not.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
 - 2012/10/02, button, feature refine
 
 * DIGEST:
@@ -24,10 +7415,31 @@ Change History
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/09/26, jimmylin, feature refine
+- 2012/10/01, EricYeh, feature refine
 
 * DIGEST:
-- Disable PCIe clock shift adjustment
+- Fix Tx Rate report for 8812 VAP mode
+
+* TEST METHOD:
+- Use "rssi 1" commands via console for VAP
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_util.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/27, chuangsw, feature refine
+
+* DIGEST:
+- 1. Txop does not work in 92C/D when do TP test.
+- 2. Remove some debug message in 8812 power tracking.
 
 * TEST METHOD:
 -
@@ -36,7 +7448,52 @@ Change History
 -
 
 * MODIFIED FILES:
-- 8192cd_cfg.h
+- 8812_hw.c
+- Hal8192CDMOutSrc.c
+- change.txt
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/27, chuangsw, feature refine
+
+* DIGEST:
+- Ajust the 8812 initial gain after loading default PHY parameter to make
+  sure the gain table can be work correctly.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
+
+* DESCRIPTION:
+- RF team suggest
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/27, chuangsw, feature refine
+
+* DIGEST:
+- Fix 8812 often use MCS6 to intel sta in initial time.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 1. Intel STA is in STATIC MIMO PS with ASSOC-REQ
+- 2. It may leave STATIC MIMO PS with action frame but we don't update 
+     the rate mask.
+
+* MODIFIED FILES:
+- 8192cd_sme.c
 
 * DESCRIPTION:
 -
@@ -44,10 +7501,10 @@ Change History
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/09/18, jimmylin, feature refine
+- 2012/09/27, button, feature refine
 
 * DIGEST:
-- Enable TX 2-path by default
+- Fix bug of 11ac sta list, UI site survery result
 
 * TEST METHOD:
 -
@@ -56,41 +7513,110 @@ Change History
 -
 
 * MODIFIED FILES:
-- 8192cd_ioctl.c
-- 8192cd_osdep.c
+- 8192cd_sme.c
+- 8192cd_headers.h
+- 8192cd.h
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- Report mode & data rate to WEB, show vht tx rate in proc
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/27, plusWang, feature refine
+
+* DIGEST:
+- fine tune through-put with broadcom AC STA
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+-8188e_hw.c
+-8812_vht_gen.c
+-8192cd_headers.h
+-8812_hw.c
+-8192cd_sme.c
+-8192cd_hw.c
+
+* DESCRIPTION:
+-by Wilson's advice 
+ disable vht-2ss8,9 when RA with broadcom sta
+ disable short-GI when RA with broadcom sta
+ 
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/27, jimmylin, feature refine
+
+* DIGEST:
+- Fix LED function for 8812
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
 - 8192cd_hw.c
+- 8192cd_led.c
 
 * DESCRIPTION:
-- If CCK B path has no calibration, use CCK A path and difference of MCS to
-  get CCK B path.
+-
 
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/09/14, weikaichuang, feature refine
+- 2012/09/26, chuangsw, feature refine
 
 * DIGEST:
-- Update 92d fw v.36 
+- Refine 8812 power tracking.
 
 * TEST METHOD:
--
+- 
 
 * ROOT CAUSE:
 -
 
 * MODIFIED FILES:
--/92d_data/rtl8192dfw_n.bin
+- 8812_hw.c
+- 8192cd_sme.c
 
 * DESCRIPTION:
--
+- 
 
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/09/14, chuangsw, feature refine
+- 2012/09/26, weikaichuang, bug fixed
 
 * DIGEST:
-- Refine 88E edca for wifi logo wmm test.
+- Fixed fail to write power for OFDM 54M-24M
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/26, weikaichuang, feature refine
+
+* DIGEST:
+- Allow RA mask to all rates 
 
 * TEST METHOD:
 - 
@@ -100,93 +7626,160 @@ Change History
 
 * MODIFIED FILES:
 - 8192cd_sme.c
-- OUTSRC/odm.c
-- 8192cd_osdep.c
-- change.txt
-- 8192cd_cfg.h
-- Hal8192CDMOutSrc.c
-- 8192cd.h
-
 
 * DESCRIPTION:
-- 
+- Allow RA to select all rates in UpdateHalRAMask8812()
 
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/09/14, button, feature refine
+- 2012/09/26, weikaichuang, bug fixed
 
 * DIGEST:
-- Update MAC, PHY parameters of 8188E
+- Fix RSSI report error and cause incorrect DIG value in mid range 
 
 * TEST METHOD:
-- Not verify yet.
+- When attenuation is -80 dBm, the original algorithm returns incorrect RSSI
+  which causes DIG stays in high value(0x32)and the connection between AP and 
+  client disconnectted.
 
 * ROOT CAUSE:
 -
 
 * MODIFIED FILES:
--
+- OUTSRC/odm_HWConfig.c
 
 * DESCRIPTION:
-- Sync RTL8188E_MAC_PHY_ForMPChip_v035
+- Remove original RSSI modification formula for ext-LNA board
+- Fix RSSI always 100% on console 
 
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/09/14, chuangsw, feature refine
+- 2012/09/26, button, feature refine
 
 * DIGEST:
-- Refine 88E tx early mode.
+- Move AC MIB to Dot11acConfigEntry structure
 
 * TEST METHOD:
-- Disable tx early mode in 20M mode. 
+-
 
 * ROOT CAUSE:
 -
 
 * MODIFIED FILES:
 - 8192cd_hw.c
-- 8192cd_sme.c 
-- OUTSRC/odm.c
+- ieee802_mib.h
+- 8812_hw.c
+- 8192cd_util.c
+- 8192cd_ioctl.c
+- 8812_vht_gen.c
+- 8192cd_proc.c
 
 * DESCRIPTION:
-- Turn on tx early mode in 20M mode may degrade TP. 
+- Move AC MIB to Dot11acConfigEntry structure
+- Identify MP chip / test chip for ODM
 
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/09/14, YangQuan, feature refine
+- 2012/09/26,HF, bug fix
 
 * DIGEST:
-- refine for smart repeater CHECK_AP_VXD_TIMEOUT.
+- Fix for customer passthru when using 97D+8812+92CE+8367
+
+* ROOT CAUSE:
+- since 2.4g and 5g interface alll exists.
+- when WISP using wlan1 (2.4g) as wan, the packet TXed
+- to psuedo wlan should be deliver to the right
+- wlan1. 
 
 * TEST METHOD:
-- enable smart repeater, STA connect to DUT AP interface, vxd client don't
-  connect to another AP
-- STA ping DUT, verify packet lose or response time is better than orignal. 
+- Using VLC to play ipv6 stream
+
+* Description:
+- Add 8812 Define Flag Support
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_tx.c
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/25, jimmylin, feature refine
+
+* DIGEST:
+- Modify channel list to normal
+
+* TEST METHOD:
+-
 
 * ROOT CAUSE:
 -
 
 * MODIFIED FILES:
-- 8192cd_cfg.h
-- 8192cd_sme.c 
+- 8192cd_util.c
 
 * DESCRIPTION:
-- enlarge CHECK_AP_VXD_TIMEOUT from 10s to 60s
-- modify ss_req_ongoing from 3 to 1 in check_vxd_ap_timer 
+-
 
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/09/12, button, feature refine
+- 2012/09/24, chuangsw, feature refine
 
 * DIGEST:
-- Update MCU firmware
+- 1. Refine 8812 power by rate in MP mode.
+- 2. Update 8812 IQK from BB sugguestion.
+- 3. Fix compile error in 88e+8812 platform.
 
 * TEST METHOD:
-- Not verify yet.
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_mp.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+- OUTSRC/odm_debug.c
+- odm_inc.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/24, button, feature refine
+
+* DIGEST:
+- Disable PCIE_OVERCLOCK_PATCH
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+-
+
+* DESCRIPTION:
+- Disable PCIE_OVERCLOCK_PATCH
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/24, button, feature refine
+
+* DIGEST:
+- Sync with branch 3.2
+
+* TEST METHOD:
+-
 
 * ROOT CAUSE:
 -
@@ -195,10 +7788,345 @@ Change History
 - 
 
 * DESCRIPTION:
-- Update MCU firmware.
-   8192C/8188C fw ver. 86, UMC A-cut fw ver.80
-   8192D fw ver. 35
-- Hide PCIe power saving option
+- Sync with branch 3.2
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/23, EricYeh , feature refine
+
+* DIGEST:
+- Refine Tx Throughput for 8812 MP Chip
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- Refine AMPDU MAX duration (from 0x32->0x64 for 8812 MP chip)
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/22, pluswang , feature refine
+
+* DIGEST:
+- add WDS VHT data rate support
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+-8192cd_osdep.c
+-8812_hw.c
+-8192cd_sme.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/21, button, feature refine
+
+* DIGEST:
+- Shrink memory size, tx rate classify
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* DESCRIPTION:
+- Shrink memory size, skb:580, rx desc:512, tx: default setting
+- read 8812 fw header
+- tx rate map: b[19:10]: NSS2 MCS9~0, b[9:0]: NSS1 MCS9~0
+- vht supported rate: b[1:0]: NSS1, b[3:2]: NSS2, follow drafe definition
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/21, pluswang, feature refine
+
+* DIGEST:
+- Add 8812AC Txreport(tx ok + tk fail + tx inital rate) support
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_proc.c
+- 8192cd.h
+- 8192cd_cfg.h
+- 8192cd_tx.c
+- 8192cd_osdep.c
+- 8192cd_util.h
+- 8192cd_headers.h
+- 8192cd_util.c
+- 8812_hw.c
+- 8192cd_rx.c
+- 8192cd_sme.c
+- 8192cd_hw.h
+- 8192cd_hw.c
+- data_8812/rtl8812fw_n.bin
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/21, weikaichuang, feature refine
+
+* DIGEST:
+- Add 8812 power by rate support.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
+- 8192cd_mp.c
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_cfg.h
+- data_8812/PHY_REG_PG_8812.txt
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/20, chuangsw, feature refine
+
+* DIGEST:
+- Update 8812 IQK.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+- OUTSRC/HalPhyRf.c
+- OUTSRC/odm_debug.c
+- odm_inc.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/19, chuangsw, feature refine
+
+* DIGEST:
+- Add 8812 xcap support.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_mp.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/18, chuangsw, feature refine
+
+* DIGEST:
+- Refine 8812 power tracking.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/18, chuangsw, feature refine
+
+* DIGEST:
+- 1. Update 8812 PHY parameter to V007.
+- 2. Add 8812 MP PSD support.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
+- 8192cd_mp.c
+- Kconfig
+- data_8812/RadioA_8812_n_default.txt
+- data_8812/AGC_TAB_8812_n_hp.txt
+- data_8812/RadioA_8812_n_extlna.txt
+- data_8812/RadioB_8812_n_extlna.txt
+- data_8812/PHY_REG_8812_n_hp.txt
+- data_8812/AGC_TAB_8812_n_extlna.txt
+- data_8812/PHY_REG_8812_n_extpa.txt
+- data_8812/PHY_REG_8812_n_default.txt
+- data_8812/RadioB_8812_n_extpa.txt
+- data_8812/RadioB_8812_n_default.txt
+- data_8812/PHY_REG_8812_n_extlna.txt
+- data_8812/AGC_TAB_8812_n_extpa.txt
+- data_8812/AGC_TAB_8812_n_default.txt
+- data_8812/RadioA_8812_n_hp.txt
+- data_8812/RadioB_8812_n_hp.txt
+- data_8812/RadioA_8812_n_extpa.txt
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/14, EricYeh, New Feature
+
+* DIGEST:
+- 8812 client mode patch - 1
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_osdep.c
+- 8192cd_proc.c
+- 8192cd_rx.c
+- 8192cd_sme.c
+- 8192cd_tx.c
+- 8812_hw.c
+- 8812_vht_gen.c
+- Kconfig
+
+* DESCRIPTION:
+- Add support of 8812 client mode
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/13, EricYeh, Bug Fix
+
+* DIGEST:
+- Fix bug of 8812 channel switch
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
+
+* DESCRIPTION:
+- Modify value setting of reg 0x454 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/12, chuangsw, feature refine
+
+* DIGEST:
+- Fix compile error while REPEATER or MBSSID is not select
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/12, chuangsw, feature refine
+
+* DIGEST:
+- Add 8812 Tx Power tracking file
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- data_8812/REG_TXPWR_TRK_8812.txt
+- data_8812/REG_TXPWR_TRK_8812_hp.txt
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/11, button, feature refine
+
+* DIGEST:
+- 8812 MP chip supported of reading phy parameter "EXTPA" and "EXTLNA"
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_headers.h
+- Kconfig
+- 8192cd_osdep.c
+- 8192cd_cfg.h
+- 8192cd.h
+
+* DESCRIPTION:
+- 
 
 -----------------------------------------------------------------------------
 
@@ -223,7 +8151,129 @@ Change History
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/09/04, chuangsw, feature refine
+- 2012/09/11, chuangsw, new feature
+
+* DIGEST:
+- Add 8812 Tx Power tracking
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_sme.c
+- 8812_hw.c
+- 8192cd_mp.c
+- 8192cd_headers.h
+- OUTSRC/rtl8192c/HalDMOutSrc8192C_AP.c
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+- 8192cd_osdep.c
+- change.txt
+- 8192cd_cfg.h
+- 8192cd_ioctl.c
+- Hal8192CDMOutSrc.c
+- 8192cd.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/10, EricYeh, feature refine
+
+* DIGEST:
+- Add 8812 Tx Power Diff into mib table for using iwpriv command
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_ioctl.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/10, EricYeh, feature refine
+
+* DIGEST:
+- Update Rx Antenna control for 8812 (Sync new document from BB)
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_mp.c
+
+* DESCRIPTION:
+- PATH_A 0xa07[3:2]=2'b00
+  PATH_B 0xa07[3:2]=2'b01
+  PATH_AB 0xa07[3:2]=2'b00
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/06, PlusWang / Button, feature refine
+
+* DIGEST:
+- sync button's PF3 modify 
+include:
+1.Parsing operating mode field
+2.LDPC T/Rx support
+3.Support band1~4 channel 
+4.MP chip enable MCS 0~9
+5.Modify display format of rssi dump
+6.resolve compile error
+7.support 88ER+8812AC concurrent
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+-8192cd_hw.c
+-8192cd_hw.h
+-8192cd_mp.c
+-OUTSRC/odm_HWConfig.c
+-OUTSRC/rtl8812a/HalPhyRf_8812A.c
+-8192cd_ioctl.c
+-8812_vht_gen.c
+-8192cd.h
+-8192cd_sme.c
+-Makefile
+-8192cd_tx.c
+-8192cd_psk.h
+-8192cd_osdep.c
+-wifi.h
+-ieee802_mib.h
+-8812_hw.c
+-8192cd_proc.c
+-8192cd_hw.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/05, chuangsw, feature refine
 
 * DIGEST:
 - Fix sdk 3.2 92C EVM not good than sdk 2.5.3 issue.
@@ -237,9 +8287,33 @@ Change History
 * MODIFIED FILES:
 - 8192cd_hw.c
 - 8192cd_mp.c
-
 * DESCRIPTION:
 - 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/09/04, brian, feature add
+
+* DIGEST:
+- Support read efuse for 8812 MP chip
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_hw.h
+- 8192cd_proc.c
+- ieee802_mib.h
+- 8812_reg.h
+- Kconfig
+- change.txt
+
+* DESCRIPTION:
+- Support read efuse for 8812 MP chip
+- Support read/write efuse through iwpriv command (base on command set of
+  92D)
 
 -----------------------------------------------------------------------------
 
@@ -260,76 +8334,6 @@ Change History
 
 * DESCRIPTION:
 -
-
------------------------------------------------------------------------------
-
-* DATE/WHOM/TYPE:
-- 2012/08/31, chuangsw, feature refine
-
-* DIGEST:
-- Fix compile error of previous commition.
-
-* TEST METHOD:
-- 
-
-* ROOT CAUSE:
-- 
-
-* MODIFIED FILES:
-- 8192cd_osdep.c
-
-* DESCRIPTION:
-
------------------------------------------------------------------------------
-
-* DATE/WHOM/TYPE:
-- 2012/08/31, chuangsw, feature refine
-
-* DIGEST:
-- Fix 88e 2.4G frequency shift to 2.2G issue.
-
-* TEST METHOD:
-- 
-
-* ROOT CAUSE:
-- 
-
-* MODIFIED FILES:
-- 8192cd_cfg.h
-- 8192cd_osdep.c
-- 8192cd_host.c
-
-* DESCRIPTION:
-- 1. Add pcie clock auto scan in 97D.
-- 2. Refine pcie parameter.
-
------------------------------------------------------------------------------
-
-* DATE/WHOM/TYPE:
-- 2012/08/31, chuangsw, feature refine
-
-* DIGEST:
-- Improve 88E TP.
-
-* TEST METHOD:
-- 8188E TP is less than 8188C.
-
-* ROOT CAUSE:
-- 
-
-* MODIFIED FILES:
-- 8192cd_hw.c
-- 8192cd_sme.c
-- 8192cd_osdep.c
-- 8192cd_cfg.h
-- Hal8192CDMOutSrc.c
-- 8192cd.h
-- change.txt
-
-* DESCRIPTION:
-- 1. Enable tx early mode for 8188E.
-- 2. Adjust RQPN.
-- 3. 88E "wifi_specific" must be "1" for logo test.
 
 -----------------------------------------------------------------------------
 
@@ -444,6 +8448,30 @@ Change History
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
+- 2012/08/21, chuangsw, feature refine
+
+* DIGEST:
+- 1. Refine 8812 IQK
+- 2. Disable CCA before RF read/write (only 8812)
+
+* TEST METHOD:
+- 1. 8812 MP rx test may receive nothing after doing IQK
+
+* ROOT CAUSE:
+- 1. RF reg 0x00 will be change after IQK so it should backup before IQK
+     and restore it after IQK.
+- 2. RF read/write should turn off CCA ortherwise it may wrong.
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
 - 2012/08/20, jimmylin, bug fix
 
 * DIGEST:
@@ -460,6 +8488,51 @@ Change History
 
 * DESCRIPTION:
 -
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/08/18, EricYeh, new feature
+
+* DIGEST:
+- Add support of 8812 MP chip
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_util.c
+
+* DESCRIPTION:
+- Add new parameter files& firmware for 8812 MP chip
+- Modification: RF register R/W
+- Modification: Switching 2.4G/5G band
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/08/17, chuangsw, feature refine
+
+* DIGEST:
+- Fix 88e 2.4G frequency shift to 2.2G issue.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+- 8192cd_osdep.c
+- 8192cd_host.c
+
+* DESCRIPTION:
+- 1. Add pcie clock auto scan in 97D.
+- 2. Refine pcie parameter.
 
 -----------------------------------------------------------------------------
 
@@ -484,46 +8557,19 @@ Change History
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/08/14, weikaichuang, feature refined
+- 2012/08/08, chuangsw, bug fix
 
 * DIGEST:
-- refined auto channel selection and add disable_ch1213 mib
+- Fix wrong swing idx value.
 
 * TEST METHOD:
-- ch1 and ch11 put ap, check the result of auto channel is in middle channel
+-
 
 * ROOT CAUSE:
 -
 
 * MODIFIED FILES:
-- 8192cd_sme.c
-- 8192cd_ioctl.c
-- ieee802_mib.h
-
-* DESCRIPTION:
-- mib disable_ch1213=1, autochannel won't select ch12 and ch13.
-- the score calculated the number of AP plus the number of rx pkts and check
-  if fa over threshold or not
-
------------------------------------------------------------------------------
-
-* DATE/WHOM/TYPE:
-- 2012/08/08, jimmylin, bug fix
-
-* DIGEST:
-- Fix wrong bandwidth and guard interval info of station in fixed rate for
-  8188E
-
-* TEST METHOD:
-- Set system to be fixed rate. When showing bandwidth and guard interval
-  info of station, it will always be 20M mode and long GI for 8188E.
-
-* ROOT CAUSE:
-- In 8188E, check_txrate_by_reg() will not be called. Therefore we need give
-  intial value to pstat->ht_current_tx_info in assign_tx_rate().
-
-* MODIFIED FILES:
-- 8192cd_sme.c
+- OUTSRC/odm.c
 
 * DESCRIPTION:
 -
@@ -551,6 +8597,541 @@ Change History
 - If any hidden AP is found in these channels, it will do active scan again.
 - When driver is set to AP mode and enable auto-channel under global and
   world-wide domain, it will exclude the channel 12, 13 and 14.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/24, chuangsw, bug fix
+
+* DIGEST:
+- We should  do 8812 IQK when MP set channel.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/23, chuangsw, bug fix
+
+* DIGEST:
+- Fix 8812 IQK issue (wrong iqk value).
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+
+* DESCRIPTION:
+-
+
+----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/23, chuangsw, bug fix
+
+* DIGEST:
+- Fix 8812 IQK Path B abnormal.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/23, EricYeh, bug fix
+
+* DIGEST:
+- Finetune 8812 for 11N NICs IOT issue
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+
+* DESCRIPTION:
+- "Disable CCA" & "reduce AMPDU MAX duration"
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/20, chuangsw, feature refine
+
+* DIGEST:
+- Add 8812 MP ther query support.
+- Refine 8812 high power phy parameter.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+- data_8812/RadioA_8812_hp.txt
+- data_8812/RadioB_8812_hp.txt
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/20, button, bug fix
+
+* DIGEST:
+- Fix 8192c throughput not good issue
+
+* TEST METHOD:
+- 
+
+- ROOT CAUSE:
+- Only select Intel as IOT main sta since Ver.11710
+
+* MODIFIED FILES:
+- Hal8192CDMOutSrc.c
+
+* DESCRIPTION:
+- Modify condition of choosing main sta
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/20, button, bug fix
+
+* DIGEST:
+- Fix WDS connection fail when AP security is enabled
+
+* TEST METHOD:
+- Configure DUT to AP+WDS, AP encryption wpa-mix mode, WDS encryption node.
+- check WDS link status by ping
+
+* ROOT CAUSE:
+- When security is enabled, control port not open, DUT will drop Tx packet.
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/20, button, feature refine
+
+* DIGEST:
+- Refine for 11ac
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+- 8812_vht_gen.c
+- 8192cd_sme.c
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- VHT Shot GI capability follow web setting
+- Forbid N mode also borbid AC mode
+- Restrict N rate, also restrict AC rate
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/19, EricYeh, new feature
+
+* DIGEST:
+- Add menuconfig to set extPA HIGH POWER for appointed PCIE device
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- kconfig
+- 8192cd_cfg.h
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/19, button, feature feature
+
+* DIGEST:
+- Sync changes in 11ac PF2
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- 
+
+* MODIFIED FILES:
+
+
+* DESCRIPTION:
+- Correct Tx descriptor setting
+- Fill VHT operation info when bandwidth is 80 MHz only
+- Refine SIFS by MAC team
+- Refine faset EDCA threshold by MAC team
+- Modify SKB buffer size to minimum 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/18, chuangsw, feature feature
+
+* DIGEST:
+- MP tool packet length setting does not work.
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- Packet length will be reset when mp tx_isr
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+- 8192cd.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/18, EricYeh, new feature
+
+* DIGEST:
+- Add 8812 IQK support
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_mp.c
+- 8812_reg.h
+- data_8812/RadioA_8812.txt
+- data_8812/RadioB_8812.txt
+- Makefile
+- odm_inc.h
+- OUTSRC/odm_precomp.h
+- OUTSRC/rtl8812a/HalPhyRf_8812A.c
+- OUTSRC/rtl8812a/HalPhyRf_8812A.h
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/18, button, feature refine
+
+* DIGEST:
+- Fix compile error of 8196e + 8188e
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 
+
+* DESCRIPTION:
+- Sync ODM driver Ver.360,
+- Refine 8188E power tracking
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/17, weikaichuang, fix compile error
+
+* DIGEST:
+- fix compile error for adsl team AP mode support
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_cfg.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/17, jerryko, bug fix
+
+* DIGEST:
+- enable RTK_MESH, get nhop_11s in __rtl8192cd_start_xmit
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+- In __rtl8192cd_start_xmit, no get nhop_11s information.
+  Then txcfg->nhop_11s is NULL.
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+- use dot11s_datapath_decision to get txcfg->nhop_11s when RTK_MESH enable
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/12, jerryko, bug fix
+
+* DIGEST:
+- 8812 no support ext pa and ext lna
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+- Kconfig
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/12, chuangsw, new feature
+
+* DIGEST:
+- Add 8812 MP support
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8812_hw.c
+- 8192cd_mp.c
+- change.txt
+- 8192cd_tx.c
+- 8192cd_cfg.h
+
+-----------------------------------------------------------------------------
+
+* DESCRIPTION:
+--
+
+* DATE/WHOM/TYPE:
+- 2012/07/12, pluswang, bug fixed
+
+* DIGEST:
+- fixed the issue that AC can't TX under 80M band width
+* TEST METHOD:
+-
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+-8192cd_sme.c
+
+* DESCRIPTION:
+--
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/11, pluswang, bug fixed
+
+* DIGEST:
+- adjust MAX_RX_BUF_LEN & MIN_RX_BUF_LEN for support AMSDU
+* TEST METHOD:
+-
+* ROOT CAUSE:
+
+* MODIFIED FILES:
+-8192cd_cfg.h
+
+* DESCRIPTION:
+--we need enlarge MAX_RX_BUF_LEN & MIN_RX_BUF_LEN for support AMSDU  
+
+-----------------------------------------------------------------------------
+* DATE/WHOM/TYPE:
+- 2012/07/06, pluswang, throughtput refine
+
+* DIGEST:
+- Refined 8812ac throughout to 400Mbps
+* TEST METHOD:
+-
+* ROOT CAUSE:
+-
+* MODIFIED FILES:
+-8192cd.h
+-8192cd_cfg.h
+-8192cd_headers.h
+-8192cd_hw.c
+-8192cd_hw.h
+-8192cd_ioctl.c
+-8192cd_proc.c
+-8192cd_rx.c
+-8192cd_rx.h
+-8192cd_sme.c
+-8192cd_tx.c
+-8192cd_util.c
+-8812_hw.c
+-8812_vht_gen.c
+-OUTSRC/HalPhyRf.c
+-OUTSRC/odm.c
+-OUTSRC/odm.h
+-OUTSRC/odm_HWConfig.c
+-OUTSRC/odm_HWConfig.h
+-OUTSRC/odm_RegDefine11AC.h
+-OUTSRC/odm_RegDefine11N.h
+-OUTSRC/odm_debug.c
+-OUTSRC/odm_interface.c
+-OUTSRC/odm_interface.h
+-OUTSRC/odm_precomp.h
+-OUTSRC/odm_types.h
+-data_8812/MAC_REG_8812.txt
+-data_8812/PHY_REG_8812.txt
+-data_8812/RadioA_8812.txt
+-data_8812/RadioB_8812.txt
+-data_8812/rtl8812fw.bin
+-ieee802_mib.h
+-typedef.h
+
+* DESCRIPTION:
+- sync with button's newest 8812 driver & PHY parameter 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/06, jerryko, feature refine
+
+* DIGEST:
+- refined __rtl8192cd_start_xmit to reduce redundant define
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_tx.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/06, jimmylin, bug fix
+
+* DIGEST:
+- Before copy IE content from assoc req and rsp, check length is legal or not
+- Filter tx packet according to control port under WPA/WPA2
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd.h
+- 8192cd_osdep.c
+- 8192cd_sme.c
+- 8192cd_tx.c
+- 8812_hw.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/05, weikaichuang, patch for SD9 broadlight
+
+* DIGEST:
+- Patch from SD9 to support broadlight platform support
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- wifi.h
+- ieee802_mib.h
+- Hal8192CDMOutSrc.c
+- 8192cd_util.h
+- 8192cd_util.c
+- 8192cd_tx.c
+- 8192cd_tkip.c
+- 8192cd_sme.c
+- 8192cd_security.c
+- 8192cd_rx.h
+- 8192cd_osdep.c
+- 8192cd_mp.c
+- 8192cd_ioctl.c
+- 8192cd_hw.c
+- 8192cd_headers.h
+- 8192cd_eeprom.c
+- 8192cd_cfg.c
+- 8192cd.h
+
+
+* DESCRIPTION:
+- Remove some warnings and add features from SD9 to support broadlight
+  platform.
 
 -----------------------------------------------------------------------------
 
@@ -584,6 +9165,50 @@ Change History
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
+- 2012/07/04, EricYeh, new feature.
+
+* DIGEST:
+- Add support of 8812 ext-PA HIGH POWER 
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_headers.h
+- 8192cd_hw.c
+- 8192cd_sme.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/07/03, EricYeh, new feature.
+
+* DIGEST:
+- Add support of 8812 Tx Power Calibration.
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_proc.c
+- 8812_hw.c
+- Ieee802_mib.h
+
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
 - 2012/07/02, jimmylin, refine
 
 * DIGEST:
@@ -606,6 +9231,73 @@ Change History
 
 * DESCRIPTION:
 - Refine code of LED control to be more orgnized.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/06/28, jerryko, feature fine-tune
+
+* DIGEST:
+- check in 8812 code base
+
+* TEST METHOD:
+- 97D+92C+8812 QA board, test interface up ok
+
+* ROOT CAUSE:
+- n/a
+
+* MODIFIED FILES:
+- odm_inc.h
+- Makefile
+- Kconfig
+- Hal8192CDMOutSrc.c
+- HalDMOutSrc.c
+- 8192cd_util.h
+- 8192cd_util.c
+- 8192cd_tx.h
+- 8192cd_tx.c
+- 8192cd_sme.c
+- 8192cd_rx.h
+- 8192cd_rx.c
+- 8192cd_osdep.c
+- 8192cd_ioctl.c
+- 8192cd_hw.h
+- 8192cd_hw.c
+- 8192cd_headers.h
+- 8192cd_cfg.h
+- 8192cd.h
+- OUTSRC/odm.c
+- OUTSRC/odm.h
+
+* DESCRIPTION:
+- 1.sync 8812 tx/rx flow from eric code
+- 2.sync 8812 hw config and baseband config and outsrc from eric/button code
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/06/26, button, feature fine-tune
+
+* DIGEST:
+- Correct T/Rx rate in RSSI dump & proc
+
+* TEST METHOD:
+- n/a
+
+* ROOT CAUSE:
+- n/a
+
+* MODIFIED FILES:
+- 8192cd_sme.c
+- 8192cd_rx.c
+- 8812_hw.c
+- 8812_vht_gen.c
+- 8192cd_proc.c
+
+* DESCRIPTION:
+- Correct T/Rx rate in RSSI dump & proc
+- Correct highest rate in VHT IE.
+- Check STA capability and assign correct rate id
 
 -----------------------------------------------------------------------------
 
@@ -673,6 +9365,28 @@ Change History
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
+- 2012/06/18, button, bug fix
+
+* DIGEST:
+- Fix 8812 low throughput issue
+
+* TEST METHOD:
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+
+* DESCRIPTION:
+- 1) Modify oscillator frequency offset
+- 2) Remove 2SS MCS7, MCS3 from ARFR table
+- 3) Refine RSSI dump data rate index
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
 - 2012/06/17, kevin, bug fixed
 
 * DIGEST:
@@ -688,13 +9402,13 @@ Change History
 
 * DESCRIPTION:
 - SD9 had changed the timing of creating wds table and found it causes
-  that two stations can communicate with different encryptions. Role
-  back to the original version.
+  that two stations can communicate with different encryptions. Role 
+  back to the original version.  
 
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/06/13, button, new feature
+- 2012/06/15, button, new feature
 
 * DIGEST:
 - Extend GPIO control API to 8192C/ 8192D
@@ -747,74 +9461,7 @@ Change History
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/06/07, jerryko, bug fix.
-
-* DIGEST:
-- improve 1x1 throughput with intel driver v15.1.1.1 
-
-* TEST METHOD:
-- intel 6300 use driver v15.1.1.1
-- use 96e+88e test
-
-* ROOT CAUSE:
-- use small edca backoff values to get better throughput
-
-* MODIFIED FILES:
-- OUTSRC/odm.c
-- Hal8192CDMOutSrc.c
-
-* DESCRIPTION:
--
-
------------------------------------------------------------------------------
-
-* DATE/WHOM/TYPE:
-- 2012/06/06, jerryko, bug fix.
-
-* DIGEST:
-- fix intel v15.1.1.1 iot wep mode 
-
-* TEST METHOD:
-- intel 6300 use driver v15.1.1.1
-- chariot UL or Bi-direction
-
-* ROOT CAUSE:
-- when intel no ht cap, it still enable CF-End
-
-* MODIFIED FILES:
-- OUTSRC/odm.c
-- Hal8192CDMOutSrc.c
-
-* DESCRIPTION:
--
-
------------------------------------------------------------------------------
-
-* DATE/WHOM/TYPE:
-- 2012/06/05, jerryko, bug fix.
-
-* DIGEST:
-- fix intel v15.1.1.1 iot issue for OUTSRC
-
-* TEST METHOD:
-- intel 6300 use driver v15.1.1.1
-- chariot UL or Bi-direction
-
-* ROOT CAUSE:
-- Client driver waits more time to tx. Then it cause throughput 
-  to decrease.
-
-* MODIFIED FILES:
-- OUTSRC/odm.c
-
-* DESCRIPTION:
-- 1.adjust AP backoff time with intel client.
-- 2.Send CF-End to inform client to use air.
-
------------------------------------------------------------------------------
-
-* DATE/WHOM/TYPE:
-- 2012/06/05, jerryko, bug fix.
+- 2012/06/11, jerryko, bug fix.
 
 * DIGEST:
 - fix intel v15.1.1.1 iot issue
@@ -828,6 +9475,7 @@ Change History
   to decrease.
 
 * MODIFIED FILES:
+- OUTSRC/odm.c
 - Hal8192CDMOutSrc.c
 
 * DESCRIPTION:
@@ -837,24 +9485,160 @@ Change History
 -----------------------------------------------------------------------------
 
 * DATE/WHOM/TYPE:
-- 2012/06/01, pluswang, feature refine.
+- 2012/06/11, jerryko, feature refined
 
 * DIGEST:
-- macclone and nat25 conexist refine
+- refined auto channel selection and add disable_ch1213 mib
 
 * TEST METHOD:
-- An AP setting under router mode , Enable DHCP server
-- Ulinker(enable DHCP client mode) let it connect to AP 
-- sometimes DUT can not get IP from DHCP server
+- ch1 and ch11 put ap, check the result of auto channel is in middle channel
 
 * ROOT CAUSE:
-- hold macclone feature util DUT(br0) got IP and built a NAT25 entry successfully.
+-
 
 * MODIFIED FILES:
-- 8192cd_br_ext.c
+- 8192cd_sme.c
+- 8192cd_ioctl.c
+- ieee802_mib.h
+
+* DESCRIPTION:
+- mib disable_ch1213=1, autochannel won't select ch12 and ch13.
+- the score calculated the number of AP plus the number of rx pkts and check
+  if fa over threshold or not
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/06/06, EricYeh, new feature
+
+* DIGEST:
+- Add 5G SiteSurvey support for 8812
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_hw.c
+- 8192cd_sme.c
+- 8192cd_util.c
+
+* DESCRIPTION:
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/06/04, button, bug fix
+* DIGEST:
+- Correct MIMO power save setting
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
+
+* DESCRIPTION:
+
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/06/04, button, feature refine.
+* DIGEST:
+- Refine 8188E power tracking
+
+* TEST METHOD:
+- Verified by RF Anchi
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_mp.c
+- 8192cd_headers.h
+- 8192cd_hw.c
+- OUTSRC/rtl8188e/HalPhyRf_8188e.h
+- OUTSRC/rtl8188e/HalPhyRf_8188e.c
+
+* DESCRIPTION:
+- Sync with ODM driver, modify power index instead of swing idxex
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/06/01, EricYeh, new feature.
+
+* DIGEST:
+- Auto adjust 2nd channel offset for 802.11ac 80MHz mode
+
+* TEST METHOD:
+- 
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8812_hw.c
 
 * DESCRIPTION:
 - 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/06/01, button, new feature.
+* DIGEST:
+- Add 8812 support
+
+* TEST METHOD:
+- Build 96c+92c / 96c+92d / 8198+92c+92d/ 96e+8188e /
+ / 97d+8812 / 98b+8812 ok
+
+* ROOT CAUSE:
+-
+* MODIFIED FILES:
+- 
+
+* DESCRIPTION:
+- Add 8812 support. AP mode only.
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/05/29, michael, feature refine.
+* DIGEST:
+- modify for 96E+88E 8M MP support
+* TEST METHOD:
+-
+* ROOT CAUSE:
+-
+* MODIFIED FILES:
+- 8192cd_cfg.h
+* DESCRIPTION:
+- 
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/05/28, button, feature refine.
+* DIGEST:
+- Sync phyBandSelect with band, channel
+
+* TEST METHOD:
+-
+* ROOT CAUSE:
+-
+* MODIFIED FILES:
+- 8192cd_osdep.c
+
+* DESCRIPTION:
+- Ignore phyBandSelect in flash, set this value by driver.
 
 -----------------------------------------------------------------------------
 
@@ -894,6 +9678,47 @@ Change History
 * MODIFIED FILES:
 - 8192cd_cfg.h
 - 8192cd_led.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/05/23, kevin, compile patch for adsl team
+
+* DIGEST:
+- solve compile issue from adsl team  
+
+* TEST METHOD:
+-
+* ROOT CAUSE:
+-
+* MODIFIED FILES:
+- 8192cd_cfg.c
+- Hal8192CDMOutSrc.c
+
+* DESCRIPTION:
+-
+
+-----------------------------------------------------------------------------
+
+* DATE/WHOM/TYPE:
+- 2012/05/23, michael, feature refine.
+
+* DIGEST:
+- add PCIE_Device_PERST() and code refine for 8198B 
+
+* TEST METHOD:
+-
+
+* ROOT CAUSE:
+-
+
+* MODIFIED FILES:
+- 8192cd_osdep.c
+- 8192cd_host.c
+- 8192cd_hw.c
 
 * DESCRIPTION:
 -
@@ -13063,7 +21888,7 @@ will be received and census.
 
 -----------------------------------------------------------------------------
 
-* DATE/WHOM/TYPE:
+* fdef DFSDATE/WHOM/TYPE:
 - 2010/02/11, davidhsu, bug fixed
 
 * DIGEST:

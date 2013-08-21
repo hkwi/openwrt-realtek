@@ -51,7 +51,7 @@
 #include "../mesh_ext/mesh_route.h"
 #endif
 
-#ifdef WIFI_HAPD
+#if defined(WIFI_HAPD) || defined(RTK_NL80211)
 #include <linux/wireless.h>
 #include <net80211/ieee80211.h>
 #include <net80211/ieee80211_crypto.h>
@@ -148,13 +148,14 @@
 #define MP_TXPWR_TRACK	0x8B6E
 #define MP_QUERY_TSSI	0x8B6F
 #define MP_QUERY_THER	0x8B77
-#ifdef CONFIG_RTL_92D_SUPPORT
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
 #define MP_SET_BAND		0x8B85
 #endif
 #define MP_RESET_STATS	0x8B86
 #define MP_GET_TXPOWER	0x8B87
+#if defined(CONFIG_RTL_8812_SUPPORT)
 #define MP_DIG			0x8B88
-
+#endif
 #ifdef B2B_TEST
 // set/get convention: set(even number) get (odd number)
 #define MP_TX_PACKET	0x8B71
@@ -164,7 +165,7 @@
 
 #endif // MP_TEST
 
-#if defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)
+#if (defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 #define SIOCANTSELECT	0x8b9d
 #endif
 
@@ -273,16 +274,15 @@ int g_port_mapping=FALSE;
 
 #define SIOC92DAUTOCH	0x8BC5 // manual auto channel
 
+#ifdef CONFIG_OFFLOAD_FUNCTION
+#define SIOOFFLOADTEST	0x8BC6
+#endif //#ifdef CONFIG_OFFLOAD_FUNCTION
 
 #ifdef CONFIG_RTL_COMAPI_CFGFILE
 #define SIOCCOMAPIFILE		0x8BC0
 #endif
 #ifdef CONFIG_RTL_92D_SUPPORT
 #define SIOC92DIQK		0x8BC1
-#define SIOC92DTEMPMP	0x8BC2
-#ifdef CONFIG_RTL_92D_DMDP
-#define SIOC92DSMCC		0x8BC3 //smart concurrent
-#endif
 #ifdef EN_EFUSE
 #define SIOC92DSBANDADDR 0x8BC4 // set hwaddr by band
 #endif
@@ -297,6 +297,11 @@ int g_port_mapping=FALSE;
 #ifdef MP_PSD_SUPPORT
 #define MP_QUERY_PSD  		0x8BC9
 #endif
+
+#ifdef FOR_VHT5G_PF
+#define SIOC8812SIGMA 0x8BCB //8812_PF4
+#endif
+
 #define _OFFSET(field)	((int)(long *)&(((struct wifi_mib *)0)->field))
 #define _SIZE(field)	sizeof(((struct wifi_mib *)0)->field)
 
@@ -429,7 +434,9 @@ struct iw_priv_args privtab[] = {
 #endif
 	{ MP_RESET_STATS, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_reset_stats" },
 	{ MP_GET_TXPOWER, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_get_pwr" },
-	{ MP_DIG, IW_PRIV_TYPE_CHAR | 40, 0, "mp_dig" },	
+#if 	defined(CONFIG_RTL_8812_SUPPORT)		
+	{ MP_DIG, IW_PRIV_TYPE_CHAR | 40, 0, "mp_dig" },
+#endif		
 #endif // MP_TEST
 #ifdef MICERR_TEST
 	{ SIOCSIWRTLMICERROR, IW_PRIV_TYPE_CHAR | 40, 0, "mic_error" },
@@ -478,6 +485,10 @@ struct iw_priv_args privtab[] = {
 	{ MP_QUERY_PSD, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_psd" }, 
 	#endif
 	{ SIOC92DAUTOCH, IW_PRIV_TYPE_CHAR | 128, 0, "autoch" },
+
+#ifdef CONFIG_OFFLOAD_FUNCTION        
+	{ SIOOFFLOADTEST, IW_PRIV_TYPE_CHAR | 128, 0, "offload" },        
+#endif //#ifdef CONFIG_OFFLOAD_FUNCTION
 
 
 };
@@ -657,7 +668,7 @@ const struct iw_handler_def rtl8192cd_iw_handler_def =
 
 
 struct iwpriv_arg {
-	char name[20];	/* mib name */
+	char name[32];	/* mib name */
 	TYPE_T type;	/* Type and number of args */
 	int offset;		/* mib offset */
 	int len;		/* mib byte len */
@@ -724,12 +735,17 @@ static struct iwpriv_arg mib_table[] = {
 	{"pwrdiffHT40_2S",		BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiffHT40_2S), _SIZE(dot11RFEntry.pwrdiffHT40_2S), 0},
 	{"pwrdiffHT20",			BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiffHT20), _SIZE(dot11RFEntry.pwrdiffHT20), 0},
 	{"pwrdiffOFDM",			BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiffOFDM), _SIZE(dot11RFEntry.pwrdiffOFDM), 0},
-#ifdef CONFIG_RTL_92D_SUPPORT
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT)
 	{"pwrlevel5GHT40_1S_A",			BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrlevel5GHT40_1S_A), _SIZE(dot11RFEntry.pwrlevel5GHT40_1S_A), 0},
 	{"pwrlevel5GHT40_1S_B",			BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrlevel5GHT40_1S_B), _SIZE(dot11RFEntry.pwrlevel5GHT40_1S_B), 0},
+#endif
+#ifdef CONFIG_RTL_92D_SUPPORT
 	{"pwrdiff5GHT40_2S",			BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff5GHT40_2S), _SIZE(dot11RFEntry.pwrdiff5GHT40_2S), 0},
 	{"pwrdiff5GHT20",			BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff5GHT20), _SIZE(dot11RFEntry.pwrdiff5GHT20), 0},
 	{"pwrdiff5GOFDM",			BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff5GOFDM), _SIZE(dot11RFEntry.pwrdiff5GOFDM), 0},
+#endif
+#ifdef POWER_PERCENT_ADJUSTMENT
+	{"powerpercent",	BYTE_T,	_OFFSET(dot11RFEntry.power_percent), _SIZE(dot11RFEntry.power_percent), 100},
 #endif
 	{"preamble",	INT_T,		_OFFSET(dot11RFEntry.shortpreamble), _SIZE(dot11RFEntry.shortpreamble), 0},
 	{"trswitch",	INT_T,		_OFFSET(dot11RFEntry.trswitch), _SIZE(dot11RFEntry.trswitch), 0},
@@ -743,6 +759,7 @@ static struct iwpriv_arg mib_table[] = {
 	{"deltaLCK",		INT_T,	_OFFSET(dot11RFEntry.deltaLCK), _SIZE(dot11RFEntry.deltaLCK), 0},
 	{"MIMO_TR_mode",	INT_T,	_OFFSET(dot11RFEntry.MIMO_TR_mode), _SIZE(dot11RFEntry.MIMO_TR_mode), MIMO_2T2R},
 	{"phyBandSelect",	BYTE_T,	_OFFSET(dot11RFEntry.phyBandSelect), _SIZE(dot11RFEntry.phyBandSelect), PHY_BAND_2G},
+	{"band5GSelected",	BYTE_T,	_OFFSET(dot11RFEntry.band5GSelected), _SIZE(dot11RFEntry.band5GSelected), PHY_BAND_5G_1 | PHY_BAND_5G_2 | PHY_BAND_5G_3 | PHY_BAND_5G_4},
 	{"macPhyMode",	BYTE_T,	_OFFSET(dot11RFEntry.macPhyMode), _SIZE(dot11RFEntry.macPhyMode), SINGLEMAC_SINGLEPHY},
 	{"smcc",	INT_T,	_OFFSET(dot11RFEntry.smcc), _SIZE(dot11RFEntry.smcc), 1},
 	{"smcc_t",	INT_T,	_OFFSET(dot11RFEntry.smcc_t), _SIZE(dot11RFEntry.smcc_t), 6},
@@ -754,13 +771,14 @@ static struct iwpriv_arg mib_table[] = {
 	{"tx2path",				INT_T,	_OFFSET(dot11RFEntry.tx2path), _SIZE(dot11RFEntry.tx2path), 1},
 	{"txbf",				INT_T,	_OFFSET(dot11RFEntry.txbf), _SIZE(dot11RFEntry.txbf), 0},
 	{"target_pwr",			INT_T,	_OFFSET(dot11RFEntry.target_pwr), _SIZE(dot11RFEntry.target_pwr), 0},
+	{"pa_type",			INT_T,	_OFFSET(dot11RFEntry.pa_type), _SIZE(dot11RFEntry.pa_type), 0},
 
 	// struct Dot11StationConfigEntry
 	{"ssid",		SSID_STRING_T,	_OFFSET(dot11StationConfigEntry.dot11DesiredSSID), _SIZE(dot11StationConfigEntry.dot11DesiredSSID), 0},
 	{"defssid",		DEF_SSID_STRING_T,	_OFFSET(dot11StationConfigEntry.dot11DefaultSSID), _SIZE(dot11StationConfigEntry.dot11DefaultSSID), 0},
 	{"bssid2join",	BYTE_ARRAY_T,	_OFFSET(dot11StationConfigEntry.dot11DesiredBssid), _SIZE(dot11StationConfigEntry.dot11DesiredBssid), 0},
 	{"bcnint",		INT_T,		_OFFSET(dot11StationConfigEntry.dot11BeaconPeriod), _SIZE(dot11StationConfigEntry.dot11BeaconPeriod), 100},
-	{"dtimperiod",	INT_T,		_OFFSET(dot11StationConfigEntry.dot11DTIMPeriod), _SIZE(dot11StationConfigEntry.dot11DTIMPeriod), 1},
+	{"dtimperiod",	INT_T,		_OFFSET(dot11StationConfigEntry.dot11DTIMPeriod), _SIZE(dot11StationConfigEntry.dot11DTIMPeriod), 3},
 	{"swcrypto",	INT_T,		_OFFSET(dot11StationConfigEntry.dot11swcrypto), _SIZE(dot11StationConfigEntry.dot11swcrypto), 0},
 	{"aclmode",		INT_T,		_OFFSET(dot11StationConfigEntry.dot11AclMode), _SIZE(dot11StationConfigEntry.dot11AclMode), 0},
 	{"aclnum",		INT_T,		_OFFSET(dot11StationConfigEntry.dot11AclNum), _SIZE(dot11StationConfigEntry.dot11AclNum), 0},
@@ -768,6 +786,7 @@ static struct iwpriv_arg mib_table[] = {
 	{"oprates",		INT_T,		_OFFSET(dot11StationConfigEntry.dot11SupportedRates), _SIZE(dot11StationConfigEntry.dot11SupportedRates), 0xfff},
 	{"basicrates",	INT_T,		_OFFSET(dot11StationConfigEntry.dot11BasicRates), _SIZE(dot11StationConfigEntry.dot11BasicRates), 0xf},
 	{"regdomain",	INT_T,		_OFFSET(dot11StationConfigEntry.dot11RegDomain), _SIZE(dot11StationConfigEntry.dot11RegDomain), 1},
+	{"txpwr_lmt_index",	INT_T,		_OFFSET(dot11StationConfigEntry.txpwr_lmt_index), _SIZE(dot11StationConfigEntry.txpwr_lmt_index), 0},		
 	{"autorate",	INT_T,		_OFFSET(dot11StationConfigEntry.autoRate), _SIZE(dot11StationConfigEntry.autoRate), 1},
 	{"fixrate",		INT_T,		_OFFSET(dot11StationConfigEntry.fixedTxRate), _SIZE(dot11StationConfigEntry.fixedTxRate), 0},
 	{"swTkipMic",	INT_T,		_OFFSET(dot11StationConfigEntry.swTkipMic), _SIZE(dot11StationConfigEntry.swTkipMic), 1},
@@ -823,7 +842,7 @@ static struct iwpriv_arg mib_table[] = {
 	{"authtype",	INT_T,		_OFFSET(dot1180211AuthEntry.dot11AuthAlgrthm), _SIZE(dot1180211AuthEntry.dot11AuthAlgrthm), 0},
 	{"encmode",		BYTE_T,		_OFFSET(dot1180211AuthEntry.dot11PrivacyAlgrthm), _SIZE(dot1180211AuthEntry.dot11PrivacyAlgrthm), 0},
 	{"wepdkeyid",	INT_T,		_OFFSET(dot1180211AuthEntry.dot11PrivacyKeyIndex), _SIZE(dot1180211AuthEntry.dot11PrivacyKeyIndex), 0},
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 	{"psk_enable",	INT_T,		_OFFSET(dot1180211AuthEntry.dot11EnablePSK), _SIZE(dot1180211AuthEntry.dot11EnablePSK), 0},
 	{"wpa_cipher",	INT_T,		_OFFSET(dot1180211AuthEntry.dot11WPACipher), _SIZE(dot1180211AuthEntry.dot11WPACipher), 0},
 #ifdef RTL_WPA2
@@ -920,6 +939,8 @@ static struct iwpriv_arg mib_table[] = {
 	{"DFS_timeout",	INT_T,		_OFFSET(dot11DFSEntry.DFS_timeout), _SIZE(dot11DFSEntry.DFS_timeout), 10},	/*in 10ms*/
 	{"DFS_detected",INT_T,		_OFFSET(dot11DFSEntry.DFS_detected), _SIZE(dot11DFSEntry.DFS_detected), 0},
 	{"NOP_timeout",	INT_T,		_OFFSET(dot11DFSEntry.NOP_timeout), _SIZE(dot11DFSEntry.NOP_timeout), 180500}, /*in 10ms*/
+	{"DFS_TXPAUSE_timeout",	INT_T,		_OFFSET(dot11DFSEntry.DFS_TXPAUSE_timeout), _SIZE(dot11DFSEntry.DFS_TXPAUSE_timeout), 1000}, /*in 10ms*/
+	{"CAC_enable",	INT_T,		_OFFSET(dot11DFSEntry.CAC_enable), _SIZE(dot11DFSEntry.CAC_enable), 1},
 #endif
 
 	//struct miscEntry
@@ -1064,14 +1085,20 @@ static struct iwpriv_arg mib_table[] = {
 	{"2ndchoffset",	INT_T,		_OFFSET(dot11nConfigEntry.dot11n2ndChOffset), _SIZE(dot11nConfigEntry.dot11n2ndChOffset), 1},
 	{"shortGI20M",	INT_T,		_OFFSET(dot11nConfigEntry.dot11nShortGIfor20M), _SIZE(dot11nConfigEntry.dot11nShortGIfor20M), 0},
 	{"shortGI40M",	INT_T,		_OFFSET(dot11nConfigEntry.dot11nShortGIfor40M), _SIZE(dot11nConfigEntry.dot11nShortGIfor40M), 0},
-	{"stbc",		INT_T,		_OFFSET(dot11nConfigEntry.dot11nSTBC), _SIZE(dot11nConfigEntry.dot11nSTBC), 0},
+	{"stbc",		INT_T,		_OFFSET(dot11nConfigEntry.dot11nSTBC), _SIZE(dot11nConfigEntry.dot11nSTBC), 1},
+	{"ldpc",		INT_T,		_OFFSET(dot11nConfigEntry.dot11nLDPC), _SIZE(dot11nConfigEntry.dot11nLDPC), 1},
 	{"ampdu",		INT_T,		_OFFSET(dot11nConfigEntry.dot11nAMPDU), _SIZE(dot11nConfigEntry.dot11nAMPDU), 0},
 	{"amsdu",		INT_T,		_OFFSET(dot11nConfigEntry.dot11nAMSDU), _SIZE(dot11nConfigEntry.dot11nAMSDU), 0},
+	// for support SIGMA_TEST
+	{"addba_reject",INT_T,		_OFFSET(dot11nConfigEntry.dot11nAddBAreject), _SIZE(dot11nConfigEntry.dot11nAddBAreject), 0},	
 	{"ampduSndSz",	INT_T,		_OFFSET(dot11nConfigEntry.dot11nAMPDUSendSz), _SIZE(dot11nConfigEntry.dot11nAMPDUSendSz), 0},
+	{"supportedvht",INT_T,		_OFFSET(dot11acConfigEntry.dot11SupportedVHT), _SIZE(dot11acConfigEntry.dot11SupportedVHT), 0xfffa},	
+	{"vht_txmap",INT_T,		_OFFSET(dot11acConfigEntry.dot11VHT_TxMap), _SIZE(dot11acConfigEntry.dot11VHT_TxMap), 0xfffff},	
+	
 #ifdef RX_BUFFER_GATHER
 	{"amsduMax",	INT_T,		_OFFSET(dot11nConfigEntry.dot11nAMSDURecvMax), _SIZE(dot11nConfigEntry.dot11nAMSDURecvMax), 1},
 #else
-#if defined(CONFIG_RTL8196B_GW_8M) || defined(CONFIG_RTL8196C_AP_ROOT) || defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL8196C_CLIENT_ONLY) || defined(__ECOS)
+#if defined(CONFIG_RTL8196B_GW_8M) || defined(CONFIG_RTL8196C_AP_ROOT) || defined(CONFIG_RTL_8198_AP_ROOT) || defined(CONFIG_RTL8196C_CLIENT_ONLY)
 	{"amsduMax",	INT_T,		_OFFSET(dot11nConfigEntry.dot11nAMSDURecvMax), _SIZE(dot11nConfigEntry.dot11nAMSDURecvMax), 0},
 #else
 	{"amsduMax",	INT_T,		_OFFSET(dot11nConfigEntry.dot11nAMSDURecvMax), _SIZE(dot11nConfigEntry.dot11nAMSDURecvMax), 0},
@@ -1154,10 +1181,10 @@ static struct iwpriv_arg mib_table[] = {
 	{"raGoUp40MLower",	RFFT_T,	_OFFSET_RFFT(raGoUp40MLower), _SIZE_RFFT(raGoUp40MLower), 20},
 	{"dig_enable",		RFFT_T,	_OFFSET_RFFT(dig_enable), _SIZE_RFFT(dig_enable), 1},
 	{"adaptivity_enable",		RFFT_T,	_OFFSET_RFFT(adaptivity_enable), _SIZE_RFFT(adaptivity_enable), 0},
+	{"nbi_filter_enable",	RFFT_T,	_OFFSET_RFFT(nbi_filter_enable), _SIZE_RFFT(nbi_filter_enable), 1},
 #ifdef INTERFERENCE_CONTROL
 	{"digGoLowerLevel", RFFT_T, _OFFSET_RFFT(digGoLowerLevel), _SIZE_RFFT(digGoLowerLevel), 30},
     {"digGoUpperLevel", RFFT_T, _OFFSET_RFFT(digGoUpperLevel), _SIZE_RFFT(digGoUpperLevel), 35},
-	{"nbi_filter_enable",	RFFT_T,	_OFFSET_RFFT(nbi_filter_enable), _SIZE_RFFT(nbi_filter_enable), 0},
 #else
 	{"digGoLowerLevel",	RFFT_T,	_OFFSET_RFFT(digGoLowerLevel), _SIZE_RFFT(digGoLowerLevel), 35},
 	{"digGoUpperLevel",	RFFT_T,	_OFFSET_RFFT(digGoUpperLevel), _SIZE_RFFT(digGoUpperLevel), 40},
@@ -1167,7 +1194,7 @@ static struct iwpriv_arg mib_table[] = {
 	{"rssiTx20MUpper",	RFFT_T,	_OFFSET_RFFT(rssiTx20MUpper), _SIZE_RFFT(rssiTx20MUpper), 20},
 	{"rssiTx20MLower",	RFFT_T,	_OFFSET_RFFT(rssiTx20MLower), _SIZE_RFFT(rssiTx20MLower), 15},
 	{"rssi_expire_to",	RFFT_T,	_OFFSET_RFFT(rssi_expire_to), _SIZE_RFFT(rssi_expire_to), 60},
-	{"rts_init_rate",	RFFT_T,	_OFFSET_RFFT(rts_init_rate), _SIZE_RFFT(rts_init_rate), 0},
+	{"rts_init_rate",	RFFT_T,	_OFFSET_RFFT(rts_init_rate), _SIZE_RFFT(rts_init_rate), 8},
 
 	{"cck_pwr_max",		RFFT_T,	_OFFSET_RFFT(cck_pwr_max), _SIZE_RFFT(cck_pwr_max), 0},
 	{"cck_tx_pathB",	RFFT_T,	_OFFSET_RFFT(cck_tx_pathB), _SIZE_RFFT(cck_tx_pathB), 0},
@@ -1214,7 +1241,7 @@ static struct iwpriv_arg mib_table[] = {
 #endif
 
 #ifdef HIGH_POWER_EXT_PA
-	{"use_ext_pa",		RFFT_T,	_OFFSET_RFFT(use_ext_pa), _SIZE_RFFT(use_ext_pa), 1},
+	{"use_ext_pa",		RFFT_T,	_OFFSET_RFFT(use_ext_pa), _SIZE_RFFT(use_ext_pa), 0},
 	{"hp_ofdm_max",		RFFT_T,	_OFFSET_RFFT(hp_ofdm_pwr_max), _SIZE_RFFT(hp_ofdm_pwr_max), 63},
 	{"hp_cck_max",		RFFT_T,	_OFFSET_RFFT(hp_cck_pwr_max), _SIZE_RFFT(hp_cck_pwr_max), 63},
 #endif
@@ -1234,7 +1261,6 @@ static struct iwpriv_arg mib_table[] = {
 #endif
 	{"ndsi_support",	RFFT_T, _OFFSET_RFFT(NDSi_support), _SIZE_RFFT(NDSi_support), 0},
 	{"edcca_thd",		RFFT_T, _OFFSET_RFFT(edcca_thd), _SIZE_RFFT(edcca_thd), 45},
-	{"dynamic_edcca",	RFFT_T, _OFFSET_RFFT(dynamic_edcca), _SIZE_RFFT(dynamic_edcca), 0},
 	{"force_edcca",		RFFT_T, _OFFSET_RFFT(force_edcca), _SIZE_RFFT(force_edcca), 0},
 	{"IGI_base", 		RFFT_T, _OFFSET_RFFT(IGI_base), _SIZE_RFFT(IGI_base), 0x32},
 	{"TH_H",			RFFT_T, _OFFSET_RFFT(TH_H), _SIZE_RFFT(TH_H), 0xfa},
@@ -1300,11 +1326,7 @@ static struct iwpriv_arg mib_table[] = {
 	{"ledBlinkingFreq",		RFFT_T,	_OFFSET_RFFT(ledBlinkingFreq), _SIZE_RFFT(ledBlinkingFreq), 1},
 
 	{"diffAmpduSz",		RFFT_T,	_OFFSET_RFFT(diffAmpduSz), _SIZE_RFFT(diffAmpduSz), 1},
-#ifdef CONFIG_RTL8672
-	{"1rcca",				RFFT_T,	_OFFSET_RFFT(one_path_cca), _SIZE_RFFT(one_path_cca), 1},
-#else
 	{"1rcca",				RFFT_T,	_OFFSET_RFFT(one_path_cca), _SIZE_RFFT(one_path_cca), 0},
-#endif
 
 #ifdef CONFIG_RTL_COMAPI_CFGFILE
 	{"hwaddr",				BYTE_ARRAY_T,	_OFFSET(dot11OperationEntry.hwaddr), _SIZE(dot11OperationEntry.hwaddr), 0},
@@ -1316,7 +1338,48 @@ static struct iwpriv_arg mib_table[] = {
 
 #ifdef DFS
 	{"dfsdbgmode",		RFFT_T,	_OFFSET_RFFT(dfsdbgmode), _SIZE_RFFT(dfsdbgmode), 0},
-	{"dfsdelayiqk",         RFFT_T, _OFFSET_RFFT(dfsdelayiqk), _SIZE_RFFT(dfsdelayiqk), 1},
+	{"dfsdelayiqk",		RFFT_T, _OFFSET_RFFT(dfsdelayiqk), _SIZE_RFFT(dfsdelayiqk), 1},
+	{"det_off",			RFFT_T,	_OFFSET_RFFT(dfs_det_off), _SIZE_RFFT(dfs_det_off), 1},
+	{"det_reset",		RFFT_T,	_OFFSET_RFFT(dfs_det_reset), _SIZE_RFFT(dfs_det_reset), 0},
+	{"fa_lower",		RFFT_T,	_OFFSET_RFFT(dfs_fa_cnt_lower), _SIZE_RFFT(dfs_fa_cnt_lower), 30},
+	{"fa_mid",			RFFT_T,	_OFFSET_RFFT(dfs_fa_cnt_mid), _SIZE_RFFT(dfs_fa_cnt_mid), 50},
+	{"fa_upper",		RFFT_T,	_OFFSET_RFFT(dfs_fa_cnt_upper), _SIZE_RFFT(dfs_fa_cnt_upper), 50},
+	{"fa_inc_ratio",	RFFT_T,	_OFFSET_RFFT(dfs_fa_cnt_inc_ratio), _SIZE_RFFT(dfs_fa_cnt_inc_ratio), 2},
+	{"crc32_lower",		RFFT_T,	_OFFSET_RFFT(dfs_crc32_cnt_lower), _SIZE_RFFT(dfs_crc32_cnt_lower), 10},
+	{"ratio_th",		RFFT_T,	_OFFSET_RFFT(dfs_fa_ratio_th), _SIZE_RFFT(dfs_fa_ratio_th), 15},
+	{"det_period",		RFFT_T,	_OFFSET_RFFT(dfs_det_period), _SIZE_RFFT(dfs_det_period), 20},
+	{"det_print",		RFFT_T,	_OFFSET_RFFT(dfs_det_print), _SIZE_RFFT(dfs_det_print), 0},
+	{"det_print1",		RFFT_T,	_OFFSET_RFFT(dfs_det_print1), _SIZE_RFFT(dfs_det_print1), 1},
+	{"det_print2",		RFFT_T,	_OFFSET_RFFT(dfs_det_print2), _SIZE_RFFT(dfs_det_print2), 0},
+	{"det_print3",		RFFT_T,	_OFFSET_RFFT(dfs_det_print3), _SIZE_RFFT(dfs_det_print3), 0},
+	{"det_print_time",	RFFT_T,	_OFFSET_RFFT(dfs_det_print_time), _SIZE_RFFT(dfs_det_print_time), 0},
+	{"hist_len",		RFFT_T,	_OFFSET_RFFT(dfs_det_hist_len), _SIZE_RFFT(dfs_det_hist_len), 5},
+	{"sum_th",			RFFT_T,	_OFFSET_RFFT(dfs_det_sum_th), _SIZE_RFFT(dfs_det_sum_th), 2},
+	{"flag_offset",		RFFT_T,	_OFFSET_RFFT(dfs_det_flag_offset), _SIZE_RFFT(dfs_det_flag_offset), 2},
+	{"DPT_FA_TH_upper",	RFFT_T,	_OFFSET_RFFT(dfs_dpt_fa_th_upper), _SIZE_RFFT(dfs_dpt_fa_th_upper), 1000},
+	{"DPT_FA_TH_lower",	RFFT_T,	_OFFSET_RFFT(dfs_dpt_fa_th_lower), _SIZE_RFFT(dfs_dpt_fa_th_lower), 80},
+	{"DPT_Pulse_TH_mid",	RFFT_T,	_OFFSET_RFFT(dfs_dpt_pulse_th_mid), _SIZE_RFFT(dfs_dpt_pulse_th_mid), 3},
+	{"DPT_Pulse_TH_lower",	RFFT_T,	_OFFSET_RFFT(dfs_dpt_pulse_th_lower), _SIZE_RFFT(dfs_dpt_pulse_th_lower), 1},
+	{"DPT_ST_L2H_max",	RFFT_T,	_OFFSET_RFFT(dfs_dpt_st_l2h_max), _SIZE_RFFT(dfs_dpt_st_l2h_max), 0x4e},
+	{"DPT_ST_L2H_min",	RFFT_T,	_OFFSET_RFFT(dfs_dpt_st_l2h_min), _SIZE_RFFT(dfs_dpt_st_l2h_min), 0x21},
+	{"DPT_ST_L2H_add",	RFFT_T,	_OFFSET_RFFT(dfs_dpt_st_l2h_add), _SIZE_RFFT(dfs_dpt_st_l2h_add), 0},
+	{"DPT_ST_L2H_idle_offset",	RFFT_T,	_OFFSET_RFFT(dfs_dpt_st_l2h_idle_offset), _SIZE_RFFT(dfs_dpt_st_l2h_idle_offset), 5},
+	{"DPT_ini_gain_th",	RFFT_T,	_OFFSET_RFFT(dpt_ini_gain_th), _SIZE_RFFT(dpt_ini_gain_th), 0x30},
+	{"pwdb_th",			RFFT_T,	_OFFSET_RFFT(dfs_pwdb_th), _SIZE_RFFT(dfs_pwdb_th), 0x0a},
+	{"pwdb_scalar_factor",		RFFT_T,	_OFFSET_RFFT(dfs_pwdb_scalar_factor), _SIZE_RFFT(dfs_pwdb_scalar_factor), 14},
+	{"psd_pw_th",		RFFT_T,	_OFFSET_RFFT(dfs_psd_pw_th), _SIZE_RFFT(dfs_psd_pw_th), 65},
+	{"psd_fir_decay",	RFFT_T,	_OFFSET_RFFT(dfs_psd_fir_decay), _SIZE_RFFT(dfs_psd_fir_decay), 23},
+	{"skip_iqk",		RFFT_T,	_OFFSET_RFFT(dfs_skip_iqk), _SIZE_RFFT(dfs_skip_iqk), 0},
+	{"scan_inband",		RFFT_T,	_OFFSET_RFFT(dfs_scan_inband), _SIZE_RFFT(dfs_scan_inband), 0},
+	{"psd_op",			RFFT_T,	_OFFSET_RFFT(dfs_psd_op), _SIZE_RFFT(dfs_psd_op), 1},
+	{"psd_tp_th",		RFFT_T,	_OFFSET_RFFT(dfs_psd_tp_th), _SIZE_RFFT(dfs_psd_tp_th), 2},
+	{"pc0_th_idle_w53",	RFFT_T,	_OFFSET_RFFT(dfs_pc0_th_idle_w53), _SIZE_RFFT(dfs_pc0_th_idle_w53), 15},
+	{"pwth0_max_idle_w53",	RFFT_T,	_OFFSET_RFFT(dfs_pwth0_max_idle_w53), _SIZE_RFFT(dfs_pwth0_max_idle_w53), 1},
+	{"pwth0_min_idle_w53",	RFFT_T,	_OFFSET_RFFT(dfs_pwth0_min_idle_w53), _SIZE_RFFT(dfs_pwth0_min_idle_w53), 4},
+	{"pc0_th_idle_w56",	RFFT_T,	_OFFSET_RFFT(dfs_pc0_th_idle_w56), _SIZE_RFFT(dfs_pc0_th_idle_w56), 10},
+	{"pwth0_max_idle_w56",	RFFT_T,	_OFFSET_RFFT(dfs_pwth0_max_idle_w56), _SIZE_RFFT(dfs_pwth0_max_idle_w56), 11},
+	{"pwth0_min_idle_w56",	RFFT_T,	_OFFSET_RFFT(dfs_pwth0_min_idle_w56), _SIZE_RFFT(dfs_pwth0_min_idle_w56), 2},
+	{"max_sht_pusle_cnt_th",RFFT_T,	_OFFSET_RFFT(dfs_max_sht_pusle_cnt_th), _SIZE_RFFT(dfs_max_sht_pusle_cnt_th), 5},
 #endif
 
 #ifdef SW_TX_QUEUE
@@ -1342,6 +1405,9 @@ static struct iwpriv_arg mib_table[] = {
 	{"use_intpa92d",		RFFT_T,	_OFFSET_RFFT(use_intpa92d), _SIZE_RFFT(use_intpa92d), 0},
 #endif
 	{"pwr_by_rate",        RFFT_T, _OFFSET_RFFT(pwr_by_rate), _SIZE_RFFT(pwr_by_rate), 0},
+#ifdef _TRACKING_TABLE_FILE
+	{"pwr_track_file",        RFFT_T, _OFFSET_RFFT(pwr_track_file), _SIZE_RFFT(pwr_track_file), 1},
+#endif
 #ifdef TXPWR_LMT
 	{"disable_txpwrlmt",	RFFT_T, _OFFSET_RFFT(disable_txpwrlmt), _SIZE_RFFT(disable_txpwrlmt), 0},
 #endif
@@ -1367,10 +1433,11 @@ static struct iwpriv_arg mib_table[] = {
 
 	{"intel_tp",	RFFT_T, _OFFSET_RFFT(intel_rtylmt_tp_margin), _SIZE_RFFT(intel_rtylmt_tp_margin), 125*1024}, /* unit: byte */
 
+	{"enable_macid_sleep",	RFFT_T, _OFFSET_RFFT(enable_macid_sleep), _SIZE_RFFT(enable_macid_sleep), 1},
 #ifdef CONFIG_RTL_88E_SUPPORT
 	{"disable_pkt_pause",	RFFT_T, _OFFSET_RFFT(disable_pkt_pause), _SIZE_RFFT(disable_pkt_pause), 0},
 	{"disable_pkt_nolink",	RFFT_T, _OFFSET_RFFT(disable_pkt_nolink), _SIZE_RFFT(disable_pkt_nolink), 0},
-	{"maxpktfail",  RFFT_T, _OFFSET_RFFT(max_pkt_fail), _SIZE_RFFT(max_pkt_fail), 50},
+        {"maxpktfail",  RFFT_T, _OFFSET_RFFT(max_pkt_fail), _SIZE_RFFT(max_pkt_fail), 50},
 	{"minpktfail",  RFFT_T, _OFFSET_RFFT(min_pkt_fail), _SIZE_RFFT(min_pkt_fail), 30},
 #endif
 	{"low_tp_no_aggr",	RFFT_T, _OFFSET_RFFT(low_tp_no_aggr), _SIZE_RFFT(low_tp_no_aggr), 0},
@@ -1378,6 +1445,44 @@ static struct iwpriv_arg mib_table[] = {
 	{"em_que_num",	RFFT_T, _OFFSET_RFFT(em_que_num), _SIZE_RFFT(em_que_num), 10},
 	{"em_swq_thd_high",	RFFT_T, _OFFSET_RFFT(em_swq_thd_high), _SIZE_RFFT(em_swq_thd_high), 70},
 	{"em_swq_thd_low",	RFFT_T, _OFFSET_RFFT(em_swq_thd_low), _SIZE_RFFT(em_swq_thd_low), 60},
+#endif	
+#ifdef RTK_AC_SUPPORT
+#ifdef FOR_VHT5G_PF
+	{"cca_test",	RFFT_T, _OFFSET_RFFT(use_cca), _SIZE_RFFT(use_cca), 0x0},
+// operating mode notification
+	{"opm",	RFFT_T, _OFFSET_RFFT(oper_mode_field), _SIZE_RFFT(oper_mode_field), 0x00},
+	{"opmtest", RFFT_T, _OFFSET_RFFT(opmtest), _SIZE_RFFT(opmtest), 0x00},	
+
+// local power constraint
+	{"lpwrc", RFFT_T, _OFFSET_RFFT(lpwrc), _SIZE_RFFT(lpwrc), 0}, 
+	
+// channel switch 
+	{"csa",	RFFT_T, _OFFSET_RFFT(csa), _SIZE_RFFT(csa), 0x00},
+	{"lgirate", RFFT_T, _OFFSET_RFFT(lgirate), _SIZE_RFFT(lgirate), 0xffff}, 
+#endif
+	{"cca_rts",	RFFT_T, _OFFSET_RFFT(cca_rts), _SIZE_RFFT(cca_rts), 0x00},	// 1: static, 2: dynamic
+
+// Tx Power Diff
+	{"pwrdiff_20BW1S_OFDM1T_A",	BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_20BW1S_OFDM1T_A), _SIZE(dot11RFEntry.pwrdiff_20BW1S_OFDM1T_A), 0},
+	{"pwrdiff_40BW2S_20BW2S_A",	BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_40BW2S_20BW2S_A), _SIZE(dot11RFEntry.pwrdiff_40BW2S_20BW2S_A), 0},
+	{"pwrdiff_5G_20BW1S_OFDM1T_A",	BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_A), _SIZE(dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_A), 0},
+	{"pwrdiff_5G_40BW2S_20BW2S_A",	BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_A), _SIZE(dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_A), 0},
+	{"pwrdiff_5G_80BW1S_160BW1S_A",	BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_A), _SIZE(dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_A), 0},
+	{"pwrdiff_5G_80BW2S_160BW2S_A", BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_A), _SIZE(dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_A), 0},
+	{"pwrdiff_20BW1S_OFDM1T_B", BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_20BW1S_OFDM1T_B), _SIZE(dot11RFEntry.pwrdiff_20BW1S_OFDM1T_B), 0},
+	{"pwrdiff_40BW2S_20BW2S_B", BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_40BW2S_20BW2S_B), _SIZE(dot11RFEntry.pwrdiff_40BW2S_20BW2S_B), 0},
+	{"pwrdiff_5G_20BW1S_OFDM1T_B",	BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_B), _SIZE(dot11RFEntry.pwrdiff_5G_20BW1S_OFDM1T_B), 0},
+	{"pwrdiff_5G_40BW2S_20BW2S_B",	BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_B), _SIZE(dot11RFEntry.pwrdiff_5G_40BW2S_20BW2S_B), 0},
+	{"pwrdiff_5G_80BW1S_160BW1S_B", BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_B), _SIZE(dot11RFEntry.pwrdiff_5G_80BW1S_160BW1S_B), 0},
+	{"pwrdiff_5G_80BW2S_160BW2S_B", BYTE_ARRAY_T, _OFFSET(dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_B), _SIZE(dot11RFEntry.pwrdiff_5G_80BW2S_160BW2S_B), 0},
+#endif
+	{"txforce", RFFT_T, _OFFSET_RFFT(txforce), _SIZE_RFFT(txforce), 0xff},
+#ifdef CONFIG_WLAN_HAL_8192EE
+	{"delay_8b4", RFFT_T, _OFFSET_RFFT(delay_8b4), _SIZE_RFFT(delay_8b4), 30},
+	{"thrd_8b4", RFFT_T, _OFFSET_RFFT(thrd_8b4), _SIZE_RFFT(thrd_8b4), 0x16},
+	{"loop_8b4", RFFT_T, _OFFSET_RFFT(loop_8b4), _SIZE_RFFT(loop_8b4), 50},	
+#endif		
+//	{"mp_dig_enable",	RFFT_T, _OFFSET_RFFT(mp_dig_enable), _OFFSET_RFFT(mp_dig_enable), 0},
 #ifdef USE_OUT_SRC
 	{"odmrfpath",	ODM_DM_1UT,	_OFFSET_ODM_DM(RFPathRxEnable), _SIZE_ODM_DM(RFPathRxEnable), 0},// test for ODM DM (byte)
 	{"odmdebuglev",	ODM_DM_4UT,	_OFFSET_ODM_DM(DebugLevel), _SIZE_ODM_DM(DebugLevel), 0},// test for ODM DM (4byte)
@@ -1387,9 +1492,8 @@ static struct iwpriv_arg mib_table[] = {
 	{"IGI_Base",	ODM_DM_4UT,	_OFFSET_ODM_DM(IGI_Base), _SIZE_ODM_DM(IGI_Base), 0},// for odm_Adaptivity()
 	{"ForceEDCCA",	ODM_DM_4UT,	_OFFSET_ODM_DM(ForceEDCCA), _SIZE_ODM_DM(ForceEDCCA), 0},// for odm_Adaptivity()
 	{"AdapEn_RSSI",	ODM_DM_4UT,	_OFFSET_ODM_DM(AdapEn_RSSI), _SIZE_ODM_DM(AdapEn_RSSI), 0},// for odm_Adaptivity()
-#endif
-#endif
-
+	{"antdiv_rssi", ODM_DM_1UT, _OFFSET_ODM_DM(antdiv_rssi), _SIZE_ODM_DM(antdiv_rssi), 0},// for ODM_AntennaDiversity_92E()
+#endif	
 };
 
 #ifdef _DEBUG_RTL8192CD_
@@ -1427,15 +1531,15 @@ void MDL_DEVINIT set_mib_default_tbl(struct rtl8192cd_priv *priv)
 }
 
 
-#ifdef TXPWR_LMT
-
 int _convert_2_pwr_dot(char *s, int base)
 {
 	int k = 0;
+	int flag = 0;
 
 	k = 0;
 	if (base == 10) {
 		while (*s >= '0' && *s <= '9') {
+			flag = 1;
 			k = 10 * k + (*s - '0');
 			s++;
 		}
@@ -1443,6 +1547,7 @@ int _convert_2_pwr_dot(char *s, int base)
 		k = k*2;
 
 		if(*s == '.'){
+			flag = 1;
 			s++;
 			
 			if(*s >= '5' && *s <= '9')
@@ -1452,11 +1557,11 @@ int _convert_2_pwr_dot(char *s, int base)
 	else
 		return 0;
 
+	if (!flag)
+		return -1;
 	return k;
 }
 
-
-#endif
 
 
 int _atoi(char *s, int base)
@@ -1487,7 +1592,11 @@ int _atoi(char *s, int base)
 				v = *s - 'A' + 10;
 			else {
 				_DEBUG_ERR("error hex format!\n");
+#if 1//defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_RTL_88E_SUPPORT) || defined(CONFIG_WLAN_HAL_8192EE) //TXPWR_LMT_8812 TXPWR_LMT_88E
+				return k;
+#else
 				return 0;
+#endif
 			}
 			k = 16 * k + v;
 			s++;
@@ -1533,20 +1642,18 @@ unsigned long long _atoi_u8(char *s, int base)
 	return k;
 }
 #endif
-
-
 static struct iwpriv_arg *get_tbl_entry(char *pstr)
 {
 	int i=0;
 	int arg_num = sizeof(mib_table)/sizeof(struct iwpriv_arg);
-	char name[128];
+	volatile char name[128];
 
 	while (*pstr && *pstr != '=')
 		name[i++] = *pstr++;
 	name[i] = '\0';
 
 	for (i=0; i<arg_num; i++) {
-		if (!strcmp(name, mib_table[i].name)) {
+		if (!strcmp((char *)name, mib_table[i].name)) {
 			return &mib_table[i];
 		}
 	}
@@ -1806,7 +1913,8 @@ static int switch_chan(struct rtl8192cd_priv *priv, unsigned char *data)
 	
 	return 0;
 }
-#endif
+#endif	// SUPPORT_MULTI_PROFILE
+
 
 #if (!defined(CONFIG_RTL_COMAPI_CFGFILE) && !defined(CONFIG_RTL_COMAPI_WLTOOLS) && !defined(INCLUDE_WPS))
 static
@@ -1815,6 +1923,7 @@ int set_mib(struct rtl8192cd_priv *priv, unsigned char *data)
 {
 	struct iwpriv_arg *entry;
 	int int_val, int_idx, len, *int_ptr;
+	int is_hex_type=0;
 	unsigned char byte_val;
 #ifdef USE_OUT_SRC	
 	unsigned short short_val;
@@ -1836,14 +1945,29 @@ int set_mib(struct rtl8192cd_priv *priv, unsigned char *data)
 
 	// search value
 	arg_val = (char *)data;
-	while (*arg_val && *arg_val != '=')
+	while (*arg_val && *arg_val != '='){
 		arg_val++;
+	}
 
 	if (!*arg_val) {
 		DEBUG_ERR("mib value empty [%s] !\n", data);
 		return -1;
 	}
+	
+	
+	//printk("[%s %d] %c \n",__FUNCTION__,__LINE__ , *arg_val);
 	arg_val++;
+	
+	// skip space
+	while (*arg_val && *arg_val == 0x7f)
+		arg_val++;
+
+	if(*arg_val=='0' && (*(arg_val+1)== 'x' || *(arg_val+1)== 'X')){
+		is_hex_type=1;
+		arg_val+=2;
+		printk("[%s %d]hex format\n",__FUNCTION__,__LINE__);
+	}
+
 
 	switch (entry->type) {
 	case BYTE_T:
@@ -1857,7 +1981,11 @@ int set_mib(struct rtl8192cd_priv *priv, unsigned char *data)
 		break;
 #endif
 	case INT_T:
-		int_val = _atoi(arg_val, 10);
+		if(is_hex_type)
+			int_val = _atoi(arg_val, 16);
+		else
+			int_val = _atoi(arg_val, 10);
+		
 #ifdef WIFI_SIMPLE_CONFIG
 		if (strcmp(entry->name, "wsc_enable") == 0) {
 			if (int_val == 4) { // disable hidden AP
@@ -2072,14 +2200,41 @@ int set_mib(struct rtl8192cd_priv *priv, unsigned char *data)
 			byte_val = _atoi(arg_val, 10);
 			memcpy(((unsigned char *)&priv->pshare->rf_ft_var)+entry->offset, (unsigned char *)&byte_val, entry->len);
 #ifdef DFS
-			if ((strcmp(entry->name, "dfsdbgmode") == 0) && (byte_val)){
+			if ((strcmp(entry->name, "dfsdbgmode") == 0) && (byte_val)) {
 				if (priv->pmib->dot11StationConfigEntry.dot11RegDomain == DOMAIN_ETSI) {
-					PHY_SetBBReg(priv, 0x90c, bMaskDWord, 0x83321333);
-					PHY_SetBBReg(priv, 0xe10, bMaskDWord, 0x30303030);
-					PHY_SetBBReg(priv, 0x83c, bMaskDWord, 0x30303030);
+					if (GET_CHIP_VER(priv) == VERSION_8192D) {
+						PHY_SetBBReg(priv, 0x90c, bMaskDWord, 0x83321333);
+						PHY_SetBBReg(priv, 0xe10, bMaskDWord, 0x30303030);
+						PHY_SetBBReg(priv, 0x83c, bMaskDWord, 0x30303030);
+					}
+					else if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A))
+						PHY_SetBBReg(priv, 0x80c, BIT(28), 1);
 				}
-				PHY_SetBBReg(priv, 0xc7c, BIT(28), 0); // ynlin dbg
-				PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
+				if (GET_CHIP_VER(priv) == VERSION_8192D) {
+					PHY_SetBBReg(priv, 0xc7c, BIT(28), 0); // ynlin dbg
+					PHY_SetBBReg(priv, 0xcdc, BIT(8)|BIT(9), 1);
+				}
+			}
+			else if (strcmp(entry->name, "det_off") == 0) {
+				if (timer_pending(&priv->dfs_det_chk_timer))
+					del_timer_sync(&priv->dfs_det_chk_timer);
+				if (priv->pshare->rf_ft_var.dfs_det_off == 0) {
+					init_timer(&priv->dfs_det_chk_timer);
+					priv->dfs_det_chk_timer.data = (unsigned long) priv;
+					priv->dfs_det_chk_timer.function = rtl8192cd_dfs_det_chk_timer;
+					mod_timer(&priv->dfs_det_chk_timer, jiffies + RTL_MILISECONDS_TO_JIFFIES(priv->pshare->rf_ft_var.dfs_det_period*10));
+				}
+			}
+			else if ((strcmp(entry->name, "det_reset") == 0) && (byte_val)) {
+				priv->pmib->dot11DFSEntry.DFS_detected = 0;
+				priv->FA_count_pre = 0;
+				priv->VHT_CRC_ok_cnt_pre = 0;
+				priv->HT_CRC_ok_cnt_pre = 0;
+				priv->LEG_CRC_ok_cnt_pre = 0;
+				priv->mask_idx = 0;
+				priv->mask_hist_checked = 0;
+				memset(priv->radar_det_mask_hist, 0, sizeof(priv->radar_det_mask_hist));
+				memset(priv->pulse_flag_hist, 0, sizeof(priv->pulse_flag_hist));
 			}
 #endif
 		} else if (entry->len == 4) {
@@ -2596,7 +2751,7 @@ int get_mib(struct rtl8192cd_priv *priv, unsigned char *data)
  */
 static int write_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 {
-	char name[100];
+	volatile char name[100];
 	int i=0, op=0, offset;
 	unsigned long ioaddr, val;
 
@@ -2607,17 +2762,17 @@ static int write_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 		name[i++] = *data++;
 	name[i] = '\0';
 
-	if (!strcmp(name, "b"))
+	if (!strcmp((char *)name, "b"))
 		op = 1;
-	else if (!strcmp(name, "w"))
+	else if (!strcmp((char *)name, "w"))
 		op = 2;
-	else if (!strcmp(name, "dw"))
+	else if (!strcmp((char *)name, "dw"))
 		op = 3;
-	else if (!strcmp(name, "_b"))
+	else if (!strcmp((char *)name, "_b"))
 		op = 0x81;
-	else if (!strcmp(name, "_w"))
+	else if (!strcmp((char *)name, "_w"))
 		op = 0x82;
-	else if (!strcmp(name, "_dw"))
+	else if (!strcmp((char *)name, "_dw"))
 		op = 0x83;
 
 	if (op == 0 || !*data++) {
@@ -2639,7 +2794,7 @@ static int write_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 		DEBUG_ERR("invalid offset!\n");
 		return -1;
 	}
-	offset = _atoi(name, 16);
+	offset = _atoi((char *)name, 16);
 	val = (unsigned long)_atoi((char *)data, 16);
 
 	DEBUG_INFO("write reg in %s: addr=%08x, val=0x%x\n",
@@ -2669,7 +2824,7 @@ static int write_reg(struct rtl8192cd_priv *priv, unsigned char *data)
  */
 static int read_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 {
-	char name[100];
+	volatile char name[100];
 	int i=0, op=0, offset, len=0;
 	unsigned long ioaddr, dw_val;
 	unsigned char *org_ptr=data, b_val;
@@ -2682,17 +2837,17 @@ static int read_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 		name[i++] = *data++;
 	name[i] = '\0';
 
-	if (!strcmp(name, "b"))
+	if (!strcmp((char *)name, "b"))
 		op = 1;
-	else if (!strcmp(name, "w"))
+	else if (!strcmp((char *)name, "w"))
 		op = 2;
-	else if (!strcmp(name, "dw"))
+	else if (!strcmp((char *)name, "dw"))
 		op = 3;
-	else if (!strcmp(name, "_b"))
+	else if (!strcmp((char *)name, "_b"))
 		op = 0x81;
-	else if (!strcmp(name, "_w"))
+	else if (!strcmp((char *)name, "_w"))
 		op = 0x82;
-	else if (!strcmp(name, "_dw"))
+	else if (!strcmp((char *)name, "_dw"))
 		op = 0x83;
 
 	if (op == 0 || !*data++) {
@@ -2740,7 +2895,7 @@ static int read_reg(struct rtl8192cd_priv *priv, unsigned char *data)
  */
 static int write_mem(struct rtl8192cd_priv *priv, unsigned char *data)
 {
-	char tmpbuf[100];
+	volatile char tmpbuf[100];
 	int i=0, size=0, len;
 	unsigned long val, start;
 
@@ -2751,11 +2906,11 @@ static int write_mem(struct rtl8192cd_priv *priv, unsigned char *data)
 		tmpbuf[i++] = *data++;
 	tmpbuf[i] = '\0';
 
-	if (!strcmp(tmpbuf, "b"))
+	if (!strcmp((char *)tmpbuf, "b"))
 		size = 1;
-	else if (!strcmp(tmpbuf, "w"))
+	else if (!strcmp((char *)tmpbuf, "w"))
 		size = 2;
-	else if (!strcmp(tmpbuf, "dw"))
+	else if (!strcmp((char *)tmpbuf, "dw"))
 		size = 4;
 
 	if (size == 0 || !*data++) {
@@ -2772,7 +2927,7 @@ static int write_mem(struct rtl8192cd_priv *priv, unsigned char *data)
 		DEBUG_ERR("invalid start!\n");
 		return -1;
 	}
-	start = (unsigned long)_atoi(tmpbuf, 16);
+	start = (unsigned long)_atoi((char *)tmpbuf, 16);
 
 	i=0;
 	while (*data && *data != ',')
@@ -2782,7 +2937,7 @@ static int write_mem(struct rtl8192cd_priv *priv, unsigned char *data)
 		DEBUG_ERR("invalid len!\n");
 		return -1;
 	}
-	len = _atoi(tmpbuf, 16);
+	len = _atoi((char *)tmpbuf, 16);
 	val = (unsigned long)_atoi((char *)data, 16);
 
 	DEBUG_INFO("write memory: start=%08lx, len=%x, data=0x%x (%s)\n",
@@ -2917,7 +3072,7 @@ static int read_bb_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 
 static int write_rf_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 {
-	char tmpbuf[32];
+	volatile char tmpbuf[32];
 	unsigned int path, offset, val, val_read;
 	int i;
 
@@ -2932,7 +3087,7 @@ static int write_rf_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 			DEBUG_ERR("invalid path!\n");
 			return -1;
 		}
-		path = _atoi(tmpbuf, 16);
+		path = _atoi((char *)tmpbuf, 16);
 
 		i = 0;
 		while (*data && *data != ',')
@@ -2942,7 +3097,7 @@ static int write_rf_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 			DEBUG_ERR("invalid offset!\n");
 			return -1;
 		}
-		offset = _atoi(tmpbuf, 16);
+		offset = _atoi((char *)tmpbuf, 16);
 
 		val = (unsigned long)_atoi((char *)data, 16);
 
@@ -2958,7 +3113,7 @@ static int write_rf_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 
 static int read_rf_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 {
-	char tmpbuf[32];
+	volatile char tmpbuf[32];
 	unsigned char *arg = data;
 	unsigned int path, offset, val;
 	int i;
@@ -2974,7 +3129,7 @@ static int read_rf_reg(struct rtl8192cd_priv *priv, unsigned char *data)
 			DEBUG_ERR("invalid path!\n");
 			return -1;
 		}
-		path = _atoi(tmpbuf, 16);
+		path = _atoi((char *)tmpbuf, 16);
 
 		offset = (unsigned char)_atoi((char *)arg, 16);
 		val = PHY_QueryRFReg(priv, path, offset, bMask20Bits, 1);
@@ -3047,7 +3202,7 @@ int set_guestmacinvalid(struct rtl8192cd_priv *priv, char *buf)
 
 //_TXPWR_REDEFINE
 
-#define POWER_MIN_CHECK(a,b)		(((a) > (b)) ? (b) : (a))
+#define POWER_MIN_CHECK(a,b)            (((a) > (b)) ? (b) : (a))
 #define POWER_RANGE_CHECK(val)		(((val) > 0x3f)? 0x3f : ((val < 0) ? 0 : val))
 #define COUNT_SIGN_OFFSET(val, oft)	(((oft & 0x08) == 0x08)? (val - (0x10 - oft)) : (val + oft))
 
@@ -3057,7 +3212,6 @@ int set_guestmacinvalid(struct rtl8192cd_priv *priv, char *buf)
 }
 
 
-#ifdef TXPWR_LMT
 static int ch2idx(int ch)
 {
 	int val=-1;
@@ -3073,7 +3227,7 @@ static int ch2idx(int ch)
 
 	return val;
 }
-#endif
+
 
 
 #ifdef ADD_TX_POWER_BY_CMD
@@ -3082,6 +3236,8 @@ static void check_txpwr_by_cmd(struct rtl8192cd_priv *priv,
 	char *OFDMTxAgcOffset_A, char *OFDMTxAgcOffset_B,
 	char *CCKTxAgc_A, char *CCKTxAgc_B)
 {
+//	char is_by_cmd = 0;	
+
 	if( (priv->pshare->rf_ft_var.txPowerPlus_cck_11 != 0x7f)
 		|| (priv->pshare->rf_ft_var.txPowerPlus_cck_5 != 0x7f)
 		|| (priv->pshare->rf_ft_var.txPowerPlus_cck_2 != 0x7f)
@@ -3803,10 +3959,11 @@ static void txpwr_dump(struct rtl8192cd_priv *priv, int start, int end)
 						pg_tbl_idx = BGN_40_CH10_14;
 				}
 			}
-
+#ifdef MP_TEST
 			//In Noraml Driver mode, and if mib 'pwr_by_rate' = 0 >> Use default power by rate table 
 			if( (priv->pshare->rf_ft_var.mp_specific == 0) && (priv->pshare->rf_ft_var.pwr_by_rate == 0) )
 				pg_tbl_idx = BGN_2040_ALL;
+#endif
 #endif
 
 			printk("pg_tbl_idx = %d\n", pg_tbl_idx);
@@ -4067,10 +4224,11 @@ static void txpwr_dump(struct rtl8192cd_priv *priv, int start, int end)
 						pg_tbl_idx = AN_40_CH_149_165;
 				}
 			}
-
+#ifdef MP_TEST
 			//In Noraml Driver mode, and if mib 'pwr_by_rate' = 0 >> Use default power by rate table 
 			if( (priv->pshare->rf_ft_var.mp_specific == 0) && (priv->pshare->rf_ft_var.pwr_by_rate == 0) )
 				pg_tbl_idx = BGN_2040_ALL;
+#endif
 #endif
 
 			printk("pg_tbl_idx = %d\n", pg_tbl_idx);
@@ -4219,11 +4377,58 @@ static void txpwr_dump(struct rtl8192cd_priv *priv, int start, int end)
 
 #endif
 
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
+void reg_dump_8812(struct rtl8192cd_priv *priv)
+{
+		panic_printk("Initial Gain, Sensitivity:\n");
+		panic_printk(" 0xC50: 0x%02x\n", RTL_R8(0xc50));
+		panic_printk(" 0xC58: 0x%02x\n", RTL_R8(0xc58));
+		panic_printk(" 0xC30: 0x%02x\n", RTL_R8(0xc30));
+		panic_printk(" 0xC87: 0x%02x\n", RTL_R8(0xc87));
+		panic_printk(" 0xA0A: 0x%02x\n", RTL_R8(0xa0a));
+		
+		panic_printk("EDCA para:\n");
+		panic_printk(" VO(0x%03x): 0x%08x\n", EDCA_VO_PARA, RTL_R32(EDCA_VO_PARA));
+		panic_printk(" VI(0x%03x): 0x%08x\n", EDCA_VI_PARA, RTL_R32(EDCA_VI_PARA));
+		panic_printk(" BE(0x%03x): 0x%08x\n", EDCA_BE_PARA, RTL_R32(EDCA_BE_PARA));
+		panic_printk(" BK(0x%03x): 0x%08x\n", EDCA_BK_PARA, RTL_R32(EDCA_BK_PARA));
+		
+		panic_printk("Tx power:\n");
+		panic_printk(" A_CCK11_CCK1(0x%03x):      0x%08x\n", rTxAGC_A_CCK11_CCK1_JAguar, RTL_R32(rTxAGC_A_CCK11_CCK1_JAguar));
+		panic_printk(" A_Rate18_06(0x%03x):       0x%08x\n", rTxAGC_A_Ofdm18_Ofdm6_JAguar, RTL_R32(rTxAGC_A_Ofdm18_Ofdm6_JAguar));
+		panic_printk(" A_Rate54_24(0x%03x):       0x%08x\n", rTxAGC_A_Ofdm54_Ofdm24_JAguar, RTL_R32(rTxAGC_A_Ofdm54_Ofdm24_JAguar));
+		panic_printk(" A_Mcs03_Mcs00(0x%03x):     0x%08x\n", rTxAGC_A_MCS3_MCS0_JAguar, RTL_R32(rTxAGC_A_MCS3_MCS0_JAguar));
+		panic_printk(" A_Mcs07_Mcs04(0x%03x):     0x%08x\n", rTxAGC_A_MCS7_MCS4_JAguar, RTL_R32(rTxAGC_A_MCS7_MCS4_JAguar));
+		panic_printk(" A_Mcs11_Mcs08(0x%03x):     0x%08x\n", rTxAGC_A_MCS11_MCS8_JAguar, RTL_R32(rTxAGC_A_MCS11_MCS8_JAguar));
+		panic_printk(" A_Mcs15_Mcs12(0x%03x):     0x%08x\n", rTxAGC_A_MCS15_MCS12_JAguar, RTL_R32(rTxAGC_A_MCS15_MCS12_JAguar));
+		panic_printk(" A_Nss13_Nss10(0x%03x):     0x%08x\n", rTxAGC_A_Nss1Index3_Nss1Index0_JAguar, RTL_R32(rTxAGC_A_Nss1Index3_Nss1Index0_JAguar));
+		panic_printk(" A_Nss17_Nss14(0x%03x):     0x%08x\n", rTxAGC_A_Nss1Index7_Nss1Index4_JAguar, RTL_R32(rTxAGC_A_Nss1Index7_Nss1Index4_JAguar));
+		panic_printk(" A_Nss21_Nss18(0x%03x):     0x%08x\n", rTxAGC_A_Nss2Index1_Nss1Index8_JAguar, RTL_R32(rTxAGC_A_Nss2Index1_Nss1Index8_JAguar));
+		panic_printk(" A_Nss25_Nss22(0x%03x):     0x%08x\n", rTxAGC_A_Nss2Index5_Nss2Index2_JAguar, RTL_R32(rTxAGC_A_Nss2Index5_Nss2Index2_JAguar));
+		panic_printk(" A_Nss29_Nss26(0x%03x):     0x%08x\n", rTxAGC_A_Nss2Index9_Nss2Index6_JAguar, RTL_R32(rTxAGC_A_Nss2Index9_Nss2Index6_JAguar));
+		panic_printk(" B_CCK11_CCK1(0x%03x):      0x%08x\n", rTxAGC_B_CCK11_CCK1_JAguar, RTL_R32(rTxAGC_B_CCK11_CCK1_JAguar));
+		panic_printk(" B_Rate18_06(0x%03x):       0x%08x\n", rTxAGC_B_Ofdm18_Ofdm6_JAguar, RTL_R32(rTxAGC_B_Ofdm18_Ofdm6_JAguar));
+		panic_printk(" B_Rate54_24(0x%03x):       0x%08x\n", rTxAGC_B_Ofdm54_Ofdm24_JAguar, RTL_R32(rTxAGC_B_Ofdm54_Ofdm24_JAguar));
+		panic_printk(" B_Mcs03_Mcs00(0x%03x):     0x%08x\n", rTxAGC_B_MCS3_MCS0_JAguar, RTL_R32(rTxAGC_B_MCS3_MCS0_JAguar));
+		panic_printk(" B_Mcs07_Mcs04(0x%03x):     0x%08x\n", rTxAGC_B_MCS7_MCS4_JAguar, RTL_R32(rTxAGC_B_MCS7_MCS4_JAguar));
+		panic_printk(" B_Mcs11_Mcs08(0x%03x):     0x%08x\n", rTxAGC_B_MCS11_MCS8_JAguar, RTL_R32(rTxAGC_B_MCS11_MCS8_JAguar));
+		panic_printk(" B_Mcs15_Mcs12(0x%03x):     0x%08x\n", rTxAGC_B_MCS15_MCS12_JAguar, RTL_R32(rTxAGC_B_MCS15_MCS12_JAguar));
+		panic_printk(" B_Nss13_Nss10(0x%03x):     0x%08x\n", rTxAGC_B_Nss1Index3_Nss1Index0_JAguar, RTL_R32(rTxAGC_B_Nss1Index3_Nss1Index0_JAguar));
+		panic_printk(" B_Nss17_Nss14(0x%03x):     0x%08x\n", rTxAGC_B_Nss1Index7_Nss1Index4_JAguar, RTL_R32(rTxAGC_B_Nss1Index7_Nss1Index4_JAguar));
+		panic_printk(" B_Nss21_Nss18(0x%03x):     0x%08x\n", rTxAGC_B_Nss2Index1_Nss1Index8_JAguar, RTL_R32(rTxAGC_B_Nss2Index1_Nss1Index8_JAguar));
+		panic_printk(" B_Nss25_Nss22(0x%03x):     0x%08x\n", rTxAGC_B_Nss2Index5_Nss2Index2_JAguar, RTL_R32(rTxAGC_B_Nss2Index5_Nss2Index2_JAguar));
+		panic_printk(" B_Nss29_Nss26(0x%03x):     0x%08x\n", rTxAGC_B_Nss2Index9_Nss2Index6_JAguar, RTL_R32(rTxAGC_B_Nss2Index9_Nss2Index6_JAguar));
+		return;
+}
+#endif
+
 static void reg_dump(struct rtl8192cd_priv *priv, char *str)
 {
 	int i, j, len;
 	unsigned char tmpbuf[100];
 
+//_TXPWR_REDEFINE
+//_TXPWR_REDEFINE ?? Dump Too much will cause hang up ??
 	panic_printk("[Channel-%03d]", priv->pmib->dot11RFEntry.dot11channel);
 
 	if (priv->pshare->is_40m_bw == 0)
@@ -4232,7 +4437,10 @@ static void reg_dump(struct rtl8192cd_priv *priv, char *str)
 	}
 	else
 	{
-		panic_printk(" - 40M BW ");
+		if (priv->pshare->is_40m_bw == 1)
+			panic_printk(" - 40M BW ");
+		else
+			panic_printk(" - 80M BW ");
 		
 		if (priv->pshare->offset_2nd_chan == 1)
 			panic_printk("BELOW");
@@ -4354,7 +4562,23 @@ static void reg_dump(struct rtl8192cd_priv *priv, char *str)
 	}
 #endif
 
+
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
+	if (strcmp(str, "check") == 0)
+	{
+			return;
+	}
+
+#endif
+
 	if (strcmp(str, "all") != 0) {
+
+#if defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
+		if ((GET_CHIP_VER(priv) == VERSION_8812E) || (GET_CHIP_VER(priv) == VERSION_8881A)) {
+			reg_dump_8812(priv);
+			return;
+		}
+#endif
 		panic_printk("Initial Gain, Sensitivity:\n");
 		panic_printk(" 0xC50: 0x%02x\n", RTL_R8(0xc50));
 #if defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT)
@@ -4426,6 +4650,18 @@ static void reg_dump(struct rtl8192cd_priv *priv, char *str)
 #ifdef CONFIG_RTL_88E_SUPPORT
 		if (GET_CHIP_VER(priv) == VERSION_8188E)
 			rf_reg_offset = 0xff;
+#endif
+#ifdef CONFIG_RTL_8812_SUPPORT
+		if (GET_CHIP_VER(priv) == VERSION_8812E)
+			rf_reg_offset = 0xff;
+#endif
+#ifdef CONFIG_WLAN_HAL_8881A
+        if (GET_CHIP_VER(priv) == VERSION_8881A)
+            rf_reg_offset = 0xff;
+#endif
+#ifdef CONFIG_WLAN_HAL_8192EE
+        if (GET_CHIP_VER(priv) == VERSION_8192E)
+            rf_reg_offset = 0xff;
 #endif
 
 		for (i = RF92CD_PATH_A; i < priv->pshare->phw->NumTotalRFPath; i++) {
@@ -4515,7 +4751,7 @@ int del_sta(struct rtl8192cd_priv *priv, unsigned char *data)
 			DOT11_EnQueue((unsigned long)priv, priv->pevent_queue, (UINT8 *)&Disassociation_Ind,
 						sizeof(DOT11_DISASSOCIATION_IND));
 #endif
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 			psk_indicate_evt(priv, DOT11_EVENT_DISASSOCIATION_IND, macaddr, NULL, 0);
 #endif
 
@@ -4610,7 +4846,7 @@ int del_sta_enc(struct rtl8192cd_priv *priv, unsigned char *data,int iStatusCode
 			DOT11_EnQueue((unsigned long)priv, priv->pevent_queue, (UINT8 *)&Deauthentication_Ind,
 						sizeof(DOT11_DEAUTHENTICATION_IND));
 #endif
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 			psk_indicate_evt(priv, DOT11_EVENT_DEAUTHENTICATION_IND, macaddr, NULL, 0);
 #endif
 
@@ -4763,7 +4999,22 @@ static void get_sta_info(struct rtl8192cd_priv *priv, sta_info_2_web *pInfo, int
 						pInfo->ht_info |= TX_USE_SHORT_GI;
 				}
 			}
+			if (priv->pmib->dot11BssType.net_work_type & WIRELESS_11AC)
+			{
+#ifdef CONFIG_RTL_8812_SUPPORT	
+				if(pstat ->vht_cap_len) {
+					if(pstat->tx_bw == HT_CHANNEL_WIDTH_80)
+						pInfo->ht_info |= TX_USE_80M_MODE;
+ 					if (pstat->ht_current_tx_info & TX_USE_40M_MODE)
+						pInfo->ht_info |= TX_USE_40M_MODE;
+					if (pstat->ht_current_tx_info & TX_USE_SHORT_GI)
+						pInfo->ht_info |= TX_USE_SHORT_GI;
 
+					pInfo->acTxOperaRate = query_vht_rate(pstat);
+					pInfo->network |= WIRELESS_11AC;
+				}
+#endif
+			}
 			pInfo++;
 			size--;
 		}
@@ -5957,7 +6208,7 @@ static int rtl8192cd_p2p_get_ss_status(struct rtl8192cd_priv *priv, unsigned cha
 #endif
 
 #ifdef CLIENT_MODE
-#ifdef WIFI_WPAS
+#if defined(WIFI_WPAS) || defined(RTK_NL80211)
 int check_bss_encrypt(struct rtl8192cd_priv *priv)
 #else
 static int check_bss_encrypt(struct rtl8192cd_priv *priv)
@@ -6256,14 +6507,21 @@ void drvmac_loopback(struct rtl8192cd_priv *priv)
 		}
 	}
 
-	// accept all packets
-//	RTL_W32(_RCR_, RTL_R32(_RCR_) | _AAP_);
-	RTL_W32(RCR, RTL_R32(RCR) | RCR_AAP);
+#ifdef  CONFIG_WLAN_HAL
+	if (IS_HAL_CHIP(priv)) {
+	    GET_HAL_INTERFACE(priv)->SetHwRegHandler(priv, HW_VAR_MAC_LOOPBACK_ENABLE, NULL);
+	} else 
+#endif
+	{
+		// accept all packets
+	//	RTL_W32(_RCR_, RTL_R32(_RCR_) | _AAP_);
+		RTL_W32(RCR, RTL_R32(RCR) | RCR_AAP);
 
 
-	// enable MAC loopback
-//	RTL_W32(_CPURST_, RTL_R32(_CPURST_) | BIT(16) | BIT(17));
-	RTL_W32(CR, RTL_R32(CR) | (LB_MAC_DLY&LBMODE_Mask)<<LBMODE_SHIFT);
+		// enable MAC loopback
+	//	RTL_W32(_CPURST_, RTL_R32(_CPURST_) | BIT(16) | BIT(17));
+		RTL_W32(CR, RTL_R32(CR) | (LB_MAC_DLY&LBMODE_Mask)<<LBMODE_SHIFT);
+	}
 }
 #endif // DRVMAC_LB
 
@@ -6482,6 +6740,104 @@ int rtl8192cd_net80211_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 }
 #endif
 
+#ifdef FOR_VHT5G_PF //8812_PF4
+#if 0
+# map of the commands for realtek11n ap 
+array set realtekapcommands { \
+	    MISC "" \
+        CHANNEL "iwpriv interface set_mib channel=" \
+        SSID "iwpriv interface set_mib ssid=" \
+        MPDUMINSPACE "" \
+        FRGMNT "iwpriv interface set_mib fragthres=" \
+        BCNINT "iwpriv interface set_mib bcnint=" \
+        WIDTH "iwpriv interface set_mib use40M=" \
+        RTS "iwpriv interface set_mib rtsthres=" \
+        EXCHANNELOFFSET "iwpriv interface set_mib 2ndchoffset=" \
+	    OPMODE "iwpriv interface set_mib opmode=" \
+        SHORTGI20 "iwpriv interface set_mib shortGI20M=" \
+        SHORTGI40 "iwpriv interface set_mib shortGI40M=" \
+        SHORTGI80 "iwpriv interface set_mib shortGI40M=" \
+        DUMMY "led flash 400" \
+        AMPDU "iwpriv interface set_mib ampdu=" \
+	    AMSDU "iwpriv interface set_mib amsdu=" \
+	    ADDBAREJECT "iwpriv interface set_mib addba_reject=" \
+		PHYSEL "iwpriv interface set_mib phyBandSelect=" \
+		BAND "iwpriv interface set_mib band=" \
+		DENYLEGACY "iwpriv interface set_mib deny_legacy=" \
+		PRIVACY_TYPE "iwpriv interface set_mib encmode=" \
+		PRESHAREKEY "iwpriv interface set_mib passphrase=" \
+	    QOS "iwpriv interface set_mib qos_enable=" \
+		MIMO_TR "iwpriv interface set_mib MIMO_TR_mode=" \
+	    STBC_TX "iwpriv wlan0 set_mib stbc=" \
+	    SEC "flash set interface " \
+	    RADIO "flash set interface WLAN_DISABLED " \
+	    WME "flash set interface WMM_ENABLED " \
+        SECURITY "" \
+	    RIFS "" \
+	    DBWSIG40 "iwpriv interface set_mib cca_rts=" \
+	    DBWSIG80 "iwpriv interface set_mib cca_rts=" \
+	    FIXRATE_AC "iwpriv wlan0 set_mib fixrate=" \
+	    AUTORATE "iwpriv wlan0 set_mib autorate=" \
+	    NOACK "iwpriv wlan0 set_mib txnoack=" \
+    }
+#endif
+void reset_default_sigma(struct rtl8192cd_priv *priv)
+{
+
+	if (priv->pmib->dot11RFEntry.phyBandSelect == PHY_BAND_5G)
+		printk("reset_default_sigma for 8812 (11AC, 80M) +++\n");
+	else
+	{
+		printk("No need to reset for 92C\n");
+		return;
+	}
+	
+	//No Need to reset ssid, channel, band, rts , frag, security, edcu	  
+
+	//priv->pmib->dot11RFEntry.dot11channel	
+	//priv->pmib->dot11StationConfigEntry.dot11DesiredSSID
+	//priv->pmib->dot11OperationEntry.dot11FragmentationThreshold
+	priv->pmib->dot11StationConfigEntry.dot11BeaconPeriod = 100;
+	priv->pmib->dot11nConfigEntry.dot11nUse40M = 2;
+	//priv->pmib->dot11OperationEntry.dot11RTSThreshold
+	//priv->pmib->dot11nConfigEntry.dot11n2ndChOffset = 1;
+	//priv->pmib->dot11OperationEntry.opmode
+	priv->pmib->dot11nConfigEntry.dot11nShortGIfor20M = 1;	  
+	priv->pmib->dot11nConfigEntry.dot11nShortGIfor40M = 1;
+	priv->pmib->dot11nConfigEntry.dot11nAMPDU = 1;
+	priv->pmib->dot11nConfigEntry.dot11nAMSDU = 1;
+	priv->pmib->dot11nConfigEntry.dot11nAddBAreject = 0;
+	//priv->pmib->dot11RFEntry.phyBandSelect
+	priv->pmib->dot11BssType.net_work_type = (WIRELESS_11A |WIRELESS_11N |WIRELESS_11AC);
+	priv->pmib->dot11StationConfigEntry.legacySTADeny = 0;
+	//priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm
+	//priv->pmib->dot1180211AuthEntry.dot11PassPhraseGuest
+	priv->pmib->dot11QosEntry.dot11QosEnable = 1;
+#if 1
+	priv->pmib->dot11RFEntry.MIMO_TR_mode = MIMO_2T2R;
+//
+	priv->pmib->dot11acConfigEntry.dot11SupportedVHT = 0xfffa;
+	priv->pmib->dot11acConfigEntry.dot11VHT_TxMap = 0xfffff;
+//	
+#endif
+	priv->pmib->dot11nConfigEntry.dot11nSTBC = 0;
+	priv->pshare->rf_ft_var.cca_rts = 0;
+	priv->pmib->dot11StationConfigEntry.autoRate = 1;
+	priv->pmib->dot11StationConfigEntry.fixedTxRate	= 0;
+	priv->pmib->dot11nConfigEntry.dot11nTxNoAck = 0;
+	priv->pmib->dot11QosEntry.ManualEDCA = 0;
+	priv->pmib->dot11nConfigEntry.dot11nLgyEncRstrct=15;
+
+	priv->pshare->rf_ft_var.opmtest = 0;
+	priv->pmib->dot11RFEntry.txbf = 0;
+	priv->pmib->dot11nConfigEntry.dot11nLDPC = 0;
+	//priv->pmib->dot11RFEntry.txldpc =0;
+	//priv->pmib->dot11RFEntry.rxldpc =0;
+
+	priv->pshare->rf_ft_var.lgirate = 0xffff;
+	priv->pshare->rf_ft_var.lpwrc = 0;
+}
+#endif
 
 int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
@@ -6745,18 +7101,20 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 				{ MP_QUERY_STATS, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_query" },
 				{ MP_TXPWR_TRACK, IW_PRIV_TYPE_CHAR | 40, 0, "mp_pwrtrk" },
 				{ MP_QUERY_TSSI, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_tssi" },
-#ifdef MP_PSD_SUPPORT
+				#ifdef MP_PSD_SUPPORT
 				{ MP_QUERY_PSD, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_psd" }, 
-#endif
+				#endif
 				{ MP_QUERY_THER, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_ther" },
 #ifdef CONFIG_RTL_92D_SUPPORT
 				{ MP_SET_BAND, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_phyband" },
 #endif
 				{ MP_RESET_STATS, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_reset_stats" },
 				{ MP_GET_TXPOWER, IW_PRIV_TYPE_CHAR | 40, IW_PRIV_TYPE_CHAR | 128, "mp_get_pwr" },
-				{ MP_DIG, IW_PRIV_TYPE_CHAR | 40, 0, "mp_dig" },		
+#if 	defined(CONFIG_RTL_8812_SUPPORT)					
+				{ MP_DIG, IW_PRIV_TYPE_CHAR | 40, 0, "mp_dig" },	
+#endif					
 #endif // MP_TEST
-#if defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)
+#if (defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)) && (defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 				{ SIOCANTSELECT, IW_PRIV_TYPE_CHAR | 128, IW_PRIV_TYPE_CHAR | 128, "dvyAnt_set" },
 #endif
 
@@ -6808,10 +7166,6 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 #endif
 #ifdef CONFIG_RTL_92D_SUPPORT
 				{ SIOC92DIQK, IW_PRIV_TYPE_CHAR | 128, 0, "iqk" },
-				{ SIOC92DTEMPMP, IW_PRIV_TYPE_CHAR | 128, 0, "mprt" },
-#ifdef CONFIG_RTL_92D_DMDP
-				{ SIOC92DSMCC, IW_PRIV_TYPE_CHAR | 128, 0, "smcc" },
-#endif
 #ifdef EN_EFUSE
 				{ SIOC92DSBANDADDR, IW_PRIV_TYPE_CHAR | 128, IW_PRIV_TYPE_CHAR | 128, "bandadd" },
 #endif
@@ -6822,7 +7176,14 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 				{ SIOC92DDPK, IW_PRIV_TYPE_CHAR | 128, 0 | 128, "dpk" },
 #endif
 #endif // CONFIG_RTL_92D_SUPPORT
-				{ SIOC92DAUTOCH, IW_PRIV_TYPE_CHAR | 128, 0, "autoch" }
+#ifdef FOR_VHT5G_PF
+				{ SIOC8812SIGMA, IW_PRIV_TYPE_CHAR | 128, 0 | 128, "sigma_default" }, //8812_PF4
+#endif
+				{ SIOC92DAUTOCH, IW_PRIV_TYPE_CHAR | 128, 0, "autoch" },
+
+#ifdef CONFIG_OFFLOAD_FUNCTION
+            	{ SIOOFFLOADTEST, IW_PRIV_TYPE_CHAR | 128, 0, "offload" }                        
+#endif //#ifdef CONFIG_OFFLOAD_FUNCTION                
 			};
 #endif
 #ifdef __KERNEL__
@@ -6843,14 +7204,20 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 #else
 			ret = 0;
 #endif
-			if ((sizeof(privtab) / sizeof(privtab[0])) <= wrq->u.data.length) {
-				wrq->u.data.length = sizeof(privtab) / sizeof(privtab[0]);
+#ifdef CONFIG_RTL8672
+			wrq->u.data.length = sizeof(privtab) / sizeof(privtab[0]);
+			if (copy_to_user((void *)wrq->u.data.pointer, privtab, sizeof(privtab)))
+				ret = -EFAULT;
+#else
+			if ((sizeof(privtab) / sizeof(privtab[0])) <= wrq->u.data.length)
+			{
+			wrq->u.data.length = sizeof(privtab) / sizeof(privtab[0]);
 				if (copy_to_user((void *)wrq->u.data.pointer, privtab, sizeof(privtab)))
-					ret = -EFAULT;
-			}
-			else {
+				ret = -EFAULT;
+			}else{
 				ret = -E2BIG;
 			}
+#endif
 		}
 		break;
 
@@ -7242,9 +7609,20 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 	case SIOCSIWRTLSETWAPIPID:
 		priv->pshare->wlanwapi_pid= -1;
 		if (wrq->u.data.length != sizeof(pid_t) ||
-			copy_from_user(&priv->pshare->wlanwapi_pid, (void *)wrq->u.data.pointer, sizeof(pid_t)))
-			break;
+			copy_from_user(&priv->pshare->wlanwapi_pid, (void *)wrq->u.data.pointer, sizeof(pid_t))) {
+			//break;
+		} else {
 		ret = 0;
+		}
+
+	#if defined(LINUX_2_6_27_)
+		if (priv->pshare->wlanwapi_pid != -1)
+		{
+			rcu_read_lock();
+			_wlanwapi_pid = get_pid(find_vpid(priv->pshare->wlanwapi_pid));
+			rcu_read_unlock();
+		}
+	#endif
 		break;
 #endif
 
@@ -7545,7 +7923,7 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		ret = 0;
 		break;
 
-#ifdef CONFIG_RTL_92D_SUPPORT
+#if defined(CONFIG_RTL_92D_SUPPORT) || defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_WLAN_HAL_8881A)
 	case MP_SET_BAND:
 		if(copy_from_user(tmpbuf, (void *)wrq->u.data.pointer, wrq->u.data.length))
 			break;
@@ -7659,14 +8037,14 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			ret = 0;
 		}
 		break;
-#ifdef MP_PSD_SUPPORT
+	#ifdef MP_PSD_SUPPORT
 	case MP_QUERY_PSD:	
 		if (copy_from_user(tmpbuf, (void *)wrq->u.data.pointer, wrq->u.data.length))
 			break;		
 		RESTORE_INT(flags);
 		i = mp_query_psd(priv, tmpbuf);
 		SAVE_INT_AND_CLI(flags);
-		if (i > 0) {
+		if (i > 0 ) {
 			if (copy_to_user((void *)wrq->u.data.pointer, tmpbuf, i )) 
 				break;
 			wrq->u.data.length = i;
@@ -7674,7 +8052,7 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			//printk("The address of DA is 0x%p\n",(void *)wrq->u.data.pointer);
 		}
 		break;
-#endif
+	#endif
 	case MP_GET_TXPOWER:
 		if(copy_from_user(tmpbuf, (void *)wrq->u.data.pointer, wrq->u.data.length))
 			break;
@@ -7688,6 +8066,8 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			ret = 0;
 		}
 		break;
+
+#if 	defined(CONFIG_RTL_8812_SUPPORT)
 	case MP_DIG:
 		if(copy_from_user(tmpbuf, (void *)wrq->u.data.pointer, wrq->u.data.length))
 			break;
@@ -7696,9 +8076,10 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		SAVE_INT_AND_CLI(flags);
 		ret = 0;
 		break;			
+#endif
 #endif	// MP_TEST
 
-#if defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH)
+#if (defined(SW_ANT_SWITCH) || defined(HW_ANT_SWITCH))&&(defined(CONFIG_RTL_92C_SUPPORT) || defined(CONFIG_RTL_92D_SUPPORT))
 	case SIOCANTSELECT:
 		if(copy_from_user(tmpbuf, (void *)wrq->u.data.pointer, wrq->u.data.length))
 			break;
@@ -7903,7 +8284,12 @@ int rtl8192cd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 #ifdef UNIVERSAL_REPEATER
 				if (IS_DRV_OPEN(GET_VXD_PRIV(priv))) {
 					dev_vap = (GET_VXD_PRIV(priv))->dev;
+#ifdef NETDEV_NO_PRIV
+					priv_vap = ((struct rtl8192cd_priv *)netdev_priv(dev_vap))->wlan_priv;
+#else
 					priv_vap = (struct rtl8192cd_priv *)dev_vap->priv;
+#endif
+					
 //					rtl8192cd_ioctl((GET_VXD_PRIV(priv))->dev, ifr, cmd);
 					if (netif_running(dev_vap)) {
 						if ((((GET_MIB(priv_vap))->dot11OperationEntry.opmode) & WIFI_AP_STATE)
@@ -8280,6 +8666,24 @@ case SIOC_SET_ROUTING_INFO:
 		break;
 	}
 
+#ifdef CONFIG_OFFLOAD_FUNCTION
+    case SIOOFFLOADTEST:
+    {
+        if(copy_from_user(tmpbuf, (void *)wrq->u.data.pointer, wrq->u.data.length))
+                    break;
+        i = offloadTestFunction(priv, tmpbuf);
+
+        if (i > 0) {
+            if (copy_to_user((void *)wrq->u.data.pointer, tmpbuf, i))
+                break;
+        }
+        wrq->u.data.length = i;
+
+        ret = 0;
+        break;
+    }
+#endif //#ifdef CONFIG_OFFLOAD_FUNCTION    
+
 #ifdef CONFIG_RTL_92D_SUPPORT
 	case SIOC92DIQK:
 	{
@@ -8287,53 +8691,6 @@ case SIOC_SET_ROUTING_INFO:
 		ret = 0;
 		break;
 	}
-
-#ifdef TEMP_MP_92D
-	case SIOC92DTEMPMP:
-	{
-		if (wrq->u.data.pointer) {
-			if ((wrq->u.data.length > sizeof_tmpbuf) ||
-				copy_from_user(tmpbuf, (void *)wrq->u.data.pointer, wrq->u.data.length))
-				break;
-
-			priv->mp_txrate = _atoi(tmpbuf, 16);
-			printk("MP TX rate = %d \n", priv->mp_txrate);
-			ret = 0;
-		} else {
-			ret = -1;
-		}
-		break;
-	}
-#endif
-
-#ifdef SMART_CONCURRENT_92D
-	case SIOC92DSMCC:
-	{
-		#if 0
-		extern int smcc_92D_enable2x2_5G(struct rtl8192cd_priv * priv);
-		extern int smcc_92D_enable2x2_2G(struct rtl8192cd_priv * priv);
-
-		if (priv->pmib->dot11RFEntry.phyBandSelect & PHY_BAND_5G) {
-			ret = smcc_92D_enable2x2_5G(priv);
-			printk("switch to 2x2 5G (ret=%d)\n", ret);
-		} else {
-			ret = smcc_92D_enable2x2_2G(priv);
-			printk("switch to 2x2 2G (ret=%d)\n", ret);
-		}
-		#else
-		if (priv->pmib->dot11RFEntry.smcc==1 && priv->pmib->dot11RFEntry.macPhyMode != SINGLEMAC_SINGLEPHY){
-			if (priv->smcc_state)
-				priv->smcc_state = 0;
-			else
-				priv->smcc_state = 1;
-
-			smcc_signin_linkstate(priv, 1, priv->pmib->dot11RFEntry.smcc_t, priv->smcc_state);
-			ret = 0;
-		}
-		#endif
-		break;
-	}
-#endif
 
 #ifdef EN_EFUSE
 	case SIOC92DSBANDADDR:
@@ -8476,6 +8833,16 @@ case SIOC_SET_ROUTING_INFO:
 	}
 #endif
 #endif // CONFIG_RTL_92D_SUPPORT
+#ifdef FOR_VHT5G_PF
+	//8812_PF4
+	case SIOC8812SIGMA:
+	{
+		panic_printk("Reset Default for SIGMA!!\n");
+		reset_default_sigma(priv);
+		ret=0;
+		break;
+	}
+#endif
 	}
 
 	RESTORE_INT(flags);
@@ -8487,7 +8854,7 @@ case SIOC_SET_ROUTING_INFO:
 void delay_us(unsigned int t)
 {
 #ifdef __LINUX_2_6__
-#ifdef CONFIG_RTL8672
+#if defined(CONFIG_RTL8672) || defined(NOT_RTK_BSP)
 	udelay(t);
 #else
 	__udelay(t);

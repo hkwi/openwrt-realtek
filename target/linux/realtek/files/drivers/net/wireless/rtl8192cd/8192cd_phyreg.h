@@ -13,6 +13,9 @@
 #ifndef _8192CD_PHYREG_H_
 #define _8192CD_PHYREG_H_
 
+#ifndef WLAN_HAL_INTERNAL_USED
+
+
 /*--------------------------Define Parameters-------------------------------*/
 
 //============================================================
@@ -998,5 +1001,6 @@
 /*--------------------------Define Parameters-------------------------------*/
 //#endif
 
+#endif //#ifndef WLAN_HAL_INTERNAL_USED
 #endif // _8192CD_PHYREG_H_
 

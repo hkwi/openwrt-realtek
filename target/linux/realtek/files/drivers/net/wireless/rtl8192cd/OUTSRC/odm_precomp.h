@@ -125,8 +125,8 @@
 	#include "rtl8723a/Hal8723SHWImg_CE.h"
 	#elif(RTL8723AU_SUPPORT==1)
 	#include "rtl8723a/Hal8723UHWImg_CE.h"	
-	#elif(RTL8188ES_SUPPORT==1)
-	#include "rtl8188e/Hal8188ESHWImg_CE.h"
+	#elif(RTL8188E_SUPPORT==1)
+	#include "rtl8188e/Hal8188EFWImg_CE.h"
 	#endif
 #elif (DM_ODM_SUPPORT_TYPE == ODM_MP)
 
@@ -138,6 +138,8 @@
 #include "odm.h"
 #include "odm_HWConfig.h"
 #include "odm_debug.h"
+#include "odm_RegDefine11AC.h"
+#include "odm_RegDefine11N.h"
 
 #if (DM_ODM_SUPPORT_TYPE == ODM_AP)
 #if (RTL8192C_SUPPORT==1)
@@ -168,12 +170,17 @@
 		#include "rtl8188e/HalPhyRf_8188e.h"//for IQK,LCK,Power-tracking
 		#include "rtl8188e/Hal8188ERateAdaptive.h"//for  RA,Power training
 		#include "rtl8188e_hal.h"  	
+	#elif (RTL8812A_SUPPORT==1)
+		#include "rtl8188e/HalPhyRf_8812A.h"//for IQK,LCK,Power-tracking
 	#endif
-
 #endif
 
 #include "odm_interface.h"
 #include "odm_reg.h"
+
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+#include "HalPhyRf.h"
+#endif
 
 #if (RTL8192C_SUPPORT==1) 
 #if (DM_ODM_SUPPORT_TYPE == ODM_AP)
@@ -200,9 +207,10 @@
 #include "rtl8188e/HalHWImg8188E_MAC.h"
 #include "rtl8188e/HalHWImg8188E_RF.h"
 #include "rtl8188e/HalHWImg8188E_BB.h"
+#include "rtl8188e/HalHWImg8188E_FW.h"
 #include "rtl8188e/Hal8188EReg.h"
 
-#if !(DM_ODM_SUPPORT_TYPE & ODM_AP) || defined(CALIBRATE_BY_ODM)
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
 #include "rtl8188e/HalPhyRf_8188e.h"
 #endif
 
@@ -217,4 +225,33 @@
 #include "rtl8188e/odm_RTL8188E.h"
 #endif
 
+#if (RTL8812E_SUPPORT==1)//FOR_8812_IQK
+#include "rtl8812a/HalPhyRf_8812A.h"
+#endif
+
+#if (RTL8881A_SUPPORT==1)//FOR_8881_IQK
+#include "rtl8821a/HalPhyRf_8821A.h"
+#endif
+
+#if (RTL8192E_SUPPORT==1)//FOR_8192E_IQK
+#include "rtl8192e/HalPhyRf_8192e.h"
+#include "rtl8192e/odm_RTL8192E.h"
+#endif
+
+#if (RTL8812A_SUPPORT==1) 
+#include "rtl8812a/HalHWImg8812A_MAC.h"
+#include "rtl8812a/HalHWImg8812A_RF.h"
+#include "rtl8812a/HalHWImg8812A_BB.h"
+#include "rtl8812a/HalHWImg8812A_FW.h"
+#include "rtl8812a/odm_RegConfig8812A.h"
+#include "rtl8812a/HalHWImg8812A_TestChip_MAC.h"
+#include "rtl8812a/HalHWImg8812A_TestChip_RF.h"
+#include "rtl8812a/HalHWImg8812A_TestChip_BB.h"
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+//#include "rtl8812a/HalPhyRf_8812A.h"
+#endif
+
+#endif
+
 #endif	// __ODM_PRECOMP_H__
+

@@ -23,7 +23,7 @@ documentation and/or software.
 //#include "8021x.h"
 #include "./8192cd_cfg.h"
 
-#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD)
+#if defined(INCLUDE_WPA_PSK) || defined(WIFI_HAPD) || defined(RTK_NL80211)
 
 #include "1x_md5c.h"
 

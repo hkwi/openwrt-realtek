@@ -27,7 +27,7 @@
 #define WLAN_CRC_LEN		4
 #define WLAN_BSSID_LEN		6
 #define WLAN_BSS_TS_LEN		8
-#define WLAN_HDR_PSPOLL	16
+#define WLAN_HDR_PSPOLL		16
 #define WLAN_HDR_A3_LEN		24
 #define WLAN_HDR_A4_LEN		30
 #define WLAN_HDR_A3_QOS_LEN	26
@@ -58,7 +58,7 @@
 #if defined(GREEN_HILL) || defined(PACK_STRUCTURE) || defined(__ECOS)
 #pragma pack(1)
 #endif
-
+#ifdef NOT_RTK_BSP
 __PACK struct wlan_ethhdr_t
 {
 	UINT8	daddr[WLAN_ETHADDR_LEN]		;
@@ -103,6 +103,78 @@ __PACK struct ht_info_elmt
 	UINT16	info2						__WLAN_ATTRIB_PACK__;
 	UINT8	basic_mcs[16]				;
 } __WLAN_ATTRIB_PACK__;
+
+__PACK struct vht_cap_elmt
+{
+	UINT32	vht_cap_info				__WLAN_ATTRIB_PACK__;
+	UINT32	vht_support_mcs[2]			__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct vht_oper_elmt
+{
+	UINT8	vht_oper_info[3]			;
+	UINT16	vht_basic_msc				__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+#else
+
+__PACK struct wlan_ethhdr_t
+{
+	UINT8	daddr[WLAN_ETHADDR_LEN]		;
+	UINT8	saddr[WLAN_ETHADDR_LEN]		;
+	UINT16	type						__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct wlan_llc_t
+{
+	UINT8	dsap						;
+	UINT8	ssap						;
+	UINT8	ctl							;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct wlan_snap_t
+{
+	UINT8	oui[WLAN_IEEE_OUI_LEN]		;
+	UINT16	type						__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct llc_snap {
+	struct	wlan_llc_t	llc_hdr			;
+	struct	wlan_snap_t	snap_hdr		;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct ht_cap_elmt
+{
+	UINT16	ht_cap_info					__WLAN_ATTRIB_PACK__;
+	UINT8	ampdu_para					;
+	UINT8	support_mcs[16]				;
+	UINT16	ht_ext_cap					__WLAN_ATTRIB_PACK__;
+	UINT32	txbf_cap					__WLAN_ATTRIB_PACK__;
+	UINT8	asel_cap					;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct ht_info_elmt
+{
+	UINT8	primary_ch					;
+	UINT8	info0						;
+	UINT16	info1						__WLAN_ATTRIB_PACK__;
+	UINT16	info2						__WLAN_ATTRIB_PACK__;
+	UINT8	basic_mcs[16]				;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct vht_cap_elmt
+{
+	UINT32	vht_cap_info				__WLAN_ATTRIB_PACK__;
+	UINT32	vht_support_mcs[2]			__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+__PACK struct vht_oper_elmt
+{
+	UINT8	vht_oper_info[3]			;
+	UINT16	vht_basic_msc				__WLAN_ATTRIB_PACK__;
+} __WLAN_ATTRIB_PACK__;
+
+#endif
 
 #ifdef WIFI_11N_2040_COEXIST
 __PACK struct obss_scan_para_elmt
@@ -343,8 +415,9 @@ enum WIFI_REG_DOMAIN {
 	DOMAIN_NCC		= 11,
 	DOMAIN_RUSSIAN	= 12,
 	DOMAIN_CN		= 13,
-	DOMAIN_GLOBAL	= 14,	
-	DOMAIN_WORLD_WIDE = 15,		
+	DOMAIN_GLOBAL	= 14,
+	DOMAIN_WORLD_WIDE = 15,
+	DOMAIN_TEST		= 16,
 	DOMAIN_MAX
 };
 
@@ -456,53 +529,53 @@ enum WIFI_REG_DOMAIN {
 		*(unsigned short *)(pbuf) |= cpu_to_le16(type); \
 	} while(0)
 
-#define GetSequence(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + 22)) >> 4)
+#define GetSequence(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + 22)) >> 4)
 
-#define GetFragNum(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + 22)) & 0x0f)
+#define GetFragNum(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + 22)) & 0x0f)
 
-#define GetTupleCache(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + 22)))
+#define GetTupleCache(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + 22)))
 
 #define SetFragNum(pbuf, num) \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 22) = \
-			((*(unsigned short *)((unsigned int)(pbuf) + 22)) & le16_to_cpu(~(0x000f))) | \
+		*(unsigned short *)((unsigned long)(pbuf) + 22) = \
+			((*(unsigned short *)((unsigned long)(pbuf) + 22)) & le16_to_cpu(~(0x000f))) | \
 			cpu_to_le16(0x0f & (num));     \
 	} while(0)
 
 #define SetSeqNum(pbuf, num) \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 22) = \
-			((*(unsigned short *)((unsigned int)(pbuf) + 22)) & le16_to_cpu((unsigned short)~0xfff0)) | \
+		*(unsigned short *)((unsigned long)(pbuf) + 22) = \
+			((*(unsigned short *)((unsigned long)(pbuf) + 22)) & le16_to_cpu((unsigned short)~0xfff0)) | \
 			le16_to_cpu((unsigned short)(0xfff0 & (num << 4))); \
 	} while(0)
 
 #define SetDuration(pbuf, dur) \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 2) |= cpu_to_le16(0xffff & (dur)); \
+		*(unsigned short *)((unsigned long)(pbuf) + 2) |= cpu_to_le16(0xffff & (dur)); \
 	} while(0)
 
-#define GetAid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + 2)) & 0x3fff)
+#define GetAid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + 2)) & 0x3fff)
 
-#define GetTid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x000f)
+#define GetTid(pbuf)	(cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x000f)
 
 #define SetPsPollAid(pbuf, aid)  \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 2) |= cpu_to_le16(0xffff & (aid|0xc000)); \
+		*(unsigned short *)((unsigned long)(pbuf) + 2) |= cpu_to_le16(0xffff & (aid|0xc000)); \
 	} while(0)
 
 //WIFI_WMM
-#define GetQOSackPolicy(pbuf)	((cpu_to_le16(*(unsigned short *)((unsigned int)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x0060)>>5)
+#define GetQOSackPolicy(pbuf)	((cpu_to_le16(*(unsigned short *)((unsigned long)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))) & 0x0060)>>5)
 
-#define GetAddr1Ptr(pbuf)	((unsigned char *)((unsigned int)(pbuf) + 4))
+#define GetAddr1Ptr(pbuf)	((unsigned char *)((unsigned long)(pbuf) + 4))
 
-#define GetAddr2Ptr(pbuf)	((unsigned char *)((unsigned int)(pbuf) + 10))
+#define GetAddr2Ptr(pbuf)	((unsigned char *)((unsigned long)(pbuf) + 10))
 
-#define GetAddr3Ptr(pbuf)	((unsigned char *)((unsigned int)(pbuf) + 16))
+#define GetAddr3Ptr(pbuf)	((unsigned char *)((unsigned long)(pbuf) + 16))
 
-#define GetAddr4Ptr(pbuf)	((unsigned char *)((unsigned int)(pbuf) + 24))
+#define GetAddr4Ptr(pbuf)	((unsigned char *)((unsigned long)(pbuf) + 24))
 
 //WIFI_WMM
-#define GetQosControl(pbuf) (unsigned char *)((unsigned int)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))
+#define GetQosControl(pbuf) (unsigned char *)((unsigned long)(pbuf) + (((GetToDs(pbuf)<<1)|GetFrDs(pbuf))==3?30:24))
 
 
 #ifdef CONFIG_RTK_MESH
@@ -510,11 +583,11 @@ enum WIFI_REG_DOMAIN {
 
 #define GetMeshHeaderTTLWithOutQOS(pbuf)	((unsigned char *)(pbuf) + 31)  	// mesh header ttl
 
-#define GetMeshHeaderSeqNumWithoutQOS(pbuf)	((unsigned short *)((unsigned int)(pbuf) + 32))	// Don't use cpu_to_le16(Other not use cpu_to_le16)
+#define GetMeshHeaderSeqNumWithoutQOS(pbuf)	((unsigned short *)((unsigned long)(pbuf) + 32))	// Don't use cpu_to_le16(Other not use cpu_to_le16)
 #define SetMeshHeaderSeqNum(pbuf, num) \
 	do {    \
-		*(unsigned short *)((unsigned int)(pbuf) + 34) = \
-			((*(unsigned short *)((unsigned int)(pbuf) + 34)) & le16_to_cpu((unsigned short)~0xffff)) | \
+		*(unsigned short *)((unsigned long)(pbuf) + 34) = \
+			((*(unsigned short *)((unsigned long)(pbuf) + 34)) & le16_to_cpu((unsigned short)~0xffff)) | \
 			le16_to_cpu((unsigned short)(0xffff & num )); \
 	} while(0)
 
@@ -560,9 +633,10 @@ enum WIFI_REG_DOMAIN {
 #define _IBSS_PARA_IE_			6
 #define _COUNTRY_IE_			7	// for 802.11d
 #define _CHLGETXT_IE_			16
-#ifdef DFS
+
+#define	_PWR_CONSTRAINT_IE_		32
 #define _CSA_IE_					37
-#endif
+
 #define _RSN_IE_2_				48
 #define _RSN_IE_1_				221	// Error, Shall be Wi-Fi protected access (802.11b)
 #define _ERPINFO_IE_			42	// [802.11g 7.3.2] ERP Information
@@ -669,16 +743,39 @@ enum WIFI_REG_DOMAIN {
 #define _2040_Intolerant_ChRpt_IE_	73
 #define _OBSS_SCAN_PARA_IE_		74
 
-#define _EXTENDED_CAP_IE_			127
+//#define _EXTENDED_CAP_IE_			127
 #define _2040_COEXIST_SUPPORT_	BIT(0)
 #endif
 #define _HT_CATEGORY_ID_			7
 #define _HT_MIMO_PS_ACTION_ID_		1
 
+#define _EXTENDED_CAP_IE_			127
+
+
+/*-----------------------------------------------------------------------------
+			Below is for VHT related definition
+------------------------------------------------------------------------------*/
+#define EID_VHTCapability			191	// Based on 802.11ac D2.0
+#define EID_VHTOperation			192	// Based on 802.11ac D2.0
+#define EID_VHTOperatingMode		199
+#define EID_VHTTxPwrEnvelope		195
+#define EID_WIDEBW_CH_SW			194
+#define EID_CH_SW_WRAPPER			196
+
+
+
+#define _VHT_ACTION_CATEGORY_ID_	21
+#define _VHT_ACTION_OPMNOTIF_ID_	2
+#define	_OPMNOTIF_Frame_Length_		3
+
+#define _VHTCAP_RX_STBC_CAP_			(BIT(8) | BIT(9)| BIT(10))
+#define _VHTCAP_RX_LDPC_CAP_			(BIT(4))
 
 /*-----------------------------------------------------------------------------
 			Below is the bit definition for HT Capabilities element
 ------------------------------------------------------------------------------*/
+#define _HTCAP_SUPPORT_RX_LDPC_		BIT(0)
+
 #define _HTCAP_SUPPORT_CH_WDTH_		BIT(1)
 #define _HTCAP_SMPWR_STATIC_		0
 #define _HTCAP_SMPWR_DYNAMIC_		BIT(2)

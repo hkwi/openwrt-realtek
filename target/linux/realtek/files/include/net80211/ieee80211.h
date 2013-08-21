@@ -712,6 +712,7 @@ enum {
 
 #define IEEE80211_CHANSWITCHANN_BYTES 5
 
+#if 0 //rtk_nl80211
 struct ieee80211_tim_ie {
 	u_int8_t	tim_ie;			/* IEEE80211_ELEMID_TIM */
 	u_int8_t	tim_len;
@@ -720,6 +721,7 @@ struct ieee80211_tim_ie {
 	u_int8_t	tim_bitctl;		/* bitmap control */
 	u_int8_t	tim_bitmap[1];		/* variable-length bitmap */
 } __packed;
+#endif
 
 struct ieee80211_country_ie {
 	u_int8_t	ie;			/* IEEE80211_ELEMID_COUNTRY */

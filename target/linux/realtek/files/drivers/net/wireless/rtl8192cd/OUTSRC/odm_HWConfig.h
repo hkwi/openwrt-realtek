@@ -23,7 +23,7 @@
 #define __HALHWOUTSRC_H__
 
 //============================================================
-// Definition 
+// 	C Series Rate
 //============================================================
 //
 //-----------------------------------------------------------
@@ -63,6 +63,138 @@
 #define DESC92C_RATEMCS15_SG			0x1c
 #define DESC92C_RATEMCS32				0x20
 
+
+//-----------------------------------------------------------
+//
+//	Jaguar Series Rate
+//
+//-----------------------------------------------------------
+// CCK Rates, TxHT = 0
+#define DESC8812_RATE1M				0x00
+#define DESC8812_RATE2M				0x01
+#define DESC8812_RATE5_5M				0x02
+#define DESC8812_RATE11M				0x03
+
+// OFDM Rates, TxHT = 0
+#define DESC8812_RATE6M				0x04
+#define DESC8812_RATE9M				0x05
+#define DESC8812_RATE12M				0x06
+#define DESC8812_RATE18M				0x07
+#define DESC8812_RATE24M				0x08
+#define DESC8812_RATE36M				0x09
+#define DESC8812_RATE48M				0x0a
+#define DESC8812_RATE54M				0x0b
+
+// MCS Rates, TxHT = 1
+#define DESC8812_RATEMCS0				0x0c
+#define DESC8812_RATEMCS1				0x0d
+#define DESC8812_RATEMCS2				0x0e
+#define DESC8812_RATEMCS3				0x0f
+#define DESC8812_RATEMCS4				0x10
+#define DESC8812_RATEMCS5				0x11
+#define DESC8812_RATEMCS6				0x12
+#define DESC8812_RATEMCS7				0x13
+#define DESC8812_RATEMCS8				0x14
+#define DESC8812_RATEMCS9				0x15
+#define DESC8812_RATEMCS10			0x16
+#define DESC8812_RATEMCS11			0x17
+#define DESC8812_RATEMCS12			0x18
+#define DESC8812_RATEMCS13			0x19
+#define DESC8812_RATEMCS14			0x1a
+#define DESC8812_RATEMCS15			0x1b
+#define DESC8812_RATEVHTSS1MCS0		0x2c
+#define DESC8812_RATEVHTSS1MCS1		0x2d
+#define DESC8812_RATEVHTSS1MCS2		0x2e
+#define DESC8812_RATEVHTSS1MCS3		0x2f
+#define DESC8812_RATEVHTSS1MCS4		0x30
+#define DESC8812_RATEVHTSS1MCS5		0x31
+#define DESC8812_RATEVHTSS1MCS6		0x32
+#define DESC8812_RATEVHTSS1MCS7		0x33
+#define DESC8812_RATEVHTSS1MCS8		0x34
+#define DESC8812_RATEVHTSS1MCS9		0x35
+#define DESC8812_RATEVHTSS2MCS0		0x36
+#define DESC8812_RATEVHTSS2MCS1		0x37
+#define DESC8812_RATEVHTSS2MCS2		0x38
+#define DESC8812_RATEVHTSS2MCS3		0x39
+#define DESC8812_RATEVHTSS2MCS4		0x3a
+#define DESC8812_RATEVHTSS2MCS5		0x3b
+#define DESC8812_RATEVHTSS2MCS6		0x3c
+#define DESC8812_RATEVHTSS2MCS7		0x3d
+#define DESC8812_RATEVHTSS2MCS8		0x3e
+#define DESC8812_RATEVHTSS2MCS9		0x3f
+
+
+/*--------------------------Define -------------------------------------------*/
+/* BIT 7 HT Rate*/
+// TxHT = 0
+#define	MGN_1M				0x02
+#define	MGN_2M				0x04
+#define	MGN_5_5M			0x0b
+#define	MGN_11M				0x16
+
+#define	MGN_6M				0x0c
+#define	MGN_9M				0x12
+#define	MGN_12M				0x18
+#define	MGN_18M				0x24
+#define	MGN_24M				0x30
+#define	MGN_36M				0x48
+#define	MGN_48M				0x60
+#define	MGN_54M				0x6c
+
+// TxHT = 1
+#define	MGN_MCS0			0x80
+#define	MGN_MCS1			0x81
+#define	MGN_MCS2			0x82
+#define	MGN_MCS3			0x83
+#define	MGN_MCS4			0x84
+#define	MGN_MCS5			0x85
+#define	MGN_MCS6			0x86
+#define	MGN_MCS7			0x87
+#define	MGN_MCS8			0x88
+#define	MGN_MCS9			0x89
+#define	MGN_MCS10			0x8a
+#define	MGN_MCS11			0x8b
+#define	MGN_MCS12			0x8c
+#define	MGN_MCS13			0x8d
+#define	MGN_MCS14			0x8e
+#define	MGN_MCS15			0x8f
+#define	MGN_VHT1SS_MCS0		0x90
+#define	MGN_VHT1SS_MCS1		0x91
+#define	MGN_VHT1SS_MCS2		0x92
+#define	MGN_VHT1SS_MCS3		0x93
+#define	MGN_VHT1SS_MCS4		0x94
+#define	MGN_VHT1SS_MCS5		0x95
+#define	MGN_VHT1SS_MCS6		0x96
+#define	MGN_VHT1SS_MCS7		0x97
+#define	MGN_VHT1SS_MCS8		0x98
+#define	MGN_VHT1SS_MCS9		0x99
+#define	MGN_VHT2SS_MCS0		0x9a
+#define	MGN_VHT2SS_MCS1		0x9b
+#define	MGN_VHT2SS_MCS2		0x9c
+#define	MGN_VHT2SS_MCS3		0x9d
+#define	MGN_VHT2SS_MCS4		0x9e
+#define	MGN_VHT2SS_MCS5		0x9f
+#define	MGN_VHT2SS_MCS6		0xa0
+#define	MGN_VHT2SS_MCS7		0xa1
+#define	MGN_VHT2SS_MCS8		0xa2
+#define	MGN_VHT2SS_MCS9		0xa3
+
+#define	MGN_MCS0_SG			0xc0
+#define	MGN_MCS1_SG			0xc1
+#define	MGN_MCS2_SG			0xc2
+#define	MGN_MCS3_SG			0xc3
+#define	MGN_MCS4_SG			0xc4
+#define	MGN_MCS5_SG			0xc5
+#define	MGN_MCS6_SG			0xc6
+#define	MGN_MCS7_SG			0xc7
+#define	MGN_MCS8_SG			0xc8
+#define	MGN_MCS9_SG			0xc9
+#define	MGN_MCS10_SG		0xca
+#define	MGN_MCS11_SG		0xcb
+#define	MGN_MCS12_SG		0xcc
+#define	MGN_MCS13_SG		0xcd
+#define	MGN_MCS14_SG		0xce
+#define	MGN_MCS15_SG		0xcf
 
 //============================================================
 // structure and define
@@ -117,8 +249,9 @@ typedef struct _Phy_Status_Rpt_8192cd
 } PHY_STATUS_RPT_8192CD_T,*PPHY_STATUS_RPT_8192CD_T;
 
 
-typedef struct _Phy_Status_Rpt_8195
+typedef struct _Phy_Status_Rpt_8812
 {
+#if 0
 	PHY_RX_AGC_INFO_T path_agc[2];
 	u1Byte 	ch_num[2];									
 	u1Byte	cck_sig_qual_ofdm_pwdb_all;
@@ -145,7 +278,49 @@ typedef struct _Phy_Status_Rpt_8195
 	u1Byte 	antidx_antb:3;
 	u1Byte 	antidx_anta:3;	
 #endif
-} PHY_STATUS_RPT_8195_T,*pPHY_STATUS_RPT_8195_T;
+#endif
+
+	//2012.05.24 LukeLee: This structure should take big/little endian in consideration later.....
+	
+	//DWORD 0
+	u1Byte			gain_trsw[2];
+#if (ODM_ENDIAN_TYPE == ODM_ENDIAN_LITTLE)	
+	u2Byte			chl_num:10;
+	u2Byte			sub_chnl:4;
+	u2Byte			r_RFMOD:2;
+#else	// _BIG_ENDIAN_	
+	u2Byte			r_RFMOD:2;
+	u2Byte			sub_chnl:4;
+	u2Byte			chl_num:10;
+#endif
+
+	//DWORD 1
+	u1Byte			pwdb_all;
+	u1Byte			cfosho[4];	// DW 1 byte 1 DW 2 byte 0
+
+	//DWORD 2
+	u1Byte			cfotail[4];	// DW 2 byte 1 DW 3 byte 0
+
+	//DWORD 3
+	s1Byte			rxevm[2];	// DW 3 byte 1 DW 3 byte 2
+	s1Byte			rxsnr[2];	// DW 3 byte 3 DW 4 byte 0
+
+	//DWORD 4
+	u1Byte			PCTS_MSK_RPT[2];	
+	u1Byte			pdsnr[2];	// DW 4 byte 3 DW 5 Byte 0
+
+	//DWORD 5
+	u1Byte			csi_current[2];
+	u1Byte			rx_gain_c;
+
+	//DWORD 6
+	u1Byte			rx_gain_d;
+	u1Byte			sigevm;
+	u1Byte			resvd_0;
+	u1Byte			antidx_anta:3;
+	u1Byte			antidx_antb:3;
+	u1Byte			resvd_1:2;
+} PHY_STATUS_RPT_8812_T,*PPHY_STATUS_RPT_8812_T;
 
 
 VOID
@@ -181,12 +356,23 @@ ODM_ConfigRFWithHeaderFile(
 HAL_STATUS
 ODM_ConfigBBWithHeaderFile(
 	IN  	PDM_ODM_T	                pDM_Odm,
-	IN	    ODM_BaseBand_Config_Type	ConfigType
+	IN	ODM_BB_Config_Type		ConfigType
     );
 
 HAL_STATUS
 ODM_ConfigMACWithHeaderFile(
 	IN  	PDM_ODM_T	pDM_Odm
     );
+
+HAL_STATUS
+ODM_ConfigFWWithHeaderFile(
+	IN 	PDM_ODM_T			pDM_Odm,
+	IN 	ODM_FW_Config_Type 	ConfigType,
+	OUT u1Byte				*pFirmware,
+	OUT u4Byte				*pSize
+	);
 #endif
+
+
 #endif
+

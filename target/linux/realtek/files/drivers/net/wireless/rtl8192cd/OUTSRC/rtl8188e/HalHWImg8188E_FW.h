@@ -22,8 +22,40 @@
 #ifndef __INC_FW_8188E_HW_IMG_H
 #define __INC_FW_8188E_HW_IMG_H
 
-#include "../odm_precomp.h"
 
+/******************************************************************************
+*                           FW_AP.TXT
+******************************************************************************/
+
+void
+ODM_ReadFirmware_8188E_FW_AP(
+     IN   PDM_ODM_T    pDM_Odm,
+     OUT  u1Byte       *pFirmware,
+     OUT  u4Byte       *pFirmwareSize
+);
+
+/******************************************************************************
+*                           FW_NIC.TXT
+******************************************************************************/
+
+void
+ODM_ReadFirmware_8188E_FW_NIC(
+     IN   PDM_ODM_T    pDM_Odm,
+     OUT  u1Byte       *pFirmware,
+     OUT  u4Byte       *pFirmwareSize
+);
+
+/******************************************************************************
+*                           FW_WoWLAN.TXT
+******************************************************************************/
+
+void
+ODM_ReadFirmware_8188E_FW_WoWLAN(
+     IN   PDM_ODM_T    pDM_Odm,
+     OUT  u1Byte       *pFirmware,
+     OUT  u4Byte       *pFirmwareSize
+);
 
 #endif
 #endif // end of HWIMG_SUPPORT
+

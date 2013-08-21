@@ -1,4 +1,8 @@
-#ifdef CONFIG_RTL_88E_SUPPORT
+#ifndef __HAL_PWRSEQCMD_H__
+#define __HAL_PWRSEQCMD_H__
+
+
+//#if defined(CONFIG_RTL_88E_SUPPORT)|| defined(CONFIG_RTL_8812_SUPPORT) || defined(CONFIG_RTL_92E_SUPPORT)
 
  /*---------------------------------------------*/
 //3 The value of cmd: 4 bits
@@ -97,5 +101,9 @@ typedef struct _WL_PWR_CFG_
 #define	GET_PWR_CFG_MASK(__PWR_CMD)		__PWR_CMD.msk
 #define	GET_PWR_CFG_VALUE(__PWR_CMD)		__PWR_CMD.value
 
-#endif
+//#endif
+
+
+
+#endif //__HAL_PWRSEQCMD_H__
 

@@ -13,11 +13,13 @@ Major Change History:
 	2011-08-12 Page            Create.	
 
 --*/
+#if !defined(__ECOS) && !defined(CONFIG_COMPAT_WIRELESS)
+#include "Mp_Precomp.h"
+#else
+#include "../Mp_Precomp.h"
+#endif
 #include "../odm_precomp.h"
 
-#if( DM_ODM_SUPPORT_TYPE == ODM_MP) 
-#include "Mp_Precomp.h"
-#endif
 
 #if (RATE_ADAPTIVE_SUPPORT == 1)
 // Rate adaptive parameters
@@ -62,13 +64,9 @@ static u1Byte RETRY_PENALTY[PERENTRY][RETRYSIZE+1] = {{5,4,3,2,0,3},//92 , idx=0
 													{49,22,18,14,0,48},//6 , idx=0x15
 													{49,16,16,0,0,48}};//3 //3, idx=0x16
 
-#if 0
 static u1Byte	RETRY_PENALTY_UP[RETRYSIZE+1]={49,44,16,16,0,48};  // 12% for rate up
-#endif
 
-#if POWER_TRAINING_ACTIVE == 1
 static u1Byte PT_PENALTY[RETRYSIZE+1]={34,31,30,24,0,32};
-#endif
 
 #if 0
 static u1Byte	RETRY_PENALTY_IDX[2][RATESIZE] = {{4,4,4,5,4,4,5,7,7,7,8,0x0a,	       // SS>TH
@@ -121,7 +119,6 @@ static u1Byte	RSSI_THRESHOLD[RATESIZE] = 			{0,0,0,0,
 													0,0,0,0,0,0x24,0x26,0x2a,
 													0x1a,0x1c,0x1e,0x21,0x24,0x2a,0x2b,0x2d,
 													0,0,0,0x1f,0x23,0x28,0x2a,0x2c};*/
-
 static u2Byte	N_THRESHOLD_HIGH[RATESIZE] = {4,4,8,16,
 													24,36,48,72,96,144,192,216,
 													60,80,100,160,240,400,560,640,
@@ -130,11 +127,11 @@ static u2Byte 	N_THRESHOLD_LOW[RATESIZE] = {2,2,4,8,
 													12,18,24,36,48,72,96,108,
 													30,40,50,80,120,200,280,320,
 													150,160,240,360,500,600,800,1000};
-#if 0
 static u1Byte	 TRYING_NECESSARY[RATESIZE] = {2,2,2,2,
 													2,2,3,3,4,4,5,7,
 													4,4,7,10,10,12,12,18,
 													5,7,7,8,11,18,36,60};  // 0329 // 1207
+#if 0
 static u1Byte	 POOL_RETRY_TH[RATESIZE] = {30,30,30,30,
 													30,30,25,25,20,15,15,10,
 													30,25,25,20,15,10,10,10,
@@ -147,7 +144,6 @@ static u1Byte	DROPING_NECESSARY[RATESIZE] = {1,1,1,1,
 													5,6,7,8,9,10,11,12};
 
 
-#if 0
 static u4Byte	INIT_RATE_FALLBACK_TABLE[16]={0x0f8ff015,  // 0: 40M BGN mode
 											0x0f8ff010,   // 1: 40M GN mode
 											0x0f8ff005,   // 2: BN mode/ 40M BGN mode
@@ -166,7 +162,6 @@ static u4Byte	INIT_RATE_FALLBACK_TABLE[16]={0x0f8ff015,  // 0: 40M BGN mode
 											0,			// 15:
 											
 	};
-#endif
 static u1Byte PendingForRateUpFail[5]={2,10,24,40,60};
 static u2Byte DynamicTxRPTTiming[6]={0x186a, 0x30d4, 0x493e, 0x61a8, 0x7a12 ,0x927c}; // 200ms-1200ms
 
@@ -355,9 +350,8 @@ odm_RateDecision_8188E(
 	IN 	PODM_RA_INFO_T  pRaInfo
 	)
 {
-	u1Byte /* i,*/ RateID = 0, RtyPtID = 0, PenaltyID1 = 0, PenaltyID2 = 0;
-//	u4Byte pool_retry;
-//	u1Byte Try_Result=0;
+	u1Byte RateID = 0, RtyPtID = 0, PenaltyID1 = 0, PenaltyID2 = 0;
+	//u4Byte pool_retry;
 	static u1Byte DynamicTxRPTTimingCounter=0;
 	
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_TRACE, ("=====>odm_RateDecision_8188E() \n"));
@@ -718,7 +712,7 @@ ODM_RAInfo_Init(
 	pRaInfo->PTModeSS=0;
 	pRaInfo->RAstage=0;
 #endif
-    return 0;
+	return 0;
 }
 
 int 
@@ -726,7 +720,7 @@ ODM_RAInfo_Init_all(
 	IN    PDM_ODM_T		pDM_Odm
 	)
 {
-	u1Byte MacID = 0;
+	u4Byte MacID = 0;
 
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, ("=====>\n"));
 	pDM_Odm->CurrminRptTime = 0;
@@ -871,21 +865,14 @@ ODM_RA_TxRPT2Handle_8188E(
 		if(valid)
 		{
 
-#if (DM_ODM_SUPPORT_TYPE & (ODM_MP|ODM_CE))
+
 			pRAInfo->RTY[0] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_0(pBuffer);
 			pRAInfo->RTY[1] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_1(pBuffer);
 			pRAInfo->RTY[2] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_2(pBuffer);
 			pRAInfo->RTY[3] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_3(pBuffer);
 			pRAInfo->RTY[4] = (u2Byte)GET_TX_REPORT_TYPE1_RERTY_4(pBuffer);
 			pRAInfo->DROP =   (u2Byte)GET_TX_REPORT_TYPE1_DROP_0(pBuffer);
-#else
-			pRAInfo->RTY[0] = (unsigned short)(pBuffer[1] << 8 | pBuffer[0]);
-			pRAInfo->RTY[1] = pBuffer[2];
-			pRAInfo->RTY[2] = pBuffer[3];
-			pRAInfo->RTY[3] = pBuffer[4];
-			pRAInfo->RTY[4] = pBuffer[5];
-			pRAInfo->DROP  =  pBuffer[6];
-#endif
+
 			pRAInfo->TOTAL = pRAInfo->RTY[0] + \
 							  pRAInfo->RTY[1] + \
 							  pRAInfo->RTY[2] + \
@@ -932,18 +919,26 @@ ODM_RA_TxRPT2Handle_8188E(
 #endif
 
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)
-				{
 				extern void RTL8188E_SetStationTxRateInfo(PDM_ODM_T, PODM_RA_INFO_T, int);
 				RTL8188E_SetStationTxRateInfo(pDM_Odm, pRAInfo, MacId);
-				}
 #ifdef DETECT_STA_EXISTANCE
-				{
 				void RTL8188E_DetectSTAExistance(PDM_ODM_T	pDM_Odm, PODM_RA_INFO_T pRAInfo, int MacID);
 				RTL8188E_DetectSTAExistance(pDM_Odm, pRAInfo, MacId);
-				}
 #endif			
 #endif
 
+				ODM_RT_TRACE(pDM_Odm, ODM_COMP_INIT, ODM_DBG_LOUD, 
+							("macid=%d R0=%d R1=%d R2=%d R3=%d R4=%d drop=%d valid0=%x RateID=%d SGI=%d\n", 
+							MacId,
+							pRAInfo->RTY[0],
+							pRAInfo->RTY[1],
+							pRAInfo->RTY[2],
+							pRAInfo->RTY[3],
+							pRAInfo->RTY[4],
+							pRAInfo->DROP,
+							MacIDValidEntry0,
+							pRAInfo->DecisionRate,
+							pRAInfo->RateSGI));
 			}
 			else
 				ODM_RT_TRACE(pDM_Odm,ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, (" TOTAL=0!!!!\n"));

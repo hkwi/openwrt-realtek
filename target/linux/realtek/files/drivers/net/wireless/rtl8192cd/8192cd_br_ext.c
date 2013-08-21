@@ -19,11 +19,13 @@
 #include <linux/atalk.h>
 #include <linux/udp.h>
 #include <linux/if_pppox.h>
+typedef struct udphdr udphdr;
 #elif defined(__ECOS)
 //#include <cyg/io/eth/rltk/819x/wrapper/sys_support.h>
 #include <cyg/io/eth/rltk/819x/wrapper/skbuff.h>
 #include <cyg/io/eth/rltk/819x/wrapper/timer.h>
 #include <cyg/io/eth/rltk/819x/wrapper/wrapper.h>
+typedef struct udp_hdr udphdr;
 #endif
 
 #include "./8192cd_cfg.h"
@@ -657,7 +659,7 @@ static void __nat25_db_network_insert(struct rtl8192cd_priv *priv,
 }
 
 
-
+#ifdef  CONFIG_RTL_ULINKER	
 int __nat25_db_query(struct rtl8192cd_priv *priv , unsigned char* MacAddr)
 {
 
@@ -665,10 +667,11 @@ int __nat25_db_query(struct rtl8192cd_priv *priv , unsigned char* MacAddr)
 	int i, j , retVal;
 	struct nat25_network_db_entry *db;
 	retVal=0;
-	
+
 	counter++;
-	if((counter % 16) != 0)
+	if((counter <16))
 		return 0;
+
 
 	for(i=0, j=0; i<NAT25_HASH_SIZE; i++)
 	{
@@ -685,6 +688,7 @@ int __nat25_db_query(struct rtl8192cd_priv *priv , unsigned char* MacAddr)
 
 	return 0;
 }
+#endif
 
 static void __nat25_db_print(struct rtl8192cd_priv *priv)
 {
@@ -1864,7 +1868,9 @@ int mac_clone_handle_frame(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 				 memcmp(skb->data+ETH_ALEN, priv->br_mac, ETH_ALEN)))
 			{
 #ifdef __KERNEL__
+#ifdef  CONFIG_RTL_ULINKER
 				if(__nat25_db_query(priv , priv->br_mac))
+#endif                    
 #endif
 				{
 					//found nat25 entry of br0
@@ -1985,8 +1991,8 @@ unsigned char *get_dhcp_option(struct dhcpMessage *packet, int code)
 void dhcp_add_reqip_option(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 {
 	struct iphdr* iph = (struct iphdr *)(skb->data + ETH_HLEN);
-	struct udphdr *udph = (struct udphdr *)((unsigned int)iph + (iph->ihl << 2));
-	struct dhcpMessage *dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(struct udphdr));
+	udphdr *udph = (udphdr *)((unsigned long)iph + (iph->ihl << 2));
+	struct dhcpMessage *dhcph = (struct dhcpMessage *)((unsigned long)udph + sizeof(udphdr));
 	unsigned char opt[6] = {0};
 	unsigned char *opt_end;
 	unsigned int end_offset;
@@ -2026,7 +2032,7 @@ void dhcp_flag_bcast(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 	unsigned int ip_check_recalc = 0;
 	unsigned int udp_check_recalc = 0;
 	struct iphdr* iph=NULL;
-	struct udphdr *udph=NULL;
+	udphdr *udph=NULL;
 	struct dhcpMessage *dhcph=NULL;
 
 	if(skb == NULL)
@@ -2039,10 +2045,10 @@ void dhcp_flag_bcast(struct rtl8192cd_priv *priv, struct sk_buff *skb)
 			iph = (struct iphdr *)(skb->data + ETH_HLEN);
 
 			if(iph->protocol == IPPROTO_UDP) {
-				udph = (struct udphdr *)((unsigned int)iph + (iph->ihl << 2));
+				udph = (udphdr *)((unsigned long)iph + (iph->ihl << 2));
 
 				if((udph->source == __constant_htons(CLIENT_PORT)) && (udph->dest == __constant_htons(SERVER_PORT))) {// DHCP request
-					dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(struct udphdr));
+					dhcph = (struct dhcpMessage *)((unsigned long)udph + sizeof(udphdr));
 
 #ifdef __ECOS
 					if(rtk_get_unaligned_u32((char *)&dhcph->cookie) == __constant_htonl(DHCP_MAGIC))
@@ -2109,7 +2115,7 @@ void dhcp_dst_bcast(struct rtl8192cd_priv * priv,struct sk_buff * skb)
 	unsigned int ip_check_recalc = 0;
 	unsigned int udp_check_recalc = 0;
 	struct iphdr* iph=NULL;
-	struct udphdr *udph=NULL;
+	udphdr *udph=NULL;
 	struct dhcpMessage *dhcph=NULL;
 
 	if(skb == NULL)
@@ -2119,10 +2125,10 @@ void dhcp_dst_bcast(struct rtl8192cd_priv * priv,struct sk_buff * skb)
 		iph = (struct iphdr *)(skb->data + ETH_HLEN);
 
 		if(iph->protocol == IPPROTO_UDP) {
-			udph = (struct udphdr *)((unsigned int)iph + (iph->ihl << 2));
+			udph = (udphdr *)((unsigned long)iph + (iph->ihl << 2));
 
 			if((udph->source == __constant_htons(SERVER_PORT)) && (udph->dest == __constant_htons(CLIENT_PORT))) {// DHCP request
-				dhcph = (struct dhcpMessage *)((unsigned int)udph + sizeof(struct udphdr));
+				dhcph = (struct dhcpMessage *)((unsigned long)udph + sizeof(udphdr));
 
 #ifdef __ECOS
 				if(rtk_get_unaligned_u32((char *)&dhcph->cookie) == __constant_htonl(DHCP_MAGIC))

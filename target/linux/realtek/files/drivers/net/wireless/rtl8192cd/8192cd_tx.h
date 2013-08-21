@@ -13,6 +13,9 @@
 #ifndef _8192CD_TX_H_
 #define _8192CD_TX_H_
 
+#ifndef WLAN_HAL_INTERNAL_USED
+
+
 #include "./8192cd_cfg.h"
 #include "./8192cd.h"
 #include "./8192cd_util.h"
@@ -28,7 +31,19 @@ enum _TX_QUEUE_ {
 	VI_QUEUE		= 3,
 	VO_QUEUE		= 4,
 	HIGH_QUEUE		= 5,
+#if defined(CONFIG_WLAN_HAL)
+	HIGH_QUEUE1		= 6,
+	HIGH_QUEUE2		= 7,
+	HIGH_QUEUE3		= 8,
+	HIGH_QUEUE4		= 9,
+	HIGH_QUEUE5		= 10,
+	HIGH_QUEUE6		= 11,
+	HIGH_QUEUE7		= 12,
+	BEACON_QUEUE	= 13
+#else
 	BEACON_QUEUE	= 6
+#endif
+	
 };
 
 #define MCAST_QNUM		HIGH_QUEUE
@@ -38,10 +53,21 @@ enum _TX_QUEUE_ {
 static __inline__ void init_txdesc(struct rtl8192cd_priv *priv, struct tx_desc *pdesc,
 				unsigned long ringaddr, unsigned int i)
 {
+#ifdef CONFIG_RTL_8812_SUPPORT
+	if(GET_CHIP_VER(priv)== VERSION_8812E){
+		if (i == (CURRENT_NUM_TX_DESC - 1))
+			(pdesc + i)->Dword12 = set_desc(ringaddr); // NextDescAddress
+		else
+			(pdesc + i)->Dword12 = set_desc(ringaddr + (i+1) * sizeof(struct tx_desc)); // NextDescAddress
+	} else
+#endif
+	{
 	if (i == (CURRENT_NUM_TX_DESC - 1))
 		(pdesc + i)->Dword10 = set_desc(ringaddr); // NextDescAddress
 	else
 		(pdesc + i)->Dword10 = set_desc(ringaddr + (i+1) * sizeof(struct tx_desc)); // NextDescAddress
+	}
+
 }
 
 static __inline__ unsigned int get_mpdu_len(struct tx_insn *txcfg, unsigned int fr_len)
@@ -125,6 +151,8 @@ static __inline__ void tx_poll(struct rtl8192cd_priv *priv, int q_num)
 	} while (0)
 
 #endif // WDS
+
+#endif //#ifndef WLAN_HAL_INTERNAL_USED
 
 #endif // _8192CD_TX_H_
 

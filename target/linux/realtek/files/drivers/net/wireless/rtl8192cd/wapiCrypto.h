@@ -4,6 +4,8 @@
 #define		ENCRYPT		0     
 #define		DECRYPT		1
 
+struct tx_insn;
+
 /**
  * \brief          SHA-256 context structure
  */
@@ -122,7 +124,7 @@ typedef	struct _WPISMS4HEADER {
 	uint8		reserved;
 	uint8		pn[WAPI_PN_LEN];
 	uint8		data[0];
-}	wpiSMS4Hdr;
+} __WLAN_ATTRIB_PACK__ wpiSMS4Hdr;
 
 //extern unsigned short	rtl_SMS4_rxSeq[RX_QUEUE_NUM];
 /*
@@ -139,5 +141,7 @@ void KD_hmac_sha256( unsigned char *key, int keylen,
 void WapiSMS4ForMNKEncrypt(uint8 *key, uint8*IV, uint8*input, uint32 inputLength, uint8 *output, uint8 *outputLength, uint32 CryptFlag);
 void GenerateRandomData(unsigned char * data, unsigned int len);
 int32 init_SMS4_CK_Sbox(void);
+
+void SecSWSMS4Encryption(struct rtl8192cd_priv	*priv, struct tx_insn* txcfg);
 int32 SecSWSMS4Decryption(struct rtl8192cd_priv	*priv, struct stat_info *pstat, struct rx_frinfo* pfrinfo);
 #endif	/*	WAPICRYPTO_H	*/
