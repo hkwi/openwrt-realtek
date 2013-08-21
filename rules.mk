@@ -69,6 +69,12 @@ endif
 ifneq ($(filter -mdspr2,$(TARGET_OPTIMIZATION)),)
   ARCH_SUFFIX:=$(ARCH_SUFFIX)_dspr2
 endif
+ifneq ($(filter -march=rlx4181,$(TARGET_OPTIMIZATION)),)
+  ARCH_SUFFIX:=$(ARCH_SUFFIX)_rlx4181
+endif
+ifneq ($(filter -march=rlx5281,$(TARGET_OPTIMIZATION)),)
+  ARCH_SUFFIX:=$(ARCH_SUFFIX)_rlx5281
+endif
 ifdef CONFIG_USE_MIPS16
    TARGET_OPTIMIZATION+= -minterlink-mips16 -mips16
 endif
