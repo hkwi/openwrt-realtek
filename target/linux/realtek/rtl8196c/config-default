@@ -4,6 +4,10 @@
 # Thu Dec  8 10:30:13 2011
 #
 CONFIG_RTL_819X=y
+#
+# Chip Configuration
+#
+# CONFIG_RTL_819XD is not set
 CONFIG_RTL_8196C=y
 CONFIG_ARCH_32BIT=y
 CONFIG_ARCH_CPU_RLX4181=y
@@ -25,6 +29,11 @@ CONFIG_ARCH_REQUIRE_GPIOLIB=y
 #
 # System Configuration
 #
+# CONFIG_RTL_81XXX is not set
+# CONFIG_RTL_8196D_GW is not set
+# CONFIG_RTL_8197D_GW is not set
+# CONFIG_RTL_8197D_AP is not set
+# CONFIG_RTL_8197DL_GW is not set
 CONFIG_RTL_8196C_GW=y
 # CONFIG_RTL_8196C_iNIC is not set
 # CONFIG_RTL_8196C_ICT is not set

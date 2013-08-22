@@ -90,11 +90,11 @@ config CPU_HAS_ULS
 
 config CPU_HAS_LLSC
   bool
-  default y if ARCH_CPU_LLSC
+  default n if ARCH_CPU_LLSC
 
 config CPU_HAS_SYNC
   bool
-  default y if ARCH_CPU_SYNC
+  default n if ARCH_CPU_SYNC
 
 config MMU
     bool
