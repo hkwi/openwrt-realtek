@@ -35,3 +35,36 @@
  
  /*-----------------------------------------------------------------------------
  								8192cd_net80211.c
+--- a/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
++++ b/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
+@@ -357,7 +357,7 @@
+ //-------------------------------------------------------------
+ // WPA Supplicant 
+ //-------------------------------------------------------------
+-//#define WIFI_WPAS
++#define WIFI_WPAS
+ 
+ #ifdef WIFI_WPAS
+ #ifndef WIFI_HAPD
+@@ -525,9 +525,10 @@
+ //-------------------------------------------------------------
+ // Hostapd 
+ //-------------------------------------------------------------
+-//#ifdef CONFIG_RTL_HOSTAPD_SUPPORT 
+-//#define WIFI_HAPD
+-//#endif
++#ifdef CONFIG_RTL_HOSTAPD_SUPPORT
++#define WIFI_HAPD
++#endif
++
+ #ifdef CONFIG_RTL_P2P_SUPPORT
+ #define P2P_SUPPORT  //  support for WIFI_Direct
+ //#define P2P_DEBUGMSG
+@@ -1836,3 +1837,7 @@
+ 
+ #endif // _8192CD_CFG_H_
+ 
++#ifndef WIFI_HAPD
++#error hapd not-set
++#endif
++
