@@ -68,3 +68,15 @@
 +#error hapd not-set
 +#endif
 +
+--- a/drivers/net/wireless/rtl8192cd/8192cd_led.c
++++ b/drivers/net/wireless/rtl8192cd/8192cd_led.c
+@@ -144,7 +144,8 @@
+ 			RTL_W32(LEDCFG, RTL_R32(LEDCFG) & 0xfff0ffff);
+ 	}
+ #endif	
+-	else if (GET_CHIP_VER(priv) == VERSION_8192C){
++	else if ( GET_CHIP_VER(priv) == VERSION_8192C ||
++			GET_CHIP_VER(priv) == VERSION_8188C ) {
+ 		if (flag)
+ 			RTL_W32(LEDCFG, (RTL_R32(LEDCFG) & 0xfff0ffff) | LED2SV);
+ 		else
