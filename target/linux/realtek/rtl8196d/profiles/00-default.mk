@@ -6,7 +6,7 @@
 #
 
 define Profile/Default
-	NAME:=Default Profile (all drivers)
+	NAME:=Default
 	PACKAGES:= \
 		kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-ledtrig-usbdev
 endef
@@ -14,4 +14,5 @@ endef
 define Profile/Default/Description
 	Default package set compatible with most boards.
 endef
+
 $(eval $(call Profile,Default))

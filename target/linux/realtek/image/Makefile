@@ -10,8 +10,6 @@ include $(INCLUDE_DIR)/image.mk
 JFFS2_BLOCKSIZE=4k
 
 #OBJCOPY=$(TARGET_CROSS)objcopy
-# define subtarget, should be replaced with $(SUBTARGET) when more chips will be introduced
-STARGET=rtl8196c
 
 COMMA:=,
 define mkcmdline
@@ -25,8 +23,8 @@ define Image/Prepare
 endef
 
 define Image/BuildKernel
-	$(call Image/BuildLoader,loader-$(STARGET),bin,$(call mkcmdline,$(PROFILE),ttyS0,38400) root=/dev/mtdblock2,${CONFIG_REALTEK_KERNEL_LOAD_ADDRESS},$(shell dd if=$(KDIR)/vmlinux.elf skip=24 bs=1 count=4 conv=swab 2>/dev/null | hexdump -v -e '"0x" 2/2 "%X"'))
-	cvimg linux $(KDIR)/loader-$(STARGET).bin \
+	$(call Image/BuildLoader,loader-$(SUBTARGET),bin,$(call mkcmdline,$(PROFILE),ttyS0,38400) root=/dev/mtdblock2,${CONFIG_REALTEK_KERNEL_LOAD_ADDRESS},$(shell dd if=$(KDIR)/vmlinux.elf skip=24 bs=1 count=4 conv=swab 2>/dev/null | hexdump -v -e '"0x" 2/2 "%X"'))
+	cvimg linux $(KDIR)/loader-$(SUBTARGET).bin \
 			$(BIN_DIR)/$(IMG_PREFIX)-$(PROFILE)-kernel.bin \
 			${CONFIG_REALTEK_KERNEL_LOAD_ADDRESS} \
 			${CONFIG_REALTEK_KERNEL_OFFSET}

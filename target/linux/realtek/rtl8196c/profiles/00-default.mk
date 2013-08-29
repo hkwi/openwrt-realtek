@@ -6,7 +6,7 @@
 #
 
 define Profile/Default
-	NAME:=Default Profile (all drivers)
+	NAME:=Default
 	PACKAGES:= \
 		kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-ledtrig-usbdev
 endef

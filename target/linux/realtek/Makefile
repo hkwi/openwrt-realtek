@@ -19,8 +19,4 @@ include $(INCLUDE_DIR)/target.mk
 DEFAULT_PACKAGES += librtk-inband hostapd-rtk wpa-supplicant-rtk kmod-gpio_rtl8196c \
 			wireless-tools
 
-
-
-
 $(eval $(call BuildTarget))
-
