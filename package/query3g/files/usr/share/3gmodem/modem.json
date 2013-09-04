@@ -1,6 +1,9 @@
 {"data":
 	[
+	{"usbid":"12d1:1001","manufacture":"huawei",           "model":"e1550",  "serialportnum":"3","serialport":"2","cmds":"",                      "distributor":"chinaunicom","reset":"0"},
+	{"usbid":"12d1:1001","manufacture":"huawei",           "model":"e1552",  "serialportnum":"3","serialport":"2","cmds":"",                      "distributor":"chinaunicom","reset":"0"},
 	{"usbid":"12d1:1001","manufacture":"huawei",           "model":"e173",   "serialportnum":"", "serialport":"0","cmds":"",                      "distributor":"lmt",        "reset":"0"},
+	{"usbid":"12d1:1001","manufacture":"huawei",           "model":"e1750",  "serialportnum":"3","serialport":"2","cmds":"",                      "distributor":"chinaunicom","reset":"0"},
 	{"usbid":"12d1:1001","manufacture":"huawei",           "model":"e1752",  "serialportnum":"3","serialport":"2","cmds":"",                      "distributor":"chinaunicom","reset":"0"},
 	{"usbid":"12d1:1001","manufacture":"huawei",           "model":"e261",   "serialportnum":"3","serialport":"0","cmds":"",                      "distributor":"chinaunicom","reset":"0"},
 	{"usbid":"12d1:1003","manufacture":"huawei",           "model":"e180",   "serialportnum":"2","serialport":"0","cmds":"",                      "distributor":"asd",        "reset":"0"},
