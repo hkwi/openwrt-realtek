@@ -1,0 +1,11 @@
+--- linux-2.6.30.9.orig/arch/rlx/Makefile	2013-09-05 11:51:23.000000000 +0000
++++ linux-2.6.30.9.orig/arch/rlx/Makefile	2013-09-02 13:49:09.000000000 +0000
+@@ -32,6 +32,8 @@ vmlinux-32		= vmlinux
+ cflags-y := -ffunction-sections
+ cflags-y += $(call cc-option, -mno-check-zero-division)
+ cflags-y += -mabi=32
++cflags-$(CONFIG_ARCH_CPU_RLX4181) += -march=rlx4181
++cflags-$(CONFIG_ARCH_CPU_RLX5281) += -march=rlx5281
+ 
+ #
+ # GCC uses -G 0 -mabicalls -fpic as default.  We don't want PIC in the kernel
