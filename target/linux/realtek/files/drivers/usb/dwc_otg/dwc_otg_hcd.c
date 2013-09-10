@@ -924,7 +924,7 @@ void dwc_otg_hcd_stop(struct usb_hcd *_hcd)
 /** Returns the current frame number. */
 int dwc_otg_hcd_get_frame_number(struct usb_hcd *_hcd)
 {
-	//printk("%s \n", __FUNCTION__);
+	printk("%s \n", __FUNCTION__);
   dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd(_hcd);
   hfnum_data_t hfnum;
 
@@ -1836,7 +1836,9 @@ int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd,
 {
 	//printk("%s \n", __FUNCTION__);
   int retval = 0;
-
+  #ifdef CONFIG_USB3G_SUPPORT
+  static int retry_one=0;
+  #endif
   dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd (_hcd);
   dwc_otg_core_if_t *core_if = hcd_to_dwc_otg_hcd (_hcd)->core_if;
   struct usb_hub_descriptor *desc;
@@ -2110,16 +2112,29 @@ int dwc_otg_hcd_hub_control(struct usb_hcd *_hcd,
              * success interrupt. */
             if (!_hcd->self.is_b_host) {
                 	MDELAY (1);
-				hprt0.b.prtrst = 1;
-				hprt0.b.prtena=1;
-				dwc_write_reg32(core_if->host_if->hprt0, hprt0.d32);
+                hprt0.b.prtrst = 1;
+			  #ifdef CONFIG_USB3G_SUPPORT
+				if(retry_one)
+				 {
+                    hprt0.b.prtena=1;
+                }
+
+			#endif
+			//	hprt0.b.prtena=1;
+                dwc_write_reg32(core_if->host_if->hprt0, hprt0.d32);
 				MDELAY (500);
               }
 			/* Clear reset bit in 10ms (FS/LS) or 50ms (HS) */
 			MDELAY (60);
 			Enable_OTG_Suspend(0,0);
 			hprt0.b.prtrst = 0;
-			hprt0.b.prtena=0;
+ #ifdef CONFIG_USB3G_SUPPORT
+            if(retry_one)
+            {
+                 hprt0.b.prtena=0;
+				retry_one=!retry_one;
+            }
+#endif
 			dwc_write_reg32(core_if->host_if->hprt0, hprt0.d32);
 			MDELAY (500);
 			break;

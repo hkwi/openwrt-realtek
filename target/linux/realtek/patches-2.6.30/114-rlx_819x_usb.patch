@@ -1,0 +1,100 @@
+--- a/drivers/usb/host/ehci-hcd.c
++++ b/drivers/usb/host/ehci-hcd.c
+@@ -1142,6 +1142,11 @@ MODULE_LICENSE ("GPL");
+ #define	PLATFORM_DRIVER		ehci_atmel_driver
+ #endif
+ 
++#ifdef CONFIG_RTL_819X
++#include "ehci-rtl819x.c"
++#define PLATFORM_DRIVER     ehci_rtl819x_driver
++#endif
++
+ #if !defined(PCI_DRIVER) && !defined(PLATFORM_DRIVER) && \
+     !defined(PS3_SYSTEM_BUS_DRIVER) && !defined(OF_PLATFORM_DRIVER)
+ #error "missing bus glue for ehci-hcd"
+--- a/drivers/usb/host/ohci-hcd.c
++++ b/drivers/usb/host/ohci-hcd.c
+@@ -1085,6 +1085,11 @@ MODULE_LICENSE ("GPL");
+ #define TMIO_OHCI_DRIVER	ohci_hcd_tmio_driver
+ #endif
+ 
++#ifdef CONFIG_RTL_819X
++#include "ohci-rtl819x.c"
++#define PLATFORM_DRIVER     ohci_hcd_rtl819x_driver
++#endif
++
+ #if	!defined(PCI_DRIVER) &&		\
+ 	!defined(PLATFORM_DRIVER) &&	\
+ 	!defined(OF_PLATFORM_DRIVER) &&	\
+--- a/drivers/usb/host/ehci.h
++++ b/drivers/usb/host/ehci.h
+@@ -611,6 +611,9 @@ ehci_port_speed(struct ehci_hcd *ehci, u
+ static inline unsigned int ehci_readl(const struct ehci_hcd *ehci,
+ 		__u32 __iomem * regs)
+ {
++#if defined(CONFIG_RTL_819X)
++        return (le32_to_cpu((*(volatile unsigned long *)(regs))));
++#else
+ #ifdef CONFIG_USB_EHCI_BIG_ENDIAN_MMIO
+ 	return ehci_big_endian_mmio(ehci) ?
+ 		readl_be(regs) :
+@@ -618,11 +621,15 @@ static inline unsigned int ehci_readl(co
+ #else
+ 	return readl(regs);
+ #endif
++#endif
+ }
+ 
+ static inline void ehci_writel(const struct ehci_hcd *ehci,
+ 		const unsigned int val, __u32 __iomem *regs)
+ {
++#if defined(CONFIG_RTL_819X)
++        ((*(volatile unsigned long *)(regs))=cpu_to_le32(val));
++#else
+ #ifdef CONFIG_USB_EHCI_BIG_ENDIAN_MMIO
+ 	ehci_big_endian_mmio(ehci) ?
+ 		writel_be(val, regs) :
+@@ -630,6 +637,7 @@ static inline void ehci_writel(const str
+ #else
+ 	writel(val, regs);
+ #endif
++#endif
+ }
+ 
+ /*
+--- a/drivers/usb/host/ohci.h
++++ b/drivers/usb/host/ohci.h
+@@ -553,6 +553,9 @@ static inline struct usb_hcd *ohci_to_hc
+ static inline unsigned int _ohci_readl (const struct ohci_hcd *ohci,
+ 					__hc32 __iomem * regs)
+ {
++#if defined(CONFIG_RTL_819X)
++        return (le32_to_cpu((*(volatile unsigned long *)(regs))));
++#else
+ #ifdef CONFIG_USB_OHCI_BIG_ENDIAN_MMIO
+ 	return big_endian_mmio(ohci) ?
+ 		readl_be (regs) :
+@@ -560,11 +563,15 @@ static inline unsigned int _ohci_readl (
+ #else
+ 	return readl (regs);
+ #endif
++#endif
+ }
+ 
+ static inline void _ohci_writel (const struct ohci_hcd *ohci,
+ 				 const unsigned int val, __hc32 __iomem *regs)
+ {
++#if defined(CONFIG_RTL_819X)
++        ((*(volatile unsigned long *)(regs))=cpu_to_le32(val));
++#else
+ #ifdef CONFIG_USB_OHCI_BIG_ENDIAN_MMIO
+ 	big_endian_mmio(ohci) ?
+ 		writel_be (val, regs) :
+@@ -572,6 +579,7 @@ static inline void _ohci_writel (const s
+ #else
+ 		writel (val, regs);
+ #endif
++#endif
+ }
+ 
+ #ifdef CONFIG_ARCH_LH7A404

@@ -370,17 +370,6 @@
  #endif
  
  #ifdef CONFIG_RTL_PROC_DEBUG
---- a/drivers/usb/host/usb-rtl8652.h	2012-12-03 00:13:21.000000000 +0200
-+++ b/drivers/usb/host/usb-rtl8652.h	2013-02-06 02:05:03.071754444 +0200
-@@ -15,7 +15,7 @@
-  * with this program; if not, write  to the Free Software Foundation, Inc.,
-  * 675 Mass Ave, Cambridge, MA 02139, USA.
-  */
--#include <bsp/bspchip.h>
-+#include "../../../arch/rlx/bsp/bspchip.h"
- #ifndef _USB_RTL8652_H
- #define _USB_RTL8652_H
- #define PADDR(addr)  ((addr) & 0x1FFFFFFF)
 --- a/net/rtl/fastpath/fastpath_common.c	2013-02-04 03:15:32.875227255 +0200
 +++ b/net/rtl/fastpath/fastpath_common.c	2013-02-06 02:09:07.638365005 +0200
 @@ -6,7 +6,7 @@

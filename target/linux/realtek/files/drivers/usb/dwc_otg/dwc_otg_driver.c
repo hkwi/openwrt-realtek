@@ -1195,7 +1195,7 @@ int otg_reset_procedure(int mode)
 #endif
 
 #if 1
-
+ #if !defined(CONFIG_RTL_8881A)
 	//USBPhyReset(0);  //1: in reset, 0: working	
 	//PHYPatch();  //wei add	
 	dwc_otg_phy_write(0xe0,0x99);  //disconnect, work
@@ -1215,6 +1215,7 @@ int otg_reset_procedure(int mode)
 	dwc_otg_phy_write(0xf6,0x0);  //disconnect, work
 	
 	dwc_otg_phy_write(0xe6,0xb8);  //disconnect, work
+	#endif
 	int i;
 	for(i=0xe0;i<=0xe7; i++)
 		printk("reg %x=%x\n", i,dwc_otg_phy_read(i) );	
@@ -1284,6 +1285,12 @@ int  dwc_otg_driver_init(void)
 		DWC_ERROR("OTG Device not found ! Bad value for SNPSID: 0x%08x\n", snpsid);
 		return 0;
 	}
+	#if defined(CONFIG_RTL_8881A)
+         
+	     dwc_otg_phy_write(0xe2,0x9c); 
+             dwc_otg_phy_write(0xe6,0xa8);  
+        #endif
+
 #if 0
 	if(IS_6085) {
 		printk("PHY IS_6085 \n");
@@ -1358,9 +1365,12 @@ int  dwc_otg_driver_init(void)
 		printf("PHY reg F1=%x\n", dwc_otg_phy_read(0xF1));		
 		printf("PHY reg F2=%x\n", dwc_otg_phy_read(0xF2));		
 #endif
-	//Enhance USB 3.0 IOT issues 
-	dwc_otg_phy_write(0xE2, 0x99);
-	dwc_otg_phy_write(0xE6, 0xc8);
+
+     //Enhance USB 3.0 IOT issues
+       dwc_otg_phy_write(0xE2, 0x99);
+       dwc_otg_phy_write(0xE6, 0xb8);
+
+
 
 #if DRIVER_USING_LM
 //cathy, allocate a lmdev device for driver

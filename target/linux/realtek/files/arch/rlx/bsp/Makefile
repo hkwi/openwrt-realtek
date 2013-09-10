@@ -9,6 +9,7 @@ extra-y  += vmlinux.lds
 
 obj-y := irq.o prom.o serial.o setup.o timer.o 
 obj-$(CONFIG_PCI) += pci.o
+obj-$(CONFIG_ARCH_BUS_USB) += dev_usb.o
 
 EXTRA_AFLAGS := $(CFLAGS)
 EXTRA_CFLAGS += -I$(TOPDIR)/drivers/net/rtl819x/AsicDriver

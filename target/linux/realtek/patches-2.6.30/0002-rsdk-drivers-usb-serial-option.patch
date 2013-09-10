@@ -1,0 +1,77 @@
+--- linux-2.6.30.9/drivers/usb/serial/option.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/usb/serial/option.c	2013-05-02 01:47:56.919226800 +0300
+@@ -161,6 +161,7 @@ static int  option_resume(struct usb_ser
+ #define HUAWEI_PRODUCT_E143D			0x143D
+ #define HUAWEI_PRODUCT_E143E			0x143E
+ #define HUAWEI_PRODUCT_E143F			0x143F
++#define HUAWEI_PRODUCT_K4505			0x1464
+ 
+ #define QUANTA_VENDOR_ID			0x0408
+ #define QUANTA_PRODUCT_Q101			0xEA02
+@@ -297,6 +298,8 @@ static int  option_resume(struct usb_ser
+ #define ZTE_PRODUCT_MF628			0x0015
+ #define ZTE_PRODUCT_MF626			0x0031
+ #define ZTE_PRODUCT_CDMA_TECH			0xfffe
++#define ZTE_PRODUCT_AC8710			0xfff1
++#define ZTE_PRODUCT_AC2726			0xfff5
+ 
+ #define BENQ_VENDOR_ID				0x04a5
+ #define BENQ_PRODUCT_H10			0x4068
+@@ -304,6 +307,19 @@ static int  option_resume(struct usb_ser
+ #define DLINK_VENDOR_ID				0x1186
+ #define DLINK_PRODUCT_DWM_652			0x3e04
+ 
++#define QISDA_VENDOR_ID             0x1da5
++#define QISDA_PRODUCT_H21_4512          0x4512
++#define QISDA_PRODUCT_H21_4523          0x4523
++#define QISDA_PRODUCT_H20_4515          0x4515
++#define QISDA_PRODUCT_H20_4519          0x4519
++
++/* SMPS PRODUCTS */
++#define SMPS_VENDOR_ID              0xfeed
++#define SMPS_PRODUCT_TITAN20            0x1234
++
++/* VIBO */
++#define VIBO_VENDOR_ID				0x1c9e
++#define VIBO_PRODUCT_D200			0x9605
+ 
+ static struct usb_device_id option_ids[] = {
+ 	{ USB_DEVICE(OPTION_VENDOR_ID, OPTION_PRODUCT_COLT) },
+@@ -522,7 +538,25 @@ static struct usb_device_id option_ids[]
+ 	{ USB_DEVICE(ZTE_VENDOR_ID, ZTE_PRODUCT_CDMA_TECH) },
+ 	{ USB_DEVICE(BENQ_VENDOR_ID, BENQ_PRODUCT_H10) },
+ 	{ USB_DEVICE(DLINK_VENDOR_ID, DLINK_PRODUCT_DWM_652) },
+-	{ USB_DEVICE(0x1da5, 0x4515) }, /* BenQ H20 */
++
++    /* bruce: for qisda */
++    { USB_DEVICE(QISDA_VENDOR_ID, QISDA_PRODUCT_H21_4512) },
++    { USB_DEVICE(QISDA_VENDOR_ID, QISDA_PRODUCT_H21_4523) },
++    { USB_DEVICE(QISDA_VENDOR_ID, QISDA_PRODUCT_H20_4515) },
++    { USB_DEVICE(QISDA_VENDOR_ID, QISDA_PRODUCT_H20_4519) },
++
++	/* bruce: for ZTE */
++	{ USB_DEVICE_AND_INTERFACE_INFO(ZTE_VENDOR_ID, ZTE_PRODUCT_AC8710, 0xff, 0xff, 0xff) },
++
++    /* mobilepeak */
++    { USB_DEVICE_AND_INTERFACE_INFO(SMPS_VENDOR_ID, SMPS_PRODUCT_TITAN20, 0xff, 0xff, 0xff) },
++
++	/* Huawei*/
++	{ USB_DEVICE_AND_INTERFACE_INFO(HUAWEI_VENDOR_ID, HUAWEI_PRODUCT_K4505, 0xff, 0xff, 0xff) },
++
++	/* vibo */
++    { USB_DEVICE(VIBO_VENDOR_ID, VIBO_PRODUCT_D200) },
++
+ 	{ } /* Terminating entry */
+ };
+ MODULE_DEVICE_TABLE(usb, option_ids);
+@@ -833,8 +867,9 @@ static void option_instat_callback(struc
+ 			dbg("%s: type %x req %x", __func__,
+ 				req_pkt->bRequestType, req_pkt->bRequest);
+ 		}
+-	} else
++	} else {/////TODO
+ 		err("%s: error %d", __func__, status);
++    }
+ 
+ 	/* Resubmit urb so we continue receiving IRQ data */
+ 	if (status != -ESHUTDOWN && status != -ENOENT) {

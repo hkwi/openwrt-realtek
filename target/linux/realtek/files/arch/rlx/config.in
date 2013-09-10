@@ -82,7 +82,7 @@ config ARCH_IRQ_VEC
 
 config ARCH_BUS_USB
 	bool 
-	default n
+	default y
 
 config ARCH_BUS_PCI
 	bool 
