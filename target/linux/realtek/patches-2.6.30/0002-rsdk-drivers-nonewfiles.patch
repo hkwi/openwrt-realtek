@@ -6119,15 +6119,6 @@
  }
 --- linux-2.6.30.9/drivers/staging/Kconfig	2009-10-05 18:38:08.000000000 +0300
 +++ linux-2.6.30.9-rsdk/drivers/staging/Kconfig	2013-05-02 01:47:55.708226898 +0300
-@@ -41,6 +41,8 @@ config STAGING_EXCLUDE_BUILD
- 
- if !STAGING_EXCLUDE_BUILD
- 
-+source "drivers/staging/rtk_uWiFi/Kconfig"
-+
- source "drivers/staging/et131x/Kconfig"
- 
- source "drivers/staging/slicoss/Kconfig"
 @@ -85,6 +87,8 @@ source "drivers/staging/altpciechdma/Kco
  
  source "drivers/staging/rtl8187se/Kconfig"
@@ -6139,15 +6130,6 @@
  source "drivers/staging/mimio/Kconfig"
 --- linux-2.6.30.9/drivers/staging/Makefile	2009-10-05 18:38:08.000000000 +0300
 +++ linux-2.6.30.9-rsdk/drivers/staging/Makefile	2013-05-02 01:47:55.708226898 +0300
-@@ -2,7 +2,7 @@
- 
- # fix for build system bug...
- obj-$(CONFIG_STAGING)		+= staging.o
--
-+obj-$(CONFIG_USB_UWIFI_HOST)	+= rtk_uWiFi/
- obj-$(CONFIG_ET131X)		+= et131x/
- obj-$(CONFIG_SLICOSS)		+= slicoss/
- obj-$(CONFIG_SXG)		+= sxg/
 @@ -25,6 +25,7 @@ obj-$(CONFIG_ASUS_OLED)		+= asus_oled/
  obj-$(CONFIG_PANEL)		+= panel/
  obj-$(CONFIG_ALTERA_PCIE_CHDMA)	+= altpciechdma/

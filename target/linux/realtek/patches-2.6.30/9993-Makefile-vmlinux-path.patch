@@ -1,0 +1,14 @@
+--- a/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ b/Makefile	2013-09-13 18:04:16.832665819 +0300
+@@ -696,7 +696,11 @@
+ vmlinux-init := $(head-y) $(init-y)
+ vmlinux-main := $(core-y) $(libs-y) $(drivers-y) $(net-y)
+ vmlinux-all  := $(vmlinux-init) $(vmlinux-main)
++ifneq ($(CONFIG_RTL_819X),)
++vmlinux-lds  := arch/$(SRCARCH)/bsp/vmlinux.lds
++else
+ vmlinux-lds  := arch/$(SRCARCH)/kernel/vmlinux.lds
++endif
+ export KBUILD_VMLINUX_OBJS := $(vmlinux-all)
+ 
+ # Rule to link vmlinux - also used during CONFIG_KALLSYMS
