@@ -3,6 +3,6 @@
 #endif
 
 
-obj-$(if $(CONFIG_GPIO_RTL8196C),m) += gpio_rtl8196c.o
+obj-$(if $(CONFIG_GPIO_RTL819X),m) += gpio_rtl819x.o
 
 

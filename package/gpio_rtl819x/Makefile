@@ -8,19 +8,19 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
-PKG_NAME:=gpio_rtl8196c
-PKG_VERSION:=0.0.1
+PKG_NAME:=gpio_rtl819x
+PKG_VERSION:=0.0.2
 PKG_RELEASE:=1
 
 include $(INCLUDE_DIR)/package.mk
 
-define KernelPackage/gpio_rtl8196c
-	SUBMENU:=gpio_rtl8196c
-	TITLE:=gpio_rtl8196c
-	FILES:=$(PKG_BUILD_DIR)/gpio_rtl8196c.ko
+define KernelPackage/gpio_rtl819x
+	SUBMENU:=gpio_rtl819x
+	TITLE:=gpio_rtl819x
+	FILES:=$(PKG_BUILD_DIR)/gpio_rtl819x.ko
 	DEPENDS:=
 	#KCONFIG:=
-	KCONFIG:=CONFIG_GPIO_RTL8196C=y CONFIG_GPIOLIB=y CONFIG_GENERIC_GPIO=y CONFIG_ARCH_WANT_OPTIONAL_GPIOLIB=y
+	KCONFIG:=CONFIG_GPIO_RTL819X=y CONFIG_GPIOLIB=y CONFIG_GENERIC_GPIO=y CONFIG_ARCH_WANT_OPTIONAL_GPIOLIB=y
 	#AUTOLOAD:=$(call AutoLoad,01,sigb in)
 endef
 
@@ -28,7 +28,7 @@ define KernelPackage/gpio_rtl8196c/description
 	GPIO for Realtek rtl8196c
 endef
 
-EXTRA_KCONFIG:=CONFIG_GPIO_RTL8196C=y
+EXTRA_KCONFIG:=CONFIG_GPIO_RTL819X=y
 EXTRA_KCONFIG+=CONFIG_ARCH_WANT_OPTIONAL_GPIOLIB=y
 EXTRA_KCONFIG+=CONFIG_ARCH_REQUIRE_GPIOLIB=y
 EXTRA_KCONFIG+=CONFIG_GENERIC_GPIO=y
@@ -56,7 +56,7 @@ define Build/Compile
 	$(MAKE) -C "$(LINUX_DIR)" \
 		 $(MAKE_OPTS) \
 		modules
-	$(CP) $(PKG_BUILD_DIR)/gpio_rtl8196c.ko /tmp
+	$(CP) $(PKG_BUILD_DIR)/gpio_rtl819x.ko /tmp
 endef
 
-$(eval $(call KernelPackage,gpio_rtl8196c))
+$(eval $(call KernelPackage,gpio_rtl819x))

@@ -24,17 +24,27 @@
 #endif
 
 ////////////////////////////////////////////////////////////////////////
-#define RTL8196C_BASE_ADDR		0xb8000000
-#define RTL8196C_GPIO_ADDR		(RTL8196C_BASE_ADDR + 0x3500)
-#define RTL8196C_GPIO_PABCD_CNT_ADDR	(RTL8196C_GPIO_ADDR + 0x00)
-#define RTL8196C_GPIO_PABCD_TYPE_ADDR	(RTL8196C_GPIO_ADDR + 0x00)
-#define RTL8196C_GPIO_PABCD_DIR_ADDR	(RTL8196C_GPIO_ADDR + 0x08)
-#define RTL8196C_GPIO_PABCD_DAT_ADDR	(RTL8196C_GPIO_ADDR + 0x0c)
-#define RTL8196C_GPIO_PABCD_ISR_ADDR	(RTL8196C_GPIO_ADDR + 0x10)
-#define RTL8196C_GPIO_PAB_IMR_ADDR	(RTL8196C_GPIO_ADDR + 0x14)
-#define RTL8196C_GPIO_PCD_IMR_ADDR	(RTL8196C_GPIO_ADDR + 0x18)
+//SAME DEFINE FOR 8196C/8196E/8196D/8198
+#define RTL819X_BASE_ADDR		0xb8000000
+#define RTL819X_GPIO_ADDR		(RTL819X_BASE_ADDR + 0x3500)
+#define RTL819X_GPIO_PABCD_CNT_ADDR	(RTL819X_GPIO_ADDR + 0x00)
+#define RTL819X_GPIO_PABCD_TYPE_ADDR	(RTL819X_GPIO_ADDR + 0x00)
+#define RTL819X_GPIO_PABCD_DIR_ADDR	(RTL819X_GPIO_ADDR + 0x08)
+#define RTL819X_GPIO_PABCD_DAT_ADDR	(RTL819X_GPIO_ADDR + 0x0c)
+#define RTL819X_GPIO_PABCD_ISR_ADDR	(RTL819X_GPIO_ADDR + 0x10)
+#define RTL819X_GPIO_PAB_IMR_ADDR	(RTL819X_GPIO_ADDR + 0x14)
+#define RTL819X_GPIO_PCD_IMR_ADDR	(RTL819X_GPIO_ADDR + 0x18)
 
-#define RTL8196C_MUX_ADDR		(RTL8196C_BASE_ADDR + 0x40)
+#define RTL819X_MUX_ADDR0		(RTL819X_BASE_ADDR + 0x40)
+#define RTL819X_MUX_ADDR1		(RTL819X_MUX_ADDR  + 0x4)
+
+#if defined(CONFIG_RTL_8196C)
+#define RTL8196X_MUX_DEF_VALUE		0x340FFF
+#elif defined(CONFIG_RTL_8196D)
+#define RTL8196X_MUX_DEF_VALUE		0x0
+#elif defined(CONFIG_RTL_8196E)
+#define RTL8196X_MUX_DEF_VALUE		0x0
+#endif
 
 static int g_muxdummy;
 
@@ -51,7 +61,7 @@ static int g_muxdummy;
 #define RTL8196C_GPIO_SPML_UART		
 #define RTL8196C_GPIO_SPML_PCIE		
 
-static uint32_t rtl8196c_mux_value	=	0x340FFF;
+static uint32_t rtl819x_mux_value	=	RTL8196X_MUX_DEF_VALUE;
 
 struct rtl_gpio_chip 
 {
@@ -63,7 +73,7 @@ struct rtl_gpio_chip
 	spinlock_t		lock;/* Lock used for synchronization */
 };
 
-extern struct rtl_gpio_chip gpio_rtl8196c;
+extern struct rtl_gpio_chip gpio_rtl819x;
 
 static inline struct rtl_gpio_chip *to_rtl_gpio_chip(struct gpio_chip *gc)
 {
@@ -72,54 +82,54 @@ static inline struct rtl_gpio_chip *to_rtl_gpio_chip(struct gpio_chip *gc)
 
 ////////////////////////////////////////////////////////////////////////
 //configure ports as GPIO
-static int param_set_rtl8196c_mux( const char *val, struct kernel_param *kp )
+static int param_set_rtl819x_mux( const char *val, struct kernel_param *kp )
 {
-	volatile uint32_t *mux = (uint32_t *)RTL8196C_MUX_ADDR;
+	volatile uint32_t *mux = (uint32_t *)RTL819X_MUX_ADDR0;
 	unsigned long flags;
 	
-	PRINT("param_set_rtl8196c_mux\n");
+	PRINT("param_set_rtl819x_mux\n");
 	if ( !val )
 	{
 		return -EINVAL;
 	}
-	if ( sscanf( val, "0x%x", &rtl8196c_mux_value ) < 0 )
+	if ( sscanf( val, "0x%x", &rtl819x_mux_value ) < 0 )
 	{
 		PRINT("err val\n");
 		return -EINVAL;
 	}
-	spin_lock_irqsave(&gpio_rtl8196c.lock, flags);
-	PRINT("mux set 0x%08x\n",rtl8196c_mux_value);
-	*mux = rtl8196c_mux_value;
-	spin_unlock_irqrestore(&gpio_rtl8196c.lock, flags);
+	spin_lock_irqsave(&gpio_rtl819x.lock, flags);
+	PRINT("mux set 0x%08x\n",rtl819x_mux_value);
+	*mux = rtl819x_mux_value;
+	spin_unlock_irqrestore(&gpio_rtl819x.lock, flags);
 	return 0;
 }
 
-#define param_check_rtl8196c_mux(a,b)  ;;
+#define param_check_rtl819x_mux(a,b)  ;;
 
 ////////////////////////////////////////////////////////////////////////
 //get current configured port value
-static int param_get_rtl8196c_mux( char *buf, struct kernel_param *kp )
+static int param_get_rtl819x_mux( char *buf, struct kernel_param *kp )
 {
-	volatile uint32_t *mux = (uint32_t*)RTL8196C_MUX_ADDR;
+	volatile uint32_t *mux = (uint32_t*)RTL819X_MUX_ADDR0;
 	unsigned long flags;
 	
-	PRINT("param_get_rtl8196c_mux\n");
-	spin_lock_irqsave(&gpio_rtl8196c.lock, flags);
+	PRINT("param_get_rtl819x_mux\n");
+	spin_lock_irqsave(&gpio_rtl819x.lock, flags);
 	sprintf( buf, "0x%x", *mux );
-	spin_unlock_irqrestore(&gpio_rtl8196c.lock, flags);
+	spin_unlock_irqrestore(&gpio_rtl819x.lock, flags);
 	return strlen( buf );
 }
 
-module_param_named(rtl8196c_mux, g_muxdummy, rtl8196c_mux, S_IRUGO | S_IWUSR);
+module_param_named(rtl819x_mux, g_muxdummy, rtl819x_mux, S_IRUGO | S_IWUSR);
 
 ////////////////////////////////////////////////////////////////////////
-static int gpio_rtl8196c_dir_in( struct gpio_chip *chip, unsigned int gpio )
+static int gpio_rtl819x_dir_in( struct gpio_chip *chip, unsigned int gpio )
 {
-	volatile uint32_t *dir = (uint32_t*)RTL8196C_GPIO_PABCD_DIR_ADDR;
+	volatile uint32_t *dir = (uint32_t*)RTL819X_GPIO_PABCD_DIR_ADDR;
 	unsigned long flags;
 	struct rtl_gpio_chip *rgc = to_rtl_gpio_chip( chip );
 	
-	PRINT("gpio_rtl8196c_dir_in\n");
+	PRINT("gpio_rtl819x_dir_in\n");
 	PRINT("offset = %d\n", gpio);
 	
 	spin_lock_irqsave(rgc->lock, flags);
@@ -132,13 +142,13 @@ static int gpio_rtl8196c_dir_in( struct gpio_chip *chip, unsigned int gpio )
 
 
 ////////////////////////////////////////////////////////////////////////
-static int gpio_rtl8196c_dir_out( struct gpio_chip *chip, unsigned int gpio )
+static int gpio_rtl819x_dir_out( struct gpio_chip *chip, unsigned int gpio )
 {
-	volatile uint32_t *dir = (uint32_t*)RTL8196C_GPIO_PABCD_DIR_ADDR;
+	volatile uint32_t *dir = (uint32_t*)RTL819X_GPIO_PABCD_DIR_ADDR;
 	unsigned long flags;
 	struct rtl_gpio_chip *rgc = to_rtl_gpio_chip( chip );
 	
-	PRINT("gpio_rtl8196c_dir_out\n");
+	PRINT("gpio_rtl819x_dir_out\n");
 	PRINT("offset = %d\n", gpio);
 	
 	spin_lock_irqsave(rgc->lock, flags);
@@ -151,14 +161,14 @@ static int gpio_rtl8196c_dir_out( struct gpio_chip *chip, unsigned int gpio )
 
 
 ////////////////////////////////////////////////////////////////////////
-static int gpio_rtl8196c_get( struct gpio_chip *chip, unsigned int gpio )
+static int gpio_rtl819x_get( struct gpio_chip *chip, unsigned int gpio )
 {
-	volatile uint32_t *dat = (uint32_t*)RTL8196C_GPIO_PABCD_DAT_ADDR;
+	volatile uint32_t *dat = (uint32_t*)RTL819X_GPIO_PABCD_DAT_ADDR;
 	int res=0;
 	unsigned long flags;
 	struct rtl_gpio_chip *rgc = to_rtl_gpio_chip( chip );
 	
-	PRINT("gpio_rtl8196c_get\n");
+	PRINT("gpio_rtl819x_get\n");
 	PRINT("offset = %d\n", gpio);
 	
 	spin_lock_irqsave(rgc->lock, flags);
@@ -170,14 +180,14 @@ static int gpio_rtl8196c_get( struct gpio_chip *chip, unsigned int gpio )
 
 
 ////////////////////////////////////////////////////////////////////////
-static void gpio_rtl8196c_set( struct gpio_chip *chip, unsigned int gpio, int value )
+static void gpio_rtl819x_set( struct gpio_chip *chip, unsigned int gpio, int value )
 {
-	volatile uint32_t *dat = (uint32_t*)RTL8196C_GPIO_PABCD_DAT_ADDR;
+	volatile uint32_t *dat = (uint32_t*)RTL819X_GPIO_PABCD_DAT_ADDR;
 	int res=0;
 	unsigned long flags;
 	struct rtl_gpio_chip *rgc = to_rtl_gpio_chip( chip );
 	
-	PRINT("gpio_rtl8196c_set\n");
+	PRINT("gpio_rtl819x_set\n");
 	PRINT("offset = %d = %d\n", gpio, value);
 	
 	spin_lock_irqsave(rgc->lock, flags);
@@ -191,41 +201,41 @@ static void gpio_rtl8196c_set( struct gpio_chip *chip, unsigned int gpio, int va
 }
 
 ////////////////////////////////////////////////////////////////////////
-static int gpio_rtl8196c_to_irq(struct gpio_chip *chip, unsigned offset)
+static int gpio_rtl819x_to_irq(struct gpio_chip *chip, unsigned offset)
 {
 	return -EINVAL;
 }
 
 ////////////////////////////////////////////////////////////////////////
 //init module
-struct rtl_gpio_chip gpio_rtl8196c = 
+struct rtl_gpio_chip gpio_rtl819x = 
 {
 	.chip = {
-		.label =		"gpio_rtl8196c",
-		.direction_input =	gpio_rtl8196c_dir_in,
-		.get =			gpio_rtl8196c_get,
-		.direction_output =	gpio_rtl8196c_dir_out,
-		.set =			gpio_rtl8196c_set,
-		.to_irq =		gpio_rtl8196c_to_irq,
+		.label =		"gpio_rtl819x",
+		.direction_input =	gpio_rtl819x_dir_in,
+		.get =			gpio_rtl819x_get,
+		.direction_output =	gpio_rtl819x_dir_out,
+		.set =			gpio_rtl819x_set,
+		.to_irq =		gpio_rtl819x_to_irq,
 		.base =			0,
 		.ngpio =		32,
 	},
 	.gpio_dir = 0x0,
 };
 
-static int __init gpio_rtl8196c_init( void )
+static int __init gpio_rtl819x_init( void )
 {
 	PRINT("Start\n");
-	gpiochip_add( &gpio_rtl8196c.chip );
+	gpiochip_add( &gpio_rtl819x.chip );
 	return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
 //exit from module
-static int gpio_rtl8196c_exit( void )
+static int gpio_rtl819x_exit( void )
 {
 	PRINT("End\n");
-	gpiochip_remove( &gpio_rtl8196c.chip );
+	gpiochip_remove( &gpio_rtl819x.chip );
 	return 0;
 }
 
@@ -235,5 +245,5 @@ MODULE_AUTHOR("Artur Artamonov");
 MODULE_DESCRIPTION("gpio_rtl8196c");
 MODULE_LICENSE("GPL");
 
-module_init( gpio_rtl8196c_init );
-module_exit( gpio_rtl8196c_exit );
+module_init( gpio_rtl819x_init );
+module_exit( gpio_rtl819x_exit );

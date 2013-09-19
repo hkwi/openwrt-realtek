@@ -1,0 +1,7 @@
+GPIO driver for rtl chips. 
+
+ChangeLog:
+v0.0.2:
+	Defines changed to compile under rtl819x family (96c,96e,96d,88)
+v0.0.1:
+	Added support for 96c
