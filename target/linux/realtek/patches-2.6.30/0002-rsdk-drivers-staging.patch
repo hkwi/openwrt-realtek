@@ -1,0 +1,21 @@
+--- linux-2.6.30.9/drivers/staging/Kconfig	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/staging/Kconfig	2013-05-02 01:47:55.708226898 +0300
+@@ -85,6 +87,8 @@ source "drivers/staging/altpciechdma/Kco
+ 
+ source "drivers/staging/rtl8187se/Kconfig"
+ 
++source "drivers/staging/rtl8192su/Kconfig"
++
+ source "drivers/staging/rspiusb/Kconfig"
+ 
+ source "drivers/staging/mimio/Kconfig"
+--- linux-2.6.30.9/drivers/staging/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/staging/Makefile	2013-05-02 01:47:55.708226898 +0300
+@@ -25,6 +25,7 @@ obj-$(CONFIG_ASUS_OLED)		+= asus_oled/
+ obj-$(CONFIG_PANEL)		+= panel/
+ obj-$(CONFIG_ALTERA_PCIE_CHDMA)	+= altpciechdma/
+ obj-$(CONFIG_RTL8187SE)		+= rtl8187se/
++obj-$(CONFIG_RTL8192SU)		+= rtl8192su/
+ obj-$(CONFIG_USB_RSPI)		+= rspiusb/
+ obj-$(CONFIG_INPUT_MIMIO)	+= mimio/
+ obj-$(CONFIG_TRANZPORT)		+= frontier/

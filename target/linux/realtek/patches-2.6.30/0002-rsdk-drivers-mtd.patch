@@ -1,0 +1,1292 @@
+--- linux-2.6.30.9/drivers/mtd/chips/Kconfig	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/mtd/chips/Kconfig	2013-05-02 01:47:52.620227148 +0300
+@@ -240,6 +240,12 @@ config MTD_XIP
+ 	  This allows MTD support to work with flash memory which is also
+ 	  used for XIP purposes.  If you're not sure what this is all about
+ 	  then say N.
++config RTL819X_SPI_FLASH
++        bool "RTL819x SPI flash support"
++        depends on MTD
++        help
++          Support SPI flash for MX25L,SST series
++
+ 
+ endmenu
+ 
+--- linux-2.6.30.9/drivers/mtd/chips/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/mtd/chips/Makefile	2013-05-02 01:47:52.620227148 +0300
+@@ -13,3 +13,4 @@ obj-$(CONFIG_MTD_JEDECPROBE)	+= jedec_pr
+ obj-$(CONFIG_MTD_RAM)		+= map_ram.o
+ obj-$(CONFIG_MTD_ROM)		+= map_rom.o
+ obj-$(CONFIG_MTD_ABSENT)	+= map_absent.o
++obj-$(CONFIG_RTL819X_SPI_FLASH) += rtl819x/
+--- linux-2.6.30.9/drivers/mtd/devices/doc2001.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/mtd/devices/doc2001.c	2013-05-02 01:47:52.629227147 +0300
+@@ -10,8 +10,11 @@
+ #include <asm/errno.h>
+ #include <asm/io.h>
+ #include <asm/uaccess.h>
++#include <linux/miscdevice.h>
++#include <linux/pci.h>
+ #include <linux/delay.h>
+ #include <linux/slab.h>
++#include <linux/sched.h>
+ #include <linux/init.h>
+ #include <linux/types.h>
+ #include <linux/bitops.h>
+@@ -20,6 +23,48 @@
+ #include <linux/mtd/nand.h>
+ #include <linux/mtd/doc2000.h>
+ 
++#ifdef CONFIG_RTL_819X
++/*porting for RTL865xC-RTL8190 SDK by alva_zhang@2007.11*/
++#include <linux/config.h>
++#include <linux/mtd/partitions.h>
++
++#define CALL_APP_TO_LOAD_DEFAULT	// call user program to load default
++extern int flash_hw_start;
++#define noCONFIG_MTD_DEBUG
++#define CONFIG_MTD_DEBUG_VERBOSE 3
++extern int flash_hw_start, flash_hw_len, flash_ds_start, flash_ds_len, flash_write_flag;
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++#define RTL_BOOTCODE_END (0x6000)
++static struct mtd_partition rtl8196_partitions[ ] = {
++        {
++                name:         "boot+cfg+linux",
++                size:           (CONFIG_RTL_ROOT_IMAGE_OFFSET-0),
++                offset:         0x00000000,
++        },
++        {
++                name:           "root fs",
++                   size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
++                offset:         (CONFIG_RTL_ROOT_IMAGE_OFFSET),
++        }
++};
++#else
++static struct mtd_partition rtl8196_partitions[ ] = {
++        {
++                name:         "boot+cfg+linux",
++                size:           0xF0000,
++                offset:         0x00000000,
++        },
++        {
++                name:           "root fs",
++                   size:        0x110000,
++                offset:         0xF0000,
++        }
++};
++#endif
++#define NB_OF(x)  (sizeof(x)/sizeof(x[0]))
++#endif /*#ifdef CONFIG_RTL_819X */
++
++
+ /* #define ECC_DEBUG */
+ 
+ /* I have no idea why some DoC chips can not use memcop_form|to_io().
+@@ -32,12 +77,29 @@ static int doc_read(struct mtd_info *mtd
+ 		    size_t *retlen, u_char *buf);
+ static int doc_write(struct mtd_info *mtd, loff_t to, size_t len,
+ 		     size_t *retlen, const u_char *buf);
++
++#ifdef CONFIG_RTL_819X
++/* Do nothing here*/
++#else
+ static int doc_read_oob(struct mtd_info *mtd, loff_t ofs,
+ 			struct mtd_oob_ops *ops);
+ static int doc_write_oob(struct mtd_info *mtd, loff_t ofs,
+ 			 struct mtd_oob_ops *ops);
++#endif
++
+ static int doc_erase (struct mtd_info *mtd, struct erase_info *instr);
+ 
++#ifdef CONFIG_RTL_819X
++/*porting for RTL865xC-RTL8190 SDK by alva_zhang@2007.11*/
++static int erase_one_block(struct DiskOnChip *this, __u32 addr, __u32 len);
++#endif
++
++#ifdef CONFIG_RTL_819X
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++int find_section_boundary(struct mtd_info *mtd,unsigned int start, unsigned int end, unsigned int *rstart, unsigned *rend);
++#endif
++#endif
++
+ static struct mtd_info *docmillist = NULL;
+ 
+ /* Perform the required delay cycles by reading from the NOP register */
+@@ -149,6 +211,10 @@ static inline void DoC_Address(void __io
+ 	DoC_Delay(docptr, 4);
+ }
+ 
++#ifdef CONFIG_RTL_819X
++/*porting for RTL865xC-RTL8190 SDK by alva_zhang@2007.11*/
++/* Do nothing here*/
++#else
+ /* DoC_SelectChip: Select a given flash chip within the current floor */
+ static int DoC_SelectChip(void __iomem * docptr, int chip)
+ {
+@@ -281,6 +347,7 @@ static void DoC_ScanChips(struct DiskOnC
+ 	printk(KERN_INFO "%d flash chips found. Total DiskOnChip size: %ld MiB\n",
+ 	       this->numchips ,this->totlen >> 20);
+ }
++#endif /*#ifdef CONFIG_RTL_819X */
+ 
+ static int DoCMil_is_alias(struct DiskOnChip *doc1, struct DiskOnChip *doc2)
+ {
+@@ -318,9 +385,16 @@ static int DoCMil_is_alias(struct DiskOn
+ void DoCMil_init(struct mtd_info *mtd)
+ {
+ 	struct DiskOnChip *this = mtd->priv;
++#ifdef CONFIG_RTL_819X 
++/*do nothing here*/
++#else
+ 	struct DiskOnChip *old = NULL;
++#endif
+ 
+ 	/* We must avoid being called twice for the same device. */
++#ifdef CONFIG_RTL_819X 
++/*do nothing here*/
++#else
+ 	if (docmillist)
+ 		old = docmillist->priv;
+ 
+@@ -337,17 +411,31 @@ void DoCMil_init(struct mtd_info *mtd)
+ 		else
+ 			old = NULL;
+ 	}
++#endif /*CONFIG_RTL_819X*/
+ 
+ 	mtd->name = "DiskOnChip Millennium";
++#ifdef CONFIG_RTL_819X 
++/*do nothing here*/
++#else
+ 	printk(KERN_NOTICE "DiskOnChip Millennium found at address 0x%lX\n",
+ 	       this->physadr);
++#endif
++
++	mtd->type = MTD_NORFLASH;
++	mtd->flags = MTD_CAP_NORFLASH;
++#ifdef CONFIG_RTL_819X
++#else
++	mtd->ecctype = MTD_ECC_RS_DiskOnChip;
++#endif
+ 
+-	mtd->type = MTD_NANDFLASH;
+-	mtd->flags = MTD_CAP_NANDFLASH;
++#ifdef CONFIG_RTL_819X 
++/*do nothing here*/
++#else	
+ 	mtd->size = 0;
+ 
+ 	/* FIXME: erase size is not always 8KiB */
+ 	mtd->erasesize = 0x2000;
++#endif
+ 
+ 	mtd->writesize = 512;
+ 	mtd->oobsize = 16;
+@@ -357,10 +445,19 @@ void DoCMil_init(struct mtd_info *mtd)
+ 	mtd->unpoint = NULL;
+ 	mtd->read = doc_read;
+ 	mtd->write = doc_write;
++
++#ifdef CONFIG_RTL_819X 
++/*do nothing here*/
++#else		
+ 	mtd->read_oob = doc_read_oob;
+ 	mtd->write_oob = doc_write_oob;
++#endif
++
+ 	mtd->sync = NULL;
+ 
++#ifdef CONFIG_RTL_819X 
++/*do nothing here*/
++#else	
+ 	this->totlen = 0;
+ 	this->numchips = 0;
+ 	this->curfloor = -1;
+@@ -368,6 +465,7 @@ void DoCMil_init(struct mtd_info *mtd)
+ 
+ 	/* Ident all the chips present. */
+ 	DoC_ScanChips(this);
++#endif
+ 
+ 	if (!this->totlen) {
+ 		kfree(mtd);
+@@ -376,15 +474,199 @@ void DoCMil_init(struct mtd_info *mtd)
+ 		this->nextdoc = docmillist;
+ 		docmillist = mtd;
+ 		mtd->size  = this->totlen;
++//#ifdef CONFIG_RTK_MTD_ROOT
++#ifdef CONFIG_RTL_819X
++		add_mtd_partitions(mtd, rtl8196_partitions,  NB_OF(rtl8196_partitions));
++#else
+ 		add_mtd_device(mtd);
++#endif
+ 		return;
+ 	}
+ }
+ EXPORT_SYMBOL_GPL(DoCMil_init);
+ 
++#ifdef CONFIG_RTL_819X 
++static int doc_write_ecc (struct mtd_info *mtd, loff_t to, size_t len,
++			  size_t *retlen, const u_char *buf, u_char *eccbuf)
++{
++	int i,ret;
++	struct DiskOnChip *this = (struct DiskOnChip *)mtd->priv;
++	unsigned long docptr =(unsigned long) this->virtadr;
++	unsigned int ofs;
++	unsigned short val,val1;
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++	unsigned int rstart,rend;
++	unsigned int start,end;
++#endif
++// david ------------
++unsigned long timeo, offset;
++unsigned long flags; 
++//-------------------
++
++	/* Don't allow write past end of device */
++	if (to >= this->totlen)
++	{
++// david
++//		printk("write to >= total len\n");
++	printk(KERN_WARNING "write to >= total len\n");
++		return -EINVAL;
++	}
++	DEBUG(MTD_DEBUG_LEVEL1,"going to write len=0x%x,to =0x%x\n", (int)len, (int)to);
++
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++	start=to;
++	end=0xFFFFFFF;
++	if(flash_write_flag & 1)
++	{
++		if(0 == start)
++			start = CONFIG_RTL_HW_SETTING_OFFSET;
++		else if( start > CONFIG_RTL_HW_SETTING_OFFSET )
++			start = CONFIG_RTL_HW_SETTING_OFFSET;
++		end=CONFIG_RTL_DEFAULT_SETTING_OFFSET;
++	}
++			
++	if(flash_write_flag & 2 )
++	{
++		if(0 == start)
++			start = CONFIG_RTL_DEFAULT_SETTING_OFFSET;
++		else if( start > CONFIG_RTL_DEFAULT_SETTING_OFFSET )
++			start = CONFIG_RTL_DEFAULT_SETTING_OFFSET;
++		
++		end = CONFIG_RTL_CURRENT_SETTING_OFFSET;
++	}
++			
++	if( flash_write_flag & 4 )
++	{
++		if(0 == start)
++			start = CONFIG_RTL_CURRENT_SETTING_OFFSET;
++		else if( start > CONFIG_RTL_CURRENT_SETTING_OFFSET )
++			start = CONFIG_RTL_CURRENT_SETTING_OFFSET;	
++		end = CONFIG_RTL_WEB_PAGES_OFFSET;
++	}
++	find_section_boundary(mtd,start,end,&rstart,&rend);
++
++#endif
++
++	*retlen = len;
++	ofs = docptr + to;
++	for(i=0; i< len; i+=2)
++	{
++// david -----------------------------------------------------
++#if 0
++		val = *(unsigned short *)buf;
++
++		*(volatile unsigned short *)(0xbfc00000 + 0x555 * 2)= 0xaa;
++		*(volatile unsigned short *)(0xbfc00000 + 0x2aa * 2)= 0x55;
++		*(volatile unsigned short *)(0xbfc00000 + 0x555 * 2)= 0xa0;
++		*(volatile unsigned short *)(ofs )= val;
++
++	       	j=0xfffff1;
++        	do{
++                	val1=*(volatile unsigned short *)(ofs);
++  	            	if( ((val1^val) & 0x80)==0 )
++ 				break;
++
++       		}while(j--!=1);
++		if (j <= 2)
++			printk("program fails\n");
++#else
++
++//		if ( ofs < (docptr+CONFIG_MTD_DOCPROBE_ADDRESS) )
++//			goto next_word;
++
++		offset = (to >> this->chipshift)*(1 << this->chipshift);
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++		if(ofs <(docptr+rstart))
++			goto next_word;
++		if(ofs >= (docptr+rend))
++		{
++			return 0;
++		}
++#else
++#if !defined(COMPACK_SETTING) && !defined(NO_CHECK_REGION)
++		if ( flash_write_flag != 0x8000
++//#ifdef CONFIG_RTK_MTD_ROOT
++#ifdef CONFIG_RTL_819X
++			|| offset < (rtl8196_partitions[0].size+ rtl8196_partitions[0].offset)
++#endif
++			)
++		{
++
++			if ( (flash_write_flag & 1) && (ofs < (docptr+flash_hw_start)) )
++				goto next_word;
++
++			if ( (flash_write_flag & 2) && (ofs < (docptr+flash_ds_start)) )
++				goto next_word;
++
++			if ( (flash_write_flag & 4) && (ofs < (docptr+flash_ds_start+flash_ds_len)) )
++				goto next_word;
++		}
++#endif // COMPACK_SETTING && NO_CHECK_REGION
++#endif //CONFIG_RTL_FLASH_MAPPING_ENABLE
++		val = *(unsigned short *)buf;
++
++		mtd_save_flags(flags);mtd_cli(); // david
++		
++		*(volatile unsigned short *)(0xbfc00000 + offset + 0x555 * 2)= 0xaa;
++		*(volatile unsigned short *)(0xbfc00000 + offset + 0x2aa * 2)= 0x55;
++		*(volatile unsigned short *)(0xbfc00000 + offset + 0x555 * 2)= 0xa0;
++		*(volatile unsigned short *)(ofs )= val;
++		
++		mtd_restore_flags(flags); // david
++
++		timeo = jiffies + (HZ * 50);
++        	do{    		
++#if 0
++			val1=*(volatile unsigned short *)(ofs);
++			if ( val1 == val )
++				break;
++#endif
++			unsigned short val2;
++      	
++			val2=*(volatile unsigned short *)(ofs);
++			val1=*(volatile unsigned short *)(ofs);	
++			
++			if (((val1^val2) & 0x40) != 0)
++				continue;	 	        
++	 	        if (((val1^val) & 0x80) != 0)
++ 				continue;
++ 			if ( val1 == val )		
++				break;
++//--------------	      	    	
++		} while ( !time_after(jiffies, timeo) );
++
++		if ( time_after(jiffies, timeo)) {
++			printk(KERN_WARNING "program timeout!");
++			printk(KERN_WARNING " write: %x, read:%x, addr: %x\n", val, val1, ofs);
++			return -1;
++		}
++
++#ifndef COMPACK_SETTING
++next_word:
++#endif
++
++#endif
++//---------------------------------------------------------
++		ofs += 2;
++		buf += 2;
++	
++	}
++
++	ret = 0 ;
++//	printk("in doc_write_ecc ret=%08x\n", ret);
++	return ret;
++}
++#endif /* #ifdef CONFIG_RTL_819X  */
++
+ static int doc_read (struct mtd_info *mtd, loff_t from, size_t len,
+ 		     size_t *retlen, u_char *buf)
+ {
++#ifdef CONFIG_RTL_819X 
++static int doc_read_ecc (struct mtd_info *mtd, loff_t from, size_t len,
++			 size_t *retlen, u_char *buf, u_char *eccbuf);
++/* Just a special case of doc_read_ecc */
++	return doc_read_ecc(mtd, from, len, retlen, buf, NULL);
++#else
+ 	int i, ret;
+ 	volatile char dummy;
+ 	unsigned char syndrome[6], eccbuf[6];
+@@ -491,11 +773,49 @@ static int doc_read (struct mtd_info *mt
+ 	WriteDOC(DOC_ECC_DIS, docptr , ECCConf);
+ 
+ 	return ret;
++
++#endif /* #ifdef CONFIG_RTL_819X  */
++}
++
++#ifdef CONFIG_RTL_819X 
++static int doc_read_ecc (struct mtd_info *mtd, loff_t from, size_t len,
++			 size_t *retlen, u_char *buf, u_char *eccbuf)
++{
++	int i;
++	unsigned short tmp;
++	struct DiskOnChip *this = (struct DiskOnChip *)mtd->priv;
++	unsigned long docptr = this->virtadr+from;
++
++	/* Don't allow read past end of device */
++	if (from >= this->totlen)
++		return -EINVAL;
++	for(i=0; i< len; i+=2)
++	{
++		tmp = *(volatile unsigned short *)(docptr);
++		*(unsigned short *)buf = tmp;
++		buf += 2;
++		docptr +=2;
++	}
++	if (len & 0x01)
++	{
++		tmp = *(volatile unsigned long *)(docptr);
++        *(unsigned char *)buf = (tmp >> 8) & 0xff;
++	}
++
++	/* Let the caller know we completed it */
++	*retlen = len;
++
++	return 0;
+ }
++#endif /*#ifdef CONFIG_RTL_819X */
+ 
+ static int doc_write (struct mtd_info *mtd, loff_t to, size_t len,
+ 		      size_t *retlen, const u_char *buf)
+ {
++#ifdef CONFIG_RTL_819X 
++       char eccbuf[6];
++	return doc_write_ecc(mtd, to, len, retlen, buf, eccbuf);
++#else
+ 	int i,ret = 0;
+ 	char eccbuf[6];
+ 	volatile char dummy;
+@@ -617,8 +937,12 @@ static int doc_write (struct mtd_info *m
+ 	*retlen = len;
+ 
+ 	return ret;
++#endif /*#ifdef CONFIG_RTL_819X  */
+ }
+ 
++#ifdef CONFIG_RTL_819X 
++/*do nothing here*/
++#else
+ static int doc_read_oob(struct mtd_info *mtd, loff_t ofs,
+ 			struct mtd_oob_ops *ops)
+ {
+@@ -753,9 +1077,229 @@ static int doc_write_oob(struct mtd_info
+ 
+ 	return ret;
+ }
++#endif /*#ifdef CONFIG_RTL_819X  */
++
++#ifdef CONFIG_RTL_819X
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++int find_section_boundary(struct mtd_info *mtd,unsigned int start, unsigned int end, unsigned int *rstart, unsigned *rend)
++{
++	int i = 0;
++	int j = 0;
++	struct mtd_erase_region_info *regions = mtd->eraseregions;
++	while ((i < mtd->numeraseregions) &&
++		(start >= regions[i].offset)) {
++		i++;
++	}
++	i--;
++
++	j = 1;
++	while((j <= regions[i].numblocks) &&
++		(start >= (regions[i].offset+regions[i].erasesize*j))) {
++		j++;
++	}
++	*rstart=(regions[i].offset+regions[i].erasesize*(j-1));
++	
++	i=0;
++	while ((i < mtd->numeraseregions) &&
++		(end >= regions[i].offset)) {
++		 i++;
++	}
++	i--;
++
++	j = 1;
++	while((j <= regions[i].numblocks) &&
++		(end >= (regions[i].offset+regions[i].erasesize*j))) {
++		j++;
++	}
++	*rend=(regions[i].offset+regions[i].erasesize*j);
++	
++}
++#endif
++#endif
+ 
+ int doc_erase (struct mtd_info *mtd, struct erase_info *instr)
+ {
++#ifdef CONFIG_RTL_819X 
++
++struct DiskOnChip *this = (struct DiskOnChip *)mtd->priv;
++	unsigned long adr, len;
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE	
++	unsigned int rstart,rend;
++        unsigned int start,end;
++#endif
++	int i;
++	int first;
++	struct mtd_erase_region_info *regions = mtd->eraseregions;
++
++	DEBUG(MTD_DEBUG_LEVEL1, "going to erase sector addr=%08x,len=%08x\n",
++		instr->addr, instr->len);
++
++	if (instr->addr > mtd->size) {
++		printk(KERN_WARNING "Erase addr greater than max size (0x%x > 0x%x)\n",
++			instr->addr, mtd->size );
++		return -EINVAL;
++	}
++
++	if ((instr->len + instr->addr) > mtd->size) {
++		printk(KERN_WARNING "Erase size greater than max size (0x%x + 0x%x > 0x%x)\n",
++		       instr->addr, instr->len, mtd->size );
++		return -EINVAL;
++	}
++
++	/* Check that both start and end of the requested erase are
++	 * aligned with the erasesize at the appropriate addresses.
++	 */
++
++	i = 0;
++
++        /* Skip all erase regions which are ended before the start of
++           the requested erase. Actually, to save on the calculations,
++           we skip to the first erase region which starts after the
++           start of the requested erase, and then go back one.
++        */
++
++        while ((i < mtd->numeraseregions) &&
++	       (instr->addr >= regions[i].offset)) {
++               i++;
++	}
++        i--;
++
++	/* OK, now i is pointing at the erase region in which this
++	 * erase request starts. Check the start of the requested
++	 * erase range is aligned with the erase size which is in
++	 * effect here.
++	 */
++
++	if (instr->addr & (regions[i].erasesize-1)) {
++		return -EINVAL;
++	}
++
++	/* Remember the erase region we start on. */
++
++	first = i;
++
++	/* Next, check that the end of the requested erase is aligned
++	 * with the erase region at that address.
++	 */
++
++	while ((i < mtd->numeraseregions) &&
++	       ((instr->addr + instr->len) >= regions[i].offset)) {
++                i++;
++	}
++
++	/* As before, drop back one to point at the region in which
++	 * the address actually falls.
++	 */
++
++	i--;
++
++	if ((instr->addr + instr->len) & (regions[i].erasesize-1)) {
++                return -EINVAL;
++	}
++
++
++	adr = instr->addr;
++	len = instr->len;
++
++	i = first;
++	instr->state = MTD_ERASING;
++
++
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++	start=adr;
++	end=0xFFFFFFF;
++	if(flash_write_flag & 1)
++	{
++		if(0 == start)
++			start = CONFIG_RTL_HW_SETTING_OFFSET;
++		else if( start > CONFIG_RTL_HW_SETTING_OFFSET )
++			start = CONFIG_RTL_HW_SETTING_OFFSET;
++		end = CONFIG_RTL_DEFAULT_SETTING_OFFSET;
++	}
++			
++       if(flash_write_flag & 2 )
++       {
++    		if(0 == start)
++			start = CONFIG_RTL_DEFAULT_SETTING_OFFSET;
++		else if( start > CONFIG_RTL_DEFAULT_SETTING_OFFSET )
++			start = CONFIG_RTL_DEFAULT_SETTING_OFFSET;
++		end = CONFIG_RTL_CURRENT_SETTING_OFFSET;
++    	}
++			
++    	if(flash_write_flag & 4 )
++   	{
++   		if(0 == start)
++			start = CONFIG_RTL_CURRENT_SETTING_OFFSET;
++		else if( start > CONFIG_RTL_CURRENT_SETTING_OFFSET )
++			start = CONFIG_RTL_CURRENT_SETTING_OFFSET;
++		
++		end = CONFIG_RTL_WEB_PAGES_OFFSET;
++   	}
++
++	find_section_boundary(mtd,start,end,&rstart,&rend);
++
++	//printk("line[%d] rstart 0x%x rend 0x%x\n",__LINE__,rstart,rend);
++	
++	/*don't erase bootcode*/
++	if(rstart < RTL_BOOTCODE_END)
++		rstart = RTL_BOOTCODE_END;
++	
++	//printk("line[%d] rstart 0x%x rend 0x%x\n",__LINE__,rstart,rend);
++#endif
++
++	while (len) {
++//		if (adr >= CONFIG_MTD_DOCPROBE_ADDRESS) {
++
++#if defined(COMPACK_SETTING) || defined(NO_CHECK_REGION)
++		if ( erase_one_block(this, adr, regions[i].erasesize) )
++			return -1;
++
++#else
++
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++	   if(adr >= rstart)
++#else
++		if ( ((flash_write_flag & 1) && (adr == flash_hw_start)) ||
++				((flash_write_flag & 2) &&(adr >= flash_ds_start && adr < (flash_ds_start+flash_ds_len))) 
++				|| ((flash_write_flag & 4) && (adr >= (flash_ds_start+flash_ds_len))) 
++//#ifdef CONFIG_RTK_MTD_ROOT
++#ifdef CONFIG_RTL_819X
++				|| (adr >= (rtl8196_partitions[0].size+ rtl8196_partitions[0].offset))
++#endif			
++				|| (flash_write_flag == 0x8000)
++				) 
++#endif	
++		{
++			if ( erase_one_block(this, adr, regions[i].erasesize) )
++				return -1;
++		}
++			
++#endif // COMPACK_SETTING || NO_CHECK_REGION
++
++		adr += regions[i].erasesize;
++		if (len < regions[i].erasesize)
++			len = 0;
++		else
++			len -= regions[i].erasesize;
++
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++		if(rend <= adr)
++		{
++			/*no need to erase other block*/
++			len=0;
++		}
++#endif
++		if ( adr >= (regions[i].offset + regions[i].erasesize*regions[i].numblocks))
++			i++;
++	}
++
++	instr->state = MTD_ERASE_DONE;
++	if (instr->callback) {
++		instr->callback(instr);
++	}
++
++	return 0;
++#else
+ 	volatile char dummy;
+ 	struct DiskOnChip *this = mtd->priv;
+ 	__u32 ofs = instr->addr;
+@@ -809,7 +1353,52 @@ int doc_erase (struct mtd_info *mtd, str
+ 	mtd_erase_callback(instr);
+ 
+ 	return 0;
++
++#endif /*#ifdef CONFIG_RTL_819X */
++}
++
++#ifdef CONFIG_RTL_819X 
++static int erase_one_block(struct DiskOnChip *this, __u32 addr, __u32 len)
++{
++	unsigned long timeo;
++	unsigned long docptr = this->virtadr;
++	__u32 ofs, offset;
++	unsigned long flags; // david
++
++
++	DEBUG(MTD_DEBUG_LEVEL1, "Erase sector, addr=0x%x, docptr=0x%x, len=0x%x\n",
++		(int)addr, (int)docptr, (int)len);
++
++	// issue erase command!
++	ofs = docptr + addr;
++
++	offset = (addr >> this->chipshift)*(1 << this->chipshift);
++
++	mtd_save_flags(flags);mtd_cli(); // david
++	*(volatile unsigned short *)(docptr + offset + 0x555 * 2) = 0xaa;
++	*(volatile unsigned short *)(docptr + offset + 0x2aa * 2) = 0x55;
++	*(volatile unsigned short *)(docptr + offset + 0x555 * 2) = 0x80;
++	*(volatile unsigned short *)(docptr + offset + 0x555 * 2) = 0xaa;
++	*(volatile unsigned short *)(docptr + offset + 0x2aa * 2) = 0x55;
++	*(volatile unsigned short *)(ofs ) = 0x30;
++	mtd_restore_flags(flags); // david
++
++	timeo = jiffies + (HZ * 40);
++
++	while (1) {
++     		if ((*(volatile unsigned short *)(ofs))==0xffff) {
++			DEBUG(MTD_DEBUG_LEVEL1, "Erase success!\n");
++			break;
++		}
++		if (time_after(jiffies, timeo)) {
++			printk(KERN_WARNING "Erase timeout!\n");
++			return -1;
++		}		
++		udelay(1);
++     	}
++	return 0;
+ }
++#endif /*#ifdef CONFIG_RTL_819X */
+ 
+ /****************************************************************************
+  *
+--- linux-2.6.30.9/drivers/mtd/devices/docprobe.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/mtd/devices/docprobe.c	2013-05-02 01:47:52.630227147 +0300
+@@ -36,7 +36,7 @@
+    <linux-mtd@lists.infradead.org>.
+ */
+ #define DOC_SINGLE_DRIVER
+-
++#include <linux/config.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+ #include <asm/errno.h>
+@@ -56,10 +56,68 @@
+ #define CONFIG_MTD_DOCPROBE_ADDRESS 0
+ #endif
+ 
++#ifdef CONFIG_RTL_819X
++// david ----------------------
++/* MXIC */
++#define MANUFACTURER_MXIC	0x00C2
++#define MX29LV800B		0x225B
++#define MX29LV160AB		0x2249
++#define MX29LV320AB		0x22A8
++#define MX29LV640AB		0x22CB
++
++/*AMD*/
++#define MANUFACTURER_AMD	0x0001
++#define AM29LV800BB		0x225B
++#define AM29LV160DB		0x2249
++#define AM29LV320DB		0x22F9
++
++/*ST*/
++#define MANUFACTURER_ST		0x0020
++#define M29W160DB		0X2249
++
++/* ESMT */
++#define MANUFACTURER_ESMT	0x008C
++#define F49L160BA		0x2249
++
++/* SAMSUNG */
++#define MANUFACTURER_SAMSUNG	0x00EC
++#define K8D1716UBC		0x2277
++
++/* ESI */
++#define MANUFACTURER_ESI	0x004A
++#define ES29LV320D		0x22F9
++
++/* EON */
++#define MANUFACTURER_EON	0x007F
++#define EN29LV160A		0x2249
++
++#ifdef CONFIG_RTL8196B
++#define FLASH_BASE 0xbd000000
++#else
++#define FLASH_BASE 0xbe000000
++#endif
++
++struct flash_info {
++	const __u16 mfr_id;
++	const __u16 dev_id;
++	const char *name;
++	const u_long size;
++	const int shift;  // shift number of chip size
++	const int numeraseregions;
++	const struct mtd_erase_region_info regions[4];
++};
++
++static int probeChip(struct DiskOnChip *doc, struct mtd_info *mtd);
++//-----------------------------
++#endif /*#ifdef CONFIG_RTL_819X*/
++
++//static unsigned long doc_config_location = CONFIG_MTD_DOCPROBE_ADDRESS;
++//module_param(doc_config_location, ulong, 0);
++//MODULE_PARM_DESC(doc_config_location, "Physical memory address at which to probe for DiskOnChip");
+ 
+-static unsigned long doc_config_location = CONFIG_MTD_DOCPROBE_ADDRESS;
+-module_param(doc_config_location, ulong, 0);
+-MODULE_PARM_DESC(doc_config_location, "Physical memory address at which to probe for DiskOnChip");
++#ifdef CONFIG_RTL_819X
++ /* Do nothing here*/
++#else
+ 
+ static unsigned long __initdata doc_locations[] = {
+ #if defined (__alpha__) || defined(__i386__) || defined(__x86_64__)
+@@ -76,6 +134,13 @@ static unsigned long __initdata doc_loca
+ 	0xe0000, 0xe2000, 0xe4000, 0xe6000,
+ 	0xe8000, 0xea000, 0xec000, 0xee000,
+ #endif /*  CONFIG_MTD_DOCPROBE_HIGH */
++#elif defined(__PPC__)
++	0xe4000000,
++#elif defined(CONFIG_MOMENCO_OCELOT)
++	0x2f000000,
++        0xff000000,
++#elif defined(CONFIG_MOMENCO_OCELOT_G) || defined (CONFIG_MOMENCO_OCELOT_C)
++        0xff000000,
+ #else
+ #warning Unknown architecture for DiskOnChip. No default probe locations defined
+ #endif
+@@ -217,8 +282,9 @@ static inline int __init doccheck(void _
+ #endif
+ 	return 0;
+ }
++#endif /*#ifdef CONFIG_RTL_819X*/
+ 
+-static int docfound;
++//static int docfound;
+ 
+ extern void DoC2k_init(struct mtd_info *);
+ extern void DoCMil_init(struct mtd_info *);
+@@ -229,11 +295,18 @@ static void __init DoC_Probe(unsigned lo
+ 	void __iomem *docptr;
+ 	struct DiskOnChip *this;
+ 	struct mtd_info *mtd;
+-	int ChipID;
++	//int ChipID;
+ 	char namebuf[15];
+ 	char *name = namebuf;
++
++	
++	char *im_funcname = NULL;
++	char *im_modname = NULL;
++	
++	
+ 	void (*initroutine)(struct mtd_info *) = NULL;
+ 
++#ifndef CONFIG_RTL_819X
+ 	docptr = ioremap(physadr, DOC_IOREMAP_LEN);
+ 
+ 	if (!docptr)
+@@ -302,8 +375,286 @@ static void __init DoC_Probe(unsigned lo
+ 		kfree(mtd);
+ 	}
+ 	iounmap(docptr);
++#else
++      docptr = FLASH_BASE;
++      //-----------------------------
++
++
++	mtd = kmalloc(sizeof(struct DiskOnChip) + sizeof(struct mtd_info), GFP_KERNEL);
++
++	if (!mtd) {
++			printk(KERN_WARNING "Cannot allocate memory for data structures. Dropping.\n");
++			iounmap((void *)docptr);
++			return;
+ }
+ 
++	this = (struct DiskOnChip *)(&mtd[1]);
++
++	memset((char *)mtd,0, sizeof(struct mtd_info));
++	memset((char *)this, 0, sizeof(struct DiskOnChip));
++
++	mtd->priv = this;
++	this->virtadr = docptr;
++	this->physadr = physadr;
++	this->ChipID = DOC_ChipID_DocMil;
++
++	name="Millennium";
++	im_funcname = "DoCMil_init";
++	im_modname = "doc2001";
++
++	if ( probeChip(this, mtd) == 0) // david added,
++		initroutine = &DoCMil_init;
++
++	if (initroutine) {
++		(*initroutine)(mtd);
++		return;
++	}
++	printk(KERN_NOTICE "Cannot find driver for DiskOnChip %s at 0x%lX\n", name, physadr);
++	iounmap((void *)docptr);
++
++#endif /*#ifdef CONFIG_RTL_819X*/
++}
++
++#ifdef CONFIG_RTL_819X
++// david -------------------------------------------------------------------
++static int probeChip(struct DiskOnChip *doc, struct mtd_info *mtd)
++{
++	/* Keep this table on the stack so that it gets deallocated after the
++	 * probe is done.
++	 */
++	const struct flash_info table[] = {
++	{
++		mfr_id: MANUFACTURER_MXIC,
++		dev_id: MX29LV800B,
++		name: "MXIC MX29LV800B",
++		size: 0x00100000,
++		shift: 20,
++		numeraseregions: 4,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x04000, numblocks:  1 },
++			{ offset: 0x004000, erasesize: 0x02000, numblocks:  2 },
++			{ offset: 0x008000, erasesize: 0x08000, numblocks:  1 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 15 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_MXIC,
++		dev_id: MX29LV160AB,
++		name: "MXIC MX29LV160AB",
++		size: 0x00200000,
++		shift: 21,
++		numeraseregions: 4,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x04000, numblocks:  1 },
++			{ offset: 0x004000, erasesize: 0x02000, numblocks:  2 },
++			{ offset: 0x008000, erasesize: 0x08000, numblocks:  1 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 31 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_MXIC,
++		dev_id: MX29LV320AB,
++		name: "MXIC MX29LV320AB",
++		size: 0x00400000,
++		shift: 22,
++		numeraseregions: 2,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x02000, numblocks:  8 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 63 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_AMD,
++		dev_id: AM29LV800BB,
++		name: "AMD AM29LV800BB",
++		size: 0x00100000,
++		shift: 20,
++		numeraseregions: 4,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x04000, numblocks:  1 },
++			{ offset: 0x004000, erasesize: 0x02000, numblocks:  2 },
++			{ offset: 0x008000, erasesize: 0x08000, numblocks:  1 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 15 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_AMD,
++		dev_id: AM29LV160DB,
++		name: "AMD AM29LV160DB",
++		size: 0x00200000,
++		shift: 21,
++		numeraseregions: 4,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x04000, numblocks:  1 },
++			{ offset: 0x004000, erasesize: 0x02000, numblocks:  2 },
++			{ offset: 0x008000, erasesize: 0x08000, numblocks:  1 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 31 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_AMD,
++		dev_id: AM29LV320DB,
++		name: "AMD AM29LV320DB",
++		size: 0x00400000,
++		shift: 22,
++		numeraseregions: 2,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x02000, numblocks:  8 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 63 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_ST,
++		dev_id: M29W160DB,
++		name: "ST M29W160DB",
++		size: 0x00200000,
++		shift: 21,/*21 bit=> that is 2 MByte size*/
++		numeraseregions: 4,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x04000, numblocks:  1 },
++			{ offset: 0x004000, erasesize: 0x02000, numblocks:  2 },
++			{ offset: 0x008000, erasesize: 0x08000, numblocks:  1 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 31 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_MXIC,
++		dev_id: MX29LV640AB,
++		name: "MXIC MX29LV640AB",
++		size: 0x00800000,
++		shift: 23,/*22 bit=> that is 8 MByte size*/
++		numeraseregions: 2,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x02000, numblocks:   8 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 127 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_SAMSUNG,
++		dev_id: K8D1716UBC,
++		name: "SAMSUNG K8D1716UBC",
++		size: 0x00200000,
++		shift: 21,/*21 bit=> that is 2 MByte size*/
++		numeraseregions: 2,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x02000, numblocks:  8 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 31 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_ESMT,
++		dev_id: F49L160BA,
++		name: "ESMT F49L160BA",
++		size: 0x00200000,
++		shift: 21,/*21 bit=> that is 2 MByte size*/
++		numeraseregions: 4,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x04000, numblocks:  1 },
++			{ offset: 0x004000, erasesize: 0x02000, numblocks:  2 },
++			{ offset: 0x008000, erasesize: 0x08000, numblocks:  1 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 31 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_ESI,
++		dev_id: ES29LV320D,
++		name: "ESI ES29LV320D",
++		size: 0x00400000,
++		shift: 22,/*22 bit=> that is 4 MByte size*/
++		numeraseregions: 2,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x02000, numblocks:  8 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 63 }
++		}
++	},
++	{
++		mfr_id: MANUFACTURER_EON,
++		dev_id: EN29LV160A,
++		name: "EON EN29LV160A",
++		size: 0x00200000,
++		shift: 21,
++		numeraseregions: 4,
++		regions: {
++			{ offset: 0x000000, erasesize: 0x04000, numblocks:  1 },
++			{ offset: 0x004000, erasesize: 0x02000, numblocks:  2 },
++			{ offset: 0x008000, erasesize: 0x08000, numblocks:  1 },
++			{ offset: 0x010000, erasesize: 0x10000, numblocks: 31 }
++		}
++	}
++	};
++
++	struct DiskOnChip *this = (struct DiskOnChip *)mtd->priv;
++	unsigned long docptr = this->virtadr;
++	__u16 mfid, devid;
++	int i, j, k, interleave=1, chipsize;
++
++	// issue reset and auto-selection command
++	*(volatile unsigned short *)(FLASH_BASE) = 0xf0;
++
++	*(volatile unsigned short *)(FLASH_BASE + 0x555 * 2) = 0xaa;
++	*(volatile unsigned short *)(FLASH_BASE + 0x2aa * 2) = 0x55;
++	*(volatile unsigned short *)(FLASH_BASE + 0x555 * 2) = 0x90;
++
++	mfid = *((volatile unsigned short *)docptr);
++	devid = *((volatile unsigned short *)(docptr + 1*2));
++
++        *(volatile unsigned short *)(FLASH_BASE) = 0xf0;
++
++	for (i=0; i< sizeof(table)/sizeof(table[0]); i++) {
++		if ( mfid==table[i].mfr_id && devid==table[i].dev_id)
++			break;
++	}
++	if ( i == sizeof(table)/sizeof(table[0]) )
++		return -1;
++
++	// Look for 2nd flash
++	*(volatile unsigned short *)(FLASH_BASE + table[i].size) = 0xf0;
++	*(volatile unsigned short *)(FLASH_BASE + table[i].size + 0x555 * 2) = 0xaa;
++	*(volatile unsigned short *)(FLASH_BASE + table[i].size + 0x2aa * 2) = 0x55;
++	*(volatile unsigned short *)(FLASH_BASE + table[i].size + 0x555 * 2) = 0x90;
++
++	mfid = *((volatile unsigned short *)(docptr + table[i].size));
++	devid = *((volatile unsigned short *)(docptr + table[i].size + 1*2));
++
++	*(volatile unsigned short *)(FLASH_BASE+table[i].size) = 0xf0;
++	if ( mfid==table[i].mfr_id && devid==table[i].dev_id) {
++		interleave++;
++	}
++
++	printk(KERN_NOTICE "Found %d x %ldM Byte %s at 0x%lx\n",
++		interleave, (table[i].size)/(1024*1024), table[i].name, docptr);
++
++	mtd->size = table[i].size*interleave;
++	mtd->numeraseregions = table[i].numeraseregions*interleave;
++
++	mtd->eraseregions = kmalloc(sizeof(struct mtd_erase_region_info) *
++				    mtd->numeraseregions*interleave, GFP_KERNEL);
++	if (!mtd->eraseregions) {
++		printk(KERN_WARNING "Failed to allocate "
++		       "memory for MTD erase region info\n");
++		kfree(mtd);
++		return -1;
++	}
++
++	for (k=0, chipsize=0; interleave>0; interleave--, chipsize+=table[i].size) {
++		for (j=0; j<table[i].numeraseregions; j++, k++) {
++			mtd->eraseregions[k].offset = table[i].regions[j].offset+chipsize;
++			mtd->eraseregions[k].erasesize = table[i].regions[j].erasesize;
++			mtd->eraseregions[k].numblocks = table[i].regions[j].numblocks;
++			if (mtd->erasesize < mtd->eraseregions[k].erasesize)
++				mtd->erasesize = mtd->eraseregions[k].erasesize;
++		}
++	}
++
++	this->totlen = mtd->size;
++	this->numchips = interleave;
++	this->chipshift = table[i].shift;
++
++	return 0;
++}
++//---------------------------------------------------------------------------
++#endif /*#ifdef CONFIG_RTL_819X */
++
+ 
+ /****************************************************************************
+  *
+@@ -313,6 +664,14 @@ static void __init DoC_Probe(unsigned lo
+ 
+ static int __init init_doc(void)
+ {
++#ifdef CONFIG_RTL_819X
++      printk(KERN_NOTICE "RealTek E-Flash System Driver. (C) 2002 RealTek Corp.\n");
++	DoC_Probe(CONFIG_MTD_DOCPROBE_ADDRESS);
++	/* So it looks like we've been used and we get unloaded */
++//	MOD_INC_USE_COUNT;
++//	MOD_DEC_USE_COUNT;
++	return 0;
++#else
+ 	int i;
+ 
+ 	if (doc_config_location) {
+@@ -328,6 +687,7 @@ static int __init init_doc(void)
+ 	if (!docfound)
+ 		printk(KERN_INFO "No recognised DiskOnChip devices found\n");
+ 	return -EAGAIN;
++#endif	
+ }
+ 
+ module_init(init_doc);
+--- linux-2.6.30.9/drivers/mtd/maps/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/mtd/maps/Makefile	2013-05-02 01:47:52.636227146 +0300
+@@ -62,3 +62,4 @@ obj-$(CONFIG_MTD_INTEL_VR_NOR)	+= intel_
+ obj-$(CONFIG_MTD_BFIN_ASYNC)	+= bfin-async-flash.o
+ obj-$(CONFIG_MTD_RBTX4939)	+= rbtx4939-flash.o
+ obj-$(CONFIG_MTD_VMU)		+= vmu-flash.o
++obj-$(CONFIG_RTL819X_SPI_FLASH) += rtl819x_flash.o
+--- linux-2.6.30.9/drivers/mtd/mtdblock.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/mtd/mtdblock.c	2013-05-02 01:47:52.649227145 +0300
+@@ -18,6 +18,26 @@
+ #include <linux/mtd/blktrans.h>
+ #include <linux/mutex.h>
+ 
++#include <linux/config.h>
++
++#ifdef CONFIG_RTL_819X
++// david ---------------
++//#define CONFIG_MTD_DEBUG
++#define CONFIG_MTD_DEBUG_VERBOSE 3
++
++
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++int flash_write_flag=0;		// 1: hw setting 2: default setting, 4: current setting, 8: system image
++#else
++int flash_hw_start=0x6000;	// hw setting start address
++int flash_hw_len=0x2000;	// hw setting length
++int flash_ds_start=0x8000;	// default & current setting start address
++int flash_ds_len=0x8000;	// default & current setting length
++
++int flash_write_flag=0;		// 1: hw setting 2: default setting, 4: current setting, 8: system image
++#endif
++#endif /*#ifdef CONFIG_RTL_819X */
++
+ 
+ static struct mtdblk_dev {
+ 	struct mtd_info *mtd;
+@@ -134,6 +154,58 @@ static int do_cached_write (struct mtdbl
+ 	DEBUG(MTD_DEBUG_LEVEL2, "mtdblock: write on \"%s\" at 0x%lx, size 0x%x\n",
+ 		mtd->name, pos, len);
+ 
++	
++#ifdef CONFIG_RTL_819X
++#ifdef CONFIG_RTL_FLASH_MAPPING_ENABLE
++	/*since len is normal 0x200 less than every section*/
++	if(flash_write_flag != 0x8000) 
++	{
++		flash_write_flag = 0;
++		if ( pos >= CONFIG_RTL_HW_SETTING_OFFSET && pos < CONFIG_RTL_DEFAULT_SETTING_OFFSET ) {
++			flash_write_flag |= 1;
++			if ((pos+len) > CONFIG_RTL_DEFAULT_SETTING_OFFSET ) {
++				flash_write_flag |= 2;
++				if ((pos+len) > CONFIG_RTL_CURRENT_SETTING_OFFSET )
++					flash_write_flag |= 4;
++			}
++		}
++		if ( pos >= CONFIG_RTL_DEFAULT_SETTING_OFFSET && pos < CONFIG_RTL_CURRENT_SETTING_OFFSET ) {
++			flash_write_flag |= 2;
++			if ((pos+len) > CONFIG_RTL_CURRENT_SETTING_OFFSET ) {
++				flash_write_flag |= 4;
++			}
++		}
++		else if ( pos >= CONFIG_RTL_CURRENT_SETTING_OFFSET && pos < CONFIG_RTL_WEB_PAGES_OFFSET ){
++			flash_write_flag |= 4;
++		}
++	}
++#else
++// david --------------
++	if ( flash_write_flag != 0x8000) 
++	{
++		flash_write_flag = 0;
++		if (pos >= flash_hw_start && pos < (flash_hw_start+flash_hw_len) ) {
++			flash_write_flag |= 1;
++			if ((len - flash_hw_len) > 0) {
++				flash_write_flag |= 2;
++				if ((len - flash_ds_len -flash_hw_len) > 0)
++					flash_write_flag |= 4;
++			}
++		}
++		if (pos >= flash_ds_start && pos < (flash_ds_start+flash_ds_len) ) {
++			flash_write_flag |= 2;
++			if ((len - flash_ds_len) > 0) {
++				flash_write_flag |= 4;
++			}
++		}
++		else if ( pos >= (flash_ds_start+flash_ds_len) ){
++			flash_write_flag |= 4;
++		}
++	}
++//---------------------
++#endif //CONFIG_RTL_FLASH_MAPPING_ENABLE
++#endif
++
+ 	if (!sect_size)
+ 		return mtd->write(mtd, pos, len, &retlen, buf);
+ 

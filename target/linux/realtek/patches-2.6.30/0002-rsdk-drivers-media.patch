@@ -1,0 +1,17 @@
+--- linux-2.6.30.9/drivers/media/video/uvc/uvc_video.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/media/video/uvc/uvc_video.c	2013-05-02 01:47:52.326227171 +0300
+@@ -531,6 +531,14 @@ static void uvc_video_decode_isoc(struct
+ 		if (urb->iso_frame_desc[i].status < 0) {
+ 			uvc_trace(UVC_TRACE_FRAME, "USB isochronous frame "
+ 				"lost (%d).\n", urb->iso_frame_desc[i].status);
++			
++			//Start to avoid to flicking images with isochronous by jason
++			if (buf) {
++				buf->state = UVC_BUF_STATE_QUEUED;
++				buf->buf.bytesused = 0;
++				i = urb->number_of_packets;
++			}		
++			//End to avoid to flicking images with isochronous by jason
+ 			continue;
+ 		}
+ 

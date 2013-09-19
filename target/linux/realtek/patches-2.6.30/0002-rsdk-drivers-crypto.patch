@@ -1,0 +1,36 @@
+--- linux-2.6.30.9/drivers/crypto/Kconfig	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/crypto/Kconfig	2013-05-02 01:47:50.559227314 +0300
+@@ -209,4 +209,26 @@ config CRYPTO_DEV_PPC4XX
+ 	help
+ 	  This option allows you to have support for AMCC crypto acceleration.
+ 
++config CRYPTO_DEV_REALTEK
++	tristate "Driver Realtek Crypto Engine"
++	select CRYPTO_HASH
++	select CRYPTO_ALGAPI
++	select CRYPTO_BLKCIPHER
++	select CRYPTO_CBC
++	select CRYPTO_CTR
++	select CRYPTO_ECB
++	select CRYPTO_MD5
++	select CRYPTO_SHA1
++	select CRYPTO_AES
++	select CRYPTO_DES
++	help
++	  This option allows you to have support for Realtek Crypto Engine.
++
++config CRYPTO_DEV_REALTEK_TEST
++	tristate "Driver Realtek Crypto Engine Test"
++	select CRYPTO_TEST
++	depends on CRYPTO_DEV_REALTEK
++	help
++	  This option for Realtek Crypto Engine Internal Test.
++
+ endif # CRYPTO_HW
+--- linux-2.6.30.9/drivers/crypto/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/crypto/Makefile	2013-05-02 01:47:50.559227314 +0300
+@@ -5,3 +5,4 @@ obj-$(CONFIG_CRYPTO_DEV_HIFN_795X) += hi
+ obj-$(CONFIG_CRYPTO_DEV_TALITOS) += talitos.o
+ obj-$(CONFIG_CRYPTO_DEV_IXP4XX) += ixp4xx_crypto.o
+ obj-$(CONFIG_CRYPTO_DEV_PPC4XX) += amcc/
++obj-$(CONFIG_CRYPTO_DEV_REALTEK) += realtek/

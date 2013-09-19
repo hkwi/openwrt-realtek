@@ -1,0 +1,61 @@
+--- linux-2.6.30.9/drivers/pci/access.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/pci/access.c	2013-05-02 01:47:54.647226984 +0300
+@@ -38,6 +38,46 @@ int pci_bus_read_config_##size \
+ 	spin_unlock_irqrestore(&pci_lock, flags);			\
+ 	return res;							\
+ }
++#ifdef CONFIG_RTL8198_REVISION_B
++int pci_bus_read_config_word
++	(struct pci_bus *bus, unsigned int devfn, int pos, u16 *value)
++{									
++	int res;							
++	unsigned long flags;						
++	u32 data = 0;							
++	if (PCI_word_BAD) return PCIBIOS_BAD_REGISTER_NUMBER;	
++	spin_lock_irqsave(&pci_lock, flags);	
++
++	int swap[4]={0,8,16,24};	int diff = pos&0x3;
++	res = bus->ops->read(bus, devfn, (pos&0xFFFFC), 4, &data);	
++	*value =(u16)( (data>>(swap[diff]))&0xffff);
++
++
++	
++	
++	//*value = (type)data;						
++	spin_unlock_irqrestore(&pci_lock, flags);			
++	return res;							
++}
++int pci_bus_read_config_byte
++	(struct pci_bus *bus, unsigned int devfn, int pos, u8 *value)
++{									
++	int res;							
++	unsigned long flags;						
++	u32 data = 0;							
++	if (PCI_word_BAD) return PCIBIOS_BAD_REGISTER_NUMBER;	
++	spin_lock_irqsave(&pci_lock, flags);	
++
++	int swap[4]={0,8,16,24};	int diff = pos&0x3;
++	res = bus->ops->read(bus, devfn, (pos&0xFFFFC), 4, &data);	
++	*value =(u8)( (data>>(swap[diff]))&0xff);
++	//*value = (type)data;						
++	spin_unlock_irqrestore(&pci_lock, flags);			
++	return res;							
++}
++
++#endif
++
+ 
+ #define PCI_OP_WRITE(size,type,len) \
+ int pci_bus_write_config_##size \
+@@ -52,8 +92,11 @@ int pci_bus_write_config_##size \
+ 	return res;							\
+ }
+ 
++#ifndef CONFIG_RTL8198_REVISION_B
+ PCI_OP_READ(byte, u8, 1)
++
+ PCI_OP_READ(word, u16, 2)
++#endif
+ PCI_OP_READ(dword, u32, 4)
+ PCI_OP_WRITE(byte, u8, 1)
+ PCI_OP_WRITE(word, u16, 2)

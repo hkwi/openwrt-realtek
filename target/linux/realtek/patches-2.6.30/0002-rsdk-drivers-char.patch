@@ -1,0 +1,29 @@
+--- linux-2.6.30.9/drivers/char/Makefile	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/char/Makefile	2013-05-02 01:47:50.410227327 +0300
+@@ -8,6 +8,7 @@
+ FONTMAPFILE = cp437.uni
+ 
+ obj-y	 += mem.o random.o tty_io.o n_tty.o tty_ioctl.o tty_ldisc.o tty_buffer.o tty_port.o
++EXTRA_CFLAGS += -I.
+ 
+ obj-$(CONFIG_LEGACY_PTYS)	+= pty.o
+ obj-$(CONFIG_UNIX98_PTYS)	+= pty.o
+@@ -97,6 +98,8 @@ obj-$(CONFIG_CS5535_GPIO)	+= cs5535_gpio
+ obj-$(CONFIG_GPIO_VR41XX)	+= vr41xx_giu.o
+ obj-$(CONFIG_GPIO_TB0219)	+= tb0219.o
+ obj-$(CONFIG_TELCLOCK)		+= tlclk.o
++obj-$(CONFIG_RTL_NFBI_MDIO)	+= rtl_mdio/
++obj-$(CONFIG_NFBI_HOST)		+= rtl_nfbi/
+ 
+ obj-$(CONFIG_MWAVE)		+= mwave/
+ obj-$(CONFIG_AGP)		+= agp/
+--- linux-2.6.30.9/drivers/char/pty.c	2009-10-05 18:38:08.000000000 +0300
++++ linux-2.6.30.9-rsdk/drivers/char/pty.c	2013-05-02 01:47:50.487227320 +0300
+@@ -27,6 +27,7 @@
+ #include <linux/uaccess.h>
+ #include <linux/bitops.h>
+ #include <linux/devpts_fs.h>
++#include <linux/smp_lock.h>
+ 
+ #include <asm/system.h>
+ 
