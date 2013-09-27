@@ -16,6 +16,11 @@ config RTL_8196C
 	select ARCH_REQUIRE_GPIOLIB
 	select ARCH_CPU_RLX4181
 
+config RTL_8196E
+	bool "rtl8196e"
+	select ARCH_REQUIRE_GPIOLIB
+	select ARCH_CPU_RLX4181
+
 endchoice
 endmenu
 
@@ -99,6 +104,9 @@ menu "System Configuration"
 choice
 	prompt "System Type"
 	default RTL_81XXX
+	default RTL_8196D_GW if RTL_819XD
+	default RTL_8196C_GW if RTL_8196C
+	default RTL_8196E_GW if RTL_8196E
 
 config RTL_81XXX
 	bool "Selects default platform/This one is empty"
@@ -158,7 +166,14 @@ config RTL_8196C_iNIC
 config RTL_8196C_ICT
 	bool "RTL8196C IC Test"
 	depends on RTL_8196C
-	#select FPGA_PLATFORM
+
+config RTL_8196E_GW
+        bool "96E GW"
+        depends on RTL_8196E
+	select SYS_HAS_EARLY_PRINTK
+        help
+          This enables support for Realtek RTL8196E demo board
+
 
 endchoice
 endmenu
@@ -187,7 +202,19 @@ config RTL_8197DL
 
 config RTL_819XD_GW
 	bool
-	
+
+config RTL_8196E_GW
+	bool
+
+config RTL_NFJROM_MP
+	bool "build nfjrom image for MP"
+	default n
+	depends on RTL_8196E
+
+config RTL_SDRAM_GE_32M
+        bool "sdram size greater than or equal 32M"
+        default y if RTL_8196E_GW
+
 config RTL_PCIE_SIMPLE_INIT
 	bool
 	default y if RTL8192SE
@@ -211,8 +238,9 @@ config RTL819X_SPI_FLASH
 	bool "SPI flash support"
 
 config AUTO_PCIE_PHY_SCAN
-	bool "8196D PCIE Autoscan PCIE PHY 40Mhz"
+	bool "8196D/E PCIE Autoscan PCIE PHY 40Mhz"
 	depends on RTL_8196D
+	depends on RTL_8196E
 	default y
 
 config PHY_EAT_40MHZ

@@ -1,0 +1,25 @@
+CURRENT_BSP:=bsp
+ifdef CONFIG_RTL_8196C
+CURRENT_BSP:=rtl8196c
+else
+ifdef CONFIG_RTL_8196E
+CURRENT_BSP:=rtl8196e
+else
+ifdef CONFIG_RTL_8196EU
+CURRENT_BSP:=rtl8196eu
+else
+ifdef CONFIG_RTL_8198
+CURRENT_BSP:=rtl8198
+else
+ifdef CONFIG_RTL_819XD
+CURRENT_BSP:=rtl819xD
+endif
+endif
+endif
+endif
+endif
+
+bsp:
+
+	rm -rf arch/rlx/bsp
+	ln -s ./bsp_$(CURRENT_BSP) arch/rlx/bsp

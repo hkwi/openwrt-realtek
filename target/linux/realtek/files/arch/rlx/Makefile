@@ -32,6 +32,8 @@ vmlinux-32		= vmlinux
 cflags-y := -ffunction-sections
 cflags-y += $(call cc-option, -mno-check-zero-division)
 cflags-y += -mabi=32
+cflags-$(CONFIG_ARCH_CPU_RLX4181) += -march=rlx4181
+cflags-$(CONFIG_ARCH_CPU_RLX5281) += -march=rlx5281
 
 #
 # GCC uses -G 0 -mabicalls -fpic as default.  We don't want PIC in the kernel
@@ -41,7 +43,7 @@ cflags-y += -mabi=32
 #
 cflags-y			+= -G 0 -mno-abicalls -fno-pic -pipe
 cflags-y			+= -msoft-float
-LDFLAGS_vmlinux     += -G 0 -static -n -nostdlib
+LDFLAGS_vmlinux			+= -G 0 -static -n -nostdlib
 MODFLAGS			+= -mlong-calls
 
 cflags-y += -ffreestanding
@@ -67,7 +69,27 @@ cflags-$(CONFIG_CPU_LITTLE_ENDIAN)	+= -EL $(undef-all) $(predef-le)
 #
 # BSP Makefile
 #
-include arch/rlx/bsp/Makefile
+
+include $(TOPDIR)/.config
+
+include arch/rlx/Makefile.bsp
+#include arch/rlx/bsp/Makefile
+
+
+core-y   += arch/rlx/bsp/
+cflags-y += -Iinclude/asm-rlx -Iarch/rlx/bsp/ -Iarch/rlx
+load-y   += 0x80000000
+
+
+obj-y := prom.o setup.o irq.o timer.o serial.o dev_usb.o
+obj-$(CONFIG_PCI) += pci.o
+
+EXTRA_AFLAGS := $(CFLAGS)
+EXTRA_CFLAGS += -I$(TOPDIR)/drivers/net/rtl819x/AsicDriver
+EXTRA_CFLAGS += -I$(TOPDIR)/drivers/net/rtl819x/common
+ifdef CONFIG_RTL_819X_SWCORE
+EXTRA_CFLAGS += -DCONFIG_RTL_819X_SWCORE
+endif
 
 cflags-y                    += -I$(srctree)/arch/rlx/include/asm/mach-generic
 drivers-$(CONFIG_PCI)       += arch/rlx/pci/
@@ -121,12 +143,13 @@ drivers-$(CONFIG_OPROFILE)	+= arch/rlx/oprofile/
 #
 # Targets
 #
+
 vmlinux.32: vmlinux
 	$(OBJCOPY) -O $(32bit-bfd) $(OBJCOPYFLAGS) $< $@
 
 makeboot =$(Q)$(MAKE) $(build)=arch/rlx/boot VMLINUX=$(vmlinux-32) $(1)
 
-all: vmlinux.32
+all: bsp vmlinux.32
 
 vmlinux.bin: $(vmlinux-32)
 	+@$(call makeboot,$@)
