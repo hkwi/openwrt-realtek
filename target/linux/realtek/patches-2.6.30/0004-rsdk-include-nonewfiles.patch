@@ -325,7 +325,7 @@
 -extern struct irq_desc *irq_to_desc(unsigned int irq);
 +#if defined(CONFIG_RTL_819X) && !defined(CONFIG_RTL_8196C) && !defined(CONFIG_SPARSE_IRQ)
 + //__MIPS16 is defined at include/net/rtl/rtl_types.h
-+ extern __attribute__((mips16))  struct irq_desc *irq_to_desc(unsigned int irq);
++ extern struct irq_desc *irq_to_desc(unsigned int irq);
 +#else
 + extern  struct irq_desc *irq_to_desc(unsigned int irq);
 +#endif
