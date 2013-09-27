@@ -1,0 +1,14 @@
+diff --git a/target/linux/realtek/files/drivers/net/rtl819x/rtl865xc_swNic.h b/target/linux/realtek/files/drivers/net/rtl819x/rtl865xc_swNic.h
+index 3d1f1fa..bd76230 100644
+--- a/drivers/net/rtl819x/rtl865xc_swNic.h
++++ b/drivers/net/rtl819x/rtl865xc_swNic.h
+@@ -295,7 +295,8 @@ struct ring_que {
+ 
+ static inline void *UNCACHED_MALLOC(int size)
+ {
+-	return ((void *)(((uint32)kmalloc(size, GFP_ATOMIC)) | UNCACHE_MASK));
++	//return ((void *)(((uint32)kmalloc(size, GFP_ATOMIC)) | UNCACHE_MASK));
++	return ((void *)(((uint32)kmalloc(size, GFP_ATOMIC))));
+ }
+ 
+ #endif /* _SWNIC_H */

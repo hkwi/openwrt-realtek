@@ -1,0 +1,77 @@
+diff --git a/drivers/net/wireless/rtl8192cd/8192cd_cfg.h b/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
+index 2e3e92a..61091a0 100644
+--- a/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
++++ b/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
+@@ -1042,7 +1042,7 @@
+ #undef __MIPS16
+ #ifdef __ECOS
+ #ifdef RTLPKG_DEVS_ETH_RLTK_819X_USE_MIPS16
+-#define __MIPS16			__attribute__ ((mips16))
++#define __MIPS16			
+ #else
+ #define __MIPS16
+ #endif
+@@ -1050,7 +1050,7 @@
+ #if defined(CONFIG_WIRELESS_LAN_MODULE)
+ #define __MIPS16
+ #else
+-#define __MIPS16			__attribute__ ((mips16))
++#define __MIPS16			
+ #endif
+ #endif
+ 
+diff --git a/drivers/net/wireless/rtl8192cd/rtl_types.h b/drivers/net/wireless/rtl8192cd/rtl_types.h
+index 9563326..004b4fe 100644
+--- a/drivers/net/wireless/rtl8192cd/rtl_types.h
++++ b/drivers/net/wireless/rtl8192cd/rtl_types.h
+@@ -352,8 +352,8 @@
+ 
+ #if defined(__linux__)&&defined(__KERNEL__)&&defined(CONFIG_RTL_819X) && !defined(CONFIG_RTL_8196C)
+ #ifndef CONFIG_WIRELESS_LAN_MODULE  
+-	#define __NOMIPS16			__attribute__((nomips16))	/* Inidcate to prevent from MIPS16 */
+-	#define __MIPS16			__attribute__((mips16))		/* Inidcate to use MIPS16 */
++	#define __NOMIPS16				/* Inidcate to prevent from MIPS16 */
++	#define __MIPS16					/* Inidcate to use MIPS16 */
+ #else
+ 	#define __NOMIPS16
+ 	#define __MIPS16
+diff --git a/drivers/net/wireless/rtl8192e/8192cd_cfg.h b/drivers/net/wireless/rtl8192e/8192cd_cfg.h
+index 4e21fb7..03f157f 100644
+--- a/drivers/net/wireless/rtl8192e/8192cd_cfg.h
++++ b/drivers/net/wireless/rtl8192e/8192cd_cfg.h
+@@ -982,7 +982,7 @@
+ #undef __MIPS16
+ #ifdef __ECOS
+ #ifdef RTLPKG_DEVS_ETH_RLTK_819X_USE_MIPS16
+-#define __MIPS16			__attribute__ ((mips16))
++#define __MIPS16			
+ #else
+ #define __MIPS16
+ #endif
+@@ -990,7 +990,7 @@
+ #if defined(CONFIG_WIRELESS_LAN_MODULE)
+ #define __MIPS16
+ #else
+-#define __MIPS16			__attribute__ ((mips16))
++#define __MIPS16			
+ #endif
+ #endif
+ 
+diff --git a/drivers/net/wireless/rtl8192e/bin2c.pl b/drivers/net/wireless/rtl8192e/bin2c.pl
+old mode 100644
+new mode 100755
+diff --git a/include/net/rtl/rtl_types.h b/include/net/rtl/rtl_types.h
+index 2b662c5..c01a7c8 100644
+--- a/include/net/rtl/rtl_types.h
++++ b/include/net/rtl/rtl_types.h
+@@ -351,8 +351,8 @@
+ #undef __MIPS16
+ 
+ #if defined(__linux__)&&defined(__KERNEL__)&&defined(CONFIG_RTL_819X) && !defined(CONFIG_RTL_8196C)
+-	#define __NOMIPS16			__attribute__((nomips16))	/* Inidcate to prevent from MIPS16 */
+-	#define __MIPS16			__attribute__((mips16))		/* Inidcate to use MIPS16 */
++	#define __NOMIPS16				/* Inidcate to prevent from MIPS16 */
++	#define __MIPS16					/* Inidcate to use MIPS16 */
+ #else
+ 	#define __NOMIPS16
+ 	#define __MIPS16

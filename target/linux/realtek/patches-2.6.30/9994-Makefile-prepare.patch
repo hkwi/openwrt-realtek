@@ -1,0 +1,11 @@
+--- a./Makefile	2013-09-24 15:30:01.000000000 +0300
++++ b./Makefile	2013-09-24 15:25:23.000000000 +0300
+@@ -990,7 +990,7 @@ prepare0: archprepare FORCE
+ 	$(Q)$(MAKE) $(build)=. missing-syscalls
+ 
+ # All the preparing..
+-prepare: prepare0
++prepare: bsp prepare0
+ 
+ # Leave this as default for preprocessing vmlinux.lds.S, which is now
+ # done in arch/$(ARCH)/kernel/Makefile
