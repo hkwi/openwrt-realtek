@@ -185,3 +185,5 @@ void __init bsp_setup(void)
 	}
 #endif
 }
+
+pure_initcall(rtl819x_add_device_usb);

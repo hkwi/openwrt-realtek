@@ -28,6 +28,7 @@
 #include "bspchip.h"
 
 extern int bsp_swcore_init(unsigned int version);
+extern void __init rtl819x_add_device_usb(void);
 
 static void prom_putchar(char c)
 {
@@ -173,3 +174,5 @@ void __init bsp_setup(void)
 	}
 #endif
 }
+
+pure_initcall(rtl819x_add_device_usb);

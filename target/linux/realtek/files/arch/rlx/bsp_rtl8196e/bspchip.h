@@ -13,6 +13,8 @@
 #ifndef _BSPCHIP_H_
 #define _BSPCHIP_H_
 
+#include "rlxhack.h"
+
 #include <linux/autoconf.h>
 
 /*
