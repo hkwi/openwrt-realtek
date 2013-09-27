@@ -28,10 +28,12 @@
 #include "bspchip.h"
 
 extern int bsp_swcore_init(unsigned int version);
+extern void __init rtl819x_add_device_usb(void);
+
 
 static void prom_putchar(char c)
 {
-#define UART0_BASE		0xB8002000
+
 #define UART0_THR		(UART0_BASE + 0x000)
 #define UART0_FCR		(UART0_BASE + 0x008)
 #define UART0_LSR       (UART0_BASE + 0x014)
