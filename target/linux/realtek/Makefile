@@ -10,7 +10,7 @@ ARCH:=lexra
 BOARD:=realtek
 BOARDNAME:=Realtek RTL8xxx
 FEATURES:=squashfs jffs2
-SUBTARGETS:=rtl8196c rtl8196d
+SUBTARGETS:=rtl8196c rtl8196e rtl8196d
 CFLAGS:=-Os -pipe -fno-caller-saves -mno-llsc
 
 LINUX_VERSION:=2.6.30.9
