@@ -1,11 +1,105 @@
+diff -rupN ./gcc.orig/gcc/common.opt ./gcc.new/gcc/common.opt
+--- a/gcc/common.opt	2013-04-08 22:06:00.000000000 +0300
++++ b/gcc/common.opt	2013-10-10 21:03:45.092852675 +0300
+@@ -699,6 +699,15 @@ Wvector-operation-performance
+ Common Var(warn_vector_operation_performance) Warning
+ Warn when a vector operation is compiled outside the SIMD
+ 
++Wpossible-load-use
++Common RejectNegative Var(warn_possible_load_use) Warning
++Warn when possible load-use in branch delay slot
++
++Wmissing-delay-slot
++Common RejectNegative Var(warn_missing_delay_slot) Warning
++Warn when missing delay
++
++
+ Xassembler
+ Driver Separate
+ 
+@@ -2259,6 +2268,65 @@ fvisibility=
+ Common Joined RejectNegative Enum(symbol_visibility) Var(default_visibility) Init(VISIBILITY_DEFAULT)
+ -fvisibility=[default|internal|hidden|protected]	Set the default symbol visibility
+ 
++fdafile-relative
++Common
++Put gcda file in relative instead of absolute path
++
++finhibit-lt
++Common
++Do not output lt in function epilogue. Obsolete now
++
++finhibit-ltw
++Common
++Do not output ltw in function epilogue. Obsolete now
++
++finhibit-st
++Common
++Do not output st in function prologue. Obsolete now
++
++flt
++Common
++Obsolete. Just for back compatibility
++
++fltw
++Common
++Obsolete. Just for back compatibility
++
++frlxcov
++Common
++Put the code coverage initialization symbols in section .rlxcov instead of .ctors
++
++fst
++Common
++Obsolete. Just for back compatibility
++
++ftword
++Common Report Var(flag_tword)
++Emit twin-word load/store instructions in programs except function prologue/epilogue
++
++ftword-stack
++Common Report Var(flag_tword_stack)
++Follow MIPS convention: stack 8-byte aligned
++
++fsuppress-outer-loop-unroll
++Common Report Var(flag_suppress_outer_loop_unroll) Optimization
++Suppress unrolling outer loops even that -O3+ is specified
++
++
++fuse-uls
++Common Report Var(flag_use_uls) Init(1)
++Allow compiler to emit unaligned load/store instructions
++
++fuse-tls
++Common Report Var(flag_use_tls)
++Allow compiler to emit TLS related codes.
++
++
++ffix-bdsl
++Common Report Var(flag_fix_bdsl) Init(1) Optimization
++Forbid the use of load instructions in the branch delay slots for all cases
++
++
+ Enum
+ Name(symbol_visibility) Type(enum symbol_visibility) UnknownError(unrecognized visibility value %qs)
+ 
 diff -rupN ./gcc.orig/gcc/config/mips/mips.c ./gcc.new/gcc/config/mips/mips.c
 --- a/gcc/config/mips/mips.c	2013-02-19 02:04:49.000000000 +0200
-+++ b/gcc/config/mips/mips.c	2013-09-17 15:56:40.036229582 +0300
-@@ -1121,6 +1121,27 @@ static const struct mips_rtx_cost_data
-     COSTS_N_INSNS (68),           /* int_div_di */
++++ b/gcc/config/mips/mips.c	2013-10-14 20:23:06.143036336 +0300
+@@ -56,6 +56,9 @@ along with GCC; see the file COPYING3.
+ #include "target-globals.h"
+ #include "opts.h"
+ 
++extern bool default_target_can_inline_p (tree, tree);
++extern bool default_target_option_can_inline_p (tree, tree);
++
+ /* True if X is an UNSPEC wrapper around a SYMBOL_REF or LABEL_REF.  */
+ #define UNSPEC_ADDRESS_P(X)					\
+   (GET_CODE (X) == UNSPEC					\
+@@ -925,6 +928,27 @@ static const struct mips_rtx_cost_data
  		     1,           /* branch_cost */
  		     4            /* memory_latency */
-+  },
+   },
 +  { /* RLX */
 +    DEFAULT_COSTS
 +  },
@@ -26,26 +120,392 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.c ./gcc.new/gcc/config/mips/mips.c
 +  },
 +  { /* RLX */
 +    DEFAULT_COSTS
-   }
- };
++  },
+   { /* R6000 */
+     COSTS_N_INSNS (3),            /* fp_add */
+     COSTS_N_INSNS (5),            /* fp_mult_sf */
+@@ -1212,13 +1236,62 @@ mips_far_type_p (const_tree type)
+ static bool
+ mips_mips16_decl_p (const_tree decl)
+ {
+-  return lookup_attribute ("mips16", DECL_ATTRIBUTES (decl)) != NULL;
++  tree l;
++  bool b = FALSE;
++
++  for (l = DECL_ATTRIBUTES (decl); l; l = TREE_CHAIN (l))
++  {
++    gcc_assert (TREE_CODE (TREE_PURPOSE (l)) == IDENTIFIER_NODE);
++    if (!strcmp ("mips16", IDENTIFIER_POINTER (TREE_PURPOSE (l))))
++      b = TRUE;
++    else if (!strcmp ("nomips16", IDENTIFIER_POINTER (TREE_PURPOSE (l))))
++      b = FALSE;
++  }
++  return b;
+ }
+ 
+ static bool
+ mips_nomips16_decl_p (const_tree decl)
+ {
+-  return lookup_attribute ("nomips16", DECL_ATTRIBUTES (decl)) != NULL;
++  tree l;
++  bool b = FALSE;
++
++  for (l = DECL_ATTRIBUTES (decl); l; l = TREE_CHAIN (l))
++  {
++    gcc_assert (TREE_CODE (TREE_PURPOSE (l)) == IDENTIFIER_NODE);
++    if (!strcmp ("mips16", IDENTIFIER_POINTER (TREE_PURPOSE (l))))
++      b = FALSE;
++    else if (!strcmp ("nomips16", IDENTIFIER_POINTER (TREE_PURPOSE (l))))
++      b = TRUE;
++  }
++  return b;
++}
++
++static bool
++mips_use_mips16_mode_p (tree decl)
++{
++  if (decl)
++    {
++      /* Nested functions must use the same frame pointer as their
++	 parent and must therefore use the same ISA mode.  */
++      tree parent = decl_function_context (decl);
++      if (parent)
++	decl = parent;
++      if (mips_mips16_decl_p (decl))
++	return true;
++      if (mips_nomips16_decl_p (decl))
++	return false;
++    }
++  return mips_base_mips16;
++}
++
++static bool
++mips_can_inline_p (tree caller, tree callee)
++{
++  if (mips_use_mips16_mode_p (caller) != mips_use_mips16_mode_p (callee))
++    return false;
++  else
++    return default_target_option_can_inline_p (caller, callee);
+ }
+ 
+ /* Check if the interrupt attribute is set for a function.  */
+@@ -1260,24 +1333,6 @@ mips_use_debug_exception_return_p (tree
+ /* Return true if function DECL is a MIPS16 function.  Return the ambient
+    setting if DECL is null.  */
+ 
+-static bool
+-mips_use_mips16_mode_p (tree decl)
+-{
+-  if (decl)
+-    {
+-      /* Nested functions must use the same frame pointer as their
+-	 parent and must therefore use the same ISA mode.  */
+-      tree parent = decl_function_context (decl);
+-      if (parent)
+-	decl = parent;
+-      if (mips_mips16_decl_p (decl))
+-	return true;
+-      if (mips_nomips16_decl_p (decl))
+-	return false;
+-    }
+-  return mips_base_mips16;
+-}
+-
+ /* Implement TARGET_COMP_TYPE_ATTRIBUTES.  */
+ 
+ static int
+@@ -2897,7 +2952,9 @@ mips_expand_thread_pointer (rtx tp)
+       emit_insn (PMODE_INSN (gen_tls_get_tp_mips16, (tp, fn)));
+     }
+   else
+-    emit_insn (PMODE_INSN (gen_tls_get_tp, (tp)));
++  {
++    //emit_insn (PMODE_INSN (gen_tls_get_tp, (tp)));
++  }
+   return tp;
+ }
+ 
+@@ -2956,6 +3013,7 @@ mips_legitimize_tls_address (rtx loc)
+       break;
+ 
+     case TLS_MODEL_INITIAL_EXEC:
++      break;
+       tp = mips_get_tp ();
+       tmp1 = gen_reg_rtx (Pmode);
+       tmp2 = mips_unspec_address (loc, SYMBOL_GOTTPREL);
+@@ -2968,6 +3026,7 @@ mips_legitimize_tls_address (rtx loc)
+       break;
+ 
+     case TLS_MODEL_LOCAL_EXEC:
++      break;
+       tmp1 = mips_get_tp ();
+       offset = mips_unspec_address (loc, SYMBOL_TPREL);
+       if (mips_split_p[SYMBOL_TPREL])
+@@ -7090,6 +7149,13 @@ mips_block_move_straight (rtx dest, rtx
+       regs[i] = gen_reg_rtx (mode);
+       if (MEM_ALIGN (src) >= bits)
+ 	mips_emit_move (regs[i], adjust_address (src, mode, offset));
++      /*else if (TARGET_RLX && !TARGET_MIPS16 && !flag_use_uls)
++      {
++        rtx result_part = extract_bit_field (src,  bits,
++                offset * BITS_PER_UNIT, 1, regs[i], mode,
++                mode);
++        emit_move_insn (regs[i], result_part);
++      }*/
+       else
+ 	{
+ 	  rtx part = adjust_address (src, BLKmode, offset);
+@@ -7103,6 +7169,9 @@ mips_block_move_straight (rtx dest, rtx
+   for (offset = 0, i = 0; offset + delta <= length; offset += delta, i++)
+     if (MEM_ALIGN (dest) >= bits)
+       mips_emit_move (adjust_address (dest, mode, offset), regs[i]);
++    /*else if (TARGET_RLX && !TARGET_MIPS16 && !flag_use_uls) {
++      store_bit_field (dest, bits, offset * BITS_PER_UNIT, mode, regs[i]);
++    }*/
+     else
+       {
+ 	rtx part = adjust_address (dest, BLKmode, offset);
+@@ -7727,9 +7796,11 @@ static void
+ mips_print_operand_reloc (FILE *file, rtx op, enum mips_symbol_context context,
+ 			  const char **relocs)
+ {
++	/*
+   enum mips_symbol_type symbol_type;
+   const char *p;
+ 
++	
+   symbol_type = mips_classify_symbolic_expression (op, context);
+   gcc_assert (relocs[symbol_type]);
+ 
+@@ -7738,6 +7809,7 @@ mips_print_operand_reloc (FILE *file, rt
+   for (p = relocs[symbol_type]; *p != 0; p++)
+     if (*p == '(')
+       fputc (')', file);
++	*/
+ }
+ 
+ /* Start a new block with the given asm switch enabled.  If we need
+@@ -8165,6 +8237,7 @@ mips_print_operand_address (FILE *file,
+ 	return;
+       }
+   gcc_unreachable ();
++  
+ }
  
-@@ -12794,6 +12815,9 @@ mips_issue_rate (void)
+ /* Implement TARGET_ENCODE_SECTION_INFO.  */
+@@ -12665,9 +12738,9 @@ mips_output_division (const char *divisi
+ 	}
+       else
+ 	{
+-	  output_asm_insn ("%(bne\t%2,%.,1f", operands);
+ 	  output_asm_insn (s, operands);
+-	  s = "break\t7%)\n1:";
++	  output_asm_insn ("%(bne\t%2,%.,1f", operands);
++	  s = "nop\n\tbreak\t7%)\n1:";
+ 	}
+     }
+   return s;
+@@ -12794,6 +12867,9 @@ mips_issue_rate (void)
      case PROCESSOR_R9000:
      case PROCESSOR_OCTEON:
      case PROCESSOR_OCTEON2:
-+    case PROCESSOR_RLX5280:
-+    case PROCESSOR_RLX5281:
-+    case PROCESSOR_RLX4281:
++    //case PROCESSOR_RLX5280:
++    //case PROCESSOR_RLX5281:
++    //case PROCESSOR_RLX4281:
        return 2;
  
      case PROCESSOR_SB1:
+@@ -14303,11 +14379,13 @@ mips16_emit_constants_1 (enum machine_mo
+   if (SCALAR_INT_MODE_P (mode) || ALL_SCALAR_FIXED_POINT_MODE_P (mode))
+     {
+       rtx size = GEN_INT (GET_MODE_SIZE (mode));
+-      return emit_insn_after (gen_consttable_int (value, size), insn);
++      //hck
++      return emit_insn_after (insn, insn);
+     }
+ 
+   if (SCALAR_FLOAT_MODE_P (mode))
+-    return emit_insn_after (gen_consttable_float (value), insn);
++    //hck
++    return emit_insn_after (insn, insn);
+ 
+   if (VECTOR_MODE_P (mode))
+     {
+@@ -16218,11 +16296,13 @@ static int was_mips16_p = -1;
+ /* Set up the target-dependent global state so that it matches the
+    current function's ISA mode.  */
+ 
++
+ static void
+-mips_set_mips16_mode (int mips16_p)
++mips_set_mips16_mode(int mips16_p)
+ {
+   if (mips16_p == was_mips16_p)
+     return;
++     return;
+ 
+   /* Restore base settings of various flags.  */
+   target_flags = mips_base_target_flags;
+@@ -16323,6 +16403,10 @@ mips_set_mips16_mode (int mips16_p)
+   was_mips16_p = mips16_p;
+ }
+ 
++/* Remember the last target of mips_set_current_function.  */
++static GTY(()) tree mips_previous_fndecl;
++
++
+ /* Implement TARGET_SET_CURRENT_FUNCTION.  Decide whether the current
+    function should use the MIPS16 ISA and switch modes accordingly.  */
+ 
+@@ -16958,6 +17042,141 @@ mips_order_regs_for_local_alloc (void)
+     }
+ }
+ 
++const char*
++rlx_asm_app_on()
++{
++  /* shunyen
++     Use app_on to store function status for ISA-mode switching asm
++	  1: not in mips16 function
++	  2: in mips16 leaf function
++	  3: in mips16 non-leaf function
++   */
++  /*
++  app_on = (!(cfun && cfun->decl && mips_use_mips16_mode_p(cfun->decl))) ?
++	   1 : (current_function_is_leaf) ? 2 : 3;
++
++  if (app_on == 1)
++    return " #APP\n";
++
++  if (flag_pic)
++    if (flag_fix_bdsl)
++      return " #APP PIC BDSL\n"
++	     "	.align	2\n"
++	     "	.set	push\n"
++	     "	.set	noat\n"
++	     "	.set	noreorder\n"
++	     "	move	$1,$3\n"
++	     "	addiu	$3,$pc,8\n"
++	     "	jr	$3\n"
++	     "	nop\n"
++	     "	.set	pop\n"
++	     "	.set	nomips16\n"
++	     "	.align	2\n"
++	     "9:\n"
++	     "	.set	push\n"
++	     "	.set	noat\n"
++	     "	move	$3,$1\n"
++	     "	.set	pop\n";
++    else
++     return " #APP PIC\n"
++     "	.align	2\n"
++	     "	.set	push\n"
++	     "	.set	noat\n"
++	     "	.set	noreorder\n"
++	     "	move	$1,$3\n"
++	     "	addiu	$3,$pc,8\n"
++	     "	jr	$3\n"
++	     "	move	$3,$1\n"
++	     "	.set	pop\n"
++	     "	.set	nomips16\n"
++	     "	.align	2\n"
++	     "9:\n";
++
++  if (app_on == 2)
++    return " #APP leaf\n"
++	   "	addiu   $sp,-4\n"
++	   "	sw	$31,0($sp)\n"
++	   "	jalx	9f\n"
++	   "	nop\n"
++	   "	.set	nomips16\n"
++	   "	.align	2\n"
++	   "9:\n";
++
++  return " #APP\n"
++	 "	jalx	9f\n"
++ "	nop\n"
++	 "	.set	nomips16\n"
++	 "	.align	2\n"
++	 "9:\n";
++	 */
++}
++
++const char*
++rlx_asm_app_off()
++{
++  //if (app_on == 1)
++    return " #NO_APP\n";
++
++/*
++  if (flag_pic)
++    return "	.set	push\n"
++	   "	.set	noat\n"
++	   "	.set	noreorder\n"
++	   "	move	$1,$31\n"
++   "	bgezal	$0,.+8\n"
++	   "	addiu	$31,9\n"
++	   "	jr	$31\n"
++	   "	move	$31,$1\n"
++	   "	.set	pop\n"
++	   "	.set	mips16\n"
++	   "	.align	2\n"
++	   "9:\n"
++	   " #NO_APP PIC\n";
++
++  if (app_on == 2)
++    if (flag_fix_bdsl)
++      return "	.set	push\n"
++	     "	.set	noreorder\n"
++	     "	.set	noat\n"
++	     "	jalx	9f\n"
++	     "	move	$1,$3\n"
++	     "	.set	pop\n"
++	     "	.set	mips16\n"
++	     "	.set	mips16\n"
++	     "	.align	2\n"
++	     "9:\n"
++	     "	.set	push\n"
++	     "	.set	noat\n"
++	     "	lw	$3,0($sp)\n"
++	     "	move	$31,$3\n"
++	     "	move	$3,$1\n"
++	     "	.set	pop\n"
++	     "	addiu   $sp,4\n"
++	     " #NO_APP leaf BDSL\n";
++    else
++      return "	.set	push\n"
++	     "	.set	noreorder\n"
++	     "	jalx	9f\n"
++	     "	lw	$31,0($sp)\n"
++	     "	.set	pop\n"
++	     "	.set	mips16\n"
++	     "	.align	2\n"
++	     "9:\n"
++	     "	addiu   $sp,4\n"
++	     " #NO_APP leaf\n";
++
++  return "	.set	push\n"
++	 "	.set	noreorder\n"
++	 "	jalx	9f\n"
++	 "	nop\n"
++	 "	.set	pop\n"
++	 "	.set	mips16\n"
++	 "	.align	2\n"
++	 "9:\n"
++	 " #NO_APP\n";
++	 */
++}
++
+ /* Implement EH_USES.  */
+ 
+ bool
 diff -rupN ./gcc.orig/gcc/config/mips/mips-cpus.def ./gcc.new/gcc/config/mips/mips-cpus.def
 --- a/gcc/config/mips/mips-cpus.def	2013-01-10 22:38:27.000000000 +0200
-+++ b/gcc/config/mips/mips-cpus.def	2013-09-17 17:10:08.249807200 +0300
-@@ -52,6 +52,14 @@ MIPS_CPU ("mips64r2", PROCESSOR_5KC, 65,
- MIPS_CPU ("r3000", PROCESSOR_R3000, 1, 0)
++++ b/gcc/config/mips/mips-cpus.def	2013-10-14 19:45:36.929578308 +0300
+@@ -53,6 +53,14 @@ MIPS_CPU ("r3000", PROCESSOR_R3000, 1, 0
  MIPS_CPU ("r2000", PROCESSOR_R3000, 1, 0)
  MIPS_CPU ("r3900", PROCESSOR_R3900, 1, 0)
+ 
 +MIPS_CPU ("rlx4081", PROCESSOR_RLX4081, 1, 0)
 +MIPS_CPU ("rlx4180", PROCESSOR_RLX4180, 1, 0)
 +MIPS_CPU ("rlx4181", PROCESSOR_RLX4181, 1, 0)
@@ -54,13 +514,13 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips-cpus.def ./gcc.new/gcc/config/mips/mi
 +MIPS_CPU ("rlx5280", PROCESSOR_RLX5280, 1, 0)
 +MIPS_CPU ("rlx5281", PROCESSOR_RLX5281, 1, 0)
 +
- 
  /* MIPS II processors.  */
  MIPS_CPU ("r6000", PROCESSOR_R6000, 2, 0)
+ 
 diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
 --- a/gcc/config/mips/mips.h	2013-01-10 22:38:27.000000000 +0200
-+++ b/gcc/config/mips/mips.h	2013-09-17 16:38:07.036367401 +0300
-@@ -222,6 +222,32 @@ struct mips_cpu_info {
++++ b/gcc/config/mips/mips.h	2013-10-14 19:57:12.512949903 +0300
+@@ -222,6 +222,33 @@ struct mips_cpu_info {
  #define TARGET_SR71K                (mips_arch == PROCESSOR_SR71000)
  #define TARGET_XLP                  (mips_arch == PROCESSOR_XLP)
  
@@ -71,6 +531,7 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
 +#define TARGET_RLX5181              (mips_arch == PROCESSOR_RLX5181)
 +#define TARGET_RLX5280              (mips_arch == PROCESSOR_RLX5280)
 +#define TARGET_RLX5281              (mips_arch == PROCESSOR_RLX5281)
++
 +
 +/* All RLX processor */
 +#define TARGET_RLX                  (TARGET_RLX4081 || TARGET_RLX4180    \
@@ -93,32 +554,126 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
  /* Scheduling target defines.  */
  #define TUNE_20KC		    (mips_tune == PROCESSOR_20KC)
  #define TUNE_24K		    (mips_tune == PROCESSOR_24KC	\
-@@ -695,7 +721,7 @@ struct mips_cpu_info {
+@@ -250,6 +277,16 @@ struct mips_cpu_info {
+ #define TUNE_SB1                    (mips_tune == PROCESSOR_SB1		\
+ 				     || mips_tune == PROCESSOR_SB1A)
+ 
++
++#define TUNE_RLX4081              (mips_tune == PROCESSOR_RLX4081)
++#define TUNE_RLX4180              (mips_tune == PROCESSOR_RLX4180)
++#define TUNE_RLX4181              (mips_tune == PROCESSOR_RLX4181)
++#define TUNE_RLX4281              (mips_tune == PROCESSOR_RLX4281)
++#define TUNE_RLX5181              (mips_tune == PROCESSOR_RLX5181)
++#define TUNE_RLX5280              (mips_tune == PROCESSOR_RLX5280)
++#define TUNE_RLX5281              (mips_tune == PROCESSOR_RLX5281)
++
++
+ /* Whether vector modes and intrinsics for ST Microelectronics
+    Loongson-2E/2F processors should be enabled.  In o32 pairs of
+    floating-point registers provide 64-bit values.  */
+@@ -548,6 +585,43 @@ struct mips_cpu_info {
+ 									\
+       if (TARGET_CACHE_BUILTIN)						\
+ 	builtin_define ("__GCC_HAVE_BUILTIN_MIPS_CACHE");		\
++      if (TARGET_RLX)							\
++	{								\
++	      /* RLX built-in definition */				\
++	      /* 2009-10-13 tonywu: add __RSDK__ DEFINE */		\
++	      builtin_define ("_RSDK_");				\
++	      builtin_define ("_RSDK_v15_");				\
++	      builtin_define ("__RSDK__");				\
++	      builtin_define ("__RSDK__v15__");				\
++									\
++	      if (TARGET_RLX4180)					\
++		builtin_define ("__m4180");				\
++	      else if (TARGET_RLX4081)					\
++		builtin_define ("__m4081");				\
++	      else if (TARGET_RLX4181)					\
++		builtin_define ("__m4181");				\
++	      else if (TARGET_RLX4281)					\
++		builtin_define ("__m4281");				\
++	      else if (TARGET_RLX5181)					\
++		builtin_define ("__m5181");				\
++	      else if (TARGET_RLX5280)					\
++		builtin_define ("__m5280");				\
++	      else if (TARGET_RLX5281)					\
++		builtin_define ("__m5281");				\
++	      /* 2006-05-09 tonywu: add LX/RLX PREPROCESSOR DEFINE */	\
++	      if (TARGET_RLX_INTERLOCK)					\
++		builtin_define ("__rlx_gprlock");			\
++	      else if (TARGET_RLX_NO_INTERLOCK)				\
++		builtin_define ("__rlx_no_gprlock");			\
++	      if (flag_fix_bdsl)					\
++		builtin_define ("__FIX_BDSL__");			\
++	      if (flag_use_uls)						\
++		builtin_define ("__USE_ULS__");				\
++	      if (flag_use_tls)						\
++		builtin_define ("__USE_TLS__");				\
++	      if (TARGET_RLX1)						\
++		builtin_define ("_RLX_ISA1");				\
++	}								\
+     }									\
+   while (0)
+ 
+@@ -695,7 +769,7 @@ struct mips_cpu_info {
  
  #define MIPS_ISA_LEVEL_SPEC \
    "%{" MIPS_ISA_LEVEL_OPTION_SPEC ":;: \
 -     %{march=mips1|march=r2000|march=r3000|march=r3900:-mips1} \
-+     %{march=mips1|march=r2000|march=r3000|march=r3900|march=rlx4081|march=rlx4180|march=rlx4181|march=rlx5181|march=rlx5280|march=rlx5281:-mips1} \
++     %{march=mips1|march=r2000|march=r3000|march=r3900|march=rlx4081|march=rlx4180|march=rlx4181|march=rlx4281|march=rlx5181|march=rlx5280|march=rlx5281:-mips1} \
       %{march=mips2|march=r6000:-mips2} \
       %{march=mips3|march=r4*|march=vr4*|march=orion|march=loongson2*:-mips3} \
       %{march=mips4|march=r8000|march=vr5*|march=rm7000|march=rm9000 \
-@@ -838,7 +864,14 @@ struct mips_cpu_info {
+@@ -762,6 +836,9 @@ struct mips_cpu_info {
+   {"divide", "%{!mdivide-traps:%{!mdivide-breaks:-mdivide-%(VALUE)}}" }, \
+   {"llsc", "%{!mllsc:%{!mno-llsc:-m%(VALUE)}}" }, \
+   {"mips-plt", "%{!mplt:%{!mno-plt:-m%(VALUE)}}" }, \
++  {"fix_bdsl","%{!mfix-bdsl:-m%{VALUE}}"}, \
++  {"possible_load_use","%{!mpossilbe-load-use:-m%{VALUE}}"}, \
++  {"missing_delay_sloat","%{!missing-delay-slot:-m%{VALUE}}"}, \
+   {"synci", "%{!msynci:%{!mno-synci:-m%(VALUE)}}" }
+ 
+ /* A spec that infers the -mdsp setting from an -march argument.  */
+@@ -819,12 +896,12 @@ struct mips_cpu_info {
+ 				  || ISA_MIPS32R2			\
+ 				  || ISA_MIPS64				\
+ 				  || ISA_MIPS64R2)			\
+-				 && !TARGET_MIPS16)
++				 && !TARGET_MIPS16 && !TARGET_RLX)
+ 
+ /* ISA has a three-operand multiplication instruction.  */
+ #define ISA_HAS_DMUL3		(TARGET_64BIT				\
+ 				 && TARGET_OCTEON			\
+-				 && !TARGET_MIPS16)
++				 && !TARGET_MIPS16 && !TARGET_RLX)
+ 
+ /* ISA has the floating-point conditional move instructions introduced
+    in mips4.  */
+@@ -838,7 +915,13 @@ struct mips_cpu_info {
  
  /* ISA has the integer conditional move instructions introduced in mips4 and
     ST Loongson 2E/2F.  */
 -#define ISA_HAS_CONDMOVE        (ISA_HAS_FP_CONDMOVE || TARGET_LOONGSON_2EF)
 +#define ISA_HAS_CONDMOVE        (ISA_HAS_FP_CONDMOVE \
 +                                || TARGET_LOONGSON_2EF \
-+                                 || ((TARGET_RLX5280     \
-+                                      || TARGET_RLX5181  \
-+                                      || TARGET_RLX5281  \
-+                                      || TARGET_RLX4181  \
-+                                      || TARGET_RLX4281) \
-+                                     && !TARGET_MIPS16))
++                                || TARGET_RLX5280     \
++                                || TARGET_RLX5181  \
++                                || TARGET_RLX5281  \
++                                || TARGET_RLX4181  \
++                                || TARGET_RLX4281)
  
  /* ISA has LDC1 and SDC1.  */
  #define ISA_HAS_LDC1_SDC1	(!ISA_MIPS1 && !TARGET_MIPS16)
-@@ -1012,7 +1045,8 @@ struct mips_cpu_info {
+@@ -903,7 +986,7 @@ struct mips_cpu_info {
+ 				  || ISA_MIPS32R2			\
+ 				  || ISA_MIPS64				\
+ 				  || ISA_MIPS64R2)			\
+-				 && !TARGET_MIPS16)
++				 && !TARGET_MIPS16 && !TARGET_RLX)
+ 
+ /* ISA has three operand multiply instructions that put
+    the high part in an accumulator: mulhi or mulhiu.  */
+@@ -1012,7 +1095,8 @@ struct mips_cpu_info {
     and "addiu $4,$4,1".  */
  #define ISA_HAS_LOAD_DELAY	(ISA_MIPS1				\
  				 && !TARGET_MIPS3900			\
@@ -128,7 +683,7 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
  
  /* Likewise mtc1 and mfc1.  */
  #define ISA_HAS_XFER_DELAY	(mips_isa <= 3			\
-@@ -1039,7 +1073,8 @@ struct mips_cpu_info {
+@@ -1039,7 +1123,8 @@ struct mips_cpu_info {
  				 || ISA_MIPS64				\
  				 || ISA_MIPS64R2			\
  				 || TARGET_MIPS5500			\
@@ -138,7 +693,7 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
  
  /* ISA includes synci, jr.hb and jalr.hb.  */
  #define ISA_HAS_SYNCI ((ISA_MIPS32R2		\
-@@ -1047,7 +1082,8 @@ struct mips_cpu_info {
+@@ -1047,7 +1132,8 @@ struct mips_cpu_info {
  		       && !TARGET_MIPS16)
  
  /* ISA includes sync.  */
@@ -148,7 +703,7 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
  #define GENERATE_SYNC			\
    (target_flags_explicit & MASK_LLSC	\
     ? TARGET_LLSC && !TARGET_MIPS16	\
-@@ -1056,7 +1092,7 @@ struct mips_cpu_info {
+@@ -1056,7 +1142,7 @@ struct mips_cpu_info {
  /* ISA includes ll and sc.  Note that this implies ISA_HAS_SYNC
     because the expanders use both ISA_HAS_SYNC and ISA_HAS_LL_SC
     instructions.  */
@@ -157,13 +712,31 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
  #define GENERATE_LL_SC			\
    (target_flags_explicit & MASK_LLSC	\
     ? TARGET_LLSC && !TARGET_MIPS16	\
+@@ -1165,7 +1251,16 @@ struct mips_cpu_info {
+ #undef CC1_SPEC
+ #define CC1_SPEC "\
+ %{G*} %{EB:-meb} %{EL:-mel} %{EB:%{EL:%emay not use both -EB and -EL}} \
+-%(subtarget_cc1_spec)"
++%(subtarget_cc1_spec) \
++%{rlx4180:-march=rlx4180} \
++%{rlx4081:-march=rlx4081} \
++%{rlx4181:-march=rlx4181} \
++%{rlx4281:-march=rlx4281} \
++%{rlx5181:-march=rlx5181} \
++%{rlx5280:-march=rlx5280} \
++%{rlx5281:-march=rlx5281} \
++"
++
+ 
+ /* Preprocessor specs.  */
+ 
 diff -rupN ./gcc.orig/gcc/config/mips/mips.md ./gcc.new/gcc/config/mips/mips.md
 --- a/gcc/config/mips/mips.md	2013-01-24 19:46:41.000000000 +0200
-+++ b/gcc/config/mips/mips.md	2013-09-17 12:41:06.048912668 +0300
-@@ -64,6 +64,13 @@
-   sr71000
-   xlr
-   xlp
++++ b/gcc/config/mips/mips.md	2013-10-14 19:46:13.179580218 +0300
+@@ -59,6 +59,13 @@
+   r8000
+   r9000
+   r10000
 +  rlx4081
 +  rlx4180
 +  rlx4181
@@ -171,9 +744,225 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.md ./gcc.new/gcc/config/mips/mips.md
 +  rlx5181
 +  rlx5280
 +  rlx5281
- ])
+   sb1
+   sb1a
+   sr71000
+@@ -679,11 +686,17 @@
  
- (define_c_enum "unspec" [
+ ;; Can the instruction be put into a delay slot?
+ (define_attr "can_delay" "no,yes"
+-  (if_then_else (and (eq_attr "type" "!branch,call,jump")
+-		     (and (eq_attr "hazard" "none")
+-			  (eq_attr "single_insn" "yes")))
+-		(const_string "yes")
+-		(const_string "no")))
++  (if_then_else (and (ior (eq (symbol_ref "TARGET_MIPS16") (const_int 0))
++                         (eq (symbol_ref "flag_fix_bdsl") (const_int 0)))
++                     (and (eq_attr "type" "!branch,call,jump")
++		             (and (and (eq_attr "hazard" "none")
++                               (ior (eq (symbol_ref "flag_fix_bdsl") (const_int 0))
++                                    (not (and (eq_attr "type" "load")
++                                              (ne (symbol_ref "TARGET_RLX_INTERLOCK") (const_int 0))))))
++                          (eq_attr "single_insn" "yes"))))
++		        (const_string "yes")
++		        (const_string "no")))
++ 
+ 
+ ;; Attribute defining whether or not we can use the branch-likely
+ ;; instructions.
+@@ -1449,10 +1462,7 @@
+ {
+   rtx lo;
+ 
+-  if (TARGET_LOONGSON_2EF || TARGET_LOONGSON_3A)
+-    emit_insn (gen_mul<mode>3_mul3_loongson (operands[0], operands[1],
+-                                             operands[2]));
+-  else if (ISA_HAS_<D>MUL3)
++  if (ISA_HAS_<D>MUL3)
+     emit_insn (gen_mul<mode>3_mul3 (operands[0], operands[1], operands[2]));
+   else if (TARGET_MIPS16)
+     {
+@@ -1468,19 +1478,7 @@
+   DONE;
+ })
+ 
+-(define_insn "mul<mode>3_mul3_loongson"
+-  [(set (match_operand:GPR 0 "register_operand" "=d")
+-        (mult:GPR (match_operand:GPR 1 "register_operand" "d")
+-                  (match_operand:GPR 2 "register_operand" "d")))]
+-  "TARGET_LOONGSON_2EF || TARGET_LOONGSON_3A"
+-{
+-  if (TARGET_LOONGSON_2EF)
+-    return "<d>multu.g\t%0,%1,%2";
+-  else
+-    return "gs<d>multu\t%0,%1,%2";
+-}
+-  [(set_attr "type" "imul3nc")
+-   (set_attr "mode" "<MODE>")])
++
+ 
+ (define_insn "mul<mode>3_mul3"
+   [(set (match_operand:GPR 0 "register_operand" "=d,l")
+@@ -2156,7 +2154,7 @@
+ 	  (mult:TI (any_extend:TI (match_operand:DI 1 "register_operand"))
+ 		   (any_extend:TI (match_operand:DI 2 "register_operand")))
+ 	  (const_int 64))))]
+-  "TARGET_64BIT && !(<CODE> == ZERO_EXTEND && TARGET_FIX_VR4120)"
++  "TARGET_64BIT && !(<CODE> == ZERO_EXTEND && TARGET_FIX_VR4120) && !TARGET_RLX"
+ {
+   if (TARGET_MIPS16)
+     emit_insn (gen_<su>muldi3_highpart_split (operands[0], operands[1],
+@@ -2177,6 +2175,7 @@
+    (clobber (match_scratch:DI 3 "=l"))]
+   "TARGET_64BIT
+    && !TARGET_MIPS16
++   && !TARGET_RLX
+    && !(<CODE> == ZERO_EXTEND && TARGET_FIX_VR4120)"
+   { return TARGET_FIX_R4000 ? "dmult<u>\t%1,%2\n\tmfhi\t%0" : "#"; }
+   "&& reload_completed && !TARGET_FIX_R4000"
+@@ -3781,6 +3780,9 @@
+ 			  (match_operand 3 "const_int_operand")))]
+   "!TARGET_MIPS16"
+ {
++  if (TARGET_RLX && !flag_use_uls) {
++    FAIL;
++  }
+   if (mips_expand_ext_as_unaligned_load (operands[0], operands[1],
+ 					 INTVAL (operands[2]),
+ 					 INTVAL (operands[3]),
+@@ -3818,6 +3820,9 @@
+ 			  (match_operand 3 "const_int_operand")))]
+   "!TARGET_MIPS16"
+ {
++  if (TARGET_RLX && !flag_use_uls) {
++    FAIL;
++  }
+   if (mips_expand_ext_as_unaligned_load (operands[0], operands[1],
+ 					 INTVAL (operands[2]),
+ 					 INTVAL (operands[3]),
+@@ -3869,6 +3874,9 @@
+ 	(match_operand:GPR 3 "reg_or_0_operand"))]
+   "!TARGET_MIPS16"
+ {
++  if (TARGET_RLX && !flag_use_uls) {
++    FAIL;
++  }
+   if (mips_expand_ins_as_unaligned_store (operands[0], operands[3],
+ 					  INTVAL (operands[1]),
+ 					  INTVAL (operands[2])))
+@@ -6715,6 +6723,10 @@
+ 			  (match_operand:GPR 3 "reg_or_0_operand")))]
+   "ISA_HAS_CONDMOVE"
+ {
++  if (TARGET_RLX && (GET_MODE_CLASS(GET_MODE(operands[0])) == MODE_FLOAT
++          || GET_MODE_CLASS(GET_MODE(operands[1])) == MODE_FLOAT))
++    FAIL;
++
+   mips_expand_conditional_move (operands);
+   DONE;
+ })
+@@ -6731,50 +6743,6 @@
+   DONE;
+ })
+ 
+-;;
+-;;  ....................
+-;;
+-;;	mips16 inline constant tables
+-;;
+-;;  ....................
+-;;
+-
+-(define_insn "consttable_tls_reloc"
+-  [(unspec_volatile [(match_operand 0 "tls_reloc_operand" "")
+-		     (match_operand 1 "const_int_operand" "")]
+-		    UNSPEC_CONSTTABLE_INT)]
+-  "TARGET_MIPS16_PCREL_LOADS"
+-  { return mips_output_tls_reloc_directive (&operands[0]); }
+-  [(set (attr "length") (symbol_ref "INTVAL (operands[1])"))])
+-
+-(define_insn "consttable_int"
+-  [(unspec_volatile [(match_operand 0 "consttable_operand" "")
+-		     (match_operand 1 "const_int_operand" "")]
+-		    UNSPEC_CONSTTABLE_INT)]
+-  "TARGET_MIPS16"
+-{
+-  assemble_integer (mips_strip_unspec_address (operands[0]),
+-		    INTVAL (operands[1]),
+-		    BITS_PER_UNIT * INTVAL (operands[1]), 1);
+-  return "";
+-}
+-  [(set (attr "length") (symbol_ref "INTVAL (operands[1])"))])
+-
+-(define_insn "consttable_float"
+-  [(unspec_volatile [(match_operand 0 "consttable_operand" "")]
+-		    UNSPEC_CONSTTABLE_FLOAT)]
+-  "TARGET_MIPS16"
+-{
+-  REAL_VALUE_TYPE d;
+-
+-  gcc_assert (GET_CODE (operands[0]) == CONST_DOUBLE);
+-  REAL_VALUE_FROM_CONST_DOUBLE (d, operands[0]);
+-  assemble_real (d, GET_MODE (operands[0]),
+-		 GET_MODE_BITSIZE (GET_MODE (operands[0])));
+-  return "";
+-}
+-  [(set (attr "length")
+-	(symbol_ref "GET_MODE_SIZE (GET_MODE (operands[0]))"))])
+ 
+ (define_insn "align"
+   [(unspec_volatile [(match_operand 0 "const_int_operand" "")] UNSPEC_ALIGN)]
+@@ -6796,16 +6764,6 @@
+ ;;  ....................
+ ;;
+ 
+-(define_insn "*mips16e_save_restore"
+-  [(match_parallel 0 ""
+-       [(set (match_operand:SI 1 "register_operand")
+-	     (plus:SI (match_dup 1)
+-		      (match_operand:SI 2 "const_int_operand")))])]
+-  "operands[1] == stack_pointer_rtx
+-   && mips16e_save_restore_pattern_p (operands[0], INTVAL (operands[2]), NULL)"
+-  { return mips16e_output_save_restore (operands[0], INTVAL (operands[2])); }
+-  [(set_attr "type" "arith")
+-   (set_attr "extended_mips16" "yes")])
+ 
+ ;; Thread-Local Storage
+ 
+@@ -6822,33 +6780,7 @@
+ ;; If we leave the use of $3 implicit in the constraints until
+ ;; reload, we may end up making a $3 return value live across
+ ;; the instruction, leading to a spill failure when reloading it.
+-(define_insn_and_split "tls_get_tp_<mode>"
+-  [(set (match_operand:P 0 "register_operand" "=d")
+-	(unspec:P [(const_int 0)] UNSPEC_TLS_GET_TP))
+-   (clobber (reg:P TLS_GET_TP_REGNUM))]
+-  "HAVE_AS_TLS && !TARGET_MIPS16"
+-  "#"
+-  "&& reload_completed"
+-  [(set (reg:P TLS_GET_TP_REGNUM)
+-	(unspec:P [(const_int 0)] UNSPEC_TLS_GET_TP))
+-   (set (match_dup 0) (reg:P TLS_GET_TP_REGNUM))]
+-  ""
+-  [(set_attr "type" "unknown")
+-   ; Since rdhwr always generates a trap for now, putting it in a delay
+-   ; slot would make the kernel's emulation of it much slower.
+-   (set_attr "can_delay" "no")
+-   (set_attr "mode" "<MODE>")
+-   (set_attr "length" "8")])
+ 
+-(define_insn "*tls_get_tp_<mode>_split"
+-  [(set (reg:P TLS_GET_TP_REGNUM)
+-	(unspec:P [(const_int 0)] UNSPEC_TLS_GET_TP))]
+-  "HAVE_AS_TLS && !TARGET_MIPS16"
+-  ".set\tpush\;.set\tmips32r2\t\;rdhwr\t$3,$29\;.set\tpop"
+-  [(set_attr "type" "unknown")
+-   ; See tls_get_tp_<mode>
+-   (set_attr "can_delay" "no")
+-   (set_attr "mode" "<MODE>")])
+ 
+ ;; In MIPS16 mode, the TLS base pointer is accessed by a
+ ;; libgcc helper function __mips16_rdhwr(), as 'rdhwr' is not
 diff -rupN ./gcc.orig/gcc/config/mips/mips-tables.opt ./gcc.new/gcc/config/mips/mips-tables.opt
 --- a/gcc/config/mips/mips-tables.opt	2013-01-10 22:38:27.000000000 +0200
 +++ b/gcc/config/mips/mips-tables.opt	2013-09-17 17:12:22.506481307 +0300
@@ -201,3 +990,59 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips-tables.opt ./gcc.new/gcc/config/mips/
 +
 +EnumValue
 +Enum(mips_arch_opt_value) String(rlx5281) Value(92) Canonical
+diff -rupN ./gcc.orig/gcc/final.c ./gcc.new/gcc/final.c
+--- a/gcc/final.c	2013-02-01 18:54:14.000000000 +0200
++++ b/gcc/final.c	2013-10-14 07:56:06.309676515 +0300
+@@ -179,9 +179,6 @@ CC_STATUS cc_prev_status;
+ 
+ static int block_depth;
+ 
+-/* Nonzero if have enabled APP processing of our assembler output.  */
+-
+-static int app_on;
+ 
+ /* If we are outputting an insn sequence, this contains the sequence rtx.
+    Zero otherwise.  */
+@@ -225,6 +222,8 @@ static int align_fuzz (rtx, rtx, int, un
+ 
+ /* Initialize data in final at the beginning of a compilation.  */
+ 
++static int app_on;
++
+ void
+ init_final (const char *filename ATTRIBUTE_UNUSED)
+ {
+diff -rupN ./gcc.orig/gcc/tree.h ./gcc.new/gcc/tree.h
+--- a/gcc/tree.h	2013-04-08 22:06:00.000000000 +0300
++++ b/gcc/tree.h	2013-10-14 08:06:20.523022902 +0300
+@@ -31,6 +31,11 @@ along with GCC; see the file COPYING3.
+ #include "alias.h"
+ #include "flags.h"
+ 
++#ifndef __APP_ON
++#define __APP_ON
++//extern int app_on;
++#endif
++
+ /* Codes of tree nodes */
+ 
+ #define DEFTREECODE(SYM, STRING, TYPE, NARGS)   SYM,
+diff -rupN ./gcc.orig/libgcc/libgcc2.c ./gcc.new/libgcc/libgcc2.c
+--- a/libgcc/libgcc2.c	2013-02-04 21:06:20.000000000 +0200
++++ b/libgcc/libgcc2.c	2013-10-14 08:51:59.643080973 +0300
+@@ -212,6 +212,7 @@ __negvDI2 (DWtype a)
+ }
+ #endif
+ 
++#undef L_absvsi2
+ #ifdef L_absvsi2
+ Wtype
+ __absvSI2 (Wtype a)
+@@ -251,6 +252,7 @@ __absvsi2 (SItype a)
+ #endif /* COMPAT_SIMODE_TRAPPING_ARITHMETIC */
+ #endif
+ 
++#undef L_absvdi2
+ #ifdef L_absvdi2
+ DWtype
+ __absvDI2 (DWtype a)
