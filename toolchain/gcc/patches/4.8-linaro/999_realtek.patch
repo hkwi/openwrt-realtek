@@ -85,7 +85,7 @@ diff -rupN ./gcc.orig/gcc/common.opt ./gcc.new/gcc/common.opt
  
 diff -rupN ./gcc.orig/gcc/config/mips/mips.c ./gcc.new/gcc/config/mips/mips.c
 --- a/gcc/config/mips/mips.c	2013-02-19 02:04:49.000000000 +0200
-+++ b/gcc/config/mips/mips.c	2013-10-14 20:23:06.143036336 +0300
++++ b/gcc/config/mips/mips.c	2013-11-09 06:12:14.396962114 +0200
 @@ -56,6 +56,9 @@ along with GCC; see the file COPYING3.
  #include "target-globals.h"
  #include "opts.h"
@@ -96,10 +96,10 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.c ./gcc.new/gcc/config/mips/mips.c
  /* True if X is an UNSPEC wrapper around a SYMBOL_REF or LABEL_REF.  */
  #define UNSPEC_ADDRESS_P(X)					\
    (GET_CODE (X) == UNSPEC					\
-@@ -925,6 +928,27 @@ static const struct mips_rtx_cost_data
- 		     1,           /* branch_cost */
- 		     4            /* memory_latency */
-   },
+@@ -731,6 +734,27 @@ static const struct mips_rtx_cost_data m
+ /* Costs to use when optimizing for speed, indexed by processor.  */
+ static const struct mips_rtx_cost_data
+   mips_rtx_cost_data[NUM_PROCESSOR_VALUES] = {
 +  { /* RLX */
 +    DEFAULT_COSTS
 +  },
@@ -121,9 +121,9 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.c ./gcc.new/gcc/config/mips/mips.c
 +  { /* RLX */
 +    DEFAULT_COSTS
 +  },
-   { /* R6000 */
-     COSTS_N_INSNS (3),            /* fp_add */
-     COSTS_N_INSNS (5),            /* fp_mult_sf */
+   { /* R3000 */
+     COSTS_N_INSNS (2),            /* fp_add */
+     COSTS_N_INSNS (4),            /* fp_mult_sf */
 @@ -1212,13 +1236,62 @@ mips_far_type_p (const_tree type)
  static bool
  mips_mips16_decl_p (const_tree decl)
@@ -501,11 +501,11 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.c ./gcc.new/gcc/config/mips/mips.c
  bool
 diff -rupN ./gcc.orig/gcc/config/mips/mips-cpus.def ./gcc.new/gcc/config/mips/mips-cpus.def
 --- a/gcc/config/mips/mips-cpus.def	2013-01-10 22:38:27.000000000 +0200
-+++ b/gcc/config/mips/mips-cpus.def	2013-10-14 19:45:36.929578308 +0300
-@@ -53,6 +53,14 @@ MIPS_CPU ("r3000", PROCESSOR_R3000, 1, 0
- MIPS_CPU ("r2000", PROCESSOR_R3000, 1, 0)
- MIPS_CPU ("r3900", PROCESSOR_R3900, 1, 0)
++++ b/gcc/config/mips/mips-cpus.def	2013-10-19 16:36:32.376188609 +0300
+@@ -49,6 +49,13 @@ MIPS_CPU ("mips64", PROCESSOR_5KC, 64, P
+ MIPS_CPU ("mips64r2", PROCESSOR_5KC, 65, PTF_AVOID_BRANCHLIKELY)
  
+ /* MIPS I processors.  */
 +MIPS_CPU ("rlx4081", PROCESSOR_RLX4081, 1, 0)
 +MIPS_CPU ("rlx4180", PROCESSOR_RLX4180, 1, 0)
 +MIPS_CPU ("rlx4181", PROCESSOR_RLX4181, 1, 0)
@@ -513,10 +513,9 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips-cpus.def ./gcc.new/gcc/config/mips/mi
 +MIPS_CPU ("rlx5181", PROCESSOR_RLX5181, 1, 0)
 +MIPS_CPU ("rlx5280", PROCESSOR_RLX5280, 1, 0)
 +MIPS_CPU ("rlx5281", PROCESSOR_RLX5281, 1, 0)
-+
- /* MIPS II processors.  */
- MIPS_CPU ("r6000", PROCESSOR_R6000, 2, 0)
- 
+ MIPS_CPU ("r3000", PROCESSOR_R3000, 1, 0)
+ MIPS_CPU ("r2000", PROCESSOR_R3000, 1, 0)
+ MIPS_CPU ("r3900", PROCESSOR_R3900, 1, 0)
 diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
 --- a/gcc/config/mips/mips.h	2013-01-10 22:38:27.000000000 +0200
 +++ b/gcc/config/mips/mips.h	2013-10-14 19:57:12.512949903 +0300
@@ -732,11 +731,11 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
  
 diff -rupN ./gcc.orig/gcc/config/mips/mips.md ./gcc.new/gcc/config/mips/mips.md
 --- a/gcc/config/mips/mips.md	2013-01-24 19:46:41.000000000 +0200
-+++ b/gcc/config/mips/mips.md	2013-10-14 19:46:13.179580218 +0300
-@@ -59,6 +59,13 @@
-   r8000
-   r9000
-   r10000
++++ b/gcc/config/mips/mips.md	2013-10-19 16:36:20.482855340 +0300
+@@ -22,6 +22,13 @@
+ ;; <http://www.gnu.org/licenses/>.
+ 
+ (define_enum "processor" [
 +  rlx4081
 +  rlx4180
 +  rlx4181
@@ -744,9 +743,9 @@ diff -rupN ./gcc.orig/gcc/config/mips/mips.md ./gcc.new/gcc/config/mips/mips.md
 +  rlx5181
 +  rlx5280
 +  rlx5281
-   sb1
-   sb1a
-   sr71000
+   r3000
+   4kc
+   4kp
 @@ -679,11 +686,17 @@
  
  ;; Can the instruction be put into a delay slot?

@@ -1,6 +1,25 @@
+diff -rupN ./bu.orig/bfd/archures.c ./bu.new/bfd/archures.c
+--- a/bfd/archures.c	2011-08-02 02:04:19.000000000 +0300
++++ b/bfd/archures.c	2013-10-19 16:23:46.289505726 +0300
+@@ -182,7 +182,14 @@ DESCRIPTION
+ .#define bfd_mach_mipsisa64             64
+ .#define bfd_mach_mipsisa64r2           65
+ .#define bfd_mach_mips_micromips        96
+-.  bfd_arch_i386,      {* Intel 386 *}
++.#define bfd_mach_mips_rlx4081          4081
++.#define bfd_mach_mips_rlx4180          4180
++.#define bfd_mach_mips_rlx4181          4181
++.#define bfd_mach_mips_rlx4281          4281
++.#define bfd_mach_mips_rlx5181          5181
++.#define bfd_mach_mips_rlx5280          5280
++.#define bfd_mach_mips_rlx5281          5281
++.#bfd_arch_i386,      {* Intel 386 *}
+ .#define bfd_mach_i386_intel_syntax	(1 << 0)
+ .#define bfd_mach_i386_i8086		(1 << 1)
+ .#define bfd_mach_i386_i386		(1 << 2)
 diff -rupN ./bu.orig/bfd/bfd-in2.h ./bu.new/bfd/bfd-in2.h
 --- a/bfd/bfd-in2.h	2011-09-16 04:15:18.000000000 +0300
-+++ b/bfd/bfd-in2.h	2013-09-26 20:51:04.437639632 +0300
++++ b/bfd/bfd-in2.h	2013-11-30 09:41:21.611855847 +0200
 @@ -1889,6 +1889,13 @@ enum bfd_architecture
  #define bfd_mach_mipsisa64             64
  #define bfd_mach_mipsisa64r2           65
@@ -25,11 +44,12 @@ diff -rupN ./bu.orig/bfd/bfd-in2.h ./bu.new/bfd/bfd-in2.h
   }
   bfd_reloc_status_type;
  
-@@ -2780,6 +2788,16 @@ to compensate for the borrow when the lo
+@@ -2780,6 +2788,18 @@ to compensate for the borrow when the lo
  /* MIPS16 low 16 bits.  */
    BFD_RELOC_MIPS16_LO16,
  
 +/* MIPS16 TLS relocations  */
++/*
 +  BFD_RELOC_MIPS16_TLS_GD,
 +  BFD_RELOC_MIPS16_TLS_LDM,
 +  BFD_RELOC_MIPS16_TLS_DTPREL_HI16,
@@ -38,17 +58,18 @@ diff -rupN ./bu.orig/bfd/bfd-in2.h ./bu.new/bfd/bfd-in2.h
 +  BFD_RELOC_MIPS16_TLS_TPREL_HI16,
 +  BFD_RELOC_MIPS16_TLS_TPREL_LO16,
 +  BFD_RELOC_RLX_OFF6A,
++*/
 +
  /* Relocation against a MIPS literal section.  */
    BFD_RELOC_MIPS_LITERAL,
    BFD_RELOC_MICROMIPS_LITERAL,
 diff -rupN ./bu.orig/bfd/cpu-mips.c ./bu.new/bfd/cpu-mips.c
 --- a/bfd/cpu-mips.c	2011-07-24 17:20:05.000000000 +0300
-+++ b/bfd/cpu-mips.c	2013-10-14 20:42:12.869766152 +0300
-@@ -62,6 +62,13 @@ enum
++++ b/bfd/cpu-mips.c	2013-10-19 16:14:04.172826491 +0300
+@@ -60,6 +60,13 @@ mips_compatible (const bfd_arch_info_typ
+ 
+ enum
  {
-   I_mips3000,
-   I_mips3900,
 +  I_mips_rlx4081,
 +  I_mips_rlx4180,
 +  I_mips_rlx4181,
@@ -56,10 +77,10 @@ diff -rupN ./bu.orig/bfd/cpu-mips.c ./bu.new/bfd/cpu-mips.c
 +  I_mips_rlx5181,
 +  I_mips_rlx5280,
 +  I_mips_rlx5281,
+   I_mips3000,
+   I_mips3900,
    I_mips4000,
-   I_mips4010,
-   I_mips4100,
-@@ -94,7 +101,7 @@ enum
+@@ -94,13 +101,20 @@ enum
    I_loongson_3a,
    I_mipsocteon,
    I_xlr,
@@ -68,10 +89,9 @@ diff -rupN ./bu.orig/bfd/cpu-mips.c ./bu.new/bfd/cpu-mips.c
  };
  
  #define NN(index) (&arch_info_struct[(index) + 1])
-@@ -103,6 +110,13 @@ static const bfd_arch_info_type arch_inf
+ 
+ static const bfd_arch_info_type arch_info_struct[] =
  {
-   N (32, 32, bfd_mach_mips3000, "mips:3000",      FALSE, NN(I_mips3000)),
-   N (32, 32, bfd_mach_mips3900, "mips:3900",      FALSE, NN(I_mips3900)),
 +  N (32, 32, bfd_mach_mips_rlx4081,"mips:rlx4081",FALSE, NN(I_mips_rlx4081)),
 +  N (32, 32, bfd_mach_mips_rlx4180,"mips:rlx4180",FALSE, NN(I_mips_rlx4180)),
 +  N (32, 32, bfd_mach_mips_rlx4181,"mips:rlx4181",FALSE, NN(I_mips_rlx4181)),
@@ -79,9 +99,9 @@ diff -rupN ./bu.orig/bfd/cpu-mips.c ./bu.new/bfd/cpu-mips.c
 +  N (32, 32, bfd_mach_mips_rlx5181,"mips:rlx5181",FALSE, NN(I_mips_rlx5181)),
 +  N (32, 32, bfd_mach_mips_rlx5280,"mips:rlx5280",FALSE, NN(I_mips_rlx5280)),
 +  N (32, 32, bfd_mach_mips_rlx5281,"mips:rlx5281",FALSE, NN(I_mips_rlx5281)),  
+   N (32, 32, bfd_mach_mips3000, "mips:3000",      FALSE, NN(I_mips3000)),
+   N (32, 32, bfd_mach_mips3900, "mips:3900",      FALSE, NN(I_mips3900)),
    N (64, 64, bfd_mach_mips4000, "mips:4000",      FALSE, NN(I_mips4000)),
-   N (64, 64, bfd_mach_mips4010, "mips:4010",      FALSE, NN(I_mips4010)),
-   N (64, 64, bfd_mach_mips4100, "mips:4100",      FALSE, NN(I_mips4100)),
 @@ -135,7 +149,7 @@ static const bfd_arch_info_type arch_inf
    N (64, 64, bfd_mach_mips_loongson_3a, "mips:loongson_3a",       FALSE, NN(I_loongson_3a)),
    N (64, 64, bfd_mach_mips_octeon,"mips:octeon",  FALSE, NN(I_mipsocteon)),
@@ -114,166 +134,44 @@ diff -rupN ./bu.orig/bfd/doc/bfd.texinfo ./bu.new/bfd/doc/bfd.texinfo
  @bye
 diff -rupN ./bu.orig/bfd/elf32-mips.c ./bu.new/bfd/elf32-mips.c
 --- a/bfd/elf32-mips.c	2011-07-24 17:20:05.000000000 +0300
-+++ b/bfd/elf32-mips.c	2013-09-26 19:52:44.694112357 +0300
-@@ -717,6 +717,21 @@ static reloc_howto_type elf_mips_howto_t
++++ b/bfd/elf32-mips.c	2013-11-30 09:51:35.548540648 +0200
+@@ -717,6 +717,8 @@ static reloc_howto_type elf_mips_howto_t
  	 0x0,			/* src_mask */
  	 0xffffffff,		/* dst_mask */
  	 FALSE),		/* pcrel_offset */
 +
-+  /* relocation added by dbb */
-+  HOWTO (R_RELOC_RLX_OFF6A,        /* type */
-+     3,         /* rightshift */
-+     2,         /* size (0 = byte, 1 = short, 2 = long) */
-+     10,            /* bitsize */
-+     FALSE,         /* pc_relative */
-+     6,         /* bitpos */
-+     complain_overflow_dont,    /* complain_on_overflow */
-+     NULL,          /* special_function */
-+     "R_RELOC_RLX_OFF6A",   /* name */
-+     TRUE,          /* partial_inplace */
-+     0x0000FFC0,        /* src_mask */
-+     0x0000FFC0,        /* dst_mask */
-+     FALSE),        /* pcrel_offset */
++
  };
  
  /* The reloc used for BFD_RELOC_CTOR when doing a 64 bit link.  This
-@@ -830,6 +845,112 @@ static reloc_howto_type elf_mips16_howto
+@@ -830,6 +832,7 @@ static reloc_howto_type elf_mips16_howto
  	 0x0000ffff,		/* src_mask */
  	 0x0000ffff,	        /* dst_mask */
  	 FALSE),		/* pcrel_offset */
 +
-+  /* MIPS16 TLS general dynamic variable reference.  */
-+  HOWTO (R_MIPS16_TLS_GD,	/* type */
-+	 0,			/* rightshift */
-+	 2,			/* size (0 = byte, 1 = short, 2 = long) */
-+	 16,			/* bitsize */
-+	 FALSE,			/* pc_relative */
-+	 0,			/* bitpos */
-+	 complain_overflow_signed, /* complain_on_overflow */
-+	 _bfd_mips_elf_generic_reloc, /* special_function */
-+	 "R_MIPS16_TLS_GD",	/* name */
-+	 TRUE,			/* partial_inplace */
-+	 0x0000ffff,		/* src_mask */
-+	 0x0000ffff,		/* dst_mask */
-+	 FALSE),		/* pcrel_offset */
-+
-+  /* MIPS16 TLS local dynamic variable reference.  */
-+  HOWTO (R_MIPS16_TLS_LDM,	/* type */
-+	 0,			/* rightshift */
-+	 2,			/* size (0 = byte, 1 = short, 2 = long) */
-+	 16,			/* bitsize */
-+	 FALSE,			/* pc_relative */
-+	 0,			/* bitpos */
-+	 complain_overflow_signed, /* complain_on_overflow */
-+	 _bfd_mips_elf_generic_reloc, /* special_function */
-+	 "R_MIPS16_TLS_LDM",	/* name */
-+	 TRUE,			/* partial_inplace */
-+	 0x0000ffff,		/* src_mask */
-+	 0x0000ffff,		/* dst_mask */
-+	 FALSE),		/* pcrel_offset */
-+
-+  /* MIPS16 TLS local dynamic offset.  */
-+  HOWTO (R_MIPS16_TLS_DTPREL_HI16,	/* type */
-+	 0,			/* rightshift */
-+	 2,			/* size (0 = byte, 1 = short, 2 = long) */
-+	 16,			/* bitsize */
-+	 FALSE,			/* pc_relative */
-+	 0,			/* bitpos */
-+	 complain_overflow_signed, /* complain_on_overflow */
-+	 _bfd_mips_elf_generic_reloc, /* special_function */
-+	 "R_MIPS16_TLS_DTPREL_HI16",	/* name */
-+	 TRUE,			/* partial_inplace */
-+	 0x0000ffff,		/* src_mask */
-+	 0x0000ffff,		/* dst_mask */
-+	 FALSE),		/* pcrel_offset */
-+
-+  /* MIPS16 TLS local dynamic offset.  */
-+  HOWTO (R_MIPS16_TLS_DTPREL_LO16,	/* type */
-+	 0,			/* rightshift */
-+	 2,			/* size (0 = byte, 1 = short, 2 = long) */
-+	 16,			/* bitsize */
-+	 FALSE,			/* pc_relative */
-+	 0,			/* bitpos */
-+	 complain_overflow_signed, /* complain_on_overflow */
-+	 _bfd_mips_elf_generic_reloc, /* special_function */
-+	 "R_MIPS16_TLS_DTPREL_LO16",	/* name */
-+	 TRUE,			/* partial_inplace */
-+	 0x0000ffff,		/* src_mask */
-+	 0x0000ffff,		/* dst_mask */
-+	 FALSE),		/* pcrel_offset */
-+
-+  /* MIPS16 TLS thread pointer offset.  */
-+  HOWTO (R_MIPS16_TLS_GOTTPREL,	/* type */
-+	 0,			/* rightshift */
-+	 2,			/* size (0 = byte, 1 = short, 2 = long) */
-+	 16,			/* bitsize */
-+	 FALSE,			/* pc_relative */
-+	 0,			/* bitpos */
-+	 complain_overflow_signed, /* complain_on_overflow */
-+	 _bfd_mips_elf_generic_reloc, /* special_function */
-+	 "R_MIPS16_TLS_GOTTPREL",	/* name */
-+	 TRUE,			/* partial_inplace */
-+	 0x0000ffff,		/* src_mask */
-+	 0x0000ffff,		/* dst_mask */
-+	 FALSE),		/* pcrel_offset */
-+
-+  /* MIPS16 TLS thread pointer offset.  */
-+  HOWTO (R_MIPS16_TLS_TPREL_HI16,	/* type */
-+	 0,			/* rightshift */
-+	 2,			/* size (0 = byte, 1 = short, 2 = long) */
-+	 16,			/* bitsize */
-+	 FALSE,			/* pc_relative */
-+	 0,			/* bitpos */
-+	 complain_overflow_signed, /* complain_on_overflow */
-+	 _bfd_mips_elf_generic_reloc, /* special_function */
-+	 "R_MIPS16_TLS_TPREL_HI16", /* name */
-+	 TRUE,			/* partial_inplace */
-+	 0x0000ffff,		/* src_mask */
-+	 0x0000ffff,		/* dst_mask */
-+	 FALSE),		/* pcrel_offset */
-+
-+  /* MIPS16 TLS thread pointer offset.  */
-+  HOWTO (R_MIPS16_TLS_TPREL_LO16,	/* type */
-+	 0,			/* rightshift */
-+	 2,			/* size (0 = byte, 1 = short, 2 = long) */
-+	 16,			/* bitsize */
-+	 FALSE,			/* pc_relative */
-+	 0,			/* bitpos */
-+	 complain_overflow_signed, /* complain_on_overflow */
-+	 _bfd_mips_elf_generic_reloc, /* special_function */
-+	 "R_MIPS16_TLS_TPREL_LO16", /* name */
-+	 TRUE,			/* partial_inplace */
-+	 0x0000ffff,		/* src_mask */
-+	 0x0000ffff,		/* dst_mask */
-+	 FALSE),		/* pcrel_offset */
-+
  };
  
  static reloc_howto_type elf_micromips_howto_table_rel[] =
-@@ -1785,7 +1906,9 @@ static const struct elf_reloc_map mips_r
-   { BFD_RELOC_MIPS_TLS_TPREL32, R_MIPS_TLS_TPREL32 },
-   { BFD_RELOC_MIPS_TLS_TPREL64, R_MIPS_TLS_TPREL64 },
-   { BFD_RELOC_MIPS_TLS_TPREL_HI16, R_MIPS_TLS_TPREL_HI16 },
+@@ -1777,15 +1780,6 @@ static const struct elf_reloc_map mips_r
+   { BFD_RELOC_MIPS_TLS_DTPREL32, R_MIPS_TLS_DTPREL32 },
+   { BFD_RELOC_MIPS_TLS_DTPMOD64, R_MIPS_TLS_DTPMOD64 },
+   { BFD_RELOC_MIPS_TLS_DTPREL64, R_MIPS_TLS_DTPREL64 },
+-  { BFD_RELOC_MIPS_TLS_GD, R_MIPS_TLS_GD },
+-  { BFD_RELOC_MIPS_TLS_LDM, R_MIPS_TLS_LDM },
+-  { BFD_RELOC_MIPS_TLS_DTPREL_HI16, R_MIPS_TLS_DTPREL_HI16 },
+-  { BFD_RELOC_MIPS_TLS_DTPREL_LO16, R_MIPS_TLS_DTPREL_LO16 },
+-  { BFD_RELOC_MIPS_TLS_GOTTPREL, R_MIPS_TLS_GOTTPREL },
+-  { BFD_RELOC_MIPS_TLS_TPREL32, R_MIPS_TLS_TPREL32 },
+-  { BFD_RELOC_MIPS_TLS_TPREL64, R_MIPS_TLS_TPREL64 },
+-  { BFD_RELOC_MIPS_TLS_TPREL_HI16, R_MIPS_TLS_TPREL_HI16 },
 -  { BFD_RELOC_MIPS_TLS_TPREL_LO16, R_MIPS_TLS_TPREL_LO16 }
-+  { BFD_RELOC_MIPS_TLS_TPREL_LO16, R_MIPS_TLS_TPREL_LO16 },
-+  { BFD_RELOC_MIPS_TLS_TPREL_LO16, R_MIPS_TLS_TPREL_LO16 },
-+  { BFD_RELOC_RLX_OFF6A, R_RELOC_RLX_OFF6A },
  };
  
  static const struct elf_reloc_map mips16_reloc_map[] =
-@@ -1796,6 +1919,16 @@ static const struct elf_reloc_map mips16
+@@ -1796,6 +1790,7 @@ static const struct elf_reloc_map mips16
    { BFD_RELOC_MIPS16_CALL16, R_MIPS16_CALL16 - R_MIPS16_min },
    { BFD_RELOC_MIPS16_HI16_S, R_MIPS16_HI16 - R_MIPS16_min },
    { BFD_RELOC_MIPS16_LO16, R_MIPS16_LO16 - R_MIPS16_min },
-+  { BFD_RELOC_MIPS16_TLS_GD, R_MIPS16_TLS_GD - R_MIPS16_min },
-+  { BFD_RELOC_MIPS16_TLS_LDM, R_MIPS16_TLS_LDM - R_MIPS16_min },
-+  { BFD_RELOC_MIPS16_TLS_DTPREL_HI16,
-+    R_MIPS16_TLS_DTPREL_HI16 - R_MIPS16_min },
-+  { BFD_RELOC_MIPS16_TLS_DTPREL_LO16,
-+    R_MIPS16_TLS_DTPREL_LO16 - R_MIPS16_min },
-+  { BFD_RELOC_MIPS16_TLS_GOTTPREL, R_MIPS16_TLS_GOTTPREL - R_MIPS16_min },
-+  { BFD_RELOC_MIPS16_TLS_TPREL_HI16, R_MIPS16_TLS_TPREL_HI16 - R_MIPS16_min },
-+  { BFD_RELOC_MIPS16_TLS_TPREL_LO16, R_MIPS16_TLS_TPREL_LO16 - R_MIPS16_min }
 +
  };
  
@@ -298,7 +196,7 @@ diff -rupN ./bu.orig/bfd/libbfd.h ./bu.new/bfd/libbfd.h
    "BFD_RELOC_MICROMIPS_7_PCREL_S1",
 diff -rupN ./bu.orig/bfd/reloc.c ./bu.new/bfd/reloc.c
 --- a/bfd/reloc.c	2011-07-24 17:20:06.000000000 +0300
-+++ b/bfd/reloc.c	2013-10-14 13:51:07.800130671 +0300
++++ b/bfd/reloc.c	2013-11-30 09:41:26.098522661 +0200
 @@ -52,6 +52,7 @@ SECTION
  #include "bfd.h"
  #include "bfdlink.h"
@@ -322,34 +220,9 @@ diff -rupN ./bu.orig/bfd/reloc.c ./bu.new/bfd/reloc.c
    relocation >>= (bfd_vma) howto->rightshift;
  
    /* Shift everything up to where it's going to be used.  */
-@@ -2246,6 +2255,24 @@ ENUM
- ENUMDOC
-   MIPS16 low 16 bits.
- 
-+ ENUM
-+  BFD_RELOC_MIPS16_TLS_GD
-+ENUMX
-+  BFD_RELOC_MIPS16_TLS_LDM
-+ENUMX
-+  BFD_RELOC_MIPS16_TLS_DTPREL_HI16
-+ENUMX
-+  BFD_RELOC_MIPS16_TLS_DTPREL_LO16
-+ENUMX
-+  BFD_RELOC_MIPS16_TLS_GOTTPREL
-+ENUMX
-+  BFD_RELOC_MIPS16_TLS_TPREL_HI16
-+ENUMX
-+  BFD_RELOC_MIPS16_TLS_TPREL_LO16
-+ENUMDOC
-+  MIPS16 TLS relocations
-+
-+
- ENUM
-   BFD_RELOC_MIPS_LITERAL
- ENUMX
 diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
 --- a/gas/config/tc-mips.c	2011-11-21 11:29:32.000000000 +0200
-+++ b/gas/config/tc-mips.c	2013-10-14 20:47:24.949783533 +0300
++++ b/gas/config/tc-mips.c	2013-11-30 10:05:30.081898864 +0200
 @@ -104,6 +104,35 @@ static char *mips_regmask_frag;
  
  #define ILLEGAL_REG (32)
@@ -1199,8 +1072,8 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
 +                                          << OP_SH_OFFSET6A);
 +                      imm_expr.X_op = O_absent;
 +                    }
-+                  else
-+                    *imm_reloc = BFD_RELOC_RLX_OFF6A; 
++                  //else
++                  //  *imm_reloc = BFD_RELOC_RLX_OFF6A; 
 +                  s = expr_end;
 +                  continue;
 +
@@ -1411,12 +1284,12 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
      }
  
    /* Branch offsets have an implicit 0 in the lowest bit.  */
-@@ -14040,7 +14787,14 @@ static const struct percent_op_match mip
+@@ -14040,7 +14787,15 @@ static const struct percent_op_match mip
    {"%gprel", BFD_RELOC_MIPS16_GPREL},
    {"%got", BFD_RELOC_MIPS16_GOT16},
    {"%call16", BFD_RELOC_MIPS16_CALL16},
 -  {"%hi", BFD_RELOC_MIPS16_HI16_S}
-+  {"%hi", BFD_RELOC_MIPS16_HI16_S},
++  {"%hi", BFD_RELOC_MIPS16_HI16_S}/*,
 +  {"%tlsgd", BFD_RELOC_MIPS16_TLS_GD},
 +  {"%tlsldm", BFD_RELOC_MIPS16_TLS_LDM},
 +  {"%dtprel_hi", BFD_RELOC_MIPS16_TLS_DTPREL_HI16},
@@ -1424,10 +1297,11 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
 +  {"%tprel_hi", BFD_RELOC_MIPS16_TLS_TPREL_HI16},
 +  {"%tprel_lo", BFD_RELOC_MIPS16_TLS_TPREL_LO16},
 +  {"%gottprel", BFD_RELOC_MIPS16_TLS_GOTTPREL}
++  */
  };
  
  
-@@ -14209,6 +14963,7 @@ enum options
+@@ -14209,6 +14964,7 @@ enum options
      OPTION_MIPS64,
      OPTION_MIPS32R2,
      OPTION_MIPS64R2,
@@ -1435,7 +1309,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
      OPTION_MIPS16,
      OPTION_NO_MIPS16,
      OPTION_MIPS3D,
-@@ -14285,6 +15040,9 @@ enum options
+@@ -14285,6 +15041,9 @@ enum options
      OPTION_NO_PDR,
      OPTION_MVXWORKS_PIC,
  #endif /* OBJ_ELF */
@@ -1445,7 +1319,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
      OPTION_END_OF_ENUM    
    };
    
-@@ -14396,6 +15154,9 @@ struct option md_longopts[] =
+@@ -14396,6 +15155,9 @@ struct option md_longopts[] =
    {"mno-pdr", no_argument, NULL, OPTION_NO_PDR},
    {"mvxworks-pic", no_argument, NULL, OPTION_MVXWORKS_PIC},
  #endif /* OBJ_ELF */
@@ -1455,7 +1329,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
  
    {NULL, no_argument, NULL, 0}
  };
-@@ -14431,6 +15192,18 @@ md_parse_option (int c, char *arg)
+@@ -14431,6 +15193,18 @@ md_parse_option (int c, char *arg)
        mips_disable_float_construction = 1;
        break;
  
@@ -1474,7 +1348,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
      case OPTION_TRAP:
        mips_trap = 1;
        break;
-@@ -14509,6 +15282,9 @@ md_parse_option (int c, char *arg)
+@@ -14509,6 +15283,9 @@ md_parse_option (int c, char *arg)
        mips_set_option_string (&mips_arch_string, arg);
        break;
  
@@ -1484,7 +1358,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
      case OPTION_M4650:
        mips_set_option_string (&mips_arch_string, "4650");
        mips_set_option_string (&mips_tune_string, "4650");
-@@ -15036,7 +15812,7 @@ mips_after_parse_args (void)
+@@ -15036,7 +15813,7 @@ mips_after_parse_args (void)
  	  || mips_abi == O32_ABI))
      mips_32bitmode = 1;
  
@@ -1493,7 +1367,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
      as_bad (_("trap exception not supported at ISA 1"));
  
    /* If the selected architecture includes support for ASEs, enable
-@@ -15113,6 +15889,9 @@ mips_after_parse_args (void)
+@@ -15113,6 +15890,9 @@ mips_after_parse_args (void)
      }
  }
  
@@ -1503,7 +1377,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
  void
  mips_init_after_args (void)
  {
-@@ -15369,6 +16148,8 @@ md_apply_fix (fixS *fixP, valueT *valP,
+@@ -15369,6 +16149,8 @@ md_apply_fix (fixS *fixP, valueT *valP,
      case BFD_RELOC_MIPS_TLS_DTPREL_HI16:
      case BFD_RELOC_MIPS_TLS_DTPREL_LO16:
      case BFD_RELOC_MIPS_TLS_GOTTPREL:
@@ -1512,24 +1386,26 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
      case BFD_RELOC_MIPS_TLS_TPREL_HI16:
      case BFD_RELOC_MIPS_TLS_TPREL_LO16:
      case BFD_RELOC_MICROMIPS_TLS_GD:
-@@ -15378,6 +16159,13 @@ md_apply_fix (fixS *fixP, valueT *valP,
+@@ -15378,6 +16160,14 @@ md_apply_fix (fixS *fixP, valueT *valP,
      case BFD_RELOC_MICROMIPS_TLS_GOTTPREL:
      case BFD_RELOC_MICROMIPS_TLS_TPREL_HI16:
      case BFD_RELOC_MICROMIPS_TLS_TPREL_LO16:
-+    case BFD_RELOC_MIPS16_TLS_GD:
++    /*case BFD_RELOC_MIPS16_TLS_GD:
 +    case BFD_RELOC_MIPS16_TLS_LDM:
 +    case BFD_RELOC_MIPS16_TLS_DTPREL_HI16:
 +    case BFD_RELOC_MIPS16_TLS_DTPREL_LO16:
 +    case BFD_RELOC_MIPS16_TLS_GOTTPREL:
 +    case BFD_RELOC_MIPS16_TLS_TPREL_HI16:
 +    case BFD_RELOC_MIPS16_TLS_TPREL_LO16:
++    */
        S_SET_THREAD_LOCAL (fixP->fx_addsy);
        /* fall through */
  
-@@ -15570,6 +16358,35 @@ md_apply_fix (fixS *fixP, valueT *valP,
+@@ -15570,6 +16360,36 @@ md_apply_fix (fixS *fixP, valueT *valP,
        fixP->fx_done = 0;
        break;
  
++/*
 +    case BFD_RELOC_RLX_OFF6A: 
 +      if (fixP->fx_done) 
 +        { 
@@ -1557,12 +1433,12 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
 +          md_number_to_chars ((char *) buf, tmp_value, 4);
 +        } 
 +      break;
-+
++*/
 +
      default:
        internalError ();
      }
-@@ -16552,7 +17369,8 @@ s_cpreturn (int ignore ATTRIBUTE_UNUSED)
+@@ -16552,7 +17372,8 @@ s_cpreturn (int ignore ATTRIBUTE_UNUSED)
     use in DWARF debug information.  */
  
  static void
@@ -1572,7 +1448,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
  {
    expressionS ex;
    char *p;
-@@ -16561,19 +17379,13 @@ s_dtprel_internal (size_t bytes)
+@@ -16561,19 +17382,13 @@ s_dtprel_internal (size_t bytes)
  
    if (ex.X_op != O_symbol)
      {
@@ -1594,7 +1470,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
    demand_empty_rest_of_line ();
  }
  
-@@ -16582,7 +17394,7 @@ s_dtprel_internal (size_t bytes)
+@@ -16582,7 +17397,7 @@ s_dtprel_internal (size_t bytes)
  static void
  s_dtprelword (int ignore ATTRIBUTE_UNUSED)
  {
@@ -1603,7 +1479,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
  }
  
  /* Handle .dtpreldword.  */
-@@ -16590,9 +17402,26 @@ s_dtprelword (int ignore ATTRIBUTE_UNUSE
+@@ -16590,9 +17405,26 @@ s_dtprelword (int ignore ATTRIBUTE_UNUSE
  static void
  s_dtpreldword (int ignore ATTRIBUTE_UNUSED)
  {
@@ -1631,7 +1507,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
  /* Handle the .gpvalue pseudo-op.  This is used when generating NewABI PIC
     code.  It sets the offset to use in gp_rel relocations.  */
  
-@@ -16996,6 +17825,9 @@ mips16_extended_frag (fragS *fragp, asec
+@@ -16996,6 +17828,9 @@ mips16_extended_frag (fragS *fragp, asec
      {
        mintiny = - (1 << (op->nbits - 1));
        maxtiny = (1 << (op->nbits - 1)) - 1;
@@ -1641,7 +1517,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
      }
  
    sym_frag = symbol_get_frag (fragp->fr_symbol);
-@@ -17203,7 +18035,7 @@ relaxed_branch_length (fragS *fragp, ase
+@@ -17203,7 +18038,7 @@ relaxed_branch_length (fragS *fragp, ase
  	{
  	  /* Additional space for PIC loading of target address.  */
  	  length += 8;
@@ -1650,7 +1526,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
  	    /* Additional space for $at-stabilizing nop.  */
  	    length += 4;
  	}
-@@ -17809,7 +18641,7 @@ md_convert_frag (bfd *abfd ATTRIBUTE_UNU
+@@ -17809,7 +18644,7 @@ md_convert_frag (bfd *abfd ATTRIBUTE_UNU
  	      md_number_to_chars ((char *) buf, insn, 4);
  	      buf += 4;
  
@@ -1659,24 +1535,25 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
  		{
  		  /* nop */
  		  md_number_to_chars ((char *) buf, 0, 4);
-@@ -18911,6 +19743,16 @@ static const struct mips_cpu_info mips_c
-   { "r2000",          0,			ISA_MIPS1,      CPU_R3000 },
-   { "r3900",          0,			ISA_MIPS1,      CPU_R3900 },
+@@ -18906,6 +19741,17 @@ static const struct mips_cpu_info mips_c
+   { "mips64",         MIPS_CPU_IS_ISA,		ISA_MIPS64,     CPU_MIPS64 },
+   { "mips64r2",       MIPS_CPU_IS_ISA,		ISA_MIPS64R2,   CPU_MIPS64R2 },
  
++
 +  /* RLX */
 +  // trying to set isa to mips1
-+  { "rlx4081",        0,      ISA_MIPS1,    CPU_RLX4081 },
-+  { "rlx4180",        0,      ISA_MIPS1,    CPU_RLX4180 },
-+  { "rlx4181",        0,      ISA_MIPS1,    CPU_RLX4181 },
-+  { "rlx4281",        0,      ISA_MIPS1,    CPU_RLX4281 },
-+  { "rlx5181",        0,      ISA_MIPS1,    CPU_RLX5181 },
-+  { "rlx5280",        0,      ISA_MIPS1,    CPU_RLX5280 },
-+  { "rlx5281",        0,      ISA_MIPS1,    CPU_RLX5281 },
++  { "rlx4081",        0,			ISA_MIPS1,    CPU_R3000 },
++  { "rlx4180",        0,			ISA_MIPS1,    CPU_R3000 },
++  { "rlx4181",        0,			ISA_MIPS1,    CPU_R3000 },
++  { "rlx4281",        0,			ISA_MIPS1,    CPU_R3000 },
++  { "rlx5181",        0,			ISA_MIPS1,    CPU_R3000 },
++  { "rlx5280",        0,			ISA_MIPS1,    CPU_R3000 },
++  { "rlx5281",        0,			ISA_MIPS1,    CPU_R3000 },
 +
-   /* MIPS II */
-   { "r6000",          0,			ISA_MIPS2,      CPU_R6000 },
- 
-@@ -19078,7 +19920,13 @@ mips_matching_cpu_name_p (const char *ca
+   /* MIPS I */
+   { "r3000",          0,			ISA_MIPS1,      CPU_R3000 },
+   { "r2000",          0,			ISA_MIPS1,      CPU_R3000 },
+@@ -19078,7 +19924,13 @@ mips_matching_cpu_name_p (const char *ca
    /* If not, try comparing based on numerical designation alone.
       See if GIVEN is an unadorned number, or 'r' followed by a number.  */
    if (TOLOWER (*given) == 'r')
@@ -1691,7 +1568,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
    if (!ISDIGIT (*given))
      return FALSE;
  
-@@ -19086,10 +19934,15 @@ mips_matching_cpu_name_p (const char *ca
+@@ -19086,10 +19938,15 @@ mips_matching_cpu_name_p (const char *ca
       hoping to find a number there too.  */
    if (TOLOWER (canonical[0]) == 'v' && TOLOWER (canonical[1]) == 'r')
      canonical += 2;
@@ -1710,7 +1587,7 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
  
    return mips_strict_matching_cpu_name_p (canonical, given);
  }
-@@ -19353,3 +20206,69 @@ tc_mips_regname_to_dw2regnum (char *regn
+@@ -19353,3 +20210,68 @@ tc_mips_regname_to_dw2regnum (char *regn
  
    return regnum;
  }
@@ -1734,11 +1611,10 @@ diff -rupN ./bu.orig/gas/config/tc-mips.c ./bu.new/gas/config/tc-mips.c
 +  regno2 = regno1 + 1;
 +
 +#warning "Fix this"
-+/*ololo
-+  if (insn_uses_reg(insn2, regno1, MIPS_GR_REG) || 
-+      insn_uses_reg(insn2, regno2, MIPS_GR_REG)) 
++  //if (insn_uses_reg(insn2, regno1, MIPS_GR_REG) || 
++  //    insn_uses_reg(insn2, regno2, MIPS_GR_REG)) 
 +    return 1;
-+*/
++
 +
 +  return 0;
 +} 
@@ -1811,7 +1687,7 @@ diff -rupN ./bu.orig/include/elf/mips.h ./bu.new/include/elf/mips.h
    RELOC_NUMBER (R_MIPS_JUMP_SLOT, 127)
 diff -rupN ./bu.orig/include/opcode/mips.h ./bu.new/include/opcode/mips.h
 --- a/include/opcode/mips.h	2011-08-09 18:20:03.000000000 +0300
-+++ b/include/opcode/mips.h	2013-09-26 21:45:55.694488685 +0300
++++ b/include/opcode/mips.h	2013-10-19 16:21:40.062836212 +0300
 @@ -59,6 +59,42 @@
  
     The general coprocessor instructions use COPZ.  */
@@ -2019,13 +1895,13 @@ diff -rupN ./bu.orig/include/opcode/mips.h ./bu.new/include/opcode/mips.h
  #define       ISA_MIPS64R2    INSN_ISA64R2
  
 +/* RLX ASE */
-+#define       ISA_RLX4081     INSN_RLX4081
-+#define       ISA_RLX4180     INSN_RLX4180
-+#define       ISA_RLX4181     INSN_RLX4181
-+#define       ISA_RLX4281     INSN_RLX4281
-+#define       ISA_RLX5181     INSN_RLX5181
-+#define       ISA_RLX5280     INSN_RLX5280
-+#define       ISA_RLX5281     INSN_RLX5281
++#define       ISA_RLX4081     INSN_ISA1
++#define       ISA_RLX4180     INSN_ISA1
++#define       ISA_RLX4181     INSN_ISA1
++#define       ISA_RLX4281     INSN_ISA1
++#define       ISA_RLX5181     INSN_ISA1
++#define       ISA_RLX5280     INSN_ISA1
++#define       ISA_RLX5281     INSN_ISA1
  
  /* CPU defines, use instead of hardcoding processor number. Keep this
     in sync with bfd/archures.c in order for machine selection to work.  */

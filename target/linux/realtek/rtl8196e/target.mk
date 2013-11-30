@@ -4,7 +4,7 @@
 
 SUBTARGET:=rtl8196e
 BOARDNAME:=rtl8196e based boards
-CFLAGS+=-march=rlx4181
+CFLAGS+=-march=mips1
 
 define Target/Description
 	Build firmware images for RTL8196E based routers

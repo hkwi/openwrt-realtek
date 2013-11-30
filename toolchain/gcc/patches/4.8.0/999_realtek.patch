@@ -1,0 +1,203 @@
+diff -rupN ./gcc.orig/gcc/config/mips/mips.c ./gcc.new/gcc/config/mips/mips.c
+--- a/gcc/config/mips/mips.c	2013-02-19 02:04:49.000000000 +0200
++++ b/gcc/config/mips/mips.c	2013-09-17 15:56:40.036229582 +0300
+@@ -1121,6 +1121,27 @@ static const struct mips_rtx_cost_data
+     COSTS_N_INSNS (68),           /* int_div_di */
+ 		     1,           /* branch_cost */
+ 		     4            /* memory_latency */
++  },
++  { /* RLX */
++    DEFAULT_COSTS
++  },
++  { /* RLX */
++    DEFAULT_COSTS
++  },
++  { /* RLX */
++    DEFAULT_COSTS
++  },
++  { /* RLX */
++    DEFAULT_COSTS
++  },
++  { /* RLX */
++    DEFAULT_COSTS
++  },
++  { /* RLX */
++    DEFAULT_COSTS
++  },
++  { /* RLX */
++    DEFAULT_COSTS
+   }
+ };
+ 
+@@ -12794,6 +12815,9 @@ mips_issue_rate (void)
+     case PROCESSOR_R9000:
+     case PROCESSOR_OCTEON:
+     case PROCESSOR_OCTEON2:
++    case PROCESSOR_RLX5280:
++    case PROCESSOR_RLX5281:
++    case PROCESSOR_RLX4281:
+       return 2;
+ 
+     case PROCESSOR_SB1:
+diff -rupN ./gcc.orig/gcc/config/mips/mips-cpus.def ./gcc.new/gcc/config/mips/mips-cpus.def
+--- a/gcc/config/mips/mips-cpus.def	2013-01-10 22:38:27.000000000 +0200
++++ b/gcc/config/mips/mips-cpus.def	2013-09-17 17:10:08.249807200 +0300
+@@ -52,6 +52,14 @@ MIPS_CPU ("mips64r2", PROCESSOR_5KC, 65,
+ MIPS_CPU ("r3000", PROCESSOR_R3000, 1, 0)
+ MIPS_CPU ("r2000", PROCESSOR_R3000, 1, 0)
+ MIPS_CPU ("r3900", PROCESSOR_R3900, 1, 0)
++MIPS_CPU ("rlx4081", PROCESSOR_RLX4081, 1, 0)
++MIPS_CPU ("rlx4180", PROCESSOR_RLX4180, 1, 0)
++MIPS_CPU ("rlx4181", PROCESSOR_RLX4181, 1, 0)
++MIPS_CPU ("rlx4281", PROCESSOR_RLX4281, 1, 0)
++MIPS_CPU ("rlx5181", PROCESSOR_RLX5181, 1, 0)
++MIPS_CPU ("rlx5280", PROCESSOR_RLX5280, 1, 0)
++MIPS_CPU ("rlx5281", PROCESSOR_RLX5281, 1, 0)
++
+ 
+ /* MIPS II processors.  */
+ MIPS_CPU ("r6000", PROCESSOR_R6000, 2, 0)
+diff -rupN ./gcc.orig/gcc/config/mips/mips.h ./gcc.new/gcc/config/mips/mips.h
+--- a/gcc/config/mips/mips.h	2013-01-10 22:38:27.000000000 +0200
++++ b/gcc/config/mips/mips.h	2013-09-17 16:38:07.036367401 +0300
+@@ -222,6 +222,32 @@ struct mips_cpu_info {
+ #define TARGET_SR71K                (mips_arch == PROCESSOR_SR71000)
+ #define TARGET_XLP                  (mips_arch == PROCESSOR_XLP)
+ 
++#define TARGET_RLX4081              (mips_arch == PROCESSOR_RLX4081)
++#define TARGET_RLX4180              (mips_arch == PROCESSOR_RLX4180)
++#define TARGET_RLX4181              (mips_arch == PROCESSOR_RLX4181)
++#define TARGET_RLX4281              (mips_arch == PROCESSOR_RLX4281)
++#define TARGET_RLX5181              (mips_arch == PROCESSOR_RLX5181)
++#define TARGET_RLX5280              (mips_arch == PROCESSOR_RLX5280)
++#define TARGET_RLX5281              (mips_arch == PROCESSOR_RLX5281)
++
++/* All RLX processor */
++#define TARGET_RLX                  (TARGET_RLX4081 || TARGET_RLX4180    \
++                                     || TARGET_RLX4181 || TARGET_RLX4281 || TARGET_RLX5181 \
++                                     || TARGET_RLX5280 || TARGET_RLX5281)
++
++/* RLX processor which supports Radiax instructions */
++#define TARGET_RLX_RAD              (TARGET_RLX5181 || TARGET_RLX5280 || TARGET_RLX5281)
++#define TARGET_RLX_NORAD            (TARGET_RLX && !TARGET_RLX_RAD)
++
++/* RLX processor which supprts gpr-interlocks */
++#define TARGET_RLX_INTERLOCK        (TARGET_RLX4281 || TARGET_RLX5280 || TARGET_RLX5281)
++#define TARGET_RLX_NO_INTERLOCK     (TARGET_RLX && !TARGET_RLX_INTERLOCK)
++
++#define TARGET_RLX1		    (TARGET_RLX4181 || TARGET_RLX4281 || TARGET_RLX5181 \
++                                     || TARGET_RLX5280 || TARGET_RLX5281)
++ 
++#define TARGET_TAROKO		    (TARGET_RLX4281 || TARGET_RLX5281)
++
+ /* Scheduling target defines.  */
+ #define TUNE_20KC		    (mips_tune == PROCESSOR_20KC)
+ #define TUNE_24K		    (mips_tune == PROCESSOR_24KC	\
+@@ -695,7 +721,7 @@ struct mips_cpu_info {
+ 
+ #define MIPS_ISA_LEVEL_SPEC \
+   "%{" MIPS_ISA_LEVEL_OPTION_SPEC ":;: \
+-     %{march=mips1|march=r2000|march=r3000|march=r3900:-mips1} \
++     %{march=mips1|march=r2000|march=r3000|march=r3900|march=rlx4081|march=rlx4180|march=rlx4181|march=rlx5181|march=rlx5280|march=rlx5281:-mips1} \
+      %{march=mips2|march=r6000:-mips2} \
+      %{march=mips3|march=r4*|march=vr4*|march=orion|march=loongson2*:-mips3} \
+      %{march=mips4|march=r8000|march=vr5*|march=rm7000|march=rm9000 \
+@@ -838,7 +864,14 @@ struct mips_cpu_info {
+ 
+ /* ISA has the integer conditional move instructions introduced in mips4 and
+    ST Loongson 2E/2F.  */
+-#define ISA_HAS_CONDMOVE        (ISA_HAS_FP_CONDMOVE || TARGET_LOONGSON_2EF)
++#define ISA_HAS_CONDMOVE        (ISA_HAS_FP_CONDMOVE \
++                                || TARGET_LOONGSON_2EF \
++                                 || ((TARGET_RLX5280     \
++                                      || TARGET_RLX5181  \
++                                      || TARGET_RLX5281  \
++                                      || TARGET_RLX4181  \
++                                      || TARGET_RLX4281) \
++                                     && !TARGET_MIPS16))
+ 
+ /* ISA has LDC1 and SDC1.  */
+ #define ISA_HAS_LDC1_SDC1	(!ISA_MIPS1 && !TARGET_MIPS16)
+@@ -1012,7 +1045,8 @@ struct mips_cpu_info {
+    and "addiu $4,$4,1".  */
+ #define ISA_HAS_LOAD_DELAY	(ISA_MIPS1				\
+ 				 && !TARGET_MIPS3900			\
+-				 && !TARGET_MIPS16)
++				 && !TARGET_MIPS16 			\
++				 && !TARGET_RLX_INTERLOCK)
+ 
+ /* Likewise mtc1 and mfc1.  */
+ #define ISA_HAS_XFER_DELAY	(mips_isa <= 3			\
+@@ -1039,7 +1073,8 @@ struct mips_cpu_info {
+ 				 || ISA_MIPS64				\
+ 				 || ISA_MIPS64R2			\
+ 				 || TARGET_MIPS5500			\
+-				 || TARGET_LOONGSON_2EF)
++				 || TARGET_LOONGSON_2EF			\
++				 || TARGET_RLX)
+ 
+ /* ISA includes synci, jr.hb and jalr.hb.  */
+ #define ISA_HAS_SYNCI ((ISA_MIPS32R2		\
+@@ -1047,7 +1082,8 @@ struct mips_cpu_info {
+ 		       && !TARGET_MIPS16)
+ 
+ /* ISA includes sync.  */
+-#define ISA_HAS_SYNC ((mips_isa >= 2 || TARGET_MIPS3900) && !TARGET_MIPS16)
++#define ISA_HAS_SYNC ((mips_isa >= 2 || TARGET_MIPS3900 || TARGET_TAROKO)	\
++		      && !TARGET_MIPS16)
+ #define GENERATE_SYNC			\
+   (target_flags_explicit & MASK_LLSC	\
+    ? TARGET_LLSC && !TARGET_MIPS16	\
+@@ -1056,7 +1092,7 @@ struct mips_cpu_info {
+ /* ISA includes ll and sc.  Note that this implies ISA_HAS_SYNC
+    because the expanders use both ISA_HAS_SYNC and ISA_HAS_LL_SC
+    instructions.  */
+-#define ISA_HAS_LL_SC (mips_isa >= 2 && !TARGET_MIPS16)
++#define ISA_HAS_LL_SC ((mips_isa >= 2 || TARGET_TAROKO) && !TARGET_MIPS16)
+ #define GENERATE_LL_SC			\
+   (target_flags_explicit & MASK_LLSC	\
+    ? TARGET_LLSC && !TARGET_MIPS16	\
+diff -rupN ./gcc.orig/gcc/config/mips/mips.md ./gcc.new/gcc/config/mips/mips.md
+--- a/gcc/config/mips/mips.md	2013-01-24 19:46:41.000000000 +0200
++++ b/gcc/config/mips/mips.md	2013-09-17 12:41:06.048912668 +0300
+@@ -64,6 +64,13 @@
+   sr71000
+   xlr
+   xlp
++  rlx4081
++  rlx4180
++  rlx4181
++  rlx4281
++  rlx5181
++  rlx5280
++  rlx5281
+ ])
+ 
+ (define_c_enum "unspec" [
+diff -rupN ./gcc.orig/gcc/config/mips/mips-tables.opt ./gcc.new/gcc/config/mips/mips-tables.opt
+--- a/gcc/config/mips/mips-tables.opt	2013-01-10 22:38:27.000000000 +0200
++++ b/gcc/config/mips/mips-tables.opt	2013-09-17 17:12:22.506481307 +0300
+@@ -624,3 +624,23 @@ Enum(mips_arch_opt_value) String(octeon2
+ EnumValue
+ Enum(mips_arch_opt_value) String(xlp) Value(85) Canonical
+ 
++EnumValue
++Enum(mips_arch_opt_value) String(rlx4081) Value(86) Canonical
++
++EnumValue
++Enum(mips_arch_opt_value) String(rlx4180) Value(87) Canonical
++
++EnumValue
++Enum(mips_arch_opt_value) String(rlx4181) Value(88) Canonical
++
++EnumValue
++Enum(mips_arch_opt_value) String(rlx4281) Value(89) Canonical
++
++EnumValue
++Enum(mips_arch_opt_value) String(rlx5181) Value(90) Canonical
++
++EnumValue
++Enum(mips_arch_opt_value) String(rlx5280) Value(91) Canonical
++
++EnumValue
++Enum(mips_arch_opt_value) String(rlx5281) Value(92) Canonical
