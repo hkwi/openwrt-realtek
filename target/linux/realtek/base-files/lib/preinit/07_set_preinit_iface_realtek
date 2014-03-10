@@ -1,0 +1,12 @@
+#!/bin/sh
+#
+# Copyright (C) 2014 OpenWrt.org
+#
+
+. /lib/realtek.sh
+
+realtek_set_preinit_iface() {
+	ifname=eth0
+}
+
+boot_hook_add preinit_main realtek_set_preinit_iface

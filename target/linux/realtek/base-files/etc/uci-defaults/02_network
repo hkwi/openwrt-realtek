@@ -1,0 +1,59 @@
+#!/bin/sh
+
+. /lib/functions.sh
+. /lib/realtek.sh
+. /lib/functions/uci-defaults.sh
+
+realtek_setup_interfaces()
+{
+	local board="$1"
+
+	ucidef_set_interface_loopback
+
+	case $board in
+	generic | \
+	nprove | \
+	nprove2)
+		ucidef_set_interfaces_lan_wan "eth0 eth2 eth3 eth4" "eth1"
+		;;
+
+	nprove3)
+		ucidef_set_interface_lan "eth0.1"
+		;;
+
+	*)
+		ucidef_set_interfaces_lan_wan "eth0" "eth1"
+		;;
+	esac
+}
+
+realtek_setup_macs()
+{
+	local board="$1"
+	local lan_mac=""
+	local wan_mac=""
+
+	case $board in
+	generic | \
+	nprove)
+		lan_mac=$(rtkmib --get mac0)
+		wan_mac=$(rtkmib --get mac1)
+		;;
+	esac
+
+	[ -n "$lan_mac" ] && ucidef_set_interface_macaddr lan $lan_mac
+	[ -n "$wan_mac" ] && ucidef_set_interface_macaddr wan $wan_mac
+}
+
+[ -e /etc/config/network ] && exit 0
+
+touch /etc/config/network
+
+board=$(realtek_board_name)
+
+realtek_setup_interfaces $board
+realtek_setup_macs $board
+
+uci commit network
+
+exit 0

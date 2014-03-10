@@ -1,0 +1,35 @@
+#
+# Copyright (C) 2014 OpenWrt.org
+#
+
+preinit_set_mac_address() {
+	local mac
+
+	. /lib/functions.sh
+	. /lib/realtek.sh
+
+	case $(realtek_board_name) in
+	generic |\
+	nprove |\
+	nprove2)
+		mac=$(rtkmib --get mac0)
+		ifconfig eth0 hw ether $mac 2>/dev/null
+		;;
+	sl-r7205)
+		mac=$(mtd_get_mac_binary factory 4)
+		mac=$(macaddr_setbit_la "$mac")
+		ifconfig eth0 hw ether $mac 2>/dev/null
+		;;
+	dir-645)
+		mac=$(mtd_get_mac_ascii nvram lanmac)
+		mac=$(macaddr_setbit_la "$mac")
+		ifconfig eth0 hw ether $mac 2>/dev/null
+		;;
+	xdxrn502j)
+		mac=$(mtd_get_mac_binary factory 40)
+		ifconfig eth0 hw ether $mac 2>/dev/null
+		;;
+	esac
+}
+
+boot_hook_add preinit_main preinit_set_mac_address
