@@ -304,7 +304,7 @@ detect_realtek() {
 config wifi-device wlan$devidx
 	option type	realtek
 	option channel  11
-	option macaddr	$(cat /sys/class/net/${dev}/address)
+	option macaddr	$(rtkmib --get wmac0)
 	#TODO: enable after realtek merge with hostapd
 	#option hwmode	11ng
 	option htmode	HT40-

@@ -279,6 +279,7 @@ hostapd_setup_vif() {
 	local vif="$1"
 	local driver="$2"
 	local ifname device channel hwmode
+	local calibration
 
 	hostapd_cfg=
 
@@ -316,6 +317,11 @@ hostapd_setup_vif() {
 
 		# enable Space-Time Block Coding for better throughput
 		append hostapd_cfg "stbc=1" "$N"
+
+		#TODO: make hostapd immune to invalid options
+		# just skip pwrlevel5G for now
+		calibration=$(rtkmib --get wcal | grep -v pwrlevel5G)
+		append hostapd_cfg "$calibration" "$N"
 	fi
 
 	case "$hwmode" in
