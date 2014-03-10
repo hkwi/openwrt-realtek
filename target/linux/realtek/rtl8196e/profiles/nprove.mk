@@ -15,7 +15,7 @@ define Profile/nprove
 		luci luci-app-diag-devinfo luci-app-p910nd luci-app-qos luci-app-wol \
 		librt libiw query3g maccalc libopenssl \
 		usb-modeswitch usb-modeswitch-data usbutils \
-		firewall mountd qos-scripts rtkmib
+		firewall mountd qos-scripts
 endef
 
 define Profile/nprove/Description

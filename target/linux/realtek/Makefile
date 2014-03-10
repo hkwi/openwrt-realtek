@@ -17,6 +17,6 @@ LINUX_VERSION:=2.6.30.9
 
 include $(INCLUDE_DIR)/target.mk
 DEFAULT_PACKAGES += librtk-inband hostapd-rtk wpa-supplicant-rtk kmod-gpio_rtl8196c \
-			wireless-tools
+			wireless-tools rtkmib
 
 $(eval $(call BuildTarget))
