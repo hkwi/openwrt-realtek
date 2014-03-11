@@ -1,0 +1,59 @@
+--- a/hostapd/driver_realtek.c	2014-03-12 00:25:49.638801019 +0200
++++ b/hostapd/driver_realtek.c	2014-03-12 00:27:12.958801997 +0200
+@@ -2538,43 +2538,24 @@
+ 
+ }
+ 
+-static int realtek_parse_pwrlevel(unsigned char* pwr_list, char *val)
++int realtek_parse_pwrlevel( unsigned char *dst, char *src )
+ {
+-	int count;
+-	char *pos, *end;
+-
+-	pos = val;
+-	count = 0;
+-	while (*pos != '\0') {
+-		if (*pos == ' ')
+-			count++;
+-		pos++;
++	char tmpbuf[4];
++	int len = strlen(src);
++	int bytes = 0;
++
++	while ( len > 0 ) {
++		memcpy( tmpbuf, src, 2 );
++		tmpbuf[2] = '\0';
++		*dst++ = (unsigned char)strtol( tmpbuf, NULL, 16 );
++		len -= 2;
++		src += 2;
++		bytes++;
+ 	}
+ 
+-	pos = val;
+-	count = 0;
+-
+-	while (*pos != '\0') {
+-		end = os_strchr(pos, ' ');
+-		if (end)
+-			*end = '\0';
+-
+-		pwr_list[count] = atoi(pos);
+-
+-		if (!end)
+-			break;
+-
+-		count ++;
+-		if(count >=MAX_2G_CHANNEL_NUM)
+-			break;
+-
+-		pos = end + 1;
+-	}
+-
+-	return 0;
++	return bytes;
+ }
+ 
+-
+ static int realtek_read_hapd_cfg(struct hostapd_data *hapd,void *priv, struct rtk_hapd_config* config)
+ {
+ 	struct realtek_driver_data *drv = priv;
