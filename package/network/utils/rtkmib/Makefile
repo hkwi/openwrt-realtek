@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=rtkmib
-PKG_VERSION:=f6e4b6dc
+PKG_VERSION:=e7483918
 PKG_RELEASE:=1
 
 PKG_SOURCE_MIRROR:=0
