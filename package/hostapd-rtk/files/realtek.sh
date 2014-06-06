@@ -272,6 +272,9 @@ enable_realtek() {
 			;;
 		esac
 		first=0
+
+		# enable client-to-client connections
+		iwpriv "$ifname" set_mib block_relay=0
 	done
 
 }
