@@ -12,7 +12,7 @@ PKG_VERSION:=3.9.0
 PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_URL:=http://kernel.org/pub/linux/utils/net/iproute2/
+PKG_SOURCE_URL:=https://www.kernel.org/pub/linux/utils/net/iproute2/
 PKG_MD5SUM:=b53376db94c8d66f9d540c69ed84f13b
 PKG_BUILD_PARALLEL:=1
 
