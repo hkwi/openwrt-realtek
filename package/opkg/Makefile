@@ -13,10 +13,11 @@ PKG_REV:=618
 PKG_VERSION:=$(PKG_REV)
 PKG_RELEASE:=3
 
-PKG_SOURCE_PROTO:=svn
+#PKG_SOURCE_PROTO:=svn
 PKG_SOURCE_VERSION:=$(PKG_REV)
 PKG_SOURCE_SUBDIR:=opkg-$(PKG_VERSION)
-PKG_SOURCE_URL:=http://opkg.googlecode.com/svn/trunk/
+#PKG_SOURCE_URL:=http://opkg.googlecode.com/svn/trunk/
+PKG_SOURCE_URL:=https://github.com/stgerrard008/OpenWRT-missing-file/raw/master/
 PKG_SOURCE:=$(PKG_SOURCE_SUBDIR).tar.gz
 PKG_FIXUP:=autoreconf
 PKG_REMOVE_FILES = autogen.sh aclocal.m4
