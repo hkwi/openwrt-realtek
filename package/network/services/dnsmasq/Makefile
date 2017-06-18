@@ -29,7 +29,7 @@ define Package/dnsmasq/Default
   SECTION:=net
   CATEGORY:=Base system
   TITLE:=A lightweight DNS and DHCP server
-  URL:=http://www.thekelleys.org.uk/dnsmasq/
+  URL:=http://www.thekelleys.org.uk/dnsmasq/archive/
 endef
 
 define Package/dnsmasq
