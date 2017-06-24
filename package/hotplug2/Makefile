@@ -12,10 +12,11 @@ PKG_REV:=201
 PKG_VERSION:=$(PKG_REV)
 PKG_RELEASE:=4
 
-PKG_SOURCE_PROTO:=svn
+#PKG_SOURCE_PROTO:=svn
 PKG_SOURCE_VERSION:=$(PKG_REV)
-PKG_SOURCE_SUBDIR:=hotplug2-$(PKG_VERSION)
-PKG_SOURCE_URL:=http://svn.nomi.cz/svn/isteve/hotplug2
+PKG_SOURCE_SUBDIR:=opkg-$(PKG_VERSION)
+#PKG_SOURCE_URL:=http://opkg.googlecode.com/svn/trunk/
+PKG_SOURCE_URL:=https://github.com/stgerrard008/OpenWRT-missing-file/raw/master/
 PKG_SOURCE:=$(PKG_SOURCE_SUBDIR).tar.gz
 PKG_MAINTAINER:=Felix Fietkau <nbd@openwrt.org>
 #PKG_SOURCE_URL:=http://isteve.bofh.cz/~isteve/hotplug2

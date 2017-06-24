@@ -12,7 +12,7 @@ PKG_VERSION:=2.66
 PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=http://thekelleys.org.uk/dnsmasq
+PKG_SOURCE_URL:=http://thekelleys.org.uk/dnsmasq/archive/
 PKG_MD5SUM:=c5eb8fb88847a5e9bf18db67c74efd47
 
 PKG_LICENSE:=GPLv2
@@ -29,7 +29,7 @@ define Package/dnsmasq/Default
   SECTION:=net
   CATEGORY:=Base system
   TITLE:=A lightweight DNS and DHCP server
-  URL:=http://www.thekelleys.org.uk/dnsmasq/
+  URL:=http://www.thekelleys.org.uk/dnsmasq/archive/
 endef
 
 define Package/dnsmasq
